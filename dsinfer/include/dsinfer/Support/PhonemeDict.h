@@ -102,7 +102,7 @@ namespace ds {
             const char *key() const {
                 return _key;
             }
-            const PhonemeList &value() const {
+            PhonemeList value() const {
                 return _value;
             }
 
