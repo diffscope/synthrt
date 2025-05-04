@@ -50,7 +50,7 @@ namespace ds {
             }
 
             inline bool operator==(const iterator &RHS) const noexcept {
-                return _data == RHS._data && _index == RHS._index;
+                return _index == RHS._index;
             }
 
             inline bool operator!=(const iterator &RHS) const noexcept {
@@ -71,10 +71,10 @@ namespace ds {
             return iterator(_data, 0);
         }
         iterator end() const noexcept {
-            return iterator(_data, _count);
+            return iterator(nullptr, _count);
         }
-        std::vector<std::string_view> vec() {
-            return std::vector<std::string_view>(begin(), end());
+        std::vector<const char *> vec() {
+            return std::vector<const char *>(begin(), end());
         }
 
     protected:
@@ -91,9 +91,63 @@ namespace ds {
     /// focuses on efficiency and memory usage.
     class DSINFER_EXPORT PhonemeDict {
     public:
-        using key_type = std::string_view;
+        class iterator;
+
+        class Value {
+        public:
+            Value() : _key(), _value() {
+            }
+            Value(const char *key, const PhonemeList &value) : _key(key), _value(value) {
+            }
+            const char *key() const {
+                return _key;
+            }
+            const PhonemeList &value() const {
+                return _value;
+            }
+
+        private:
+            const char *_key;
+            PhonemeList _value;
+        };
+
+        class ValueRef {
+        public:
+            ValueRef() : _buf(nullptr), _row(nullptr), _col(nullptr) {
+            }
+
+            DSINFER_EXPORT operator Value() const;
+
+            const char *key() const {
+                return operator Value().key();
+            }
+            PhonemeList value() const {
+                return operator Value().value();
+            }
+
+            DSINFER_EXPORT ValueRef &operator++();
+            DSINFER_EXPORT ValueRef &operator--();
+
+            DSINFER_EXPORT bool operator==(const ValueRef &RHS) const;
+            inline bool operator!=(const ValueRef &RHS) const {
+                return !(*this == RHS);
+            }
+
+        private:
+            ValueRef(const char *buf, const void *row, const void *col)
+                : _buf(buf), _row(row), _col(col) {
+            }
+            const char *_buf;
+            const void *_row, *_col;
+
+            friend class iterator;
+            friend class PhonemeDict;
+        };
+
+    public:
+        using key_type = const char *;
         using mapped_type = PhonemeList;
-        using value_type = std::pair<std::string_view, mapped_type>;
+        using value_type = Value;
         using size_type = size_t;
         using difference_type = ptrdiff_t;
         // using allocator_type = ??; // implementation detail, not exposed
@@ -109,49 +163,21 @@ namespace ds {
         bool load(const std::filesystem::path &path, std::error_code *ec);
 
     public:
-        class iterator;
-
-        class iterator_value_ref {
-        public:
-            iterator_value_ref() : _buf(nullptr), _row(nullptr), _col(nullptr) {
-            }
-
-            DSINFER_EXPORT operator std::pair<std::string_view, PhonemeList>() const;
-
-            DSINFER_EXPORT iterator_value_ref &operator++();
-            DSINFER_EXPORT iterator_value_ref &operator--();
-
-            DSINFER_EXPORT bool operator==(const iterator_value_ref &RHS) const;
-            inline bool operator!=(const iterator_value_ref &RHS) const {
-                return !(*this == RHS);
-            }
-
-        private:
-            iterator_value_ref(const char *buf, const void *row, const void *col)
-                : _buf(buf), _row(row), _col(col) {
-            }
-            const char *_buf;
-            const void *_row, *_col;
-
-            friend class iterator;
-            friend class PhonemeDict;
-        };
-
         class iterator {
         public:
             using iterator_category = std::bidirectional_iterator_tag;
             using value_type = PhonemeDict::value_type;
             using difference_type = ptrdiff_t;
-            using pointer = iterator_value_ref *;
-            using reference = iterator_value_ref &;
+            using pointer = ValueRef *;
+            using reference = ValueRef &;
 
             iterator() = default;
 
         public:
-            inline reference operator*() {
+            inline reference operator*() const {
                 return _ref;
             }
-            inline pointer operator->() {
+            inline pointer operator->() const {
                 return &_ref;
             }
             inline iterator &operator++() {
@@ -180,10 +206,10 @@ namespace ds {
             }
 
         private:
-            iterator(iterator_value_ref ref) : _ref(ref) {
+            iterator(ValueRef ref) : _ref(ref) {
             }
 
-            iterator_value_ref _ref;
+            mutable ValueRef _ref;
 
             friend class PhonemeDict;
         };

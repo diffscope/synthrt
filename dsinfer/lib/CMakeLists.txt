@@ -10,7 +10,8 @@ add_library(${PROJECT_NAME} ${_type} ${_src})
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE DSINFER_LIBRARY)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE synthrt sparsepp)
+target_link_libraries(${PROJECT_NAME} PUBLIC synthrt)
+target_link_libraries(${PROJECT_NAME} PRIVATE sparsepp)
 
 target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>)
 

@@ -131,17 +131,19 @@ namespace ds {
         return true;
     }
 
-    PhonemeDict::iterator_value_ref::operator std::pair<std::string_view, PhonemeList>() const {
+    PhonemeDict::ValueRef::operator PhonemeDict::Value() const {
         auto it = decltype(Impl::map)::const_iterator();
         it.row_current = (decltype(it.row_current)) const_cast<void *>(_row);
         it.col_current = (decltype(it.col_current)) const_cast<void *>(_col);
 
-        std::string_view key(it->first);
+        const char *key = it->first;
         PhonemeList value(_buf + it->second.offset, it->second.count);
+        auto off = it->second.offset;
+        auto cnt = it->second.count;
         return {key, value};
     }
 
-    PhonemeDict::iterator_value_ref &PhonemeDict::iterator_value_ref::operator++() {
+    PhonemeDict::ValueRef &PhonemeDict::ValueRef::operator++() {
         auto it = decltype(Impl::map)::const_iterator();
         it.row_current = (decltype(it.row_current)) _row;
         it.col_current = (decltype(it.col_current)) _col;
@@ -151,7 +153,7 @@ namespace ds {
         return *this;
     }
 
-    PhonemeDict::iterator_value_ref &PhonemeDict::iterator_value_ref::operator--() {
+    PhonemeDict::ValueRef &PhonemeDict::ValueRef::operator--() {
         auto it = decltype(Impl::map)::const_iterator();
         it.row_current = (decltype(it.row_current)) _row;
         it.col_current = (decltype(it.col_current)) _col;
@@ -161,7 +163,7 @@ namespace ds {
         return *this;
     }
 
-    bool PhonemeDict::iterator_value_ref::operator==(const iterator_value_ref &RHS) const {
+    bool PhonemeDict::ValueRef::operator==(const ValueRef &RHS) const {
         auto it = decltype(Impl::map)::const_iterator();
         it.row_current = (decltype(it.row_current)) _row;
         it.col_current = (decltype(it.col_current)) _col;
@@ -180,7 +182,7 @@ namespace ds {
         if (it == map.end()) {
             return end();
         }
-        iterator_value_ref ref(impl.filebuf.data(), it.row_current, it.col_current);
+        ValueRef ref(impl.filebuf.data(), it.row_current, it.col_current);
         return ref;
     }
 
@@ -194,10 +196,10 @@ namespace ds {
         return impl.map.size();
     }
 
-    bool PhonemeDict::contains(const char *key) const{
+    bool PhonemeDict::contains(const char *key) const {
         __stdc_impl_t;
         auto &map = impl.map;
-        return map.find(const_cast<char *>(key))!= map.end();
+        return map.find(const_cast<char *>(key)) != map.end();
     }
 
     PhonemeList PhonemeDict::operator[](const char *key) const {
@@ -213,14 +215,14 @@ namespace ds {
     PhonemeDict::iterator PhonemeDict::begin() const {
         __stdc_impl_t;
         auto it = impl.map.begin();
-        iterator_value_ref ref(impl.filebuf.data(), it.row_current, it.col_current);
+        ValueRef ref(impl.filebuf.data(), it.row_current, it.col_current);
         return ref;
     }
 
     PhonemeDict::iterator PhonemeDict::end() const {
         __stdc_impl_t;
         auto it = impl.map.end();
-        iterator_value_ref ref(impl.filebuf.data(), it.row_current, it.col_current);
+        ValueRef ref(impl.filebuf.data(), it.row_current, it.col_current);
         return ref;
     }
 
