@@ -44,8 +44,8 @@ int main(int /*argc*/, char * /*argv*/[]) {
     {
         int i = 0;
         for (const auto &pair : std::as_const(dicts[0])) {
-            stdc::u8print("%1: ", pair.key());
-            for (auto &item : pair.value()) {
+            stdc::u8print("%1: ", pair.first);
+            for (auto &item : pair.second) {
                 stdc::u8print("%1 ", item);
             }
             stdc::u8println();
@@ -63,8 +63,8 @@ int main(int /*argc*/, char * /*argv*/[]) {
         int i = 0;
         for (auto it = dicts[0].rbegin(); it != dicts[0].rend(); ++it) {
             auto &pair = *it;
-            stdc::u8print("%1: ", pair.key());
-            for (auto &item : pair.value()) {
+            stdc::u8print("%1: ", pair.first);
+            for (auto &item : pair.second) {
                 stdc::u8print("%1 ", item);
             }
             stdc::u8println();

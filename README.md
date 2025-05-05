@@ -4,3 +4,4 @@
 
 - stdcorelib
 - sparsepp
+- nlohmann_json

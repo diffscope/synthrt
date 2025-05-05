@@ -7,6 +7,11 @@
 
 namespace ds {
 
+    /*!
+        \class PhonemeList
+        \brief PhonemeList represents a sequence of phonemes.
+    */
+
     struct const_char_hash {
     public:
         size_t operator()(const char *key) const noexcept {
@@ -23,6 +28,14 @@ namespace ds {
         std::vector<char> filebuf;
         spp::sparse_hash_map<char *, Entry, const_char_hash> map;
     };
+
+    /*!
+        \class PhonemeDict
+        \brief Phoneme dictionary class.
+
+        PhonemeDict is a constant container that maps phoneme name to a sequence of phonemes, which
+        focuses on efficiency and memory usage.
+    */
 
     PhonemeDict::PhonemeDict() : _impl(std::make_shared<Impl>()) {
     }
@@ -131,39 +144,41 @@ namespace ds {
         return true;
     }
 
-    PhonemeDict::ValueRef::operator PhonemeDict::Value() const {
+    void PhonemeDict::iterator::fetch() const {
+        if (_copy) {
+            return;
+        }
         auto it = decltype(Impl::map)::const_iterator();
         it.row_current = (decltype(it.row_current)) const_cast<void *>(_row);
         it.col_current = (decltype(it.col_current)) const_cast<void *>(_col);
 
         const char *key = it->first;
         PhonemeList value(_buf + it->second.offset, it->second.count);
-        auto off = it->second.offset;
-        auto cnt = it->second.count;
-        return {key, value};
+
+        _copy = std::make_pair(key, value);
     }
 
-    PhonemeDict::ValueRef &PhonemeDict::ValueRef::operator++() {
+    void PhonemeDict::iterator::next() {
         auto it = decltype(Impl::map)::const_iterator();
         it.row_current = (decltype(it.row_current)) _row;
         it.col_current = (decltype(it.col_current)) _col;
         ++it;
         _row = it.row_current;
         _col = it.col_current;
-        return *this;
+        _copy.reset();
     }
 
-    PhonemeDict::ValueRef &PhonemeDict::ValueRef::operator--() {
+    void PhonemeDict::iterator::prev() {
         auto it = decltype(Impl::map)::const_iterator();
         it.row_current = (decltype(it.row_current)) _row;
         it.col_current = (decltype(it.col_current)) _col;
         --it;
         _row = it.row_current;
         _col = it.col_current;
-        return *this;
+        _copy.reset();
     }
 
-    bool PhonemeDict::ValueRef::operator==(const ValueRef &RHS) const {
+    bool PhonemeDict::iterator::equals(const iterator &RHS) const {
         auto it = decltype(Impl::map)::const_iterator();
         it.row_current = (decltype(it.row_current)) _row;
         it.col_current = (decltype(it.col_current)) _col;
@@ -182,8 +197,7 @@ namespace ds {
         if (it == map.end()) {
             return end();
         }
-        ValueRef ref(impl.filebuf.data(), it.row_current, it.col_current);
-        return ref;
+        return iterator(impl.filebuf.data(), it.row_current, it.col_current);
     }
 
     bool PhonemeDict::empty() const {
@@ -215,15 +229,13 @@ namespace ds {
     PhonemeDict::iterator PhonemeDict::begin() const {
         __stdc_impl_t;
         auto it = impl.map.begin();
-        ValueRef ref(impl.filebuf.data(), it.row_current, it.col_current);
-        return ref;
+        return iterator(impl.filebuf.data(), it.row_current, it.col_current);
     }
 
     PhonemeDict::iterator PhonemeDict::end() const {
         __stdc_impl_t;
         auto it = impl.map.end();
-        ValueRef ref(impl.filebuf.data(), it.row_current, it.col_current);
-        return ref;
+        return iterator(impl.filebuf.data(), it.row_current, it.col_current);
     }
 
 }

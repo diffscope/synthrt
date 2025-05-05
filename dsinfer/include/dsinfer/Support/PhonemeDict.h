@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <system_error>
 #include <cstring>
+#include <optional>
 
 #include <stdcorelib/stlextra/iterator.h>
 #include <dsinfer/dsinfer_global.h>
@@ -15,7 +16,7 @@ namespace ds {
 
     class PhonemeList {
     public:
-        PhonemeList() noexcept : _data(nullptr), _count(0) {
+        inline PhonemeList() noexcept : _data(nullptr), _count(0) {
         }
 
         class iterator {
@@ -28,31 +29,25 @@ namespace ds {
 
             inline iterator() noexcept : _data(nullptr), _index(0) {
             }
-
             inline reference operator*() const noexcept {
                 return _data;
             }
-
             inline pointer operator->() const noexcept {
                 return &_data;
             }
-
             inline iterator &operator++() {
                 _data += std::strlen(_data) + 1; // move to next word
                 ++_index;
                 return *this;
             }
-
             inline iterator operator++(int) {
                 auto tmp = *this;
                 ++*this;
                 return tmp;
             }
-
             inline bool operator==(const iterator &RHS) const noexcept {
                 return _index == RHS._index;
             }
-
             inline bool operator!=(const iterator &RHS) const noexcept {
                 return !(*this == RHS);
             }
@@ -60,7 +55,6 @@ namespace ds {
         private:
             inline iterator(const char *key, int index) noexcept : _data(key), _index(index) {
             }
-
             const char *_data;
             int _index;
 
@@ -87,67 +81,11 @@ namespace ds {
         friend class PhonemeDict;
     };
 
-    /// PhonemeDict is a constant container that maps phoneme name to a list of phonemes, which
-    /// focuses on efficiency and memory usage.
     class DSINFER_EXPORT PhonemeDict {
-    public:
-        class iterator;
-
-        class Value {
-        public:
-            Value() : _key(), _value() {
-            }
-            Value(const char *key, const PhonemeList &value) : _key(key), _value(value) {
-            }
-            const char *key() const {
-                return _key;
-            }
-            PhonemeList value() const {
-                return _value;
-            }
-
-        private:
-            const char *_key;
-            PhonemeList _value;
-        };
-
-        class ValueRef {
-        public:
-            ValueRef() : _buf(nullptr), _row(nullptr), _col(nullptr) {
-            }
-
-            DSINFER_EXPORT operator Value() const;
-
-            const char *key() const {
-                return operator Value().key();
-            }
-            PhonemeList value() const {
-                return operator Value().value();
-            }
-
-            DSINFER_EXPORT ValueRef &operator++();
-            DSINFER_EXPORT ValueRef &operator--();
-
-            DSINFER_EXPORT bool operator==(const ValueRef &RHS) const;
-            inline bool operator!=(const ValueRef &RHS) const {
-                return !(*this == RHS);
-            }
-
-        private:
-            ValueRef(const char *buf, const void *row, const void *col)
-                : _buf(buf), _row(row), _col(col) {
-            }
-            const char *_buf;
-            const void *_row, *_col;
-
-            friend class iterator;
-            friend class PhonemeDict;
-        };
-
     public:
         using key_type = const char *;
         using mapped_type = PhonemeList;
-        using value_type = Value;
+        using value_type = std::pair<const char *, PhonemeList>;
         using size_type = size_t;
         using difference_type = ptrdiff_t;
         // using allocator_type = ??; // implementation detail, not exposed
@@ -168,20 +106,23 @@ namespace ds {
             using iterator_category = std::bidirectional_iterator_tag;
             using value_type = PhonemeDict::value_type;
             using difference_type = ptrdiff_t;
-            using pointer = ValueRef *;
-            using reference = ValueRef &;
+            using pointer = const value_type *;
+            using reference = const value_type &;
 
-            iterator() = default;
+            inline iterator() : _buf(nullptr), _row(nullptr), _col(nullptr) {
+            }
 
         public:
             inline reference operator*() const {
-                return _ref;
+                fetch();
+                return _copy.value();
             }
             inline pointer operator->() const {
-                return &_ref;
+                fetch();
+                return &_copy.value();
             }
             inline iterator &operator++() {
-                ++_ref;
+                next();
                 return *this;
             }
             inline iterator operator++(int) {
@@ -190,7 +131,7 @@ namespace ds {
                 return tmp;
             }
             inline iterator &operator--() {
-                --_ref;
+                prev();
                 return *this;
             }
             inline iterator operator--(int) {
@@ -198,18 +139,26 @@ namespace ds {
                 --*this;
                 return tmp;
             }
-            bool operator==(const iterator &RHS) const {
-                return _ref == RHS._ref;
+            inline bool operator==(const iterator &RHS) const {
+                return equals(RHS);
             }
-            bool operator!=(const iterator &RHS) const {
+            inline bool operator!=(const iterator &RHS) const {
                 return !(*this == RHS);
             }
 
         private:
-            iterator(ValueRef ref) : _ref(ref) {
+            inline iterator(const char *buf, const void *row, const void *col)
+                : _buf(buf), _row(row), _col(col) {
             }
 
-            mutable ValueRef _ref;
+            DSINFER_EXPORT void fetch() const;
+            DSINFER_EXPORT void next();
+            DSINFER_EXPORT void prev();
+            DSINFER_EXPORT bool equals(const iterator &RHS) const;
+
+            const char *_buf;
+            const void *_row, *_col;
+            mutable std::optional<std::pair<const char *, PhonemeList>> _copy;
 
             friend class PhonemeDict;
         };

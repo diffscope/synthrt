@@ -22,3 +22,6 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ../include/synthrt/Support
     ../include/synthrt/Synth
 )
+
+find_package(nlohmann_json CONFIG REQUIRED)
+target_link_libraries(${PROJECT_NAME} PRIVATE nlohmann_json::nlohmann_json)
