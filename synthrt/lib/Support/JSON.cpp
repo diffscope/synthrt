@@ -30,7 +30,7 @@ namespace {
     class proxy_vector {
     public:
         using _Vec = std::vector<T, _Mods...>;
-        using _Buf = std::vector<JsonValue>;
+        using _Buf = JsonArray;
 
         _Buf buf;
 
@@ -247,7 +247,7 @@ namespace {
     class proxy_map {
     public:
         using _Map = std::map<Key, T, _Mods...>;
-        using _Buf = std::map<std::string, JsonValue>;
+        using _Buf = JsonObject;
 
         _Buf buf;
 

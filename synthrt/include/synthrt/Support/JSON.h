@@ -21,6 +21,8 @@ namespace srt {
 
     class JsonValueContainer;
 
+    /// JsonValue - Encapsulates the \c nlohmann_json library to provide a refined and unified
+    /// interface for JSON operations.
     class SYNTHRT_EXPORT JsonValue {
     public:
         enum Type {
@@ -96,17 +98,17 @@ namespace srt {
         int64_t toInt(int64_t defaultValue = 0) const;
         uint64_t toUInt(uint64_t defaultValue = 0) const;
         std::string_view toString(std::string_view defaultValue = {}) const;
-        inline std::string toString(std::string &&defaultValue = {}) const {
+        inline std::string toString(std::string &&defaultValue) const {
             return std::string(toString(defaultValue));
         }
         stdc::array_view<uint8_t> toBinary(stdc::array_view<uint8_t> defaultValue = {}) const;
         const JsonArray &toArray() const;
-        const JsonArray &toArray(const JsonArray &defaultValue) const;
+        const JsonArray &toArray(const JsonArray &defaultValue = {}) const;
         inline JsonArray toArray(JsonArray &&defaultValue) {
             return toArray(defaultValue);
         }
         const JsonObject &toObject() const;
-        const JsonObject &toObject(const JsonObject &defaultValue) const;
+        const JsonObject &toObject(const JsonObject &defaultValue = {}) const;
         inline JsonObject toObject(JsonObject &&defaultValue) {
             return toObject(defaultValue);
         }
@@ -120,7 +122,16 @@ namespace srt {
         }
 
     public:
+        /// Returns the serialized JSON text of this value.
+        ///
+        /// \param indent The number of spaces to indent the JSON text. If negative, no indentation
+        /// is performed.
         std::string toJson(int indent = -1) const;
+
+        /// Returns the serialized JsonValue instance of the given JSON text.
+        ///
+        /// \param ignoreComments Whether comments should be ignored and treated like whitespace
+        /// (true) or yield a parse error (false)
         static JsonValue fromJson(std::string_view json, bool ignoreComments,
                                   std::string *error = nullptr);
 

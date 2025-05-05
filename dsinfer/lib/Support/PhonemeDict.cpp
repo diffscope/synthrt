@@ -7,11 +7,6 @@
 
 namespace ds {
 
-    /*!
-        \class PhonemeList
-        \brief PhonemeList represents a sequence of phonemes.
-    */
-
     struct const_char_hash {
     public:
         size_t operator()(const char *key) const noexcept {
@@ -28,14 +23,6 @@ namespace ds {
         std::vector<char> filebuf;
         spp::sparse_hash_map<char *, Entry, const_char_hash> map;
     };
-
-    /*!
-        \class PhonemeDict
-        \brief Phoneme dictionary class.
-
-        PhonemeDict is a constant container that maps phoneme name to a sequence of phonemes, which
-        focuses on efficiency and memory usage.
-    */
 
     PhonemeDict::PhonemeDict() : _impl(std::make_shared<Impl>()) {
     }
@@ -200,16 +187,6 @@ namespace ds {
         return iterator(impl.filebuf.data(), it.row_current, it.col_current);
     }
 
-    bool PhonemeDict::empty() const {
-        __stdc_impl_t;
-        return impl.map.empty();
-    }
-
-    size_t PhonemeDict::size() const {
-        __stdc_impl_t;
-        return impl.map.size();
-    }
-
     bool PhonemeDict::contains(const char *key) const {
         __stdc_impl_t;
         auto &map = impl.map;
@@ -224,6 +201,16 @@ namespace ds {
             return PhonemeList();
         }
         return PhonemeList(impl.filebuf.data() + it->second.offset, it->second.count);
+    }
+
+    bool PhonemeDict::empty() const {
+        __stdc_impl_t;
+        return impl.map.empty();
+    }
+
+    size_t PhonemeDict::size() const {
+        __stdc_impl_t;
+        return impl.map.size();
     }
 
     PhonemeDict::iterator PhonemeDict::begin() const {

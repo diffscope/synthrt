@@ -14,6 +14,8 @@ namespace ds {
 
     class PhonemeDict;
 
+    /// PhonemeList stores a sequence of phonemes where each element is a null-terminated C-string.
+    /// The sequence maintains contiguous memory storage of the original input format.
     class PhonemeList {
     public:
         inline PhonemeList() noexcept : _data(nullptr), _count(0) {
@@ -81,6 +83,8 @@ namespace ds {
         friend class PhonemeDict;
     };
 
+    /// PhonemeDict is a constant container that maps phoneme name to a sequence of phonemes, which
+    /// focuses on efficiency and memory usage.
     class DSINFER_EXPORT PhonemeDict {
     public:
         using key_type = const char *;
@@ -98,6 +102,13 @@ namespace ds {
         PhonemeDict();
         ~PhonemeDict();
 
+        /// Loads a pronunciation lexicon into a memory-mapped hash table.
+        ///
+        /// Reads a text file where each line contains:
+        ///     \c [WORD]\t[PHONEME_SEQUENCE]
+        /// The phoneme sequence is a space-separated list of strings.
+        ///
+        /// Example line : "HELLO\tHH AH L OW\n"
         bool load(const std::filesystem::path &path, std::error_code *ec);
 
     public:
@@ -165,11 +176,13 @@ namespace ds {
 
         using reverse_iterator = stdc::reverse_iterator<iterator>;
 
-        iterator find(const char *key) const; // only accept null-terminated string
-        bool empty() const;
-        size_t size() const;
+        /// \note The key must be a null-terminated string.
+        iterator find(const char *key) const;
         bool contains(const char *key) const;
         PhonemeList operator[](const char *key) const;
+
+        bool empty() const;
+        size_t size() const;
 
         iterator begin() const;
         iterator end() const;
