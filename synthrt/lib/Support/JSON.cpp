@@ -794,24 +794,43 @@ namespace srt {
         JV::destruct(*this);
     }
 
-    JsonValue::JsonValue(const JsonValue &RHS) {
+    JsonValue::JsonValue(const JsonValue &RHS)
+#ifdef SYNTHRT_JSON_IN_PLACE
+    {
         JV::construct(*this, RHS);
     }
+#else
+        = default;
+#endif
 
-    JsonValue::JsonValue(JsonValue &&RHS) noexcept {
+    JsonValue::JsonValue(JsonValue &&RHS) noexcept
+#ifdef SYNTHRT_JSON_IN_PLACE
+    {
         JV::construct(*this, std::move(RHS));
     }
+#else
+        = default;
+#endif
 
-    JsonValue &JsonValue::operator=(const JsonValue &RHS) {
+    JsonValue &JsonValue::operator=(const JsonValue &RHS)
+#ifdef SYNTHRT_JSON_IN_PLACE
+    {
         if (this != &RHS) {
             JV::unpack(*this) = JV::unpack(RHS);
         }
         return *this;
     }
+#else
+        = default;
+#endif
 
     void JsonValue::swap(JsonValue &RHS) noexcept {
         if (this != &RHS) {
+#ifdef SYNTHRT_JSON_IN_PLACE
             JV::unpack(*this).swap(JV::unpack(RHS));
+#else
+            c.swap(RHS.c);
+#endif
         }
     }
 
@@ -900,7 +919,14 @@ namespace srt {
         }
         return defaultValue;
     }
-    std::string_view JsonValue::toString(std::string_view defaultValue) const {
+    std::string_view JsonValue::toStringView(std::string_view defaultValue) const {
+        auto &json = JV::unpack(*this);
+        if (json.is_string()) {
+            return json.get_ref<const std::string &>();
+        }
+        return defaultValue;
+    }
+    const std::string &JsonValue::toString(const std::string &defaultValue) const {
         auto &json = JV::unpack(*this);
         if (json.is_string()) {
             return json.get_ref<const std::string &>();

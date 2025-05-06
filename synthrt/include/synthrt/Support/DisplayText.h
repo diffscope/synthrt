@@ -15,11 +15,11 @@ namespace srt {
         DisplayText();
 
         /// Constructs with a default text.
-        DisplayText(const std::string_view &text);
+        DisplayText(std::string_view text);
 
         /// Constructs with a default text and a map, where the key is the locale code and the value
         /// is the corresponding text.
-        DisplayText(std::string_view defaultText, std::map<std::string, std::string> texts);
+        DisplayText(std::string_view defaultText, const std::map<std::string, std::string> &texts);
 
         /// Constructs with a JSON value.
         /// \note The JSON value must be a string-mapping object, with the key being the locale code
@@ -30,7 +30,7 @@ namespace srt {
 
         ~DisplayText();
 
-        DisplayText &operator=(const std::string &text);
+        DisplayText &operator=(std::string_view text);
         DisplayText &operator=(const JsonValue &value);
 
         inline void swap(DisplayText &RHS) noexcept {
@@ -38,8 +38,8 @@ namespace srt {
         }
 
     public:
-        std::string_view text() const;
-        std::string_view text(const std::string &locale) const;
+        const std::string &text() const;
+        const std::string &text(std::string_view locale) const;
 
         bool isEmpty() const;
 

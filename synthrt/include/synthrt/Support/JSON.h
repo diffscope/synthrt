@@ -9,6 +9,7 @@
 #include <memory>
 
 #include <stdcorelib/adt/array_view.h>
+
 #include <synthrt/synthrt_global.h>
 
 namespace srt {
@@ -97,18 +98,16 @@ namespace srt {
         double toDouble(double defaultValue = 0) const;
         int64_t toInt(int64_t defaultValue = 0) const;
         uint64_t toUInt(uint64_t defaultValue = 0) const;
-        std::string_view toString(std::string_view defaultValue = {}) const;
-        inline std::string toString(std::string &&defaultValue) const {
-            return std::string(toString(defaultValue));
-        }
+        std::string_view toStringView(std::string_view defaultValue = {}) const;
+        const std::string &toString(const std::string &defaultValue = {}) const;
         stdc::array_view<uint8_t> toBinary(stdc::array_view<uint8_t> defaultValue = {}) const;
         const JsonArray &toArray() const;
-        const JsonArray &toArray(const JsonArray &defaultValue = {}) const;
+        const JsonArray &toArray(const JsonArray &defaultValue) const;
         inline JsonArray toArray(JsonArray &&defaultValue) {
             return toArray(defaultValue);
         }
         const JsonObject &toObject() const;
-        const JsonObject &toObject(const JsonObject &defaultValue = {}) const;
+        const JsonObject &toObject(const JsonObject &defaultValue) const;
         inline JsonObject toObject(JsonObject &&defaultValue) {
             return toObject(defaultValue);
         }
