@@ -933,11 +933,22 @@ namespace srt {
         }
         return defaultValue;
     }
-    stdc::array_view<uint8_t> JsonValue::toBinary(stdc::array_view<uint8_t> defaultValue) const {
+    stdc::array_view<uint8_t>
+        JsonValue::toBinaryView(stdc::array_view<uint8_t> defaultValue) const {
         auto &json = JV::unpack(*this);
         if (json.is_binary()) {
             auto &bin = json.get_binary();
             return stdc::array_view<uint8_t>(bin.data(), bin.size());
+        }
+        return defaultValue;
+    }
+
+    const std::vector<uint8_t> &
+        JsonValue::toBinary(const std::vector<uint8_t> &defaultValue) const {
+        auto &json = JV::unpack(*this);
+        if (json.is_binary()) {
+            auto &bin = json.get_binary();
+            return bin;
         }
         return defaultValue;
     }

@@ -1,9 +1,9 @@
 #ifndef SYNTHRT_PLUGINFACTORY_P_H
 #define SYNTHRT_PLUGINFACTORY_P_H
 
-#include <shared_mutex>
-#include <unordered_map>
+#include <map>
 #include <unordered_set>
+#include <shared_mutex>
 
 #include <stdcorelib/support/sharedlibrary.h>
 
@@ -22,13 +22,12 @@ namespace srt {
     public:
         void scanPlugins(const char *iid) const;
 
-        std::unordered_map<std::string, std::vector<std::filesystem::path>> pluginPaths;
+        std::map<std::string, std::vector<std::filesystem::path>, std::less<>> pluginPaths;
         std::unordered_set<Plugin *> staticPlugins;
-        mutable std::unordered_map<std::filesystem::path::string_type, stdc::SharedLibrary *>
+        mutable std::map<std::filesystem::path::string_type, stdc::SharedLibrary *, std::less<>>
             libraryInstances;
         mutable std::unordered_set<std::string> pluginsDirty;
-        mutable std::unordered_map<std::string, std::unordered_map<std::string, Plugin *>>
-            allPlugins;
+        mutable std::map<std::string, std::map<std::string, Plugin *>, std::less<>> allPlugins;
         mutable std::shared_mutex plugins_mtx;
     };
 

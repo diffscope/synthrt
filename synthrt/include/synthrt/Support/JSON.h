@@ -44,6 +44,8 @@ namespace srt {
         JsonValue(double d);
         inline JsonValue(int i) : JsonValue(int64_t(i)) {
         }
+        inline JsonValue(uint32_t i) : JsonValue(uint64_t(i)) {
+        }
         JsonValue(int64_t i);
         JsonValue(uint64_t u);
         JsonValue(std::string_view s);
@@ -100,7 +102,8 @@ namespace srt {
         uint64_t toUInt(uint64_t defaultValue = 0) const;
         std::string_view toStringView(std::string_view defaultValue = {}) const;
         const std::string &toString(const std::string &defaultValue = {}) const;
-        stdc::array_view<uint8_t> toBinary(stdc::array_view<uint8_t> defaultValue = {}) const;
+        stdc::array_view<uint8_t> toBinaryView(stdc::array_view<uint8_t> defaultValue = {}) const;
+        const std::vector<uint8_t> &toBinary(const std::vector<uint8_t> &defaultValue = {}) const;
         const JsonArray &toArray() const;
         const JsonArray &toArray(const JsonArray &defaultValue) const;
         inline JsonArray toArray(JsonArray &&defaultValue) {
