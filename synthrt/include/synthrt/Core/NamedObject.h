@@ -22,6 +22,9 @@ namespace srt {
         const std::string &objectName() const;
         void setObjectName(const std::string &name);
 
+        const std::any &property(std::string_view name) const;
+        void setProperty(std::string_view name, const std::any &value);
+
     protected:
         class Impl;
         std::unique_ptr<Impl> _impl;
@@ -47,52 +50,31 @@ namespace srt {
         }
     };
 
-    class SYNTHRT_EXPORT Object : public NamedObject {
-    public:
-        explicit Object(Object *parent = nullptr);
-        explicit Object(const std::string &name, Object *parent = nullptr);
-        ~Object();
-
-        const std::any &property(std::string_view name) const;
-        void setProperty(std::string_view name, const std::any &value);
-
-        Object *parent() const;
-        void setParent(Object *parent);
-
-    protected:
-        class Impl;
-        explicit Object(Impl &impl);
-    };
-
-    class SYNTHRT_EXPORT ObjectPool : public Object {
+    class SYNTHRT_EXPORT ObjectPool : public NamedObject {
     public:
         explicit ObjectPool();
         virtual ~ObjectPool();
 
     public:
-        void addObject(Object *obj);
-        void addObject(std::string_view id, Object *obj);
-        inline void addObjects(std::string_view id, stdc::array_view<Object *> objs) {
+        void addObject(const NO<NamedObject> &obj);
+        void addObject(std::string_view id, const NO<NamedObject> &obj);
+        inline void addObjects(std::string_view id, stdc::array_view<NO<NamedObject>> objs) {
             for (const auto &obj : objs) {
                 addObject(id, obj);
             }
         }
-        void removeObject(Object *obj, bool del = false);
-        void removeObject(std::string_view id, Object *obj, bool del = false);
-        void removeObjects(std::string_view id, bool del = false);
-        void removeAllObjects(bool del = false);
+        void removeObject(const NamedObject *obj);
+        void removeObject(std::string_view id, const NamedObject *obj);
+        void removeObjects(std::string_view id);
+        void removeAllObjects();
 
-        std::vector<Object *> allObjects() const;
-        std::vector<Object *> getObjects(std::string_view id) const;
-        Object *getFirstObject(std::string_view id) const;
-
-        /// If true, the object is automatically deleted when it is removed from the pool.
-        bool autoDelete() const;
-        void setAutoDelete(bool value);
+        std::vector<NO<NamedObject>> allObjects() const;
+        std::vector<NO<NamedObject>> getObjects(std::string_view id) const;
+        NO<NamedObject> getFirstObject(std::string_view id) const;
 
     protected:
-        virtual void objectAdded(std::string_view id, Object *obj);
-        virtual void aboutToRemoveObject(std::string_view id, Object *obj);
+        virtual void objectAdded(std::string_view id, const NO<NamedObject> &obj);
+        virtual void aboutToRemoveObject(std::string_view id, const NO<NamedObject> &obj);
 
     protected:
         class Impl;

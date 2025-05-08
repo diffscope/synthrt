@@ -3,13 +3,13 @@
 
 #include <synthrt/Task/AbstractTask.h>
 
-#include "Core/Object_p.h"
+#include "Core/NamedObject_p.h"
 
 namespace srt {
 
-    class AbstractTask::Impl : public Object::Impl {
+    class AbstractTask::Impl : public NamedObject::Impl {
     public:
-        Impl(AbstractTask *task) : Object::Impl(task) {
+        Impl(AbstractTask *task) : NamedObject::Impl(task) {
         }
 
         State state = Idle;

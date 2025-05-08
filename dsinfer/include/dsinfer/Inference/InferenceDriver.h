@@ -3,7 +3,7 @@
 
 #include <synthrt/Support/JSON.h>
 #include <synthrt/Support/Error.h>
-#include <synthrt/Core/Object.h>
+#include <synthrt/Core/NamedObject.h>
 
 namespace ds {
 
@@ -18,7 +18,7 @@ namespace ds {
 
     class InferenceSession;
 
-    class InferenceDriver : public srt::Object {
+    class InferenceDriver : public srt::NamedObject {
     public:
         virtual ~InferenceDriver() = default;
 

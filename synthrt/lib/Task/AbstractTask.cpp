@@ -30,7 +30,7 @@ namespace srt {
         impl.state = state;
     }
 
-    AbstractTask::AbstractTask(Impl &impl) : Object(impl) {
+    AbstractTask::AbstractTask(Impl &impl) : NamedObject(impl) {
     }
 
 

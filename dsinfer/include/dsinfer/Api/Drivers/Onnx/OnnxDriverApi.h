@@ -79,8 +79,8 @@ namespace ds::Api::Onnx {
         /// The output might be one of the 3 types:
         /// - std::monostate: the output is not available (e.g. due to an error)
         /// - Tensor        : raw tensor data
-        /// - Object        : an intermediate object (e.g. an Ort::Value)
-        using Output = std::variant<std::monostate, Tensor, srt::NO<srt::Object>>;
+        /// - NamedObject   : an intermediate object (e.g. an Ort::Value)
+        using Output = std::variant<std::monostate, Tensor, srt::NO<srt::NamedObject>>;
 
         std::map<std::string, Output> outputs;
     };

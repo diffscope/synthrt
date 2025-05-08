@@ -8,7 +8,7 @@
 #include <synthrt/Support/Error.h>
 #include <synthrt/Support/JSON.h>
 #include <synthrt/Core/SynthUnit.h>
-#include <synthrt/Core/Object.h>
+#include <synthrt/Core/NamedObject.h>
 
 namespace srt {
 

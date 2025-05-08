@@ -9,7 +9,7 @@
 #include <synthrt/Support/Error.h>
 #include <synthrt/Core/Contribute.h>
 
-#include "Object_p.h"
+#include "NamedObject_p.h"
 #include "SynthUnit_p.h"
 
 namespace srt {

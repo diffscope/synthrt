@@ -3,7 +3,7 @@
 
 #include <functional>
 
-#include <synthrt/Core/Object.h>
+#include <synthrt/Core/NamedObject.h>
 #include <synthrt/Support/Error.h>
 
 namespace srt {
@@ -26,7 +26,7 @@ namespace srt {
         }
     };
 
-    class SYNTHRT_EXPORT AbstractTask : public Object {
+    class SYNTHRT_EXPORT AbstractTask : public NamedObject {
     public:
         AbstractTask();
         ~AbstractTask();
