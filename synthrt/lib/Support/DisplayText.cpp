@@ -7,7 +7,7 @@ namespace srt {
     class DisplayText::Impl {
     public:
         std::string defaultText;
-        std::optional<std::map<std::string, std::string>> texts;
+        std::optional<std::map<std::string, std::string, std::less<>>> texts;
 
         void assign(const JsonValue &value) {
             if (value.isString()) {
@@ -19,7 +19,7 @@ namespace srt {
             }
             const auto &obj = value.toObject();
             std::string defaultText_;
-            std::map<std::string, std::string> texts_;
+            std::map<std::string, std::string, std::less<>> texts_;
             for (const auto &item : obj) {
                 if (item.first == "_") {
                     defaultText = item.second.toString();
@@ -53,16 +53,16 @@ namespace srt {
     DisplayText::DisplayText() : _impl(new Impl()) {
     }
 
-    DisplayText::DisplayText(const std::string_view &text) : _impl(new Impl()) {
+    DisplayText::DisplayText(std::string_view text) : _impl(new Impl()) {
         __stdc_impl_t;
         impl.defaultText = text;
     }
 
-    DisplayText::DisplayText(std::string_view defaultText, std::map<std::string, std::string> texts)
-        : _impl(new Impl()) {
+    DisplayText::DisplayText(std::string_view defaultText,
+                             const std::map<std::string, std::string> &texts)
+        : DisplayText(defaultText) {
         __stdc_impl_t;
-        impl.defaultText = defaultText;
-        impl.texts = std::move(texts);
+        impl.texts = {texts.begin(), texts.end()};
     }
 
     DisplayText::DisplayText(const JsonValue &value) : _impl(new Impl()) {
@@ -72,7 +72,7 @@ namespace srt {
 
     DisplayText::~DisplayText() = default;
 
-    DisplayText &DisplayText::operator=(const std::string &text) {
+    DisplayText &DisplayText::operator=(std::string_view text) {
         __stdc_impl_t;
         impl.defaultText = text;
         return *this;
@@ -84,12 +84,12 @@ namespace srt {
         return *this;
     }
 
-    std::string_view DisplayText::text() const {
+    const std::string &DisplayText::text() const {
         __stdc_impl_t;
         return impl.defaultText;
     }
 
-    std::string_view DisplayText::text(const std::string &locale) const {
+    const std::string &DisplayText::text(std::string_view locale) const {
         __stdc_impl_t;
         if (!impl.texts) {
             return impl.defaultText;

@@ -1,22 +1,13 @@
 file(GLOB_RECURSE _src "*.cpp")
 
-if(SYNTHRT_BUILD_STATIC)
-    set(_type STATIC)
-else()
-    set(_type SHARED)
-endif()
+dsinfer_add_library(${PROJECT_NAME} SHARED
+    SOURCES ${_src}
+    LINKS synthrt
+    LINKS_PRIVATE
+    INCLUDE_PRIVATE ../include/** **
+)
 
-add_library(${PROJECT_NAME} ${_type} ${_src})
-
-target_compile_definitions(${PROJECT_NAME} PRIVATE DSINFER_LIBRARY)
-
-target_link_libraries(${PROJECT_NAME} PUBLIC synthrt)
-target_link_libraries(${PROJECT_NAME} PRIVATE sparsepp)
-
-target_include_directories(${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_LIST_DIR}/../include>)
-
-target_include_directories(${PROJECT_NAME} PRIVATE
-    ../include/dsinfer
-    ../include/dsinfer/Inference
-    ../include/dsinfer/Support
+find_path(SPARSEPP_INCLUDE_DIRS "sparsepp/spp.h")
+target_include_directories(${PROJECT_NAME} PUBLIC
+    $<BUILD_INTERFACE:${SPARSEPP_INCLUDE_DIRS}>
 )
