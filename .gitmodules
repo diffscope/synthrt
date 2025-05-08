@@ -1,7 +1,3 @@
-[submodule "stdcorelib"]
-	path = third-party/stdcorelib
-	url = ../../SineStriker/stdcorelib.git
-
-[submodule "sparsepp"]
-	path = third-party/sparsepp
-	url = ../../greg7mdp/sparsepp.git
+[submodule "vcpkg-overlay"]
+	path = scripts/vcpkg
+	url = ../../vcpkg-overlay.git
