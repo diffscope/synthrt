@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <map>
 #include <set>
+#include <variant>
 
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
@@ -48,13 +49,13 @@ namespace ds::Api::Onnx {
     class Tensor {
     public:
         enum DataType {
-            Bool = 1,
-            Float,
+            Float = 1,
+            Bool,
             Int64,
         };
 
         std::vector<uint8_t> data;
-        DataType dataType;
+        DataType dataType = DataType::Float;
         std::vector<int> shape;
     };
 
@@ -63,7 +64,10 @@ namespace ds::Api::Onnx {
         SessionStartInput() : InferenceSessionStartInput(API_NAME, API_VERSION) {
         }
 
+        /// The input port names and the input tensors.
         std::map<std::string, Tensor> inputs;
+
+        /// The output port names.
         std::set<std::string> outputs;
     };
 
@@ -72,7 +76,13 @@ namespace ds::Api::Onnx {
         SessionResult() : InferenceSessionResult(API_NAME, API_VERSION) {
         }
 
-        std::map<std::string, Tensor> outputs;
+        /// The output might be one of the 3 types:
+        /// - std::monostate: the output is not available (e.g. due to an error)
+        /// - Tensor        : raw tensor data
+        /// - Object        : an intermediate object (e.g. an Ort::Value)
+        using Output = std::variant<std::monostate, Tensor, srt::NO<srt::Object>>;
+
+        std::map<std::string, Output> outputs;
     };
 
 }
