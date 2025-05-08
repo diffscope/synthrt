@@ -9,8 +9,11 @@ namespace ds {
 
     class InferenceDriverInitArgs : public srt::NamedObject {
     public:
-        InferenceDriverInitArgs(const std::string &name) : srt::NamedObject(name) {
+        InferenceDriverInitArgs(const std::string &name, int version)
+            : srt::NamedObject(name), version(version) {
         }
+
+        int version;
     };
 
     class InferenceSession;

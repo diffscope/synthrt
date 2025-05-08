@@ -153,11 +153,11 @@ namespace srt {
         it->second.append(obj, {});
     }
 
-    void ObjectPool::removeObject(Object *obj) {
-        removeObject({}, obj);
+    void ObjectPool::removeObject(Object *obj, bool del) {
+        removeObject({}, obj, del);
     }
 
-    void ObjectPool::removeObject(std::string_view id, Object *obj) {
+    void ObjectPool::removeObject(std::string_view id, Object *obj, bool del) {
         __stdc_impl_t;
         auto it = impl.objects.find(id);
         if (it == impl.objects.end()) {
@@ -170,7 +170,7 @@ namespace srt {
                 return;
             }
             aboutToRemoveObject(id, it2->first);
-            if (impl.autoDelete) {
+            if (del) {
                 delete it2->first;
             }
             map.erase(it2);
@@ -180,7 +180,7 @@ namespace srt {
         }
     }
 
-    void ObjectPool::removeObjects(std::string_view id) {
+    void ObjectPool::removeObjects(std::string_view id, bool del) {
         __stdc_impl_t;
         auto it = impl.objects.find(id);
         if (it == impl.objects.end()) {
@@ -189,20 +189,20 @@ namespace srt {
         auto &map = it->second;
         for (auto it = map.rbegin(); it != map.rend(); ++it) {
             aboutToRemoveObject(id, it->first);
-            if (impl.autoDelete) {
+            if (del) {
                 delete it->first;
             }
         }
         impl.objects.erase(it);
     }
 
-    void ObjectPool::removeAllObjects() {
+    void ObjectPool::removeAllObjects(bool del) {
         __stdc_impl_t;
         for (auto &item : impl.objects) {
             auto &map = item.second;
             for (auto it = map.rbegin(); it != map.rend(); ++it) {
                 aboutToRemoveObject(item.first, it->first);
-                if (impl.autoDelete) {
+                if (del) {
                     delete it->first;
                 }
             }

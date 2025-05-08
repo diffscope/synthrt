@@ -21,7 +21,7 @@ namespace srt {
     class SYNTHRT_EXPORT Inference : public AbstractTask {
     public:
         explicit Inference(const InferenceSpec *spec);
-        virtual ~Inference();
+        ~Inference();
 
     public:
         const InferenceSpec *spec() const;

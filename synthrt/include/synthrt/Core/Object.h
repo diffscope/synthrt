@@ -77,10 +77,10 @@ namespace srt {
                 addObject(id, obj);
             }
         }
-        void removeObject(Object *obj);
-        void removeObject(std::string_view id, Object *obj);
-        void removeObjects(std::string_view id);
-        void removeAllObjects();
+        void removeObject(Object *obj, bool del = false);
+        void removeObject(std::string_view id, Object *obj, bool del = false);
+        void removeObjects(std::string_view id, bool del = false);
+        void removeAllObjects(bool del = false);
 
         std::vector<Object *> allObjects() const;
         std::vector<Object *> getObjects(std::string_view id) const;

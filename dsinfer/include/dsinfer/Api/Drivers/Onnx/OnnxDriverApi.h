@@ -2,6 +2,8 @@
 #define DSINFER_API_ONNX_ONNXDRIVERAPI_H
 
 #include <filesystem>
+#include <map>
+#include <set>
 
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
@@ -9,6 +11,8 @@
 namespace ds::Api::Onnx {
 
     static const char API_NAME[] = "onnx";
+
+    static const int API_VERSION = 1;
 
     enum ExecutionProvider {
         CPUExecutionProvider = 0,
@@ -19,7 +23,7 @@ namespace ds::Api::Onnx {
 
     class DriverInitArgs : public InferenceDriverInitArgs {
     public:
-        DriverInitArgs() : InferenceDriverInitArgs(API_NAME) {
+        DriverInitArgs() : InferenceDriverInitArgs(API_NAME, API_VERSION) {
         }
 
         /// The execution provider to use.
@@ -32,13 +36,43 @@ namespace ds::Api::Onnx {
         std::filesystem::path runtimePath;
     };
 
-    class SessionInitArgs : public InferenceSessionOpenArgs {
+    class SessionOpenArgs : public InferenceSessionOpenArgs {
     public:
-        SessionInitArgs() : InferenceSessionOpenArgs(API_NAME) {
+        SessionOpenArgs() : InferenceSessionOpenArgs(API_NAME, API_VERSION) {
         }
 
         /// Whether to force the use of the CPU for the session.
         bool useCpu = false;
+    };
+
+    class Tensor {
+    public:
+        enum DataType {
+            Bool = 1,
+            Float,
+            Int64,
+        };
+
+        std::vector<uint8_t> data;
+        DataType dataType;
+        std::vector<int> shape;
+    };
+
+    class SessionStartInput : public InferenceSessionStartInput {
+    public:
+        SessionStartInput() : InferenceSessionStartInput(API_NAME, API_VERSION) {
+        }
+
+        std::map<std::string, Tensor> inputs;
+        std::set<std::string> outputs;
+    };
+
+    class SessionResult : public InferenceSessionResult {
+    public:
+        SessionResult() : InferenceSessionResult(API_NAME, API_VERSION) {
+        }
+
+        std::map<std::string, Tensor> outputs;
     };
 
 }

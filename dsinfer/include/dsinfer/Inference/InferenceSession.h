@@ -12,8 +12,39 @@ namespace ds {
 
     class InferenceSessionOpenArgs : public srt::NamedObject {
     public:
-        InferenceSessionOpenArgs(const std::string &name) : srt::NamedObject(name) {
+        InferenceSessionOpenArgs(const std::string &name, int version)
+            : srt::NamedObject(name), version(version) {
         }
+
+        int version;
+    };
+
+    class InferenceSessionInitArgs : public srt::TaskInitArgs {
+    public:
+        InferenceSessionInitArgs(const std::string &name, int version)
+            : srt::TaskInitArgs(name), version(version) {
+        }
+
+        int version;
+    };
+
+
+    class InferenceSessionStartInput : public srt::TaskStartInput {
+    public:
+        InferenceSessionStartInput(const std::string &name, int version)
+            : srt::TaskStartInput(name), version(version) {
+        }
+
+        int version;
+    };
+
+    class InferenceSessionResult : public srt::TaskResult {
+    public:
+        InferenceSessionResult(const std::string &name, int version)
+            : srt::TaskResult(name), version(version) {
+        }
+
+        int version;
     };
 
     /// InferenceSession - Provides a basic interface for the memory image of an AI model.
