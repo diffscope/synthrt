@@ -11,9 +11,9 @@
 
 namespace ds::Api::Onnx {
 
-    static const char API_NAME[] = "onnx";
+    static constexpr char API_NAME[] = "onnx";
 
-    static const int API_VERSION = 1;
+    static constexpr int API_VERSION = 1;
 
     enum ExecutionProvider {
         CPUExecutionProvider = 0,
@@ -54,9 +54,9 @@ namespace ds::Api::Onnx {
             Int64,
         };
 
-        std::vector<uint8_t> data;
         DataType dataType = DataType::Float;
         std::vector<int> shape;
+        std::vector<uint8_t> data;
     };
 
     class SessionStartInput : public InferenceSessionStartInput {

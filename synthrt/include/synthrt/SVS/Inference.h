@@ -15,7 +15,7 @@ namespace srt {
         }
 
         /// The intermediate output can be stored here in the form of an \a Object for later use.
-        srt::ObjectPool *intermediateObjects = nullptr;
+        NO<ObjectPool> intermediateObjects;
     };
 
     class SYNTHRT_EXPORT Inference : public AbstractTask {

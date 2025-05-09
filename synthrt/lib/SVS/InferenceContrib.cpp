@@ -6,9 +6,10 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
-#include "Contribute_p.h"
+#include "Inference.h"
 #include "InferenceInterpreter.h"
 #include "InferenceInterpreterPlugin.h"
+#include "Contribute_p.h"
 
 namespace fs = std::filesystem;
 
@@ -301,9 +302,9 @@ namespace srt {
         return impl.interp->createImportOptions(this, options, error);
     }
 
-    Inference *InferenceSpec::createInference(const NO<InferenceImportOptions> &importOptions,
-                                              const NO<InferenceRuntimeOptions> &runtimeOptions,
-                                              Error *error) const {
+    NO<Inference> InferenceSpec::createInference(const NO<InferenceImportOptions> &importOptions,
+                                                 const NO<InferenceRuntimeOptions> &runtimeOptions,
+                                                 Error *error) const {
         __stdc_impl_t;
         return impl.interp->createInference(this, importOptions, runtimeOptions, error);
     }
@@ -401,7 +402,7 @@ namespace srt {
 
                 // Create schema and configuration
                 Error err1;
-                NO<InferenceSchema> schema(interp->createSchema(spec1, &err1));
+                auto schema = interp->createSchema(spec1, &err1);
                 if (!schema) {
                     *error = {
                         Error::InvalidFormat,
@@ -411,7 +412,7 @@ namespace srt {
                 }
                 spec_impl->schema = schema;
 
-                NO<InferenceConfiguration> config(interp->createConfiguration(spec1, &err1));
+                auto config = interp->createConfiguration(spec1, &err1);
                 if (!config) {
                     *error = {
                         Error::InvalidFormat,

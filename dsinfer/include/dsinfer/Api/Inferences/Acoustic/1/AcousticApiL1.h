@@ -6,11 +6,11 @@
 
 namespace ds::Api::Acoustic::L1 {
 
-    static const char API_NAME[] = "acoustic";
+    static constexpr char API_NAME[] = "acoustic";
 
-    static const char API_IID[] = "ai.svs.AcousticInference";
+    static constexpr char API_IID[] = "ai.svs.AcousticInference";
 
-    static const int API_LEVEL = 1;
+    static constexpr int API_LEVEL = 1;
 
     class AcousticSchema : public srt::InferenceSchema {
     public:

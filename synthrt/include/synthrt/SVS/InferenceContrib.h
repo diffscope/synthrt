@@ -84,9 +84,9 @@ namespace srt {
                                                        Error *error) const;
 
         /// Creates an inference interface with the given options.
-        Inference *createInference(const NO<InferenceImportOptions> &importOptions,
-                                   const NO<InferenceRuntimeOptions> &runtimeOptions,
-                                   Error *error) const;
+        NO<Inference> createInference(const NO<InferenceImportOptions> &importOptions,
+                                      const NO<InferenceRuntimeOptions> &runtimeOptions,
+                                      Error *error) const;
 
     protected:
         class Impl;

@@ -470,8 +470,7 @@ namespace srt {
                     // Create options
                     auto inference = inferences.front();
                     Error err1;
-                    NO<InferenceImportOptions> options(
-                        inference->createImportOptions(imp.manifestOptions, &err1));
+                    auto options = inference->createImportOptions(imp.manifestOptions, &err1);
                     if (!options) {
                         *error = {
                             Error::InvalidFormat,

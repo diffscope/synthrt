@@ -50,10 +50,10 @@ namespace srt {
         }
     };
 
-    DisplayText::DisplayText() : _impl(new Impl()) {
+    DisplayText::DisplayText() : _impl(std::make_shared<Impl>()) {
     }
 
-    DisplayText::DisplayText(std::string_view text) : _impl(new Impl()) {
+    DisplayText::DisplayText(std::string_view text) : _impl(std::make_shared<Impl>()) {
         __stdc_impl_t;
         impl.defaultText = text;
     }
@@ -65,7 +65,7 @@ namespace srt {
         impl.texts = {texts.begin(), texts.end()};
     }
 
-    DisplayText::DisplayText(const JsonValue &value) : _impl(new Impl()) {
+    DisplayText::DisplayText(const JsonValue &value) : _impl(std::make_shared<Impl>()) {
         __stdc_impl_t;
         impl.assign(value);
     }

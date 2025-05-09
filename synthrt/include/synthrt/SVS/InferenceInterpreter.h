@@ -26,10 +26,10 @@ namespace srt {
                                                                Error *error) const = 0;
 
         // Called when it's about to execute an inference.
-        virtual Inference *createInference(const InferenceSpec *spec,
-                                           const NO<InferenceImportOptions> &importOptions,
-                                           const NO<InferenceRuntimeOptions> &runtimeOptions,
-                                           Error *error) = 0;
+        virtual NO<Inference> createInference(const InferenceSpec *spec,
+                                              const NO<InferenceImportOptions> &importOptions,
+                                              const NO<InferenceRuntimeOptions> &runtimeOptions,
+                                              Error *error) = 0;
 
     public:
         STDCORELIB_DISABLE_COPY(InferenceInterpreter)
