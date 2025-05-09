@@ -26,7 +26,7 @@ set(_onnxdriver_ep_macros ${_onnxdriver_ep_macro_dml} ${_onnxdriver_ep_macro_cud
 find_package(stduuid CONFIG REQUIRED)
 find_package(unofficial-hash-library CONFIG REQUIRED)
 
-dsinfer_add_plugin(${PROJECT_NAME} ${CURRENT_PLUGIN_CATEGORY}
+dsinfer_add_plugin(${PROJECT_NAME} ${CURRENT_PLUGIN_CATEGORY} NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_17
     LINKS dsinfer

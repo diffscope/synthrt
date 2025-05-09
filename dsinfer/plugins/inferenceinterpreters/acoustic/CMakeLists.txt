@@ -7,7 +7,7 @@ file(GLOB_RECURSE _src *.h *.cpp)
 
 find_package(stduuid CONFIG REQUIRED)
 
-dsinfer_add_plugin(${PROJECT_NAME} ${CURRENT_PLUGIN_CATEGORY}
+dsinfer_add_plugin(${PROJECT_NAME} ${CURRENT_PLUGIN_CATEGORY} NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_17
     LINKS dsinfer

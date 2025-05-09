@@ -44,8 +44,10 @@ namespace srt {
 
         NO() = default;
         NO(T *obj) : Base(obj){};
-        NO(const std::shared_ptr<T> &obj) : Base(obj){};
-        NO(std::shared_ptr<T> &&obj) noexcept : Base(std::move(obj)){};
+        template<class U>
+        NO(const std::shared_ptr<U> &obj) : Base(obj){};
+        template<class U>
+        NO(std::shared_ptr<U> &&obj) noexcept : Base(std::move(obj)){};
         template <class U>
         NO<U> as() const noexcept {
             return std::static_pointer_cast<U>(*this);

@@ -18,6 +18,8 @@ namespace ds {
 
     class InferenceSession;
 
+    /// \note An instance of InferenceDriver needs to be added to the InferenceCategory with the ID
+    /// "dsdriver" before it can be called by the inference interpreters.
     class InferenceDriver : public srt::NamedObject {
     public:
         virtual ~InferenceDriver() = default;

@@ -32,6 +32,8 @@ add_subdirectory(lib)
 
 add_subdirectory(plugins)
 
+add_subdirectory(tools)
+
 if(SYNTHRT_BUILD_TESTS)
     add_subdirectory(tests)
 endif()
