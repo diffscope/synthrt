@@ -6,6 +6,7 @@
 #include <set>
 #include <variant>
 
+#include <dsinfer/Core/Tensor.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
 
@@ -46,26 +47,13 @@ namespace ds::Api::Onnx {
         bool useCpu = false;
     };
 
-    class Tensor {
-    public:
-        enum DataType {
-            Float = 1,
-            Bool,
-            Int64,
-        };
-
-        DataType dataType = DataType::Float;
-        std::vector<int> shape;
-        std::vector<uint8_t> data;
-    };
-
     class SessionStartInput : public InferenceSessionStartInput {
     public:
         SessionStartInput() : InferenceSessionStartInput(API_NAME, API_VERSION) {
         }
 
         /// The input port names and the input tensors.
-        std::map<std::string, Tensor> inputs;
+        std::map<std::string, srt::NO<AbstractTensor>> inputs;
 
         /// The output port names.
         std::set<std::string> outputs;
@@ -76,13 +64,7 @@ namespace ds::Api::Onnx {
         SessionResult() : InferenceSessionResult(API_NAME, API_VERSION) {
         }
 
-        /// The output might be one of the 3 types:
-        /// - std::monostate: the output is not available (e.g. due to an error)
-        /// - Tensor        : raw tensor data
-        /// - NamedObject   : an intermediate object (e.g. an Ort::Value)
-        using Output = std::variant<std::monostate, Tensor, srt::NO<srt::NamedObject>>;
-
-        std::map<std::string, Output> outputs;
+        std::map<std::string, srt::NO<AbstractTensor>> outputs;
     };
 
 }

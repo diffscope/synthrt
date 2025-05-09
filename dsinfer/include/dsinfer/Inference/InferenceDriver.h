@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_INFERENCEDRIVER_H
-#define SYNTHRT_INFERENCEDRIVER_H
+#ifndef DSINFER_INFERENCEDRIVER_H
+#define DSINFER_INFERENCEDRIVER_H
 
 #include <synthrt/Support/JSON.h>
 #include <synthrt/Support/Error.h>
@@ -30,4 +30,4 @@ namespace ds {
 
 }
 
-#endif // SYNTHRT_INFERENCEDRIVER_H
+#endif // DSINFER_INFERENCEDRIVER_H
