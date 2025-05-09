@@ -21,9 +21,11 @@ namespace srt {
 
         const std::string &objectName() const;
         void setObjectName(const std::string &name);
+        void setObjectName(std::string &&name);
 
         const std::any &property(std::string_view name) const;
         void setProperty(std::string_view name, const std::any &value);
+        void setProperty(std::string_view name, std::any &&value);
 
     protected:
         class Impl;
@@ -45,8 +47,8 @@ namespace srt {
         NO(const std::shared_ptr<T> &obj) : Base(obj){};
         NO(std::shared_ptr<T> &&obj) noexcept : Base(std::move(obj)){};
         template <class U>
-        NO<U> as() const {
-            return std::static_pointer_cast<U>(Base::operator*());
+        NO<U> as() const noexcept {
+            return std::static_pointer_cast<U>(*this);
         }
     };
 

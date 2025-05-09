@@ -18,6 +18,7 @@ set(_CUR_SOURCE_DIR)
 # Temporary variables
 set(_CUR_CONFIG_TEMPLATE)
 set(_CUR_TARGET_PREFIX)
+set(_CUR_MACRO_PREFIX)
 
 # Options
 set(_CUR_INSTALL FALSE)
@@ -31,7 +32,7 @@ endif()
 string(TIMESTAMP _CUR_BUILD_YEAR "%Y" UTC)
 
 # Set default values
-qm_set_value(_CUR_NAME ${PROJECT_NAME}_NAME ${PROJECT_NAME})
+qm_set_value(_CUR_NAME ${PROJECT_NAME}_VAR_PREFIX ${PROJECT_NAME})
 string(TOUPPER ${_CUR_NAME} _CUR_NAME_UPPER)
 
 qm_set_value(_CUR_VERSION ${_CUR_NAME_UPPER}_VERSION PROJECT_VERSION "0.0.0.0")
@@ -51,10 +52,10 @@ endif()
 qm_set_value(_CUR_COPYRIGHT ${_CUR_NAME_UPPER}_COPYRIGHT "${_CUR_COPYRIGHT}")
 qm_set_value(_CUR_INSTALL_NAME ${_CUR_NAME_UPPER}_INSTALL_NAME "${_CUR_NAME}")
 
-if(${PROJECT_NAME}_INSTALL_NAME)
-    set(_CUR_INSTALL_NAME ${${PROJECT_NAME}_INSTALL_NAME})
+if(${_CUR_NAME_UPPER}_INSTALL_NAME)
+    set(_CUR_INSTALL_NAME ${${_CUR_NAME_UPPER}_INSTALL_NAME})
 else()
-    set(_CUR_INSTALL_NAME ${PROJECT_NAME})
+    set(_CUR_INSTALL_NAME ${_CUR_NAME_UPPER})
 endif()
 
 if(${_CUR_NAME_UPPER}_INCLUDE_DIR)
@@ -67,6 +68,7 @@ set(_CUR_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 
 qm_set_value(_CUR_CONFIG_TEMPLATE ${_CUR_NAME_UPPER}_CONFIG_TEMPLATE "${_CUR_NAME}Config.cmake.in")
 qm_set_value(_CUR_TARGET_PREFIX ${_CUR_NAME_UPPER}_TARGET_PREFIX "${_CUR_NAME}")
+qm_set_value(_CUR_MACRO_PREFIX ${_CUR_NAME_UPPER}_MACRO_PREFIX "${_CUR_NAME}")
 
 if(${_CUR_NAME_UPPER}_INSTALL)
     set(_CUR_INSTALL TRUE)
@@ -87,7 +89,7 @@ if(_CUR_INSTALL)
 endif()
 
 # Declare macros
-macro(${_CUR_NAME}_add_library _target)
+macro(${_CUR_MACRO_PREFIX}_add_library _target)
     set(options SHARED STATIC SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT)
     set(oneValueArgs SYNC_INCLUDE_PREFIX PREFIX)
     set(multiValueArgs SYNC_INCLUDE_OPTIONS)
@@ -190,7 +192,7 @@ macro(${_CUR_NAME}_add_library _target)
     endif()
 endmacro()
 
-macro(${_CUR_NAME}_add_plugin _target _category)
+macro(${_CUR_MACRO_PREFIX}_add_plugin _target _category)
     set(options NO_WIN_RC)
     set(oneValueArgs)
     set(multiValueArgs)
@@ -239,7 +241,7 @@ macro(${_CUR_NAME}_add_plugin _target _category)
     endif()
 endmacro()
 
-function(${_CUR_NAME}_install)
+function(${_CUR_MACRO_PREFIX}_install)
     if(NOT _CUR_INSTALL)
         return()
     endif()

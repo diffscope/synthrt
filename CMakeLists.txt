@@ -12,8 +12,9 @@ project(synthrt
 # ----------------------------------
 option(SYNTHRT_BUILD_TESTS "Build test cases" OFF)
 option(SYNTHRT_BUILD_EXAMPLES "Build examples" OFF)
-option(SYNTHRT_INSTALL_MSVC_RUNTIME "Install MSVC runtime" OFF)
 option(SYNTHRT_INSTALL "Install library" ON)
+option(SYNTHRT_INSTALL_DEPLOY "Install with deploying dependencies" OFF)
+option(SYNTHRT_INSTALL_MSVC_RUNTIME "Install MSVC runtime" OFF)
 
 # ----------------------------------
 # CMake Settings
@@ -52,6 +53,9 @@ find_package(qmsetup REQUIRED)
 qm_import(Filesystem)
 qm_init_directories()
 
+# ----------------------------------
+# Add source modules
+# ----------------------------------
 add_subdirectory(third-party)
 add_subdirectory(synthrt)
 add_subdirectory(dsinfer)

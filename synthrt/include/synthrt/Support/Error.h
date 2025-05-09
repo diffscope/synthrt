@@ -17,6 +17,7 @@ namespace srt {
             FileDuplicated,
             RecursiveDependency,
             FeatureNotSupported,
+            InvalidArgument,
             SessionError,
         };
 

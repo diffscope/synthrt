@@ -24,7 +24,9 @@ namespace srt {
         impl.name = name;
     }
 
-    NamedObject::NamedObject(Impl &impl) : _impl(&impl) {
+    void NamedObject::setObjectName(std::string &&name) {
+        __stdc_impl_t;
+        impl.name = std::move(name);
     }
 
     static std::any &staticEmptyObjectProperty() {
@@ -43,7 +45,25 @@ namespace srt {
 
     void NamedObject::setProperty(std::string_view name, const std::any &value) {
         __stdc_impl_t;
-        impl.properties[std::string(name)] = value;
+        auto it = impl.properties.find(name);
+        if (it == impl.properties.end()) {
+            impl.properties[std::string(name)] = value;
+        } else {
+            it->second = value;
+        }
+    }
+
+    void NamedObject::setProperty(std::string_view name, std::any &&value) {
+        __stdc_impl_t;
+        auto it = impl.properties.find(name);
+        if (it == impl.properties.end()) {
+            impl.properties[std::string(name)] = std::move(value);
+        } else {
+            it->second = std::move(value);
+        }
+    }
+
+    NamedObject::NamedObject(Impl &impl) : _impl(&impl) {
     }
 
     ObjectPool::Impl::~Impl() {
@@ -70,8 +90,10 @@ namespace srt {
 
         auto it = impl.objects.find(id);
         if (it == impl.objects.end()) {
-            it =
-                impl.objects.emplace(std::string(id), stdc::linked_map<NamedObject *, int>()).first;
+            it = impl.objects
+                     .emplace(std::string(id),
+                              stdc::linked_map<const NamedObject *, NO<NamedObject>>())
+                     .first;
         }
         it->second.append(obj.get(), obj);
     }
@@ -128,8 +150,8 @@ namespace srt {
         __stdc_impl_t;
         std::vector<NO<NamedObject>> res;
         for (const auto &item : impl.objects) {
-            auto keys = item.second.keys();
-            res.insert(res.end(), keys.begin(), keys.end());
+            auto values = item.second.values();
+            res.insert(res.end(), values.begin(), values.end());
         }
         return res;
     }

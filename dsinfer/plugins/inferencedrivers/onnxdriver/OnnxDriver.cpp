@@ -1,10 +1,24 @@
 #include "OnnxDriver.h"
 
 #include <stdcorelib/pimpl.h>
+#include <stdcorelib/str.h>
+
+#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
 #include "OnnxSession.h"
+#include "OnnxDriver_Logger.h"
+
+using namespace ds::Api;
 
 namespace ds {
+
+    namespace onnxdriver {
+
+        srt::LogCategory Log("onnxdriver");
+
+    }
+
+    using onnxdriver::Log;
 
     class OnnxDriver::Impl {
     public:
@@ -23,11 +37,25 @@ namespace ds {
 
     bool OnnxDriver::initialize(const srt::NO<InferenceDriverInitArgs> &args, srt::Error *error) {
         __stdc_impl_t;
+
+        if (args->objectName() != Onnx::API_NAME) {
+            *error = {
+                srt::Error::InvalidArgument,
+                stdc::formatN("invalid driver name: expected \"%s\", got \"%s\"", Onnx::API_NAME,
+                              args->objectName()),
+            };
+            return false;
+        }
+
+        auto onnxArgs = args.as<Onnx::DriverInitArgs>();
+
+        // Example logging
+        Log.srtCDebug("initialize: driver name: %1", args->objectName());
+
         return true;
     }
 
     InferenceSession *OnnxDriver::createSession() {
         return new OnnxSession();
     }
-
 }
