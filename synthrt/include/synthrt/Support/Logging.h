@@ -9,9 +9,9 @@ namespace srt {
 
     class LogContext {
     public:
-        LogContext() noexcept = default;
-        LogContext(const char *fileName, int lineNumber, const char *functionName,
-                   const char *categoryName) noexcept
+        inline LogContext() noexcept = default;
+        inline LogContext(const char *fileName, int lineNumber, const char *functionName,
+                          const char *categoryName) noexcept
             : line(lineNumber), file(fileName), function(functionName), category(categoryName) {
         }
 
@@ -33,10 +33,10 @@ namespace srt {
             Fatal,
         };
 
-        Logger(LogContext context) : _context(std::move(context)) {
+        inline Logger(LogContext context) : _context(std::move(context)) {
         }
 
-        Logger(const char *file, int line, const char *function, const char *category)
+        inline Logger(const char *file, int line, const char *function, const char *category)
             : _context(file, line, function, category) {
         }
 
@@ -125,7 +125,7 @@ namespace srt {
 
         template <int Level, class... Args>
         void log(const char *fileName, int lineNumber, const char *functionName,
-                 const std::string_view &format, Args &&...args) {
+                 const std::string_view &format, Args &&...args) const {
             if (!isLevelEnabled(Level)) {
                 return;
             }
@@ -138,7 +138,7 @@ namespace srt {
 
         template <int Level, class... Args>
         void logf(const char *fileName, int lineNumber, const char *functionName, const char *fmt,
-                  Args &&...args) {
+                  Args &&...args) const {
             if (!isLevelEnabled(Level)) {
                 return;
             }
@@ -147,6 +147,10 @@ namespace srt {
             if constexpr (Level == srt::Logger::Fatal) {
                 Logger::abort();
             }
+        }
+
+        inline const LogCategory &_srtGetLogCategory() const {
+            return *this;
         }
 
     protected:
@@ -160,60 +164,46 @@ namespace srt {
 
 }
 
+static inline const srt::LogCategory &_srtGetLogCategory() {
+    return srt::LogCategory::defaultCategory();
+}
+
 /*!
-    \macro srtCDebug
-    \brief Logs a debug message to the user-defined log category.
+    \macro srtDebug
+    \brief Logs a debug message to a log category.
     \code
+        // User category
         srt::LogCategory cate("test");
         cate.setLevelEnabled(srt::Logger::Debug, true);
-        cate.srtCDebug("This is a debug message");
-        cate.srtCDebug("This is a debug message with arg: %1", 42);
-        cate.srtCDebugF("This is a debug message with arg: %d", 42);
-    \endcode
+        cate.srtDebug("This is a debug message");
+        cate.srtDebug("This is a debug message with arg: %1", 42);
+        cate.srtDebugF("This is a debug message with arg: %d", 42);
 
-    \macro srtDebug
-    \brief Logs a debug message to the default log category.
-    \code
+        // Default category
         srtDebug("This is a debug message");
         srtDebug("This is a debug message with arg: %1", 42);
         srtDebug("This is a debug message with arg: %d", 42);
     \endcode
 */
 
-#define srtCLog(LEVEL, ...) log<srt::Logger::LEVEL>(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
-#define srtCTrace(...)      srtCLog(Trace, __VA_ARGS__)
-#define srtCDebug(...)      srtCLog(Debug, __VA_ARGS__)
-#define srtCSuccess(...)    srtCLog(Success, __VA_ARGS__)
-#define srtCInfo(...)       srtCLog(Information, __VA_ARGS__)
-#define srtCWarning(...)    srtCLog(Warning, __VA_ARGS__)
-#define srtCCritical(...)   srtCLog(Critical, __VA_ARGS__)
-#define srtCFatal(...)      srtCLog(Critical, __VA_ARGS__)
+#define srtLog(LEVEL, ...)                                                                         \
+    _srtGetLogCategory().log<srt::Logger::LEVEL>(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
+#define srtTrace(...)    srtLog(Trace, __VA_ARGS__)
+#define srtDebug(...)    srtLog(Debug, __VA_ARGS__)
+#define srtSuccess(...)  srtLog(Success, __VA_ARGS__)
+#define srtInfo(...)     srtLog(Information, __VA_ARGS__)
+#define srtWarning(...)  srtLog(Warning, __VA_ARGS__)
+#define srtCritical(...) srtLog(Critical, __VA_ARGS__)
+#define srtFatal(...)    srtLog(Critical, __VA_ARGS__)
 
-#define srtCLogF(LEVEL, ...) logf<srt::Logger::LEVEL>(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
-#define srtCTraceF(...)      srtCLogF(Trace, __VA_ARGS__)
-#define srtCDebugF(...)      srtCLogF(Debug, __VA_ARGS__)
-#define srtCSuccessF(...)    srtCLogF(Success, __VA_ARGS__)
-#define srtCInfoF(...)       srtCLogF(Information, __VA_ARGS__)
-#define srtCWarningF(...)    srtCLogF(Warning, __VA_ARGS__)
-#define srtCCriticalF(...)   srtCLogF(Critical, __VA_ARGS__)
-#define srtCFatalF(...)      srtCLogF(Critical, __VA_ARGS__)
-
-#define srtLog(LEVEL, ...) srt::LogCategory::defaultCategory().srtCLog(LEVEL, __VA_ARGS__)
-#define srtTrace(...)      srt::LogCategory::defaultCategory().srtCTrace(__VA_ARGS__)
-#define srtDebug(...)      srt::LogCategory::defaultCategory().srtCDebug(__VA_ARGS__)
-#define srtSuccess(...)    srt::LogCategory::defaultCategory().srtCSuccess(__VA_ARGS__)
-#define srtInfo(...)       srt::LogCategory::defaultCategory().srtCInfo(__VA_ARGS__)
-#define srtWarning(...)    srt::LogCategory::defaultCategory().srtCWarning(__VA_ARGS__)
-#define srtCritical(...)   srt::LogCategory::defaultCategory().srtCCritical(__VA_ARGS__)
-#define srtFatal(...)      srt::LogCategory::defaultCategory().srtCFatal(__VA_ARGS__)
-
-#define srtLogF(LEVEL, ...) srt::LogCategory::defaultCategory().srtCLogF(LEVEL, __VA_ARGS__)
-#define srtTraceF(...)      srt::LogCategory::defaultCategory().srtCTraceF(__VA_ARGS__)
-#define srtDebugF(...)      srt::LogCategory::defaultCategory().srtCDebugF(__VA_ARGS__)
-#define srtSuccessF(...)    srt::LogCategory::defaultCategory().srtCSuccessF(__VA_ARGS__)
-#define srtInfoF(...)       srt::LogCategory::defaultCategory().srtCInfoF(__VA_ARGS__)
-#define srtWarningF(...)    srt::LogCategory::defaultCategory().srtCWarningF(__VA_ARGS__)
-#define srtCriticalF(...)   srt::LogCategory::defaultCategory().srtCCriticalF(__VA_ARGS__)
-#define srtFatalF(...)      srt::LogCategory::defaultCategory().srtCFatalF(__VA_ARGS__)
+#define srtLogF(LEVEL, ...)                                                                        \
+    _srtGetLogCategory().logf<srt::Logger::LEVEL>(__FILE__, __LINE__, __FUNCTION__, __VA_ARGS__)
+#define srtTraceF(...)    srtLogF(Trace, __VA_ARGS__)
+#define srtDebugF(...)    srtLogF(Debug, __VA_ARGS__)
+#define srtSuccessF(...)  srtLogF(Success, __VA_ARGS__)
+#define srtInfoF(...)     srtLogF(Information, __VA_ARGS__)
+#define srtWarningF(...)  srtLogF(Warning, __VA_ARGS__)
+#define srtCriticalF(...) srtLogF(Critical, __VA_ARGS__)
+#define srtFatalF(...)    srtLogF(Critical, __VA_ARGS__)
 
 #endif // LOGGING_H

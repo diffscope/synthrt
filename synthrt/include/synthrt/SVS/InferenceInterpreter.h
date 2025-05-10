@@ -20,12 +20,12 @@ namespace srt {
         virtual NO<InferenceConfiguration> createConfiguration(const InferenceSpec *spec,
                                                                Error *error) const = 0;
 
-        // Called when \a SingerSpec loads.
+        /// Called when \a SingerSpec loads.
         virtual NO<InferenceImportOptions> createImportOptions(const InferenceSpec *spec,
                                                                const JsonValue &options,
                                                                Error *error) const = 0;
 
-        // Called when it's about to execute an inference.
+        /// Called when it's about to execute an inference.
         virtual NO<Inference> createInference(const InferenceSpec *spec,
                                               const NO<InferenceImportOptions> &importOptions,
                                               const NO<InferenceRuntimeOptions> &runtimeOptions,

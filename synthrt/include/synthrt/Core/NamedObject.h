@@ -44,9 +44,9 @@ namespace srt {
 
         NO() = default;
         NO(T *obj) : Base(obj){};
-        template<class U>
+        template <class U>
         NO(const std::shared_ptr<U> &obj) : Base(obj){};
-        template<class U>
+        template <class U>
         NO(std::shared_ptr<U> &&obj) noexcept : Base(std::move(obj)){};
         template <class U>
         NO<U> as() const noexcept {
@@ -57,7 +57,7 @@ namespace srt {
     class SYNTHRT_EXPORT ObjectPool : public NamedObject {
     public:
         explicit ObjectPool();
-        virtual ~ObjectPool();
+        ~ObjectPool();
 
     public:
         void addObject(const NO<NamedObject> &obj);

@@ -41,7 +41,7 @@ namespace ds {
         if (args->objectName() != Onnx::API_NAME) {
             *error = {
                 srt::Error::InvalidArgument,
-                stdc::formatN("invalid driver name: expected \"%s\", got \"%s\"", Onnx::API_NAME,
+                stdc::formatN(R"(invalid driver name: expected "%s", got "%s")", Onnx::API_NAME,
                               args->objectName()),
             };
             return false;
@@ -50,12 +50,12 @@ namespace ds {
         auto onnxArgs = args.as<Onnx::DriverInitArgs>();
 
         // Example logging
-        Log.srtCDebug("initialize: driver name: %1", args->objectName());
-
+        Log.srtDebug("initialize: driver name: %1", args->objectName());
         return true;
     }
 
     InferenceSession *OnnxDriver::createSession() {
         return new OnnxSession();
     }
+
 }
