@@ -4,7 +4,9 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
 #include <filesystem>
+#include <variant>
 
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/Inference.h>
@@ -19,18 +21,18 @@ namespace ds::Api::Acoustic::L1 {
 
     static constexpr int API_LEVEL = 1;
 
-    enum VarianceControl {
-        Energy,
-        Breathiness,
-        Voicing,
-        Tension,
-        NumVarianceControls,
-    };
+    namespace ParamTags {
 
-    enum TransitionControl {
-        Gender,
-        Velocity,
-        NumTransitionControls,
+        /// Variance controls
+        static constexpr char Energy[] = "energy";
+        static constexpr char Breathiness[] = "breathiness";
+        static constexpr char Voicing[] = "voicing";
+        static constexpr char Tension[] = "tension";
+
+        /// Transition controls
+        static constexpr char Gender[] = "gender";
+        static constexpr char Velocity[] = "velocity";
+
     };
 
     enum MelBase {
@@ -43,6 +45,55 @@ namespace ds::Api::Acoustic::L1 {
         MelScale_HTK,
     };
 
+    enum GlideType {
+        GT_None,
+        GT_Up,
+        GT_Down,
+    };
+
+    struct InputPhonemeInfo {
+        struct Speaker {
+            bool mixed = false;
+            std::string name;
+        };
+
+        std::string token;
+        int tone = 0;
+        Speaker speaker;
+        double start = 0;
+    };
+
+    struct InputNoteInfo {
+        std::string key;
+        GlideType glide = GT_None;
+        double duration = 0;
+    };
+
+    struct InputWordInfo {
+        std::vector<InputPhonemeInfo> phones;
+        std::vector<InputNoteInfo> notes;
+    };
+
+    struct InputParameterInfo {
+        struct Dynamic {
+            int interval = 5 /* ms */;
+            std::vector<float> values;
+        };
+
+        std::string tag;
+        std::variant<float, Dynamic> parameters;
+    };
+
+    struct InputSpeakerProportionInfo {
+        std::string name;
+        InputParameterInfo parameter;
+    };
+
+    struct InputSpeakerInfo {
+        bool mixed = false;
+        std::vector<InputSpeakerProportionInfo> proportions;
+    };
+
     class AcousticSchema : public srt::InferenceSchema {
     public:
         AcousticSchema() : srt::InferenceSchema(API_NAME, API_IID, API_LEVEL) {
@@ -52,10 +103,10 @@ namespace ds::Api::Acoustic::L1 {
         std::vector<std::string> speakers;
 
         /// 需要输入的唱法参数列表
-        std::array<bool, NumVarianceControls> varianceControls{};
+        std::set<std::string> varianceControls; // tags
 
         /// 支持的偏移变换类型参数列表
-        std::array<bool, NumTransitionControls> transitionControls{};
+        std::set<std::string> transitionControls; // tags
     };
 
     class AcousticConfiguration : public srt::InferenceConfiguration {
@@ -84,12 +135,8 @@ namespace ds::Api::Acoustic::L1 {
         /// 隐层维度（说话人嵌入向量维度）
         int hiddenSize = 256;
 
-        struct Parameters {
-            std::array<bool, NumVarianceControls> varianceControls{};
-            std::array<bool, NumTransitionControls> transitionControls{};
-        };
         /// 启用的参数列表
-        Parameters parameters;
+        std::set<std::string> parameters;
 
         /// 是否使用连续加速采样
         bool useContinuousAcceleration = false;
@@ -142,7 +189,7 @@ namespace ds::Api::Acoustic::L1 {
         AcousticRuntimeOptions() : srt::InferenceRuntimeOptions(API_NAME, API_IID, API_LEVEL) {
         }
 
-        // TODO
+        /// Reserved
     };
 
     class AcousticInitArgs : public srt::InferenceInitArgs {
@@ -150,13 +197,21 @@ namespace ds::Api::Acoustic::L1 {
         AcousticInitArgs() : InferenceInitArgs(API_NAME) {
         }
 
-        // TODO
+        /// Reserved
     };
 
     class AcousticStartInput : public srt::TaskStartInput {
     public:
         AcousticStartInput() : srt::TaskStartInput(API_NAME) {
         }
+
+        double duration = 0;
+        std::vector<InputWordInfo> words;
+        std::vector<InputParameterInfo> parameters;
+        std::vector<InputSpeakerInfo> speakers;
+
+        float depth = 0;
+        int64_t steps = 0;
     };
 
     class AcousticResult : public srt::TaskResult {
@@ -164,9 +219,8 @@ namespace ds::Api::Acoustic::L1 {
         AcousticResult() : srt::TaskResult(API_NAME) {
         }
 
-        srt::NO<AbstractTensor> mel; // ### FIXME
+        srt::NO<AbstractTensor> mel;
     };
-
 
 }
 
