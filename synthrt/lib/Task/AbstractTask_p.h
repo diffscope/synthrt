@@ -9,7 +9,7 @@ namespace srt {
 
     class AbstractTask::Impl : public NamedObject::Impl {
     public:
-        Impl(AbstractTask *task) : NamedObject::Impl(task) {
+        inline Impl(AbstractTask *task) : NamedObject::Impl(task) {
         }
 
         State state = Idle;

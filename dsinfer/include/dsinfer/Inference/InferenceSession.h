@@ -12,7 +12,7 @@ namespace ds {
 
     class InferenceSessionOpenArgs : public srt::NamedObject {
     public:
-        InferenceSessionOpenArgs(const std::string &name, int version)
+        inline InferenceSessionOpenArgs(const std::string &name, int version)
             : srt::NamedObject(name), version(version) {
         }
 
@@ -21,7 +21,7 @@ namespace ds {
 
     class InferenceSessionInitArgs : public srt::TaskInitArgs {
     public:
-        InferenceSessionInitArgs(const std::string &name, int version)
+        inline InferenceSessionInitArgs(const std::string &name, int version)
             : srt::TaskInitArgs(name), version(version) {
         }
 
@@ -31,7 +31,7 @@ namespace ds {
 
     class InferenceSessionStartInput : public srt::TaskStartInput {
     public:
-        InferenceSessionStartInput(const std::string &name, int version)
+        inline InferenceSessionStartInput(const std::string &name, int version)
             : srt::TaskStartInput(name), version(version) {
         }
 
@@ -40,7 +40,7 @@ namespace ds {
 
     class InferenceSessionResult : public srt::TaskResult {
     public:
-        InferenceSessionResult(const std::string &name, int version)
+        inline InferenceSessionResult(const std::string &name, int version)
             : srt::TaskResult(name), version(version) {
         }
 

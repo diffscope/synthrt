@@ -1,5 +1,5 @@
-#ifndef ONNXDRIVER_LOGGER_H
-#define ONNXDRIVER_LOGGER_H
+#ifndef DSINFER_ONNXDRIVER_LOGGER_H
+#define DSINFER_ONNXDRIVER_LOGGER_H
 
 #include <synthrt/Support/Logging.h>
 
@@ -9,4 +9,4 @@ namespace ds::onnxdriver {
 
 }
 
-#endif // ONNXDRIVER_LOGGER_H
+#endif // DSINFER_ONNXDRIVER_LOGGER_H

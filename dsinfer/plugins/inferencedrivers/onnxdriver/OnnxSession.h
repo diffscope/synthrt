@@ -1,5 +1,5 @@
-#ifndef ONNXSESSION_H
-#define ONNXSESSION_H
+#ifndef DSINFER_ONNXSESSION_H
+#define DSINFER_ONNXSESSION_H
 
 #include <dsinfer/Inference/InferenceSession.h>
 
@@ -34,4 +34,4 @@ namespace ds {
 
 }
 
-#endif // ONNXSESSION_H
+#endif // DSINFER_ONNXSESSION_H

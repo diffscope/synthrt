@@ -54,8 +54,8 @@ namespace ds {
         return true;
     }
 
-    InferenceSession *OnnxDriver::createSession() {
-        return new OnnxSession();
+    srt::NO<InferenceSession> OnnxDriver::createSession() {
+        return std::make_shared<OnnxSession>();
     }
 
 }

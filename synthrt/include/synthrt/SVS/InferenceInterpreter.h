@@ -7,6 +7,7 @@ namespace srt {
 
     class InferenceInterpreter {
     public:
+        InferenceInterpreter() = default;
         virtual ~InferenceInterpreter() = default;
 
     public:

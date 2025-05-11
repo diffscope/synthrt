@@ -10,19 +10,19 @@ namespace srt {
 
     class TaskInitArgs : public NamedObject {
     public:
-        TaskInitArgs(const std::string &name) : NamedObject(name) {
+        inline TaskInitArgs(const std::string &name) : NamedObject(name) {
         }
     };
 
     class TaskStartInput : public NamedObject {
     public:
-        TaskStartInput(const std::string &name) : NamedObject(name) {
+        inline TaskStartInput(const std::string &name) : NamedObject(name) {
         }
     };
 
     class TaskResult : public NamedObject {
     public:
-        TaskResult(const std::string &name) : NamedObject(name) {
+        inline TaskResult(const std::string &name) : NamedObject(name) {
         }
     };
 

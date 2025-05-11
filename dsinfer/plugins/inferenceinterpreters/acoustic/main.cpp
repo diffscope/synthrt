@@ -1,5 +1,7 @@
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
+#include "AcousticInterpreter.h"
+
 namespace ds {
 
     class AcousticInterpreterPlugin : public srt::InferenceInterpreterPlugin {
@@ -11,7 +13,7 @@ namespace ds {
         }
 
         srt::InferenceInterpreter *create() {
-            return nullptr;
+            return new AcousticInterpreter();
         }
     };
 

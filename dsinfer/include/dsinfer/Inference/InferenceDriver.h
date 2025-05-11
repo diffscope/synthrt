@@ -9,7 +9,7 @@ namespace ds {
 
     class InferenceDriverInitArgs : public srt::NamedObject {
     public:
-        InferenceDriverInitArgs(const std::string &name, int version)
+        inline InferenceDriverInitArgs(const std::string &name, int version)
             : srt::NamedObject(name), version(version) {
         }
 
@@ -27,7 +27,7 @@ namespace ds {
         virtual bool initialize(const srt::NO<InferenceDriverInitArgs> &args,
                                 srt::Error *error) = 0;
 
-        virtual InferenceSession *createSession() = 0;
+        virtual srt::NO<InferenceSession> createSession() = 0;
     };
 
 }

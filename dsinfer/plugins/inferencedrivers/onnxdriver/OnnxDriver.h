@@ -1,5 +1,5 @@
-#ifndef ONNXDRIVER_H
-#define ONNXDRIVER_H
+#ifndef DSINFER_ONNXDRIVER_H
+#define DSINFER_ONNXDRIVER_H
 
 #include <filesystem>
 
@@ -15,7 +15,7 @@ namespace ds {
     public:
         bool initialize(const srt::NO<InferenceDriverInitArgs> &args, srt::Error *error) override;
 
-        InferenceSession *createSession() override;
+        srt::NO<InferenceSession> createSession() override;
 
     protected:
         class Impl;
@@ -24,4 +24,4 @@ namespace ds {
 
 }
 
-#endif // ONNXDRIVER_H
+#endif // DSINFER_ONNXDRIVER_H
