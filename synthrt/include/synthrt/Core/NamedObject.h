@@ -52,6 +52,10 @@ namespace srt {
         NO<U> as() const noexcept {
             return std::static_pointer_cast<U>(*this);
         }
+        template <class... Args>
+        static NO<T> create(Args &&...args) {
+            return std::make_shared<T>(std::forward<Args>(args)...);
+        }
     };
 
     class SYNTHRT_EXPORT ObjectPool : public NamedObject {

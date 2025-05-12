@@ -2,15 +2,16 @@
 
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
+#include <stdcorelib/support/sharedlibrary.h>
 
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
 #include "OnnxSession.h"
 #include "OnnxDriver_Logger.h"
 
-using namespace ds::Api;
-
 namespace ds {
+
+    using namespace Api;
 
     namespace onnxdriver {
 
@@ -27,6 +28,10 @@ namespace ds {
 
         ~Impl() {
         }
+
+        // TODO: 
+
+        std::unique_ptr<stdc::SharedLibrary> ortDSO;
     };
 
     OnnxDriver::OnnxDriver() : _impl(std::make_unique<Impl>()) {
@@ -55,7 +60,7 @@ namespace ds {
     }
 
     srt::NO<InferenceSession> OnnxDriver::createSession() {
-        return std::make_shared<OnnxSession>();
+        return srt::NO<InferenceSession>::create();
     }
 
 }

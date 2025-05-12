@@ -19,6 +19,10 @@ namespace ds {
         bool stop() override;
 
         srt::NO<srt::TaskResult> result() const override;
+
+    protected:
+        class Impl;
+        std::unique_ptr<Impl> _impl;
     };
 
 }
