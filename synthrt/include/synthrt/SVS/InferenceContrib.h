@@ -10,21 +10,21 @@ namespace srt {
     /// by a specific inference interpreter.
     class AbstractInferenceInfo : public NamedObject {
     public:
-        inline AbstractInferenceInfo(const std::string &name, const std::string &iid, int apiLevel)
-            : NamedObject(name), _iid(iid), _apiLevel(apiLevel) {
+        inline AbstractInferenceInfo(const std::string &name, const std::string &className, int apiLevel)
+            : NamedObject(name), _className(className), _apiLevel(apiLevel) {
         }
         virtual ~AbstractInferenceInfo() = default;
 
         /// Related interpreter information.
-        inline const std::string &iid() const {
-            return _iid;
+        inline const std::string &className() const {
+            return _className;
         }
         inline int apiLevel() const {
             return _apiLevel;
         }
 
     protected:
-        std::string _iid;
+        std::string _className;
         int _apiLevel;
     };
 

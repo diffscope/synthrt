@@ -39,6 +39,8 @@
          <name>_install
 ]] #
 
+include_guard(DIRECTORY)
+
 qm_import(Preprocess)
 
 # ----------------------------------
