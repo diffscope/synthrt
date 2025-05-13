@@ -42,12 +42,9 @@ namespace srt {
     public:
         using Base = std::shared_ptr<T>;
 
-        NO() = default;
-        NO(T *obj) : Base(obj){};
-        template <class U>
-        NO(const std::shared_ptr<U> &obj) : Base(obj){};
-        template <class U>
-        NO(std::shared_ptr<U> &&obj) noexcept : Base(std::move(obj)){};
+        template <class... Args>
+        NO(Args &&...args) : Base(std::forward<Args>(args)...) {
+        }
         template <class U>
         NO<U> as() const noexcept {
             return std::static_pointer_cast<U>(*this);

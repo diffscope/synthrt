@@ -24,6 +24,8 @@ namespace srt {
     public:
         inline TaskResult(const std::string &name) : NamedObject(name) {
         }
+
+        Error error;
     };
 
     class SYNTHRT_EXPORT AbstractTask : public NamedObject {

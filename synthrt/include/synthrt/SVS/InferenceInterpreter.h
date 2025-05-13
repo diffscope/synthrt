@@ -5,11 +5,7 @@
 
 namespace srt {
 
-    class InferenceInterpreter {
-    public:
-        InferenceInterpreter() = default;
-        virtual ~InferenceInterpreter() = default;
-
+    class InferenceInterpreter : public NamedObject {
     public:
         /// The highest inference API version currently supported by this interpreter.
         virtual int apiLevel() const = 0;
@@ -31,9 +27,6 @@ namespace srt {
                                               const NO<InferenceImportOptions> &importOptions,
                                               const NO<InferenceRuntimeOptions> &runtimeOptions,
                                               Error *error) = 0;
-
-    public:
-        STDCORELIB_DISABLE_COPY(InferenceInterpreter)
     };
 
 }

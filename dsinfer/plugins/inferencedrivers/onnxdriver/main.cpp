@@ -14,8 +14,8 @@ namespace ds {
         }
 
     public:
-        InferenceDriver *create() override {
-            return new OnnxDriver();
+        srt::NO<InferenceDriver> create() override {
+            return srt::NO<OnnxDriver>::create();
         }
     };
 

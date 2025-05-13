@@ -16,7 +16,7 @@ namespace srt {
         }
 
     public:
-        virtual InferenceInterpreter *create() = 0;
+        virtual NO<InferenceInterpreter> create() = 0;
 
     public:
         STDCORELIB_DISABLE_COPY(InferenceInterpreterPlugin)

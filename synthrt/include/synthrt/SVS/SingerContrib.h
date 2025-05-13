@@ -18,6 +18,8 @@ namespace srt {
         SingerImport();
         ~SingerImport();
 
+        bool isNull() const;
+
         /// The locator of the imported inference.
         const ContribLocator &inferenceLocator() const;
 

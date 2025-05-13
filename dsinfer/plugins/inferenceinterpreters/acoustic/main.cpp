@@ -12,8 +12,8 @@ namespace ds {
             return "ai.svs.AcousticInference";
         }
 
-        srt::InferenceInterpreter *create() {
-            return new AcousticInterpreter();
+        srt::NO<srt::InferenceInterpreter> create() {
+            return srt::NO<AcousticInterpreter>::create();
         }
     };
 

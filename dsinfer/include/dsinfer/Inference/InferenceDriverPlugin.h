@@ -16,7 +16,7 @@ namespace ds {
         }
 
     public:
-        virtual InferenceDriver *create() = 0;
+        virtual srt::NO<InferenceDriver> create() = 0;
 
     public:
         STDCORELIB_DISABLE_COPY(InferenceDriverPlugin)

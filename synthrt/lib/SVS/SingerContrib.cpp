@@ -310,6 +310,10 @@ namespace srt {
 
     SingerImport::~SingerImport() = default;
 
+    bool SingerImport::isNull() const {
+        return _data == staticEmptySingerImportData();
+    }
+
     const ContribLocator &SingerImport::inferenceLocator() const {
         return _data->inferenceLocator;
     }

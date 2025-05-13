@@ -60,7 +60,7 @@ namespace ds {
     }
 
     srt::NO<InferenceSession> OnnxDriver::createSession() {
-        return srt::NO<InferenceSession>::create();
+        return srt::NO<OnnxSession>::create();
     }
 
 }

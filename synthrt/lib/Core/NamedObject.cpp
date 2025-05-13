@@ -88,6 +88,10 @@ namespace srt {
     void ObjectPool::addObject(std::string_view id, const NO<NamedObject> &obj) {
         __stdc_impl_t;
 
+        if (!obj) {
+            return;
+        }
+
         auto it = impl.objects.find(id);
         if (it == impl.objects.end()) {
             it = impl.objects

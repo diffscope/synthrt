@@ -36,7 +36,7 @@ namespace srt {
         JsonObject manifestConfiguration;
         NO<InferenceConfiguration> configuration;
 
-        InferenceInterpreter *interp = nullptr;
+        NO<InferenceInterpreter> interp = nullptr;
     };
 
     bool InferenceSpec::Impl::read(const std::filesystem::path &basePath, const JsonObject &obj,
@@ -249,7 +249,7 @@ namespace srt {
         ~Impl() {
         }
 
-        std::map<std::string, InferenceInterpreter *> interpreters;
+        std::map<std::string, NO<InferenceInterpreter>> interpreters;
     };
 
 
@@ -367,7 +367,7 @@ namespace srt {
                 auto spec_impl = static_cast<InferenceSpec::Impl *>(spec1->_impl.get());
 
                 const auto &key = spec1->className();
-                InferenceInterpreter *interp = nullptr;
+                NO<InferenceInterpreter> interp;
 
                 // Search interpreter cache
                 if (auto it = impl.interpreters.find(key); it != impl.interpreters.end()) {
