@@ -12,7 +12,7 @@ namespace ds {
         ~InferenceDriverPlugin() = default;
 
         const char *iid() const override {
-            return "ai.svs.InferenceDriver";
+            return "org.openvpi.InferenceDriver";
         }
 
     public:

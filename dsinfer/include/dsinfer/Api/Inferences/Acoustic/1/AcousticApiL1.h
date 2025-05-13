@@ -17,7 +17,7 @@ namespace ds::Api::Acoustic::L1 {
 
     static constexpr char API_NAME[] = "acoustic";
 
-    static constexpr char API_IID[] = "ai.svs.AcousticInference";
+    static constexpr char API_CLASS[] = "ai.svs.AcousticInference";
 
     static constexpr int API_LEVEL = 1;
 
@@ -96,7 +96,7 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticSchema : public srt::InferenceSchema {
     public:
-        AcousticSchema() : srt::InferenceSchema(API_NAME, API_IID, API_LEVEL) {
+        AcousticSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// 说话人（音色）名称列表
@@ -111,7 +111,7 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticConfiguration : public srt::InferenceConfiguration {
     public:
-        AcousticConfiguration() : srt::InferenceConfiguration(API_NAME, API_IID, API_LEVEL) {
+        AcousticConfiguration() : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// 音素名称与音素 ID 对应表或存储对应信息
@@ -177,7 +177,7 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticImportOptions : public srt::InferenceImportOptions {
     public:
-        AcousticImportOptions() : srt::InferenceImportOptions(API_NAME, API_IID, API_LEVEL) {
+        AcousticImportOptions() : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// 歌手全局音色名称 => 模块内部嵌入名称映射
@@ -186,7 +186,7 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
-        AcousticRuntimeOptions() : srt::InferenceRuntimeOptions(API_NAME, API_IID, API_LEVEL) {
+        AcousticRuntimeOptions() : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// Reserved

@@ -12,7 +12,7 @@ namespace srt {
         ~InferenceInterpreterPlugin() = default;
 
         const char *iid() const override {
-            return "ai.svs.InferenceInterpreter";
+            return "org.openvpi.InferenceInterpreter";
         }
 
     public:

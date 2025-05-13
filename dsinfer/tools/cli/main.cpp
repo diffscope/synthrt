@@ -29,8 +29,8 @@ static void initializeSU(srt::SynthUnit &su) {
         appDir.parent_path() / _TSTR("lib") / _TSTR("plugins") / _TSTR("dsinfer");
 
     // Set default plugin directories
-    su.addPluginPath("ai.svs.InferenceDriver", defaultPluginDir / _TSTR("inferencedrivers"));
-    su.addPluginPath("ai.svs.InferenceInterpreter",
+    su.addPluginPath("org.openvpi.InferenceDriver", defaultPluginDir / _TSTR("inferencedrivers"));
+    su.addPluginPath("org.openvpi.InferenceInterpreter",
                      defaultPluginDir / _TSTR("inferenceinterpreters"));
 
     // Load driver
@@ -98,7 +98,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
     ImportData importAcoustic, importVocoder;
 
     for (const auto &import : singerSpec->imports()) {
-        if (import.inference()->className() == "ai.svs.AcousticInference") {
+        if (import.inference()->className() == Ac::API_CLASS) {
             importAcoustic = {
                 import.options(),
                 import.inference(),
@@ -108,12 +108,12 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
             }
             continue;
         }
-        if (import.inference()->className() == "ai.svs.VocoderInference") {
+        if (import.inference()->className() == Vo::API_CLASS) {
             importVocoder = {
                 import.options(),
                 import.inference(),
             };
-            if (importVocoder.inference) {
+            if (importAcoustic.inference) {
                 break;
             }
         }
@@ -130,6 +130,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
     // Run acoustic
     NO<ds::AbstractTensor> mel;
     {
+        // Prepare
         NO<srt::Inference> inference;
         if (srt::Error err;
             inference = importAcoustic.inference->createInference(
@@ -163,7 +164,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
     // Run vocoder
     std::vector<uint8_t> audioData;
     {
-        // Create vocoder
+        // Prepare
         NO<srt::Inference> inference;
         if (srt::Error err;
             inference = importVocoder.inference->createInference(

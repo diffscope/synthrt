@@ -10,13 +10,13 @@ namespace ds::Api::Vocoder::L1 {
 
     static constexpr char API_NAME[] = "vocoder";
 
-    static constexpr char API_IID[] = "ai.svs.VocoderInference";
+    static constexpr char API_CLASS[] = "ai.svs.VocoderInference";
 
     static constexpr int API_LEVEL = 1;
     
     class VocoderImportOptions : public srt::InferenceImportOptions {
     public:
-        VocoderImportOptions() : srt::InferenceImportOptions(API_NAME, API_IID, API_LEVEL) {
+        VocoderImportOptions() : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         // TODO
@@ -24,7 +24,7 @@ namespace ds::Api::Vocoder::L1 {
 
     class VocoderRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
-        VocoderRuntimeOptions() : srt::InferenceRuntimeOptions(API_NAME, API_IID, API_LEVEL) {
+        VocoderRuntimeOptions() : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// Reserved
