@@ -406,8 +406,8 @@ namespace srt {
                 if (!schema) {
                     *error = {
                         Error::InvalidFormat,
-                        stdc::formatN(R"(inference "%1" validate schema failed: %2)", spec1->id(),
-                                      err1.message()),
+                        stdc::formatN(R"(failed to parse inference schema of "%1": %2)",
+                                      spec1->id(), err1.message()),
                     };
                 }
                 spec_impl->schema = schema;
@@ -416,7 +416,7 @@ namespace srt {
                 if (!config) {
                     *error = {
                         Error::InvalidFormat,
-                        stdc::formatN(R"(inference "%1" validate configuration failed: %2)",
+                        stdc::formatN(R"(failed to parse inference configuration of "%1": %2)",
                                       spec1->id(), err1.message()),
                     };
                 }

@@ -454,16 +454,16 @@ namespace {
     using JSON = nlohmann::basic_json<proxy_map, proxy_vector, std::string>;
 }
 
+#ifndef SYNTHRT_JSON_IN_PLACE
 namespace srt {
 
-#ifndef SYNTHRT_JSON_IN_PLACE
     class JsonValueContainer {
     public:
         JSON json;
     };
-#endif
 
 }
+#endif
 
 namespace {
 

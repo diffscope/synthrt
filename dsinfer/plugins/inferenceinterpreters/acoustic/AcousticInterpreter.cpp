@@ -24,6 +24,10 @@ namespace ds {
                                                  srt::Error *error) const {
         // TODO: 读取 spec->manifestConfiguration() 并返回对应的 InferenceConfiguration 对象
         //       spec->manifestSchema() 也是可以读取作为参考的
+        *error = {
+            srt::Error::FeatureNotSupported,
+            "not implemented",
+        };
         return {};
     }
 
@@ -31,6 +35,10 @@ namespace ds {
         const srt::InferenceSpec *spec, const srt::JsonValue &options, srt::Error *error) const {
         // TODO: 读取 options 并返回对应的 InferenceImportOptions 对象
         //       spec 中所有内容均可读取作为参考
+            *error = {
+            srt::Error::FeatureNotSupported,
+            "not implemented",
+        };
         return {};
     }
 

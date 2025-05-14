@@ -21,11 +21,10 @@ namespace srt {
             SessionError,
         };
 
-        inline Error() : _type(NoError) {
+        inline Error() : Error(NoError) {
         }
 
-        inline Error(int type)
-            : _type(type), _msg(std::make_shared<std::string>(defaultMessage(type))) {
+        inline Error(int type) : _type(type), _msg(defaultMessage(type)) {
         }
 
         inline Error(int type, std::string msg)
@@ -56,7 +55,7 @@ namespace srt {
         int _type;
         std::shared_ptr<std::string> _msg;
 
-        SYNTHRT_EXPORT static std::string defaultMessage(int type);
+        SYNTHRT_EXPORT static std::shared_ptr<std::string> defaultMessage(int type);
     };
 
 }

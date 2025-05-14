@@ -12,6 +12,9 @@
 
 #include <synthrt/synthrt_global.h>
 
+// TODO: Remove this macro
+#define SYNTHRT_JSON_IN_PLACE
+
 namespace srt {
 
     class JsonValue;

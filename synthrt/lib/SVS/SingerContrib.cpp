@@ -478,9 +478,9 @@ namespace srt {
                     if (!options) {
                         *error = {
                             Error::InvalidFormat,
-                            stdc::formatN(R"(inference "%1" of singer "%2" validate failed: %3)",
-                                          imp.inferenceLocator.toString(), spec1->id(),
-                                          err1.message()),
+                            stdc::formatN(
+                                R"(failed to parse options of inference "%1" imported by singer "%2": %3)",
+                                imp.inferenceLocator.toString(), spec1->id(), err1.message()),
                         };
                         return false;
                     }

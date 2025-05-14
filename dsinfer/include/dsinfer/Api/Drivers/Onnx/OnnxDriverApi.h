@@ -25,7 +25,7 @@ namespace ds::Api::Onnx {
 
     class DriverInitArgs : public InferenceDriverInitArgs {
     public:
-        DriverInitArgs() : InferenceDriverInitArgs(API_NAME, API_VERSION) {
+        inline DriverInitArgs() : InferenceDriverInitArgs(API_NAME, API_VERSION) {
         }
 
         /// The execution provider to use.
@@ -40,7 +40,7 @@ namespace ds::Api::Onnx {
 
     class SessionOpenArgs : public InferenceSessionOpenArgs {
     public:
-        SessionOpenArgs() : InferenceSessionOpenArgs(API_NAME, API_VERSION) {
+        inline SessionOpenArgs() : InferenceSessionOpenArgs(API_NAME, API_VERSION) {
         }
 
         /// Whether to force the use of the CPU for the session.
@@ -49,7 +49,7 @@ namespace ds::Api::Onnx {
 
     class SessionStartInput : public InferenceSessionStartInput {
     public:
-        SessionStartInput() : InferenceSessionStartInput(API_NAME, API_VERSION) {
+        inline SessionStartInput() : InferenceSessionStartInput(API_NAME, API_VERSION) {
         }
 
         /// The input port names and the input tensors.
@@ -61,7 +61,7 @@ namespace ds::Api::Onnx {
 
     class SessionResult : public InferenceSessionResult {
     public:
-        SessionResult() : InferenceSessionResult(API_NAME, API_VERSION) {
+        inline SessionResult() : InferenceSessionResult(API_NAME, API_VERSION) {
         }
 
         std::map<std::string, srt::NO<AbstractTensor>> outputs;

@@ -29,8 +29,6 @@ namespace srt {
 
         std::map<std::string, stdc::linked_map<const NamedObject *, NO<NamedObject>>, std::less<>>
             objects;
-
-        bool autoDelete = true;
     };
 
 }

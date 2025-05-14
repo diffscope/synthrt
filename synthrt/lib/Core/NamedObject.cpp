@@ -67,13 +67,6 @@ namespace srt {
     }
 
     ObjectPool::Impl::~Impl() {
-        if (autoDelete) {
-            for (const auto &item : std::as_const(objects)) {
-                for (const auto &item2 : item.second) {
-                    delete item2.first;
-                }
-            }
-        }
     }
 
     ObjectPool::ObjectPool() : ObjectPool(*new Impl(this)) {

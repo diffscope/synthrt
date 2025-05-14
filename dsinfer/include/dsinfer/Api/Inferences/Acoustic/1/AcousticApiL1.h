@@ -96,7 +96,7 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticSchema : public srt::InferenceSchema {
     public:
-        AcousticSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
+        inline AcousticSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// 说话人（音色）名称列表
@@ -111,7 +111,8 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticConfiguration : public srt::InferenceConfiguration {
     public:
-        AcousticConfiguration() : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
+        inline AcousticConfiguration()
+            : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// 音素名称与音素 ID 对应表或存储对应信息
@@ -177,7 +178,8 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticImportOptions : public srt::InferenceImportOptions {
     public:
-        AcousticImportOptions() : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
+        inline AcousticImportOptions()
+            : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// 歌手全局音色名称 => 模块内部嵌入名称映射
@@ -186,7 +188,8 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
-        AcousticRuntimeOptions() : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
+        inline AcousticRuntimeOptions()
+            : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// Reserved
@@ -194,7 +197,7 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticInitArgs : public srt::InferenceInitArgs {
     public:
-        AcousticInitArgs() : InferenceInitArgs(API_NAME) {
+        inline AcousticInitArgs() : InferenceInitArgs(API_NAME) {
         }
 
         /// Reserved
@@ -202,7 +205,7 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticStartInput : public srt::TaskStartInput {
     public:
-        AcousticStartInput() : srt::TaskStartInput(API_NAME) {
+        inline AcousticStartInput() : srt::TaskStartInput(API_NAME) {
         }
 
         double duration = 0;
@@ -216,7 +219,7 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticResult : public srt::TaskResult {
     public:
-        AcousticResult() : srt::TaskResult(API_NAME) {
+        inline AcousticResult() : srt::TaskResult(API_NAME) {
         }
 
         srt::NO<AbstractTensor> mel;

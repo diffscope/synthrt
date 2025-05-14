@@ -39,12 +39,13 @@ namespace ds {
 
     class DSINFER_EXPORT Tensor : public AbstractTensor {
     public:
-        Tensor() : _dataType(Float) {
+        inline Tensor() : _dataType(Float) {
         }
-        Tensor(DataType dataType, const std::vector<int> &shape, const std::vector<uint8_t> &data)
+        inline Tensor(DataType dataType, const std::vector<int> &shape,
+                      const std::vector<uint8_t> &data)
             : _dataType(dataType), _shape(shape), _data(data) {
         }
-        Tensor(DataType dataType, std::vector<int> &&shape, std::vector<uint8_t> &&data)
+        inline Tensor(DataType dataType, std::vector<int> &&shape, std::vector<uint8_t> &&data)
             : _dataType(dataType), _shape(std::move(shape)), _data(std::move(data)) {
         }
 

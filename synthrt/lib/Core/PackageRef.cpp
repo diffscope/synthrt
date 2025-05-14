@@ -321,7 +321,7 @@ namespace srt {
         if (!root.isObject()) {
             *error = {
                 Error::InvalidFormat,
-                stdc::formatN(R"("%1": invalid package manifest format)", descPath),
+                stdc::formatN(R"("%1": invalid package manifest format: not an object)", descPath),
             };
             return false;
         }

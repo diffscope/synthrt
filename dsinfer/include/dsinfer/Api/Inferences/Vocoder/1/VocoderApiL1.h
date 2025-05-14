@@ -13,10 +13,11 @@ namespace ds::Api::Vocoder::L1 {
     static constexpr char API_CLASS[] = "ai.svs.VocoderInference";
 
     static constexpr int API_LEVEL = 1;
-    
+
     class VocoderImportOptions : public srt::InferenceImportOptions {
     public:
-        VocoderImportOptions() : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
+        inline VocoderImportOptions()
+            : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         // TODO
@@ -24,7 +25,8 @@ namespace ds::Api::Vocoder::L1 {
 
     class VocoderRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
-        VocoderRuntimeOptions() : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
+        inline VocoderRuntimeOptions()
+            : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// Reserved
@@ -32,7 +34,7 @@ namespace ds::Api::Vocoder::L1 {
 
     class VocoderInitArgs : public srt::InferenceInitArgs {
     public:
-        VocoderInitArgs() : InferenceInitArgs(API_NAME) {
+        inline VocoderInitArgs() : InferenceInitArgs(API_NAME) {
         }
 
         /// Reserved
@@ -40,7 +42,7 @@ namespace ds::Api::Vocoder::L1 {
 
     class VocoderStartInput : public srt::TaskStartInput {
     public:
-        VocoderStartInput() : srt::TaskStartInput(API_NAME) {
+        inline VocoderStartInput() : srt::TaskStartInput(API_NAME) {
         }
 
         srt::NO<AbstractTensor> mel;
@@ -48,7 +50,7 @@ namespace ds::Api::Vocoder::L1 {
 
     class VocoderResult : public srt::TaskResult {
     public:
-        VocoderResult() : srt::TaskResult(API_NAME) {
+        inline VocoderResult() : srt::TaskResult(API_NAME) {
         }
 
         std::vector<uint8_t> audioData;

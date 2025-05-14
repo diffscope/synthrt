@@ -1,4 +1,5 @@
 #include <filesystem>
+#include <fstream>
 
 #include <stdcorelib/system.h>
 #include <stdcorelib/console.h>
@@ -6,6 +7,7 @@
 
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/Core/PackageRef.h>
+#include <synthrt/Support/JSON.h>
 #include <synthrt/SVS/SingerContrib.h>
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/Inference.h>
@@ -49,8 +51,39 @@ struct InputObject {
     NO<Ac::AcousticStartInput> input;
 
     static InputObject load(const fs::path &path, std::string *err) {
-        // TODO
-        return {};
+        // read all from path to string
+        std::ifstream ifs(path);
+        if (!ifs) {
+            *err = stdc::formatN(R"(failed to open input file "%1")", path);
+        }
+        std::string jsonStr((std::istreambuf_iterator<char>(ifs)),
+                            (std::istreambuf_iterator<char>()));
+
+        // parse JSON
+        srt::JsonValue jsonDoc;
+        if (std::string err1;
+            jsonDoc = srt::JsonValue::fromJson(jsonStr, true, err), !err->empty()) {
+            return {};
+        }
+        if (!jsonDoc.isObject()) {
+            *err = stdc::formatN("not an object");
+            return {};
+        }
+        const auto &docObj = jsonDoc.toObject();
+        InputObject res;
+        {
+            auto it = docObj.find("singer");
+            if (it == docObj.end()) {
+                *err = stdc::formatN("missing singer field");
+                return {};
+            }
+            res.singer = it->second.toString();
+            if (res.singer.empty()) {
+                *err = stdc::formatN("empty singer field");
+                return {};
+            }
+        }
+        return res;
     }
 };
 
