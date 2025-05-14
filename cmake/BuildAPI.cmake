@@ -153,16 +153,25 @@ endif()
         [RC_COPYRIGHT <copyright>]
         [NO_WIN_RC]
         [NO_EXPORT]
+        [QT_AUTOGEN]
         <configure_options...>
     )
 ]] #
 macro(${_CUR_MACRO_PREFIX}_add_executable _target)
-    set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT)
+    set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT QT_AUTOGEN)
     set(oneValueArgs SYNC_INCLUDE_PREFIX RC_NAME RC_DESCRIPTION RC_COPYRIGHT)
     set(multiValueArgs SYNC_INCLUDE_OPTIONS)
     cmake_parse_arguments(FUNC "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     add_executable(${_target})
+
+    if(FUNC_QT_AUTOGEN)
+        set_target_properties(${_target} PROPERTIES
+            AUTOMOC ON
+            AUTOUIC ON
+            AUTORCC ON
+        )
+    endif()
 
     qm_set_value(_rc_name FUNC_RC_NAME ${_CUR_INSTALL_NAME})
     qm_set_value(_rc_description FUNC_RC_DESCRIPTION ${_CUR_DESCRIPTION})
@@ -236,6 +245,7 @@ endmacro()
         [RC_COPYRIGHT <copyright>]
         [NO_WIN_RC]
         [NO_EXPORT]
+        [QT_AUTOGEN]
         <configure_options...>
     )
 ]] #
@@ -273,6 +283,7 @@ endmacro()
         [NO_SYNC_INCLUDE]
         [NO_WIN_RC]
         [NO_EXPORT]
+        [QT_AUTOGEN]
         <configure_options...>
     )
 ]] #
@@ -292,24 +303,34 @@ endmacro()
 #[[
     Install targets, CMake configuration files and include files.
 
-    <name>_install()
+    <name>_install(
+        [NO_EXPORT]
+        [NO_INCLUDE]
+    )
 ]] #
 function(${_CUR_MACRO_PREFIX}_install)
+    set(options NO_EXPORT NO_INCLUDE)
+    set(oneValueArgs)
+    set(multiValueArgs)
+    cmake_parse_arguments(FUNC "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
+
     if(NOT _CUR_INSTALL)
         return()
     endif()
 
-    qm_basic_install(
-        NAME ${_CUR_INSTALL_NAME}
-        VERSION ${_CUR_VERSION}
-        INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/${_CUR_INSTALL_NAME}
-        CONFIG_TEMPLATE "${_CUR_CONFIG_TEMPLATE}"
-        NAMESPACE ${_CUR_INSTALL_NAME}::
-        EXPORT ${_CUR_INSTALL_NAME}Targets
-        WRITE_CONFIG_OPTIONS NO_CHECK_REQUIRED_COMPONENTS_MACRO
-    )
+    if(NOT FUNC_NO_EXPORT)
+        qm_basic_install(
+            NAME ${_CUR_INSTALL_NAME}
+            VERSION ${_CUR_VERSION}
+            INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/${_CUR_INSTALL_NAME}
+            CONFIG_TEMPLATE "${_CUR_CONFIG_TEMPLATE}"
+            NAMESPACE ${_CUR_INSTALL_NAME}::
+            EXPORT ${_CUR_INSTALL_NAME}Targets
+            WRITE_CONFIG_OPTIONS NO_CHECK_REQUIRED_COMPONENTS_MACRO
+        )
+    endif()
 
-    if(_CUR_INCLUDE_DIR)
+    if(NOT FUNC_NO_INCLUDE AND _CUR_INCLUDE_DIR)
         get_filename_component(_dir ${_CUR_INCLUDE_DIR} ABSOLUTE BASE_DIR ${_CUR_SOURCE_DIR})
         install(DIRECTORY ${_dir}/
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -322,7 +343,7 @@ endfunction()
 # Private
 # ----------------------------------
 macro(_cur_add_library_internal _target _type)
-    set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT)
+    set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT QT_AUTOGEN)
     set(oneValueArgs SYNC_INCLUDE_PREFIX PREFIX RC_NAME RC_DESCRIPTION RC_COPYRIGHT
         BUILD_RUNTIME_DIR BUILD_LIBRARY_DIR BUILD_ARCHIVE_DIR
         INSTALL_RUNTIME_DIR INSTALL_LIBRARY_DIR INSTALL_ARCHIVE_DIR
@@ -330,7 +351,15 @@ macro(_cur_add_library_internal _target _type)
     set(multiValueArgs SYNC_INCLUDE_OPTIONS)
     cmake_parse_arguments(FUNC "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
-    add_library(${_target} SHARED)
+    add_library(${_target} ${_type})
+
+    if(FUNC_QT_AUTOGEN)
+        set_target_properties(${_target} PROPERTIES
+            AUTOMOC ON
+            AUTOUIC ON
+            AUTORCC ON
+        )
+    endif()
 
     qm_set_value(_rc_name FUNC_RC_NAME ${_CUR_INSTALL_NAME})
     qm_set_value(_rc_description FUNC_RC_DESCRIPTION ${_CUR_DESCRIPTION})
