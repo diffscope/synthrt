@@ -9,20 +9,13 @@ file(GLOB_RECURSE _src "*.cpp")
 find_package(unofficial-hash-library CONFIG REQUIRED)
 find_package(syscmdline CONFIG REQUIRED)
 find_package(unofficial-bit7z CONFIG REQUIRED)
-find_package(nlohmann_json CONFIG REQUIRED)
 
 dsinfer_add_executable(${PROJECT_NAME}
     SOURCES ${_src}
-    LINKS_PRIVATE dsinfer syscmdline::syscmdline unofficial::hash-library unofficial::bit7z::bit7z64 nlohmann_json::nlohmann_json
+    LINKS_PRIVATE dsinfer syscmdline::syscmdline unofficial::hash-library unofficial::bit7z::bit7z64
     RC_NAME ${PROJECT_NAME}
     RC_DESCRIPTION ${PROJECT_DESCRIPTION}
 )
-
-if(WIN32)
-    qm_add_win_manifest(${PROJECT_NAME}
-        DESCRIPTION ${PROJECT_DESCRIPTION}
-    )
-endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     TOOL_DESC="${PROJECT_DESCRIPTION}, Version ${PROJECT_VERSION}"

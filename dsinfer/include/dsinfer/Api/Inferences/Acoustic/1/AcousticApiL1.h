@@ -12,6 +12,7 @@
 #include <synthrt/SVS/Inference.h>
 
 #include <dsinfer/Core/Tensor.h>
+#include <dsinfer/Core/ParamTag.h>
 
 namespace ds::Api::Acoustic::L1 {
 
@@ -21,17 +22,17 @@ namespace ds::Api::Acoustic::L1 {
 
     static constexpr int API_LEVEL = 1;
 
-    namespace ParamTags {
+    namespace Tags {
 
         /// Variance controls
-        static constexpr char Energy[] = "energy";
-        static constexpr char Breathiness[] = "breathiness";
-        static constexpr char Voicing[] = "voicing";
-        static constexpr char Tension[] = "tension";
+        static constexpr ParamTag Energy("energy");
+        static constexpr ParamTag Breathiness("breathiness");
+        static constexpr ParamTag Voicing("voicing");
+        static constexpr ParamTag Tension("tension");
 
         /// Transition controls
-        static constexpr char Gender[] = "gender";
-        static constexpr char Velocity[] = "velocity";
+        static constexpr ParamTag Gender("gender");
+        static constexpr ParamTag Velocity("velocity");
 
     };
 
@@ -76,11 +77,11 @@ namespace ds::Api::Acoustic::L1 {
 
     struct InputParameterInfo {
         struct Dynamic {
-            int interval = 5 /* ms */;
+            int interval = 5 /* ms */; // do not change
             std::vector<float> values;
         };
 
-        std::string tag;
+        ParamTag tag;
         std::variant<float, Dynamic> parameters;
     };
 
@@ -103,10 +104,10 @@ namespace ds::Api::Acoustic::L1 {
         std::vector<std::string> speakers;
 
         /// 需要输入的唱法参数列表
-        std::set<std::string> varianceControls; // tags
+        std::set<ParamTag> varianceControls;
 
         /// 支持的偏移变换类型参数列表
-        std::set<std::string> transitionControls; // tags
+        std::set<ParamTag> transitionControls;
     };
 
     class AcousticConfiguration : public srt::InferenceConfiguration {
@@ -137,7 +138,7 @@ namespace ds::Api::Acoustic::L1 {
         int hiddenSize = 256;
 
         /// 启用的参数列表
-        std::set<std::string> parameters;
+        std::set<ParamTag> parameters;
 
         /// 是否使用连续加速采样
         bool useContinuousAcceleration = false;

@@ -25,6 +25,10 @@ namespace srt {
         inline PackageDependency(bool required = true) : required(required) {
         }
 
+        inline PackageDependency(std::string id, stdc::VersionNumber version, bool required = true)
+            : id(std::move(id)), version(version), required(required) {
+        }
+
         inline bool operator==(const PackageDependency &other) const {
             return id == other.id && version == other.version;
         }
@@ -46,6 +50,10 @@ namespace srt {
             return SU() != nullptr;
         }
 
+        /// Close the package or reduce its reference count in \c SynthUnit. When all \c PackageRef
+        /// instances opened using \c SynthUnit::open are closed, its shared internal data will be
+        /// deleted. Anyone creating a \c PackageRef instance using a copy construct should be aware
+        /// of the lifetime of the internal data.
         bool close();
 
         const std::string &id() const;
@@ -100,20 +108,26 @@ namespace srt {
     public:
         ScopedPackageRef() = default;
 
-        inline ScopedPackageRef(PackageRef &&ref) : PackageRef() {
-            std::swap(_data, ref._data);
+        inline ScopedPackageRef(PackageRef &&RHS) : PackageRef() {
+            std::swap(_data, RHS._data);
         }
 
         inline ~ScopedPackageRef() {
             forceClose();
         }
 
-        inline ScopedPackageRef &operator=(PackageRef &&ref) {
-            if (this != &ref) {
+        inline ScopedPackageRef &operator=(PackageRef &&RHS) {
+            if (this != &RHS) {
                 forceClose();
-                std::swap(_data, ref._data);
+                std::swap(_data, RHS._data);
             }
             return *this;
+        }
+
+        PackageRef release() {
+            PackageRef ref;
+            std::swap(_data, ref._data);
+            return ref;
         }
 
     private:
