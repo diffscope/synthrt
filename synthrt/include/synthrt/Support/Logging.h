@@ -42,46 +42,46 @@ namespace srt {
 
         template <class... Args>
         inline void trace(const std::string_view &format, Args &&...args) {
-            println(Trace, stdc::formatN(format, std::forward<Args>(args)...));
+            print(Trace, stdc::formatN(format, std::forward<Args>(args)...));
         }
 
         template <class... Args>
         inline void debug(const std::string_view &format, Args &&...args) {
-            println(Debug, stdc::formatN(format, std::forward<Args>(args)...));
+            print(Debug, stdc::formatN(format, std::forward<Args>(args)...));
         }
 
         template <class... Args>
         inline void success(const std::string_view &format, Args &&...args) {
-            println(Success, stdc::formatN(format, std::forward<Args>(args)...));
+            print(Success, stdc::formatN(format, std::forward<Args>(args)...));
         }
 
         template <class... Args>
         inline void info(const std::string_view &format, Args &&...args) {
-            println(Information, stdc::formatN(format, std::forward<Args>(args)...));
+            print(Information, stdc::formatN(format, std::forward<Args>(args)...));
         }
 
         template <class... Args>
         inline void warning(const std::string_view &format, Args &&...args) {
-            println(Warning, stdc::formatN(format, std::forward<Args>(args)...));
+            print(Warning, stdc::formatN(format, std::forward<Args>(args)...));
         }
 
         template <class... Args>
         inline void critical(const std::string_view &format, Args &&...args) {
-            println(Critical, stdc::formatN(format, std::forward<Args>(args)...));
+            print(Critical, stdc::formatN(format, std::forward<Args>(args)...));
         }
 
         template <class... Args>
         inline void fatal(const std::string_view &format, Args &&...args) {
-            println(Critical, stdc::formatN(format, std::forward<Args>(args)...));
+            print(Critical, stdc::formatN(format, std::forward<Args>(args)...));
             abort();
         }
 
         template <class... Args>
         inline void log(int level, const std::string_view &format, Args &&...args) {
-            println(level, stdc::formatN(format, std::forward<Args>(args)...));
+            print(level, stdc::formatN(format, std::forward<Args>(args)...));
         }
 
-        void println(int level, const std::string_view &message);
+        void print(int level, const std::string_view &message);
 
         void printf(int level, const char *fmt, ...);
 

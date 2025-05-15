@@ -61,16 +61,15 @@ namespace srt {
             default:
                 break;
         }
-        console::fputs(console::nostyle, color, console::nocolor, message, stdout);
+        console::puts(console::nostyle, color, console::nocolor, message);
     }
 
     static void defaultLogCategoryFilter(LogCategory *category) {
         // TODO
     }
 
-    void Logger::println(int level, const std::string_view &message) {
+    void Logger::print(int level, const std::string_view &message) {
         LogRegistry::callback(level, _context, message);
-        LogRegistry::callback(level, _context, "\n");
     }
 
     void Logger::printf(int level, const char *fmt, ...) {
