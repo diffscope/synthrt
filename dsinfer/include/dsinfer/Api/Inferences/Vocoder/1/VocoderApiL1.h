@@ -45,7 +45,7 @@ namespace ds::Api::Vocoder::L1 {
         inline VocoderStartInput() : srt::TaskStartInput(API_NAME) {
         }
 
-        srt::NO<AbstractTensor> mel;
+        srt::NO<ITensor> mel;
     };
 
     class VocoderResult : public srt::TaskResult {

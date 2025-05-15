@@ -161,7 +161,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
     }
 
     // Run acoustic
-    NO<ds::AbstractTensor> mel;
+    NO<ds::ITensor> mel;
     {
         // Prepare
         NO<srt::Inference> inference;
@@ -186,7 +186,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
                               input.singer, err.message()));
         }
         auto result = inference->result().as<Ac::AcousticResult>();
-        if (inference->state() == srt::AbstractTask::Failed) {
+        if (inference->state() == srt::ITask::Failed) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to run acoustic inference for singer "%1": %2)",
                               input.singer, result->error.message()));
@@ -223,7 +223,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
                               input.singer, err.message()));
         }
         auto result = inference->result().as<Vo::VocoderResult>();
-        if (inference->state() == srt::AbstractTask::Failed) {
+        if (inference->state() == srt::ITask::Failed) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to run vocoder inference for singer "%1": %2)",
                               input.singer, result->error.message()));

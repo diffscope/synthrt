@@ -4,7 +4,7 @@
 #include <filesystem>
 
 #include <synthrt/Support/Error.h>
-#include <synthrt/Task/AbstractTask.h>
+#include <synthrt/Task/ITask.h>
 
 #include <dsinfer/dsinfer_global.h>
 
@@ -48,7 +48,7 @@ namespace ds {
     };
 
     /// InferenceSession - Provides a basic interface for the memory image of an AI model.
-    class InferenceSession : public srt::AbstractTask {
+    class InferenceSession : public srt::ITask {
     public:
         virtual bool open(const std::filesystem::path &path,
                           const srt::NO<InferenceSessionOpenArgs> &args, srt::Error *error) = 0;

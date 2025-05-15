@@ -6,7 +6,7 @@ namespace ds {
         return "tensor";
     }
 
-    AbstractTensor::DataType Tensor::dataType() const {
+    ITensor::DataType Tensor::dataType() const {
         return _dataType;
     }
 
@@ -22,7 +22,7 @@ namespace ds {
         return _data;
     }
 
-    srt::NO<AbstractTensor> Tensor::clone() const {
+    srt::NO<ITensor> Tensor::clone() const {
         return std::make_shared<Tensor>(_dataType, _shape, _data);
     }
 

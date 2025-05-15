@@ -223,7 +223,7 @@ namespace ds::Api::Acoustic::L1 {
         inline AcousticResult() : srt::TaskResult(API_NAME) {
         }
 
-        srt::NO<AbstractTensor> mel;
+        srt::NO<ITensor> mel;
     };
 
 }

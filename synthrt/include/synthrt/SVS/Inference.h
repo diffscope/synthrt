@@ -1,7 +1,7 @@
 #ifndef SYNTHRT_INFERENCE_H
 #define SYNTHRT_INFERENCE_H
 
-#include <synthrt/Task/AbstractTask.h>
+#include <synthrt/Task/ITask.h>
 
 namespace srt {
 
@@ -18,7 +18,7 @@ namespace srt {
         NO<ObjectPool> intermediateObjects;
     };
 
-    class SYNTHRT_EXPORT Inference : public AbstractTask {
+    class SYNTHRT_EXPORT Inference : public ITask {
     public:
         explicit Inference(const InferenceSpec *spec);
         ~Inference();

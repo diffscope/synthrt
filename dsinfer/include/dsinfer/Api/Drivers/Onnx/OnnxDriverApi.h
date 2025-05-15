@@ -53,7 +53,7 @@ namespace ds::Api::Onnx {
         }
 
         /// The input port names and the input tensors.
-        std::map<std::string, srt::NO<AbstractTensor>> inputs;
+        std::map<std::string, srt::NO<ITensor>> inputs;
 
         /// The output port names.
         std::set<std::string> outputs;
@@ -64,7 +64,7 @@ namespace ds::Api::Onnx {
         inline SessionResult() : InferenceSessionResult(API_NAME, API_VERSION) {
         }
 
-        std::map<std::string, srt::NO<AbstractTensor>> outputs;
+        std::map<std::string, srt::NO<ITensor>> outputs;
     };
 
 }

@@ -3,19 +3,19 @@
 #include <stdcorelib/pimpl.h>
 
 #include "InferenceContrib.h"
-#include "AbstractTask_p.h"
+#include "ITask_p.h"
 
 namespace srt {
 
-    class Inference::Impl : public AbstractTask::Impl {
+    class Inference::Impl : public ITask::Impl {
     public:
-        Impl(Inference *decl, const InferenceSpec *spec) : AbstractTask::Impl(decl), spec(spec) {
+        Impl(Inference *decl, const InferenceSpec *spec) : ITask::Impl(decl), spec(spec) {
         }
 
         const InferenceSpec *spec;
     };
 
-    Inference::Inference(const InferenceSpec *spec) : AbstractTask(*new Impl(this, spec)) {
+    Inference::Inference(const InferenceSpec *spec) : ITask(*new Impl(this, spec)) {
     }
 
     Inference::~Inference() = default;

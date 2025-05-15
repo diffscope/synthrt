@@ -6,14 +6,14 @@
 
 namespace srt {
 
-    /// AbstractInferenceInfo - The base class storing inference information which should be created
+    /// InferenceInfoBase - The base class storing inference information which should be created
     /// by a specific inference interpreter.
-    class AbstractInferenceInfo : public NamedObject {
+    class InferenceInfoBase : public NamedObject {
     public:
-        inline AbstractInferenceInfo(const std::string &name, const std::string &className, int apiLevel)
+        inline InferenceInfoBase(const std::string &name, const std::string &className, int apiLevel)
             : NamedObject(name), _className(className), _apiLevel(apiLevel) {
         }
-        virtual ~AbstractInferenceInfo() = default;
+        virtual ~InferenceInfoBase() = default;
 
         /// Related interpreter information.
         inline const std::string &className() const {
@@ -28,32 +28,32 @@ namespace srt {
         int _apiLevel;
     };
 
-    class InferenceSchema : public AbstractInferenceInfo {
+    class InferenceSchema : public InferenceInfoBase {
     public:
         inline InferenceSchema(const std::string &name, const std::string &iid, int apiLevel)
-            : AbstractInferenceInfo(name, iid, apiLevel) {
+            : InferenceInfoBase(name, iid, apiLevel) {
         }
     };
 
-    class InferenceConfiguration : public AbstractInferenceInfo {
+    class InferenceConfiguration : public InferenceInfoBase {
     public:
         inline InferenceConfiguration(const std::string &name, const std::string &iid, int apiLevel)
-            : AbstractInferenceInfo(name, iid, apiLevel) {
+            : InferenceInfoBase(name, iid, apiLevel) {
         }
     };
 
-    class InferenceImportOptions : public AbstractInferenceInfo {
+    class InferenceImportOptions : public InferenceInfoBase {
     public:
         inline InferenceImportOptions(const std::string &name, const std::string &iid, int apiLevel)
-            : AbstractInferenceInfo(name, iid, apiLevel) {
+            : InferenceInfoBase(name, iid, apiLevel) {
         }
     };
 
-    class InferenceRuntimeOptions : public AbstractInferenceInfo {
+    class InferenceRuntimeOptions : public InferenceInfoBase {
     public:
         inline InferenceRuntimeOptions(const std::string &name, const std::string &iid,
                                        int apiLevel)
-            : AbstractInferenceInfo(name, iid, apiLevel) {
+            : InferenceInfoBase(name, iid, apiLevel) {
         }
     };
 

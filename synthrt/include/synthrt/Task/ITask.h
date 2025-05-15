@@ -28,10 +28,10 @@ namespace srt {
         Error error;
     };
 
-    class SYNTHRT_EXPORT AbstractTask : public NamedObject {
+    class SYNTHRT_EXPORT ITask : public NamedObject {
     public:
-        AbstractTask();
-        ~AbstractTask();
+        ITask();
+        ~ITask();
 
         enum State {
             Idle,
@@ -59,7 +59,7 @@ namespace srt {
 
     protected:
         class Impl;
-        AbstractTask(Impl &impl);
+        ITask(Impl &impl);
     };
 
 }

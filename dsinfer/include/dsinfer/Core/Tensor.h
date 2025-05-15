@@ -14,7 +14,7 @@
 
 namespace ds {
 
-    class AbstractTensor : public srt::NamedObject {
+    class ITensor : public srt::NamedObject {
     public:
         enum DataType {
             Float = 1,
@@ -23,7 +23,7 @@ namespace ds {
             Int64 = 3,
         };
 
-        virtual ~AbstractTensor() = default;
+        virtual ~ITensor() = default;
 
         /// Tensor backend identifier.
         virtual std::string backend() const = 0;
@@ -34,10 +34,10 @@ namespace ds {
         virtual size_t size() const = 0;
         virtual std::vector<uint8_t> data() const = 0;
 
-        virtual srt::NO<AbstractTensor> clone() const = 0;
+        virtual srt::NO<ITensor> clone() const = 0;
     };
 
-    class DSINFER_EXPORT Tensor : public AbstractTensor {
+    class DSINFER_EXPORT Tensor : public ITensor {
     public:
         inline Tensor() : _dataType(Float) {
         }
@@ -56,7 +56,7 @@ namespace ds {
 
         size_t size() const override;
         std::vector<uint8_t> data() const override;
-        srt::NO<AbstractTensor> clone() const override;
+        srt::NO<ITensor> clone() const override;
 
         /// Setters
         inline void setDataType(DataType dataType) {
