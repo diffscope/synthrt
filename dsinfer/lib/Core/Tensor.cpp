@@ -10,7 +10,7 @@ namespace ds {
         return _dataType;
     }
 
-    std::vector<int> Tensor::shape() const {
+    std::vector<int64_t> Tensor::shape() const {
         return _shape;
     }
 

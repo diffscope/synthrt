@@ -29,7 +29,7 @@ namespace ds {
         virtual std::string backend() const = 0;
 
         virtual DataType dataType() const = 0;
-        virtual std::vector<int> shape() const = 0;
+        virtual std::vector<int64_t> shape() const = 0;
 
         virtual size_t size() const = 0;
         virtual std::vector<uint8_t> data() const = 0;
@@ -41,18 +41,18 @@ namespace ds {
     public:
         inline Tensor() : _dataType(Float) {
         }
-        inline Tensor(DataType dataType, const std::vector<int> &shape,
+        inline Tensor(DataType dataType, const std::vector<int64_t> &shape,
                       const std::vector<uint8_t> &data)
             : _dataType(dataType), _shape(shape), _data(data) {
         }
-        inline Tensor(DataType dataType, std::vector<int> &&shape, std::vector<uint8_t> &&data)
+        inline Tensor(DataType dataType, std::vector<int64_t> &&shape, std::vector<uint8_t> &&data)
             : _dataType(dataType), _shape(std::move(shape)), _data(std::move(data)) {
         }
 
         std::string backend() const override;
 
         DataType dataType() const override;
-        std::vector<int> shape() const override;
+        std::vector<int64_t> shape() const override;
 
         size_t size() const override;
         std::vector<uint8_t> data() const override;
@@ -62,10 +62,10 @@ namespace ds {
         inline void setDataType(DataType dataType) {
             _dataType = dataType;
         }
-        inline void setShape(stdc::array_view<int> shape) {
+        inline void setShape(stdc::array_view<int64_t> shape) {
             _shape = shape.vec();
         }
-        inline void setShape(std::vector<int> &&shape) {
+        inline void setShape(std::vector<int64_t> &&shape) {
             _shape = std::move(shape);
         }
         inline void setData(stdc::array_view<uint8_t> data) {
@@ -77,7 +77,7 @@ namespace ds {
 
     protected:
         DataType _dataType;
-        std::vector<int> _shape;
+        std::vector<int64_t> _shape;
         std::vector<uint8_t> _data;
     };
 
