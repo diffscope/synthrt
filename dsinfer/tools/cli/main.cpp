@@ -17,6 +17,7 @@
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
+#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
 namespace fs = std::filesystem;
 
@@ -112,9 +113,20 @@ static void initializeSU(srt::SynthUnit &su) {
         throw std::runtime_error("failed to load inference driver");
     }
 
+    auto onnxDriver = plugin->create();
+    auto onnxArgs = NO<ds::Api::Onnx::DriverInitArgs>::create();
+
+    // TODO: users should be able to configure these args
+    onnxArgs->ep = ds::Api::Onnx::CPUExecutionProvider;
+    onnxArgs->runtimePath = plugin->path().parent_path() / _TSTR("runtimes");
+    onnxArgs->deviceIndex = 0;
+
+    srt::Error error;
+    onnxDriver->initialize(onnxArgs, &error);
+
     // Add driver
     auto &inferenceCate = *su.category("inference");
-    inferenceCate.addObject("dsdriver", plugin->create());
+    inferenceCate.addObject("dsdriver", onnxDriver);
 }
 
 struct InputObject {
