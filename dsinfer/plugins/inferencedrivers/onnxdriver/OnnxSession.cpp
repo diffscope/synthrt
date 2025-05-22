@@ -59,8 +59,7 @@ namespace ds {
 
     bool OnnxSession::start(const srt::NO<srt::TaskStartInput> &input, srt::Error *error) {
         __stdc_impl_t;
-        auto startInput = input.as<Api::Onnx::SessionStartInput>();
-        if (!startInput) {
+        if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
             if (error) {
                 *error = {
                     srt::Error::InvalidArgument,
@@ -69,6 +68,7 @@ namespace ds {
             }
             return false;
         }
+        auto startInput = input.as<Api::Onnx::SessionStartInput>();
         return impl.session.run(startInput, impl.sessionResult, error);
     }
 

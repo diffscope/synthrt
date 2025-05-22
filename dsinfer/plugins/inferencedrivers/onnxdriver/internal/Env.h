@@ -10,12 +10,14 @@ namespace ds::onnxdriver {
     class Env {
     public:
         struct DeviceConfig {
-            Api::Onnx::ExecutionProvider ep = Api::Onnx::CPUExecutionProvider;
-            int deviceIndex = -1;
-
-            DeviceConfig() = default;
+            DeviceConfig() : ep(Api::Onnx::CPUExecutionProvider), deviceIndex(-1) {
+            }
             DeviceConfig(Api::Onnx::ExecutionProvider provider, int index)
-                : ep(provider), deviceIndex(index) {}
+                : ep(provider), deviceIndex(index) {
+            }
+
+            Api::Onnx::ExecutionProvider ep;
+            int deviceIndex;
         };
 
         // Set/Get the entire device config atomically
