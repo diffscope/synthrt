@@ -63,7 +63,7 @@ namespace ds {
             if (error) {
                 *error = {
                     srt::Error::InvalidArgument,
-                    "task start input is null pointer"
+                    "invalid task start input"
                 };
             }
             return false;
