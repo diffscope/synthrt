@@ -153,12 +153,13 @@ endif()
         [RC_COPYRIGHT <copyright>]
         [NO_WIN_RC]
         [NO_EXPORT]
+        [NO_INSTALL]
         [QT_AUTOGEN]
         <configure_options...>
     )
 ]] #
 macro(${_CUR_MACRO_PREFIX}_add_executable _target)
-    set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT QT_AUTOGEN)
+    set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT NO_INSTALL QT_AUTOGEN)
     set(oneValueArgs SYNC_INCLUDE_PREFIX RC_NAME RC_DESCRIPTION RC_COPYRIGHT)
     set(multiValueArgs SYNC_INCLUDE_OPTIONS)
     cmake_parse_arguments(FUNC "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -209,7 +210,7 @@ macro(${_CUR_MACRO_PREFIX}_add_executable _target)
         set(_inc_name ${_target})
     endif()
 
-    if(_CUR_INSTALL)
+    if(_CUR_INSTALL AND NOT FUNC_NO_INSTALL)
         if(FUNC_NO_EXPORT)
             set(_export)
         else()
@@ -245,6 +246,7 @@ endmacro()
         [RC_COPYRIGHT <copyright>]
         [NO_WIN_RC]
         [NO_EXPORT]
+        [NO_INSTALL]
         [QT_AUTOGEN]
         <configure_options...>
     )
@@ -285,6 +287,7 @@ endmacro()
         [NO_SYNC_INCLUDE]
         [NO_WIN_RC]
         [NO_EXPORT]
+        [NO_INSTALL]
         [QT_AUTOGEN]
         <configure_options...>
     )
@@ -345,7 +348,7 @@ endfunction()
 # Private
 # ----------------------------------
 macro(_cur_add_library_internal _target _type)
-    set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT QT_AUTOGEN)
+    set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT NO_INSTALL QT_AUTOGEN)
     set(oneValueArgs SYNC_INCLUDE_PREFIX PREFIX RC_NAME RC_DESCRIPTION RC_COPYRIGHT
         BUILD_RUNTIME_DIR BUILD_LIBRARY_DIR BUILD_ARCHIVE_DIR
         INSTALL_RUNTIME_DIR INSTALL_LIBRARY_DIR INSTALL_ARCHIVE_DIR
@@ -442,7 +445,7 @@ macro(_cur_add_library_internal _target _type)
 
     set(_install_options)
 
-    if(_CUR_INSTALL)
+    if(_CUR_INSTALL AND NOT FUNC_NO_INSTALL)
         # Install directories
         qm_set_value(_install_runtime_dir FUNC_INSTALL_RUNTIME_DIR "${CMAKE_INSTALL_BINDIR}")
         qm_set_value(_install_library_dir FUNC_INSTALL_LIBRARY_DIR "${CMAKE_INSTALL_LIBDIR}")
