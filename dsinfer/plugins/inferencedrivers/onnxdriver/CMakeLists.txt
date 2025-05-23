@@ -1,3 +1,8 @@
+if(NOT TARGET onnxutil)
+    message(WARNING "OnnxDriver plugin will not be built.")
+    return()
+endif()
+
 project(onnxdriver
     VERSION ${DSINFER_VERSION}
     LANGUAGES CXX
@@ -5,13 +10,7 @@ project(onnxdriver
 
 file(GLOB_RECURSE _src *.h *.cpp)
 
-# Import onnxruntime
 set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
-
-if(NOT IS_DIRECTORY ${_onnxruntime_dir})
-    message(WARNING "ONNX runtime not found. Please download and build it from https://github.com/microsoft/onnxruntime.")
-    return()
-endif()
 
 if(DSINFER_ENABLE_DIRECTML)
     set(_onnxdriver_ep_macro_dml "ONNXDRIVER_ENABLE_DML")
@@ -30,8 +29,7 @@ dsinfer_add_plugin(${PROJECT_NAME} ${CURRENT_PLUGIN_CATEGORY} NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_17
     LINKS dsinfer
-    LINKS_PRIVATE stduuid unofficial::hash-library
-    INCLUDE ${_onnxruntime_dir}/include
+    LINKS_PRIVATE stduuid unofficial::hash-library $<BUILD_INTERFACE:onnxutil>
     INCLUDE_PRIVATE *
     DEFINES ORT_API_MANUAL_INIT ${_onnxdriver_ep_macros}
 )

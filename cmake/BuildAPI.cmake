@@ -235,7 +235,7 @@ endmacro()
     Add library target.
 
     <name>_add_library(<target>
-        [SHARED | STATIC]
+        [SHARED | STATIC | INTERFACE]
         [PREFIX <prefix>]
         [SYNC_INCLUDE_PREFIX  <prefix>]
         [SYNC_INCLUDE_OPTIONS <options...>]
@@ -250,7 +250,7 @@ endmacro()
     )
 ]] #
 macro(${_CUR_MACRO_PREFIX}_add_library _target)
-    set(options SHARED STATIC)
+    set(options SHARED STATIC INTERFACE)
     set(oneValueArgs)
     set(multiValueArgs)
     cmake_parse_arguments(FUNC "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -259,6 +259,8 @@ macro(${_CUR_MACRO_PREFIX}_add_library _target)
         set(_type SHARED)
     elseif(FUNC_STATIC)
         set(_type STATIC)
+    elseif(FUNC_INTERFACE)
+        set(_type INTERFACE)
     elseif(_CUR_BUILD_SHARED)
         set(_type SHARED)
     elseif(BUILD_SHARED_LIBS)
@@ -385,15 +387,23 @@ macro(_cur_add_library_internal _target _type)
     # Configure target
     qm_configure_target(${_target} ${FUNC_UNPARSED_ARGUMENTS})
 
+    set(_include_scope "PUBLIC")
+
+    if(_type STREQUAL "INTERFACE")
+        set(_include_scope INTERFACE)
+    endif()
+
     # Add include directories
     if(_CUR_INCLUDE_DIR)
-        target_include_directories(${_target} PUBLIC
+        target_include_directories(${_target} ${_include_scope}
             $<BUILD_INTERFACE:${_CUR_SOURCE_DIR}/${_CUR_INCLUDE_DIR}>
         )
     endif()
 
-    target_include_directories(${_target} PRIVATE ${_CUR_BUILD_INCLUDE_DIR})
-    target_include_directories(${_target} PRIVATE .)
+    if(NOT _type STREQUAL "INTERFACE")
+        target_include_directories(${_target} PRIVATE ${_CUR_BUILD_INCLUDE_DIR})
+        target_include_directories(${_target} PRIVATE .)
+    endif()
 
     # Library name
     if(_target MATCHES "^${_CUR_NAME}(.+)")
@@ -453,7 +463,7 @@ macro(_cur_add_library_internal _target _type)
             LIBRARY DESTINATION "${_install_library_dir}" OPTIONAL
         )
 
-        target_include_directories(${_target} PUBLIC
+        target_include_directories(${_target} ${_include_scope}
             "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
             "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${_CUR_INCLUDE_DIR}>"
         )
@@ -468,7 +478,7 @@ macro(_cur_add_library_internal _target _type)
         qm_sync_include(. "${_CUR_GENERATED_INCLUDE_DIR}/${_inc_name}" ${_install_options}
             ${FUNC_SYNC_INCLUDE_OPTIONS} FORCE
         )
-        target_include_directories(${_target} PUBLIC
+        target_include_directories(${_target} ${_include_scope}
             "$<BUILD_INTERFACE:${_CUR_GENERATED_INCLUDE_DIR}>"
         )
     endif()
