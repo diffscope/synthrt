@@ -70,6 +70,47 @@ namespace ds::onnxdriver {
         }
     };
 
+    struct SessionRunContext {
+        std::vector<const char *> inputNames;
+        std::vector<const char *> outputNames;
+
+        // Stores constructed Ort::Value objects from generic tensors.
+        // Each value will be automatically cleaned up.
+        std::vector<Ort::Value> inputValueRegistry;
+
+        // OrtValue pointers for ORT api use. The vector does not own the values.
+        std::vector<OrtValue *> inputValuePtrs;
+
+        // Output value pointers from session run.
+        // The vector does not own the values, so they need manually memory management.
+        std::vector<OrtValue *> outputValuePtrs;
+
+        explicit SessionRunContext(size_t inputSize, size_t outputSize)
+                : outputValuePtrs(outputSize, nullptr) {
+            inputNames.reserve(inputSize);
+            outputNames.reserve(outputSize);
+            inputValueRegistry.reserve(inputSize);
+            inputValuePtrs.reserve(inputSize);
+        }
+
+        // Disable copying
+        SessionRunContext(const SessionRunContext &) = delete;
+        SessionRunContext &operator=(const SessionRunContext &) = delete;
+
+        ~SessionRunContext() {
+            releaseOutputValues();
+        }
+
+        void releaseOutputValues() {
+            for (OrtValue *&valuePtr : outputValuePtrs) {
+                if (valuePtr) {
+                    Ort::GetApi().ReleaseValue(valuePtr);
+                    valuePtr = nullptr;
+                }
+            }
+        }
+    };
+
     class Session::Impl {
     public:
         Ort::RunOptions runOptions;
@@ -284,26 +325,13 @@ namespace ds::onnxdriver {
             auto inputCount = inputValueMap.size();
             auto outputCount = sessionStartInput->outputs.size();
 
-            std::vector<const char *> inputNames;
-            inputNames.reserve(inputCount);
-
-            std::vector<const char *> outputNames;
-            outputNames.reserve(outputCount);
-
-            // Stores constructed Ort::Value objects from generic tensors.
-            // Each value will be automatically cleaned up.
-            std::vector<Ort::Value> inputValueRegistry;
-            inputValueRegistry.reserve(inputCount);
-
-            // OrtValue pointers for ORT api use. The vector does not own the values.
-            std::vector<OrtValue *> inputValuePtrs;
-            inputValuePtrs.reserve(inputCount);
+            SessionRunContext context(inputCount, outputCount);
 
             try {
                 auto memInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
                 for (auto &[name, value] : inputValueMap) {
-                    inputNames.push_back(name.c_str());
+                    context.inputNames.push_back(name.c_str());
                     if (value->backend() == "tensor") {
                         auto ortValue = createOrtValueFromTensor(value, memInfo, error);
                         if (!ortValue) {
@@ -311,13 +339,13 @@ namespace ds::onnxdriver {
                                 *error = {srt::Error::InvalidArgument,
                                     "Could not create Ort Tensor for input name \"" + name + "\""};
                             }
-                            return false; // TODO: error handling
+                            return false;
                         }
-                        inputValueRegistry.push_back(std::move(ortValue));
-                        inputValuePtrs.push_back(inputValueRegistry.back());
+                        context.inputValueRegistry.push_back(std::move(ortValue));
+                        context.inputValuePtrs.push_back(context.inputValueRegistry.back());
                     } else if (value->backend() == "onnx") {
                         auto ortValue = value.as<OnnxTensor>();
-                        inputValuePtrs.push_back(*(ortValue->valuePtr()));
+                        context.inputValuePtrs.push_back(*(ortValue->valuePtr()));
                     } else {
                         if (error) {
                             *error = {srt::Error::InvalidArgument,
@@ -328,33 +356,33 @@ namespace ds::onnxdriver {
                 }
 
                 for (auto &name : sessionStartInput->outputs) {
-                    outputNames.push_back(name.c_str());
+                    context.outputNames.push_back(name.c_str());
                 }
                 runOptions.UnsetTerminate();
 
-                // Output value pointers from session run.
-                // The vector does not own the values, so they need manually memory management.
-                std::vector<OrtValue *> outputValuePtrs(outputCount, nullptr);
-
                 Ort::Status statusRun(Ort::GetApi().Run(image->session, runOptions,
-                    inputNames.data(), inputValuePtrs.data(), inputCount,
-                    outputNames.data(), outputCount, outputValuePtrs.data()));
+                    context.inputNames.data(), context.inputValuePtrs.data(), inputCount,
+                    context.outputNames.data(), outputCount, context.outputValuePtrs.data()));
 
                 if (!statusRun.IsOK()) {
-                    for (auto outputValuePtr : outputValuePtrs) {
-                        Ort::GetApi().ReleaseValue(outputValuePtr);
-                    }
+                    context.releaseOutputValues();
                     if (error) {
                         *error = srt::Error(srt::Error::SessionError, statusRun.GetErrorMessage());
                     }
                     return false;
                 }
                 outResult->outputs.clear();
-                for (size_t i = 0; i < outputValuePtrs.size(); ++i) {
-                    // In this step, each raw OrtValue object will be managed by OnnxTensor,
-                    // so no manual cleanup (ReleaseValue) needed.
-                    outResult->outputs.emplace(outputNames[i],
-                        srt::NO<OnnxTensor>::create(Ort::Value(outputValuePtrs[i])).as<ITensor>());
+                for (size_t i = 0; i < context.outputValuePtrs.size(); ++i) {
+                    // Transfer ownership of the raw OrtValue* to an Ort::Value wrapper,
+                    // which will subsequently be managed by OnnxTensor. No manual release is required.
+                    Ort::Value managedOrtValue(context.outputValuePtrs[i]);
+
+                    // Null the raw pointer to prevent double release in SessionRunContext's destructor.
+                    context.outputValuePtrs[i] = nullptr;
+
+                    outResult->outputs.emplace(
+                        context.outputNames[i],
+                        srt::NO<OnnxTensor>::create(std::move(managedOrtValue)).as<ITensor>());
                 }
                 return true;
             } catch (const Ort::Exception &err) {
