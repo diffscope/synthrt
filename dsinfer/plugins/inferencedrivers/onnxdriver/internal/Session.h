@@ -8,6 +8,7 @@
 
 #include <synthrt/Support/Error.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
+#include <synthrt/Task/ITask.h>
 
 
 namespace ds::onnxdriver {
@@ -35,12 +36,15 @@ namespace ds::onnxdriver {
         const std::vector<std::string> &inputNames() const;
         const std::vector<std::string> &outputNames() const;
 
-        bool run(const srt::NO<Api::Onnx::SessionStartInput> &input, srt::NO<Api::Onnx::SessionResult> &outResult, srt::Error *error = nullptr);
+        bool run(const srt::NO<srt::TaskStartInput> &input, srt::Error *error = nullptr);
+        bool runAsync(const srt::NO<srt::TaskStartInput> &input, const srt::ITask::StartAsyncCallback &callback, srt::Error *error = nullptr);
 
         void terminate();
 
         std::filesystem::path path() const;
         bool isOpen() const;
+
+        srt::NO<srt::TaskResult> result() const;
 
     protected:
         class Impl;
