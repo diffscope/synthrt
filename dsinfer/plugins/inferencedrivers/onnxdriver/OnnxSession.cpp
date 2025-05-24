@@ -9,7 +9,8 @@ namespace ds {
 
     class OnnxSession::Impl {
     public:
-        Impl() : sessionId(onnxdriver::Env::nextId()) {
+        Impl() : sessionId(onnxdriver::Env::nextId()),
+                 sessionResult(srt::NO<Api::Onnx::SessionResult>::create()) {
         }
         ~Impl() {
         }
@@ -59,17 +60,22 @@ namespace ds {
 
     bool OnnxSession::start(const srt::NO<srt::TaskStartInput> &input, srt::Error *error) {
         __stdc_impl_t;
+        srt::Error tmpError;
         if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
+            tmpError = {srt::Error::InvalidArgument, "invalid task start input"};
             if (error) {
-                *error = {
-                    srt::Error::InvalidArgument,
-                    "invalid task start input"
-                };
+                *error = tmpError;  // copy
             }
+            impl.sessionResult->error = std::move(tmpError);
             return false;
         }
         auto startInput = input.as<Api::Onnx::SessionStartInput>();
-        return impl.session.run(startInput, impl.sessionResult, error);
+        auto ok = impl.session.run(startInput, impl.sessionResult, &tmpError);
+        if (error) {
+            *error = tmpError;  // copy
+        }
+        impl.sessionResult->error = std::move(tmpError);
+        return ok;
     }
 
     bool OnnxSession::startAsync(const srt::NO<srt::TaskStartInput> &input,

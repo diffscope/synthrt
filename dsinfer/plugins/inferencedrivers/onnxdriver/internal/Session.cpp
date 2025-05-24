@@ -22,6 +22,8 @@
 #include "SessionImage.h"
 #include "ScopedTimer.h"
 
+#include "OnnxTensor.h"
+
 
 namespace fs = std::filesystem;
 
@@ -256,9 +258,16 @@ namespace ds::onnxdriver {
                                       elapsedStr);
             });
 
-            if (!sessionStartInput) {
+            if (!(sessionStartInput && sessionStartInput->objectName() == Api::Onnx::API_NAME)) {
                 if (error) {
-                    *error = {srt::Error::SessionError, "Session start input is nullptr"};
+                    *error = {srt::Error::InvalidArgument, "Session start input is not valid"};
+                }
+                return false;
+            }
+
+            if (!(outResult && outResult->objectName() == Api::Onnx::API_NAME)) {
+                if (error) {
+                    *error = {srt::Error::InvalidArgument, "supplied outResult is not valid"};
                 }
                 return false;
             }
@@ -281,43 +290,71 @@ namespace ds::onnxdriver {
             std::vector<const char *> outputNames;
             outputNames.reserve(outputCount);
 
-            std::vector<Ort::Value> values;
-            values.reserve(inputCount);
+            // Stores constructed Ort::Value objects from generic tensors.
+            // Each value will be automatically cleaned up.
+            std::vector<Ort::Value> inputValueRegistry;
+            inputValueRegistry.reserve(inputCount);
+
+            // OrtValue pointers for ORT api use. The vector does not own the values.
+            std::vector<OrtValue *> inputValuePtrs;
+            inputValuePtrs.reserve(inputCount);
 
             try {
                 auto memInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
                 for (auto &[name, value] : inputValueMap) {
                     inputNames.push_back(name.c_str());
-                    auto ortValue = createOrtValueFromTensor(value, memInfo, error);
-                    if (!ortValue) {
-                        return false; // TODO: error handling
+                    if (value->backend() == "tensor") {
+                        auto ortValue = createOrtValueFromTensor(value, memInfo, error);
+                        if (!ortValue) {
+                            if (error) {
+                                *error = {srt::Error::InvalidArgument,
+                                    "Could not create Ort Tensor for input name \"" + name + "\""};
+                            }
+                            return false; // TODO: error handling
+                        }
+                        inputValueRegistry.push_back(std::move(ortValue));
+                        inputValuePtrs.push_back(inputValueRegistry.back());
+                    } else if (value->backend() == "onnx") {
+                        auto ortValue = value.as<OnnxTensor>();
+                        inputValuePtrs.push_back(*(ortValue->valuePtr()));
+                    } else {
+                        if (error) {
+                            *error = {srt::Error::InvalidArgument,
+                                "Unknown tensor backend for input name \"" + name + "\""};
+                        }
+                        return false;
                     }
-                    values.push_back(std::move(ortValue));
                 }
 
                 for (auto &name : sessionStartInput->outputs) {
                     outputNames.push_back(name.c_str());
                 }
                 runOptions.UnsetTerminate();
-                auto outValues = image->session.Run(runOptions,
-                                   inputNames.data(), values.data(), inputCount,
-                                   outputNames.data(), outputCount);
 
-                assert(outValues.size() == outputCount);
-                if (!outResult) {
+                // Output value pointers from session run.
+                // The vector does not own the values, so they need manually memory management.
+                std::vector<OrtValue *> outputValuePtrs(outputCount, nullptr);
+
+                Ort::Status statusRun(Ort::GetApi().Run(image->session, runOptions,
+                    inputNames.data(), inputValuePtrs.data(), inputCount,
+                    outputNames.data(), outputCount, outputValuePtrs.data()));
+
+                if (!statusRun.IsOK()) {
+                    for (auto outputValuePtr : outputValuePtrs) {
+                        Ort::GetApi().ReleaseValue(outputValuePtr);
+                    }
                     if (error) {
-                        *error = {srt::Error::SessionError, "supplied outResult is nullptr"};
+                        *error = srt::Error(srt::Error::SessionError, statusRun.GetErrorMessage());
                     }
                     return false;
                 }
                 outResult->outputs.clear();
-                for (size_t i = 0; i < outputCount; ++i) {
-                    auto outTensor = createTensorFromOrtValue(outValues[i], error);
-                    if (!outTensor) {
-                        return false;
-                    }
-                    outResult->outputs.emplace(outputNames[i], std::move(outTensor));
+                for (size_t i = 0; i < outputValuePtrs.size(); ++i) {
+                    // In this step, each raw OrtValue object will be managed by OnnxTensor,
+                    // so no manual cleanup (ReleaseValue) needed.
+                    outResult->outputs.emplace(outputNames[i],
+                        srt::NO<OnnxTensor>::create(Ort::Value(outputValuePtrs[i])).as<ITensor>());
                 }
                 return true;
             } catch (const Ort::Exception &err) {
@@ -386,13 +423,6 @@ namespace ds::onnxdriver {
             return false;
         }
 
-        // TODO
-#if 0
-        if (!Env::instance() || !Env::instance()->isLoaded()) {
-            Log.srtCritical("Session - The environment is not initialized!");
-            return false;
-        }
-#endif
         // Open
         Log.srtDebug("Session - Try open " + path.string());
         if (!fs::is_regular_file(path)) {
