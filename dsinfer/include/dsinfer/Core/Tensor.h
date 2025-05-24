@@ -17,9 +17,9 @@ namespace ds {
     class ITensor : public srt::NamedObject {
     public:
         enum DataType {
+            Undefined = 0,
             Float = 1,
             Bool = 2,
-            Int = 3,
             Int64 = 3,
         };
 
@@ -39,7 +39,7 @@ namespace ds {
 
     class DSINFER_EXPORT Tensor : public ITensor {
     public:
-        inline Tensor() : _dataType(Float) {
+        inline Tensor() : _dataType(Undefined) {
         }
         inline Tensor(DataType dataType, const std::vector<int64_t> &shape,
                       const std::vector<uint8_t> &data)
@@ -48,6 +48,8 @@ namespace ds {
         inline Tensor(DataType dataType, std::vector<int64_t> &&shape, std::vector<uint8_t> &&data)
             : _dataType(dataType), _shape(std::move(shape)), _data(std::move(data)) {
         }
+
+        ~Tensor() override = default;
 
         std::string backend() const override;
 
