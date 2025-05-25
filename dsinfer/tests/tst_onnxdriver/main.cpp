@@ -133,6 +133,11 @@ static inline srt::NO<ds::Tensor> createTensorFromData(const std::vector<int64_t
     return srt::NO<ds::Tensor>::create(getTensorDataType<T>(), std::move(shape), rawBytes);
 }
 
+template <typename T>
+static inline std::vector<int64_t> getVectorDataShape(const std::vector<T> &data) {
+    return {int64_t{1}, static_cast<int64_t>(data.size())};
+}
+
 BOOST_FIXTURE_TEST_SUITE(InferenceTests, InferenceFixture)
 
 BOOST_AUTO_TEST_CASE(initialize_driver)
@@ -168,10 +173,10 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
     auto sessionStartInput = srt::NO<ds::Api::Onnx::SessionStartInput>::create();
 
     auto input1data = std::vector<float>{1.0f, 2.0f, 3.0f, 4.0f};
-    auto input1shape = std::vector<int64_t>{int64_t{1}, static_cast<int64_t>(input1data.size())};
-
     auto input2data = std::vector<float>{10.5f, 20.5f, 30.5f, 40.5f};
-    auto input2shape = std::vector<int64_t>{int64_t{1}, static_cast<int64_t>(input2data.size())};
+
+    auto input1shape = getVectorDataShape(input1data);
+    auto input2shape = getVectorDataShape(input2data);
 
     auto input1tensor = createTensorFromData<float>(input1shape, input1data);
     auto input2tensor = createTensorFromData<float>(input2shape, input2data);
@@ -195,7 +200,7 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
 
     std::vector<float> expectedOutput = {11.5f, 22.5f, 33.5f, 44.5f};
     auto expectedOutputElementCount = static_cast<int64_t>(expectedOutput.size());
-    auto expectedOutputShape = std::vector<int64_t>{int64_t{1}, expectedOutputElementCount};
+    auto expectedOutputShape = getVectorDataShape(expectedOutput);
 
     BOOST_CHECK_EQUAL(result_->objectName(), ds::Api::Onnx::API_NAME);
     auto result = result_.as<ds::Api::Onnx::SessionResult>();
@@ -212,6 +217,8 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
     BOOST_CHECK_EQUAL(outputElementCount, expectedOutputElementCount);
 
     // 3. Get raw bytes and reinterpret as float
+    BOOST_CHECK_EQUAL(outputTensor->dataType(), ds::ITensor::Float);
+
     const std::vector<uint8_t> &rawData = outputTensor->data();
 
     BOOST_REQUIRE_EQUAL(rawData.size(), (expectedOutput.size() * sizeof(float)));
