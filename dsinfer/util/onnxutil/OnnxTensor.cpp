@@ -154,26 +154,11 @@ namespace ds {
         }
 
         auto type = dataType();
-        auto elementCount = size();
+        auto byteSize = size();
 
         const void* rawData = _value.GetTensorRawData();
         if (!rawData) {
             return result;
-        }
-
-        size_t byteSize = 0;
-        switch (type) {
-            case DataType::Float:
-                byteSize = elementCount * sizeof(float);
-                break;
-            case DataType::Bool:
-                byteSize = elementCount * sizeof(bool);
-                break;
-            case DataType::Int64:
-                byteSize = elementCount * sizeof(int64_t);
-                break;
-            default:
-                return result;
         }
 
         result.resize(byteSize);
