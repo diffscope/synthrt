@@ -1,0 +1,63 @@
+{
+  "test_id": "mixed_type_ops",
+  "description": "Test addition and XOR of mixed-type vectors",
+  "model_path": "mixed_type_ops.onnx",
+  "inputs": [
+    {
+      "name": "input_f1",
+      "dtype": "float32",
+      "shape": [1, 4],
+      "data": [3.14, -2.7, 0.0, 11.4]
+    },
+    {
+      "name": "input_f2",
+      "dtype": "float32",
+      "shape": [1, 4],
+      "data": [1.85, 2.7, -5.5, 5.14]
+    },
+    {
+      "name": "input_i1",
+      "dtype": "int64",
+      "shape": [1, 4],
+      "data": [7, -3, 0, 100]
+    },
+    {
+      "name": "input_i2",
+      "dtype": "int64",
+      "shape": [1, 4],
+      "data": [-2, 9, 5, -50]
+    },
+    {
+      "name": "input_b1",
+      "dtype": "bool",
+      "shape": [1, 4],
+      "data": [true, true, false, false]
+    },
+    {
+      "name": "input_b2",
+      "dtype": "bool",
+      "shape": [1, 4],
+      "data": [false, true, true, false]
+    }
+  ],
+  "expected_outputs": [
+    {
+      "name": "output_f",
+      "dtype": "float32",
+      "shape": [1, 4],
+      "data": [4.99, 0.0, -5.5, 16.54]
+    },
+    {
+      "name": "output_i",
+      "dtype": "int64",
+      "shape": [1, 4],
+      "data": [5, 6, 5, 50]
+    },
+    {
+      "name": "output_b",
+      "dtype": "bool",
+      "shape": [1, 4],
+      "data": [true, false, true, false]
+    }
+  ]
+}

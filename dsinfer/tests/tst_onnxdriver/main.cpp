@@ -6,6 +6,7 @@
 #include <filesystem>
 #include <fstream>
 #include <numeric>
+#include <cmath>
 
 #include <stdcorelib/system.h>
 #include <stdcorelib/path.h>
@@ -18,6 +19,8 @@
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
+
+#include "TestCaseLoader.h"
 
 #define TST_CHECK_ASSIGN(var, expr)                        \
     do {                                                   \
@@ -44,6 +47,7 @@ struct InferenceFixture {
         auto appDir = stdc::system::application_directory();
         auto resDir = appDir / stdc::path::from_utf8(RESOURCE_DIR);
         modelDir = resDir / _TSTR("models");
+        caseDir = resDir / _TSTR("cases");
 
         auto error = initializeSU();
         BOOST_TEST_MESSAGE("Driver initialization " + std::string(error.ok() ? "successful" : "failed: " + error.message()));
@@ -94,6 +98,7 @@ struct InferenceFixture {
     static inline srt::SynthUnit su;
     static inline srt::NO<ds::InferenceDriver> driver;
     fs::path modelDir;
+    fs::path caseDir;
 };
 
 template <typename T>
@@ -138,6 +143,18 @@ static inline std::vector<int64_t> getVectorDataShape(const std::vector<T> &data
     return {int64_t{1}, static_cast<int64_t>(data.size())};
 }
 
+template <typename T>
+static inline bool checkEqual(T x, T y, T epsilon = 1e-6)
+{
+    if constexpr (std::is_floating_point_v<T>) {
+        T diff = std::fabs(x - y);
+        T norm = std::max({T(1), std::fabs(x), std::fabs(y)});
+        return diff <= epsilon * norm;
+    } else {
+        return x == y;
+    }
+}
+
 BOOST_FIXTURE_TEST_SUITE(InferenceTests, InferenceFixture)
 
 BOOST_AUTO_TEST_CASE(initialize_driver)
@@ -155,79 +172,89 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
 {
     BOOST_REQUIRE(driver != nullptr);
 
+    // Load test case data from JSON file using your loader
+    const std::filesystem::path jsonTestFile = caseDir / "mixed_type_ops.json";
+    test::TestCaseData testCase;
+    try {
+        testCase = test::TestCaseLoader::load(jsonTestFile);
+    } catch (const test::TestCaseException &e) {
+        BOOST_FAIL("Could not load test file: " << e.what());
+    }
+
+    // Create and open session
     auto session = driver->createSession();
     BOOST_REQUIRE(session != nullptr);
 
     auto sessionOpenArgs = srt::NO<ds::Api::Onnx::SessionOpenArgs>::create();
     sessionOpenArgs->useCpu = false;
 
-    auto modelPath = modelDir / "vector_add.onnx";
-
     srt::Error error;
-
     bool sessionOpenOk = false;
-    TST_CHECK_ASSIGN(sessionOpenOk, session->open(modelPath, sessionOpenArgs, &error));
+    TST_CHECK_ASSIGN(sessionOpenOk, session->open(modelDir / testCase.meta.model_path, sessionOpenArgs, &error));
     BOOST_CHECK_EQUAL(error.ok(), sessionOpenOk);
-    BOOST_REQUIRE(error.ok(), "Could NOT open session: " << error.message());
+    BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT open session: " << error.message());
 
-    auto sessionStartInput = srt::NO<ds::Api::Onnx::SessionStartInput>::create();
-
-    auto input1data = std::vector<float>{1.0f, 2.0f, 3.0f, 4.0f};
-    auto input2data = std::vector<float>{10.5f, 20.5f, 30.5f, 40.5f};
-
-    auto input1shape = getVectorDataShape(input1data);
-    auto input2shape = getVectorDataShape(input2data);
-
-    auto input1tensor = createTensorFromData<float>(input1shape, input1data);
-    auto input2tensor = createTensorFromData<float>(input2shape, input2data);
-    BOOST_CHECK(input1tensor != nullptr);
-    BOOST_CHECK(input2tensor != nullptr);
-
-    if (input1tensor == nullptr || input2tensor == nullptr) {
-        BOOST_FAIL("Could not create input tensors!");
-    }
-
-    sessionStartInput->inputs["input1"] = input1tensor;
-    sessionStartInput->inputs["input2"] = input2tensor;
-    sessionStartInput->outputs.emplace("output");
-
+    // Start session using loaded inputs and requested outputs
     bool sessionStartOk = false;
-    TST_CHECK_ASSIGN(sessionStartOk, session->start(sessionStartInput.as<srt::TaskStartInput>(), &error));
+    TST_CHECK_ASSIGN(sessionStartOk, session->start(testCase.sessionInput.as<srt::TaskStartInput>(), &error));
     BOOST_CHECK_EQUAL(error.ok(), sessionStartOk);
-    BOOST_REQUIRE(error.ok(), "Could NOT start session: " << error.message());
+    BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT start session: " << error.message());
 
+    // Retrieve result
     auto result_ = session->result();
+    BOOST_REQUIRE(result_ != nullptr);
 
-    std::vector<float> expectedOutput = {11.5f, 22.5f, 33.5f, 44.5f};
-    auto expectedOutputElementCount = static_cast<int64_t>(expectedOutput.size());
-    auto expectedOutputShape = getVectorDataShape(expectedOutput);
-
-    BOOST_CHECK_EQUAL(result_->objectName(), ds::Api::Onnx::API_NAME);
+    // Cast to Onnx SessionResult
     auto result = result_.as<ds::Api::Onnx::SessionResult>();
-    // 1. Check output tensor exists
-    auto it = result->outputs.find("output");
-    BOOST_REQUIRE_MESSAGE(it != result->outputs.end(), "Output tensor 'output' not found");
 
-    auto outputTensor = it->second;
-    BOOST_REQUIRE(outputTensor != nullptr);
+    // Verify outputs
+    for (const auto &expectedOutputEntry : testCase.expectedResult->outputs) {
+        const std::string &outputName = expectedOutputEntry.first;
+        auto expectedTensor = expectedOutputEntry.second;
 
-    // 2. Check output shape size matches expected
-    const auto &outputShape = outputTensor->shape();
-    int64_t outputElementCount = std::accumulate(outputShape.begin(), outputShape.end(), int64_t{1}, std::multiplies<>());
-    BOOST_CHECK_EQUAL(outputElementCount, expectedOutputElementCount);
+        // Check that output tensor exists
+        auto it = result->outputs.find(outputName);
+        BOOST_REQUIRE_MESSAGE(it != result->outputs.end(), "Output tensor '" << outputName << "' not found");
+        auto outputTensor = it->second;
+        BOOST_REQUIRE(outputTensor != nullptr);
 
-    // 3. Get raw bytes and reinterpret as float
-    BOOST_CHECK_EQUAL(outputTensor->dataType(), ds::ITensor::Float);
+        // Check data type matches
+        auto actualDataType = outputTensor->dataType();
+        auto expectedDataType = expectedTensor->dataType();
+        BOOST_CHECK_EQUAL(actualDataType, expectedDataType);
 
-    const std::vector<uint8_t> &rawData = outputTensor->data();
+        // Check shape matches
+        const auto &outputShape = outputTensor->shape();
+        const auto &expectedShape = expectedTensor->shape();
+        BOOST_CHECK_EQUAL_COLLECTIONS(outputShape.begin(), outputShape.end(),
+                                      expectedShape.begin(), expectedShape.end());
 
-    BOOST_REQUIRE_EQUAL(rawData.size(), (expectedOutput.size() * sizeof(float)));
+        // Check data element-wise
+        auto outputRaw = outputTensor->data();
+        auto expectedRaw = expectedTensor->data();
+        size_t byteSize = outputTensor->size();
+        BOOST_CHECK_EQUAL(byteSize, expectedTensor->size());
 
-    const float* outputData = reinterpret_cast<const float*>(rawData.data());
-
-    // 4. Compare element-wise with expected output
-    for (size_t i = 0; i < expectedOutput.size(); ++i) {
-        BOOST_CHECK_CLOSE(outputData[i], expectedOutput[i], f32_tolerance);
+        switch (actualDataType) {
+            case ds::ITensor::Float: {
+                auto actual = reinterpret_cast<const float*>(outputRaw.data());
+                auto expected = reinterpret_cast<const float*>(expectedRaw.data());
+                size_t count = byteSize / sizeof(float);
+                BOOST_TEST_MESSAGE("Floating point data comparison using tolerance " << f32_tolerance);
+                for (size_t i = 0; i < count; ++i) {
+                    bool isEqual = checkEqual(actual[i], expected[i], f32_tolerance);
+                    BOOST_CHECK_MESSAGE(isEqual, "Output: \"" << outputName << "\"; Index: " << i << "; Actual: " << actual[i] << "; Expected: " << expected[i]);
+                }
+                break;
+            }
+            default: {
+                // Compare raw data byte-by-byte
+                BOOST_TEST_MESSAGE("Comparing raw data byte-by-byte");
+                bool dataMatch = std::memcmp(outputRaw.data(), expectedRaw.data(), byteSize) == 0;
+                BOOST_CHECK_MESSAGE(dataMatch, "Output data for '" << outputName << "' should match expected values");
+                break;
+            }
+        }
     }
 }
 

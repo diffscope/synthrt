@@ -1,0 +1,46 @@
+	onnx-mixed-type-ops-example:¢
+-
+input_f1
+input_f2output_fAddFloat"Add
++
+input_i1
+input_i2output_iAddInt"Add
+,
+input_b1
+input_b2output_bXorBool"XorMixedTypeOpsGraphZ
+input_f1
+	
+
+NZ
+input_f2
+	
+
+NZ
+input_i1
+	
+
+NZ
+input_i2
+	
+
+NZ
+input_b1
+		
+
+NZ
+input_b2
+		
+
+Nb
+output_f
+	
+
+Nb
+output_i
+	
+
+Nb
+output_b
+		
+
+NB
