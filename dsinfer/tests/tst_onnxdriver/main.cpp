@@ -257,6 +257,7 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
     srt::Error error;
     bool sessionOpenOk = false;
     TST_CHECK_ASSIGN(sessionOpenOk, session->open(modelDir / testCase->meta.model_path, sessionOpenArgs, &error));
+    BOOST_CHECK_EQUAL(session->isOpen(), sessionOpenOk);
     BOOST_CHECK_EQUAL(error.ok(), sessionOpenOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT open session: " << error.message());
 
@@ -299,6 +300,7 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async)
     srt::Error error;
     bool sessionOpenOk = false;
     TST_CHECK_ASSIGN(sessionOpenOk, session->open(modelDir / testCase->meta.model_path, sessionOpenArgs, &error));
+    BOOST_CHECK_EQUAL(session->isOpen(), sessionOpenOk);
     BOOST_CHECK_EQUAL(error.ok(), sessionOpenOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT open session: " << error.message());
 
@@ -311,6 +313,21 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async)
     TST_CHECK_ASSIGN(sessionStartOk, session->startAsync(testCase->sessionInput.as<srt::TaskStartInput>(), validator, &error));
     BOOST_CHECK_EQUAL(error.ok(), sessionStartOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT start session: " << error.message());
+}
+
+BOOST_AUTO_TEST_CASE(session_unopened) {
+    BOOST_TEST_MESSAGE("Testing unopened session...");
+
+    BOOST_REQUIRE(driver != nullptr);
+
+    // Create session
+    auto session = driver->createSession();
+    BOOST_REQUIRE(session != nullptr);
+
+    BOOST_CHECK_EQUAL(session->isOpen(), false);
+
+    // Sessions, even unopened, should allocate the result object.
+    BOOST_CHECK(session->result() != nullptr);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
