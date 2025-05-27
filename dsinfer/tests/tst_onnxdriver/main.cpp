@@ -168,15 +168,81 @@ BOOST_AUTO_TEST_CASE(initialize_driver)
     }
 }
 
+struct SessionResultValidator {
+    explicit SessionResultValidator(const std::shared_ptr<test::TestCaseData> &testCaseData) : testCase(testCaseData) {
+    }
+
+    void operator()(const srt::NO<srt::TaskResult> &result_, const srt::Error &error) const {
+        BOOST_REQUIRE(result_ != nullptr);
+
+        // Cast to Onnx SessionResult
+        auto result = result_.as<ds::Api::Onnx::SessionResult>();
+
+        // Verify outputs
+        for (const auto &expectedOutputEntry : testCase->expectedResult->outputs) {
+            const std::string &outputName = expectedOutputEntry.first;
+            auto expectedTensor = expectedOutputEntry.second;
+
+            // Check that output tensor exists
+            auto it = result->outputs.find(outputName);
+            BOOST_REQUIRE_MESSAGE(it != result->outputs.end(), "Output tensor '" << outputName << "' not found");
+            auto outputTensor = it->second;
+            BOOST_REQUIRE(outputTensor != nullptr);
+
+            // Check data type matches
+            auto actualDataType = outputTensor->dataType();
+            auto expectedDataType = expectedTensor->dataType();
+            BOOST_CHECK_EQUAL(actualDataType, expectedDataType);
+
+            // Check shape matches
+            const auto &outputShape = outputTensor->shape();
+            const auto &expectedShape = expectedTensor->shape();
+            BOOST_CHECK_EQUAL_COLLECTIONS(outputShape.begin(), outputShape.end(),
+                                          expectedShape.begin(), expectedShape.end());
+
+            // Check data element-wise
+            auto outputRaw = outputTensor->data();
+            auto expectedRaw = expectedTensor->data();
+            size_t byteSize = outputTensor->size();
+            BOOST_CHECK_EQUAL(byteSize, expectedTensor->size());
+
+            switch (actualDataType) {
+                case ds::ITensor::Float: {
+                    auto actual = reinterpret_cast<const float*>(outputRaw.data());
+                    auto expected = reinterpret_cast<const float*>(expectedRaw.data());
+                    size_t count = byteSize / sizeof(float);
+                    BOOST_TEST_MESSAGE("Floating point data comparison using tolerance " << f32_tolerance);
+                    for (size_t i = 0; i < count; ++i) {
+                        bool isEqual = checkEqual(actual[i], expected[i], f32_tolerance);
+                        BOOST_CHECK_MESSAGE(isEqual, "Output: \"" << outputName << "\"; Index: " << i << "; Actual: " << actual[i] << "; Expected: " << expected[i]);
+                    }
+                    break;
+                }
+                default: {
+                    // Compare raw data byte-by-byte
+                    BOOST_TEST_MESSAGE("Comparing raw data byte-by-byte");
+                    bool dataMatch = std::memcmp(outputRaw.data(), expectedRaw.data(), byteSize) == 0;
+                    BOOST_CHECK_MESSAGE(dataMatch, "Output data for '" << outputName << "' should match expected values");
+                    break;
+                }
+            }
+        }
+    }
+
+    std::shared_ptr<test::TestCaseData> testCase;
+};
+
 BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
 {
     BOOST_REQUIRE(driver != nullptr);
 
     // Load test case data from JSON file using your loader
     const std::filesystem::path jsonTestFile = caseDir / "mixed_type_ops.json";
-    test::TestCaseData testCase;
+    std::shared_ptr<test::TestCaseData> testCase;
     try {
+        BOOST_TEST_MESSAGE("Loading test data...");
         testCase = test::TestCaseLoader::load(jsonTestFile);
+        BOOST_TEST_MESSAGE("Test data loaded");
     } catch (const test::TestCaseException &e) {
         BOOST_FAIL("Could not load test file: " << e.what());
     }
@@ -190,72 +256,61 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
 
     srt::Error error;
     bool sessionOpenOk = false;
-    TST_CHECK_ASSIGN(sessionOpenOk, session->open(modelDir / testCase.meta.model_path, sessionOpenArgs, &error));
+    TST_CHECK_ASSIGN(sessionOpenOk, session->open(modelDir / testCase->meta.model_path, sessionOpenArgs, &error));
     BOOST_CHECK_EQUAL(error.ok(), sessionOpenOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT open session: " << error.message());
 
     // Start session using loaded inputs and requested outputs
     bool sessionStartOk = false;
-    TST_CHECK_ASSIGN(sessionStartOk, session->start(testCase.sessionInput.as<srt::TaskStartInput>(), &error));
+    TST_CHECK_ASSIGN(sessionStartOk, session->start(testCase->sessionInput.as<srt::TaskStartInput>(), &error));
     BOOST_CHECK_EQUAL(error.ok(), sessionStartOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT start session: " << error.message());
 
     // Retrieve result
     auto result_ = session->result();
-    BOOST_REQUIRE(result_ != nullptr);
 
-    // Cast to Onnx SessionResult
-    auto result = result_.as<ds::Api::Onnx::SessionResult>();
+    // Validate result
+    SessionResultValidator validator(testCase);
+    validator(result_, error);
+}
 
-    // Verify outputs
-    for (const auto &expectedOutputEntry : testCase.expectedResult->outputs) {
-        const std::string &outputName = expectedOutputEntry.first;
-        auto expectedTensor = expectedOutputEntry.second;
+BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async)
+{
+    BOOST_REQUIRE(driver != nullptr);
 
-        // Check that output tensor exists
-        auto it = result->outputs.find(outputName);
-        BOOST_REQUIRE_MESSAGE(it != result->outputs.end(), "Output tensor '" << outputName << "' not found");
-        auto outputTensor = it->second;
-        BOOST_REQUIRE(outputTensor != nullptr);
-
-        // Check data type matches
-        auto actualDataType = outputTensor->dataType();
-        auto expectedDataType = expectedTensor->dataType();
-        BOOST_CHECK_EQUAL(actualDataType, expectedDataType);
-
-        // Check shape matches
-        const auto &outputShape = outputTensor->shape();
-        const auto &expectedShape = expectedTensor->shape();
-        BOOST_CHECK_EQUAL_COLLECTIONS(outputShape.begin(), outputShape.end(),
-                                      expectedShape.begin(), expectedShape.end());
-
-        // Check data element-wise
-        auto outputRaw = outputTensor->data();
-        auto expectedRaw = expectedTensor->data();
-        size_t byteSize = outputTensor->size();
-        BOOST_CHECK_EQUAL(byteSize, expectedTensor->size());
-
-        switch (actualDataType) {
-            case ds::ITensor::Float: {
-                auto actual = reinterpret_cast<const float*>(outputRaw.data());
-                auto expected = reinterpret_cast<const float*>(expectedRaw.data());
-                size_t count = byteSize / sizeof(float);
-                BOOST_TEST_MESSAGE("Floating point data comparison using tolerance " << f32_tolerance);
-                for (size_t i = 0; i < count; ++i) {
-                    bool isEqual = checkEqual(actual[i], expected[i], f32_tolerance);
-                    BOOST_CHECK_MESSAGE(isEqual, "Output: \"" << outputName << "\"; Index: " << i << "; Actual: " << actual[i] << "; Expected: " << expected[i]);
-                }
-                break;
-            }
-            default: {
-                // Compare raw data byte-by-byte
-                BOOST_TEST_MESSAGE("Comparing raw data byte-by-byte");
-                bool dataMatch = std::memcmp(outputRaw.data(), expectedRaw.data(), byteSize) == 0;
-                BOOST_CHECK_MESSAGE(dataMatch, "Output data for '" << outputName << "' should match expected values");
-                break;
-            }
-        }
+    // Load test case data from JSON file using your loader
+    const std::filesystem::path jsonTestFile = caseDir / "mixed_type_ops.json";
+    std::shared_ptr<test::TestCaseData> testCase;
+    try {
+        BOOST_TEST_MESSAGE("Loading test data...");
+        testCase = test::TestCaseLoader::load(jsonTestFile);
+        BOOST_TEST_MESSAGE("Test data loaded");
+    } catch (const test::TestCaseException &e) {
+        BOOST_FAIL("Could not load test file: " << e.what());
     }
+
+    // Create and open session
+    auto session = driver->createSession();
+    BOOST_REQUIRE(session != nullptr);
+
+    auto sessionOpenArgs = srt::NO<ds::Api::Onnx::SessionOpenArgs>::create();
+    sessionOpenArgs->useCpu = false;
+
+    srt::Error error;
+    bool sessionOpenOk = false;
+    TST_CHECK_ASSIGN(sessionOpenOk, session->open(modelDir / testCase->meta.model_path, sessionOpenArgs, &error));
+    BOOST_CHECK_EQUAL(error.ok(), sessionOpenOk);
+    BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT open session: " << error.message());
+
+    // Since we run the session async, we first construct the validator (callback)
+    // The validator can be called like a function.
+    SessionResultValidator validator(testCase);
+
+    // Start session using loaded inputs and requested outputs
+    bool sessionStartOk = false;
+    TST_CHECK_ASSIGN(sessionStartOk, session->startAsync(testCase->sessionInput.as<srt::TaskStartInput>(), validator, &error));
+    BOOST_CHECK_EQUAL(error.ok(), sessionStartOk);
+    BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT start session: " << error.message());
 }
 
 BOOST_AUTO_TEST_SUITE_END()

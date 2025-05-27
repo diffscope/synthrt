@@ -144,7 +144,7 @@ namespace test {
             .as<ds::ITensor>();
     }
 
-    TestCaseData TestCaseLoader::load(const std::filesystem::path &jsonPath) {
+    std::shared_ptr<TestCaseData> TestCaseLoader::load(const std::filesystem::path &jsonPath) {
         std::ifstream in(jsonPath);
         if (!in)
             throw TestCaseException("Failed to open JSON file: " + jsonPath.string());
@@ -157,12 +157,12 @@ namespace test {
             throw TestCaseException("JSON parse error in file '" + jsonPath.string() +
                                     "': " + error);
 
-        TestCaseData caseData;
-        caseData.meta.test_id = root["test_id"].toString();
-        caseData.meta.description = root["description"].toString();
-        caseData.meta.model_path = stdc::path::from_utf8(root["model_path"].toString());
+        auto caseData = std::make_shared<TestCaseData>();
+        caseData->meta.test_id = root["test_id"].toString();
+        caseData->meta.description = root["description"].toString();
+        caseData->meta.model_path = stdc::path::from_utf8(root["model_path"].toString());
 
-        auto &inputMap = caseData.sessionInput->inputs;
+        auto &inputMap = caseData->sessionInput->inputs;
         const auto jsonInputs = root["inputs"].toArray();
         if (jsonInputs.empty())
             throw TestCaseException("No inputs found in test case JSON: " + jsonPath.string());
@@ -189,10 +189,10 @@ namespace test {
             std::string name = jsonExpectedOutput["name"].toString();
 
             // Insert output name for session output fetching
-            caseData.sessionInput->outputs.insert(name);
+            caseData->sessionInput->outputs.insert(name);
 
             // Parse and store expected output tensor
-            caseData.expectedResult->outputs[name] = parse_tensor(jsonExpectedOutput);
+            caseData->expectedResult->outputs[name] = parse_tensor(jsonExpectedOutput);
         }
 
         return caseData;

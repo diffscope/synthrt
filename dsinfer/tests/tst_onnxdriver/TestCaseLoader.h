@@ -1,10 +1,8 @@
-// CaseLoader.h
 #ifndef TST_ONNXDRIVER_CASE_LOADER_H
 #define TST_ONNXDRIVER_CASE_LOADER_H
 
 #include <stdexcept>
 #include <string>
-#include <optional>
 #include <filesystem>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
@@ -32,7 +30,7 @@ namespace test {
 
     class TestCaseLoader {
     public:
-        static TestCaseData load(const std::filesystem::path &jsonPath);
+        static std::shared_ptr<TestCaseData> load(const std::filesystem::path &jsonPath);
     };
 
 } // namespace test
