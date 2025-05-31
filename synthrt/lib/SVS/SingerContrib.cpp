@@ -384,14 +384,6 @@ namespace srt {
         explicit Impl(SingerCategory *decl, SynthUnit *su)
             : ContribCategory::Impl(decl, "singer", su) {
         }
-
-        std::list<SingerSpec *> singers;
-        std::map<
-            std::string,
-            std::unordered_map<stdc::VersionNumber,
-                               std::map<std::string, decltype(singers)::iterator, std::less<>>>,
-            std::less<>>
-            indexes;
     };
 
     SingerCategory::~SingerCategory() = default;
@@ -410,7 +402,12 @@ namespace srt {
     std::vector<SingerSpec *> SingerCategory::singers() const {
         __stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.su_mtx());
-        return {impl.singers.begin(), impl.singers.end()};
+        std::vector<SingerSpec *> res;
+        res.reserve(impl.contributes.size());
+        for (const auto &item : impl.contributes) {
+            res.push_back(static_cast<SingerSpec *>(item));
+        }
+        return res;
     }
 
     std::string SingerCategory::key() const {
