@@ -86,6 +86,15 @@ namespace srt {
         inline bool isDouble() const {
             return type() == Double;
         }
+        inline bool isInt() const {
+            return type() == Int || type() == UInt;
+        }
+        inline bool isUInt() const {
+            return type() == UInt;
+        }
+        inline bool isNumber() const {
+            return isDouble() || isInt();
+        }
         inline bool isString() const {
             return type() == String;
         }
