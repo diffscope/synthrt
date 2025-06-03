@@ -31,6 +31,8 @@ if(MSVC)
 elseif(MINGW)
     set(CMAKE_STATIC_LIBRARY_PREFIX "")
     set(CMAKE_SHARED_LIBRARY_PREFIX "")
+else()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 endif()
 
 if(SYNTHRT_INSTALL)

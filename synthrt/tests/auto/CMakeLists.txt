@@ -1,6 +1,6 @@
 project(tst_synthrt_auto)
 
-set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_LIBS OFF)
 find_package(Boost 1.67.0 QUIET COMPONENTS unit_test_framework CONFIG)
 
 if(NOT Boost_FOUND)
@@ -8,7 +8,7 @@ if(NOT Boost_FOUND)
     return()
 endif()
 
-file(GLOB_RECURSE _src support/*.cpp)
+file(GLOB_RECURSE _src *.cpp)
 add_executable(${PROJECT_NAME} ${_src})
 
 target_link_libraries(${PROJECT_NAME} PRIVATE Boost::unit_test_framework)

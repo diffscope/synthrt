@@ -6,6 +6,7 @@
 #include <system_error>
 #include <cstring>
 #include <optional>
+#include <vector>
 
 #include <stdcorelib/stlextra/iterator.h>
 #include <dsinfer/dsinfer_global.h>

@@ -3,6 +3,7 @@
 
 #include <map>
 #include <unordered_map>
+#include <list>
 
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/Plugin/PluginFactory_p.h>

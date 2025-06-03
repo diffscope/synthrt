@@ -74,7 +74,7 @@ namespace ds {
              *  2. Get Ort API getter handle
              */
             Log.srtDebug("Init - Getting ORT API handle");
-            auto handle = static_cast<OrtApiBase *(ORT_API_CALL *) ()>(dylib->resolve("OrtGetApiBase"));
+            auto handle = reinterpret_cast<OrtApiBase *(ORT_API_CALL *) ()>(dylib->resolve("OrtGetApiBase"));
             if (!handle) {
                 std::string msg = stdc::formatN("Failed to get API handle: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);

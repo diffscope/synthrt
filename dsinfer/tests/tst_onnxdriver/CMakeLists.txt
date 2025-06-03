@@ -7,7 +7,7 @@ if(NOT TARGET onnxdriver)
     return()
 endif()
 
-set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_STATIC_LIBS OFF)
 find_package(Boost 1.67.0 QUIET COMPONENTS unit_test_framework CONFIG)
 
 if(NOT Boost_FOUND)

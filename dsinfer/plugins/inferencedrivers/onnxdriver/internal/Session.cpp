@@ -353,7 +353,7 @@ namespace ds::onnxdriver {
             ScopedTimer timer([&](const ScopedTimer::duration_t &elapsed) {
                 // When finished, print time elapsed
                 auto elapsedStr =
-                    (std::ostringstream() << std::fixed << std::setprecision(3) << elapsed.count())
+                         static_cast<const std::ostringstream &>(std::ostringstream() << std::fixed << std::setprecision(3) << elapsed.count())
                         .str();
                 Log.srtInfo("Session [%1] - Finished inference in %2 seconds", filename,
                                       elapsedStr);
@@ -457,7 +457,7 @@ namespace ds::onnxdriver {
             ScopedTimer timer([&](const ScopedTimer::duration_t &elapsed) {
                 // When finished, print time elapsed
                 auto elapsedStr =
-                    (std::ostringstream() << std::fixed << std::setprecision(3) << elapsed.count())
+                    static_cast<const std::ostringstream &>(std::ostringstream() << std::fixed << std::setprecision(3) << elapsed.count())
                         .str();
                 Log.srtInfo("Session [%1] - Finished inference in %2 seconds", filename,
                                       elapsedStr);

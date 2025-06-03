@@ -163,6 +163,7 @@ namespace srt {
                 void *padding;
             } data;
             void *p;
+            char buf[1];
         } buf;
 #else
         std::shared_ptr<JsonValueContainer> c;
