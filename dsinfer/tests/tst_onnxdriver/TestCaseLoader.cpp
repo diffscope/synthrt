@@ -5,6 +5,7 @@
 #include <fstream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <stdcorelib/path.h>
 #include <synthrt/Support/JSON.h>

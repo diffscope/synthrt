@@ -2,6 +2,8 @@
 #include "Contribute_p.h"
 
 #include <regex>
+#include <utility>
+#include <mutex>
 
 #include <stdcorelib/str.h>
 #include <stdcorelib/pimpl.h>

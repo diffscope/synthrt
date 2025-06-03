@@ -3,6 +3,7 @@
 #include <cstdarg>
 #include <cstdlib>
 #include <shared_mutex>
+#include <mutex>
 #include <unordered_set>
 
 #include <stdcorelib/console.h>

@@ -1,6 +1,8 @@
 #include "SynthUnit.h"
 #include "SynthUnit_p.h"
 
+#include <mutex>
+
 #include <stdcorelib/stlextra/algorithms.h>
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/path.h>

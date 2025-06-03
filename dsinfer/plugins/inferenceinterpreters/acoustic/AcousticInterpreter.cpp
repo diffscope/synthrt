@@ -1,6 +1,7 @@
 #include "AcousticInterpreter.h"
 
 #include <fstream>
+#include <utility>
 
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 #include <stdcorelib/str.h>
