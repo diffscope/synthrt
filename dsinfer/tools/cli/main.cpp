@@ -185,9 +185,9 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
 
     // Load package
     srt::ScopedPackageRef pkg;
-    if (srt::Error err; pkg = su.open(packagePath, false, &err), !err.ok()) {
-        throw std::runtime_error(
-            stdc::formatN(R"(failed to open package "%1": %2)", packagePath, err.message()));
+    if (auto exp = su.open(packagePath, false); !exp) {
+        throw std::runtime_error(stdc::formatN(R"(failed to open package "%1": %2)", packagePath,
+                                               exp.error().message()));
     }
     if (!pkg.isLoaded()) {
         throw std::runtime_error(stdc::formatN(R"(failed to load package "%1": %2)", packagePath,
@@ -318,7 +318,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
 
     // Process audio data
     // TODO
-    
+
     cliLog.srtDebug("Debug: %1", stdc::system::application_name());
     cliLog.srtSuccess("Success: %1", stdc::system::application_name());
     cliLog.srtInfo("Info: %1", stdc::system::application_name());

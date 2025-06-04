@@ -536,11 +536,12 @@ namespace srt {
         return impl.packagePaths;
     }
 
-    PackageRef SynthUnit::open(const std::filesystem::path &path, bool noLoad, Error *err) {
+    Expected<PackageRef> SynthUnit::open(const std::filesystem::path &path, bool noLoad) {
         __stdc_impl_t;
-        auto result = impl.open(path, noLoad, err);
+        Error err;
+        auto result = impl.open(path, noLoad, &err);
         if (!result) {
-            return PackageRef();
+            return err;
         }
         return PackageRef(result);
     }

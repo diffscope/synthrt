@@ -6,7 +6,7 @@
 #include <stdcorelib/support/versionnumber.h>
 
 #include <synthrt/Plugin/PluginFactory.h>
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 
 namespace srt {
 
@@ -43,7 +43,7 @@ namespace srt {
         ///
         /// \param path   The directory to the package to open.
         /// \param noLoad Whether to only read the metadata (true) or open in load mode (false).
-        PackageRef open(const std::filesystem::path &path, bool noLoad, Error *err);
+        Expected<PackageRef> open(const std::filesystem::path &path, bool noLoad);
 
         /// Find a loaded package by ID and version.
         PackageRef find(const std::string_view &id, const stdc::VersionNumber &version) const;

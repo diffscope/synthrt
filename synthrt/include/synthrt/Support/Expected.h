@@ -9,6 +9,7 @@
 
 namespace srt {
 
+    /// Tagged union holding either a T or an Error.
     template <class T>
     class Expected {
         static_assert(!std::is_reference<T>::value, "T must not be a reference");
