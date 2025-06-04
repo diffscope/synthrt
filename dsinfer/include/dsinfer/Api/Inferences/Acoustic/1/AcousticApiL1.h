@@ -6,7 +6,7 @@
 #include <map>
 #include <set>
 #include <filesystem>
-#include <variant>
+#include <optional>
 
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/Inference.h>
@@ -82,7 +82,8 @@ namespace ds::Api::Acoustic::L1 {
         };
 
         ParamTag tag;
-        std::variant<float, Dynamic> parameters;
+        std::optional<float> value;
+        std::optional<Dynamic> dynamic;
     };
 
     struct InputSpeakerProportionInfo {

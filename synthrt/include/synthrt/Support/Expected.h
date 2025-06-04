@@ -1,5 +1,5 @@
-#ifndef EXPECTED_H
-#define EXPECTED_H
+#ifndef SYNTHRT_EXPECTED_H
+#define SYNTHRT_EXPECTED_H
 
 #include <type_traits>
 #include <optional>
@@ -12,8 +12,8 @@ namespace srt {
     /// Tagged union holding either a T or an Error.
     template <class T>
     class Expected {
-        static_assert(!std::is_reference<T>::value, "T must not be a reference");
-        static_assert(!std::is_same<T, std::remove_cv<Error>::type>::value, "T must not be Error");
+        static_assert(!std::is_reference_v<T>, "T must not be a reference");
+        static_assert(!std::is_same_v<T, Error>, "T must not be Error");
 
         template <class U>
         friend class Expected;
@@ -23,10 +23,10 @@ namespace srt {
         using error_type = Error;
 
     private:
-        using reference = typename std::remove_reference<T>::type &;
-        using const_reference = const typename std::remove_reference<T>::type &;
-        using pointer = typename std::remove_reference<T>::type *;
-        using const_pointer = const typename std::remove_reference<T>::type *;
+        using reference = typename std::remove_reference_t<T> &;
+        using const_reference = const typename std::remove_reference_t<T> &;
+        using pointer = typename std::remove_reference_t<T> *;
+        using const_pointer = const typename std::remove_reference_t<T> *;
 
     public:
         /// Create an Expected<T> error value from the given Error.
@@ -38,8 +38,7 @@ namespace srt {
         /// Create an Expected<T> success value from the given U value, which
         /// must be convertible to T.
         template <typename U>
-        Expected(U &&val,
-                 typename std::enable_if<std::is_convertible<U, T>::value>::type * = nullptr) {
+        Expected(U &&val, typename std::enable_if_t<std::is_convertible_v<U, T>> * = nullptr) {
             _val = value_type(std::forward<U>(val));
         }
 
@@ -50,7 +49,7 @@ namespace srt {
         /// must be convertible to T.
         template <class U>
         Expected(Expected<U> &&RHS,
-                 typename std::enable_if<std::is_convertible<U, T>::value>::type * = nullptr) {
+                 typename std::enable_if_t<std::is_convertible_v<U, T>> * = nullptr) {
             if (RHS.hasValue())
                 _val = std::move(RHS._val);
             else
@@ -60,9 +59,8 @@ namespace srt {
         /// Move construct an Expected<T> value from an Expected<U>, where U
         /// isn't convertible to T.
         template <class U>
-        explicit Expected(
-            Expected<U> &&RHS,
-            typename std::enable_if<!std::is_convertible<U, T>::value>::type * = nullptr) {
+        explicit Expected(Expected<U> &&RHS,
+                          typename std::enable_if_t<!std::is_convertible_v<U, T>> * = nullptr) {
             if (RHS.hasValue())
                 _val = std::move(RHS._val);
             else
@@ -131,4 +129,4 @@ namespace srt {
 
 }
 
-#endif // EXPECTED_H
+#endif // SYNTHRT_EXPECTED_H
