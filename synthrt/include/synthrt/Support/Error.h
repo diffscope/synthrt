@@ -51,6 +51,10 @@ namespace srt {
             return _msg->c_str();
         }
 
+        static Error success() {
+            return Error(NoError);
+        }
+
     protected:
         int _type;
         std::shared_ptr<std::string> _msg;
