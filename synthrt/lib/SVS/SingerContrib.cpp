@@ -280,7 +280,7 @@ namespace srt {
         demoAudio = std::move(demoAudio_);
         importDataList = std::move(imports_);
         configuration = std::move(configuration_);
-        return {};
+        return Expected<void>();
     }
 
     static SingerImportData *staticEmptySingerImportData() {
@@ -471,11 +471,11 @@ namespace srt {
                     imports.push_back(SingerImport(&imp));
                 }
                 spec_impl->importList = std::move(imports);
-                return {};
+                return Expected<void>();
             }
 
             case ContribSpec::Finished: {
-                return {};
+                return Expected<void>();
             }
 
             case ContribSpec::Deleted: {
@@ -485,7 +485,7 @@ namespace srt {
                 break;
         }
         std::abort();
-        return {};
+        return Expected<void>();
     }
 
     SingerCategory::SingerCategory(SynthUnit *su) : ContribCategory(*new Impl(this, su)) {

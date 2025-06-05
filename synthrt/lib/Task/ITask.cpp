@@ -11,13 +11,13 @@ namespace srt {
     ITask::~ITask() = default;
 
     Expected<void> ITask::initialize(const NO<TaskInitArgs> &args) {
-        return {};
+        return Expected<void>();
     }
 
     Expected<void> ITask::startAsync(
         const NO<TaskStartInput> &input,
         const std::function<void(const NO<TaskResult> &, const Error &)> &callback) {
-        return {};
+        return Expected<void>();
     }
 
     ITask::State ITask::state() const {

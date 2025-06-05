@@ -701,7 +701,7 @@ namespace ds::onnxdriver {
         impl.image = image;
         impl.hints = hints;
         impl.realPath = canonical_path;
-        return {};
+        return srt::Expected<void>();
     }
 
     srt::Expected<void> Session::close() {
@@ -749,7 +749,7 @@ namespace ds::onnxdriver {
         impl.image = nullptr;
         impl.hints = 0;
         impl.realPath.clear();
-        return {};
+        return srt::Expected<void>();
     }
 
     fs::path Session::path() const {
@@ -807,7 +807,7 @@ namespace ds::onnxdriver {
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
-        return {};
+        return srt::Expected<void>();
     }
 
     srt::Expected<void> Session::runAsync(const srt::NO<srt::TaskStartInput> &input, const srt::ITask::StartAsyncCallback &callback) {
@@ -829,7 +829,7 @@ namespace ds::onnxdriver {
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
-        return {};
+        return srt::Expected<void>();
     }
 
     srt::NO<srt::TaskResult> Session::result() const {

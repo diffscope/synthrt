@@ -221,7 +221,7 @@ namespace srt {
         apiLevel = apiLevel_;
         manifestSchema = std::move(schema_);
         manifestConfiguration = std::move(configuration_);
-        return {};
+        return Expected<void>();
     }
 
     class InferenceCategory::Impl : public ContribCategory::Impl {
@@ -407,7 +407,7 @@ namespace srt {
 
             case ContribSpec::Ready:
             case ContribSpec::Finished: {
-                return {};
+                return Expected<void>();
             }
 
             case ContribSpec::Deleted: {
@@ -416,7 +416,7 @@ namespace srt {
             default:
                 break;
         }
-        return {};
+        return Expected<void>();
     }
 
     InferenceCategory::InferenceCategory(SynthUnit *su) : ContribCategory(*new Impl(this, su)) {

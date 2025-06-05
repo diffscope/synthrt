@@ -289,7 +289,7 @@ namespace srt {
         url = std::move(url_);
         dependencies = std::move(dependencies_);
         *outContributes = std::move(contributes_);
-        return {};
+        return Expected<void>();
     }
 
     Expected<JsonObject> PackageData::readDesc(const std::filesystem::path &dir) {

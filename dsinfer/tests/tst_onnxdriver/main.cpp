@@ -61,7 +61,7 @@ struct InferenceFixture {
 
     static srt::Expected<void> initializeSU() {
         if (driver) {
-            return {}; // success
+            return srt::Expected<void>(); // success
         }
 
         auto appDir = stdc::system::application_directory();
@@ -91,7 +91,7 @@ struct InferenceFixture {
         auto exp = onnxDriver->initialize(onnxArgs);
         if (exp) {
             driver = std::move(onnxDriver);
-            return {};
+            return srt::Expected<void>();
         }
         return exp.error();
     }

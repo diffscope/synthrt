@@ -104,7 +104,7 @@ namespace ds {
             ortApi = api;
 
             Log.srtInfo("Init - Onnx environment Load successful");
-            return {};
+            return srt::Expected<void>();
         }
 
         std::unique_ptr<stdc::SharedLibrary> ortDSO;
@@ -167,7 +167,7 @@ namespace ds {
         devConfig.ep = onnxArgs->ep;
         devConfig.deviceIndex = onnxArgs->deviceIndex;
         onnxdriver::Env::setDeviceConfig(devConfig);
-        return {};
+        return srt::Expected<void>();
     }
 
     srt::NO<InferenceSession> OnnxDriver::createSession() {

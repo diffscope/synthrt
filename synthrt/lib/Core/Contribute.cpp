@@ -164,12 +164,12 @@ namespace srt {
                 auto lib = spec_impl->package;
                 auto it = impl.contributes.insert(impl.contributes.end(), spec);
                 impl.indexes[lib->id][lib->version][spec_impl->id] = it;
-                return {};
+                return Expected<void>();
             }
 
             case ContribSpec::Ready:
             case ContribSpec::Finished: {
-                return {};
+                return Expected<void>();
             }
 
             case ContribSpec::Deleted: {
@@ -177,17 +177,17 @@ namespace srt {
                 auto lib = spec_impl->package;
                 auto it = impl.indexes.find(lib->id);
                 if (it == impl.indexes.end()) {
-                    return {};
+                    return Expected<void>();
                 }
                 auto &versionMap = it->second;
                 auto it2 = versionMap.find(lib->version);
                 if (it2 == versionMap.end()) {
-                    return {};
+                    return Expected<void>();
                 }
                 auto &inferenceMap = it2->second;
                 auto it3 = inferenceMap.find(spec_impl->id);
                 if (it3 == inferenceMap.end()) {
-                    return {};
+                    return Expected<void>();
                 }
                 impl.contributes.erase(it3->second);
                 inferenceMap.erase(it3);
@@ -197,13 +197,13 @@ namespace srt {
                         impl.indexes.erase(it);
                     }
                 }
-                return {};
+                return Expected<void>();
             }
             default:
                 break;
         }
         std::abort();
-        return {};
+        return Expected<void>();
     }
 
     std::vector<ContribSpec *> ContribCategory::find(const ContribLocator &loc) const {
