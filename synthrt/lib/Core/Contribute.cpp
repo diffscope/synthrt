@@ -154,7 +154,7 @@ namespace srt {
         return impl.su;
     }
 
-    Expected<bool> ContribCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
+    Expected<void> ContribCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
         __stdc_impl_t;
 
         auto spec_impl = spec->_impl.get();
@@ -164,12 +164,12 @@ namespace srt {
                 auto lib = spec_impl->package;
                 auto it = impl.contributes.insert(impl.contributes.end(), spec);
                 impl.indexes[lib->id][lib->version][spec_impl->id] = it;
-                return true;
+                return {};
             }
 
             case ContribSpec::Ready:
             case ContribSpec::Finished: {
-                return true;
+                return {};
             }
 
             case ContribSpec::Deleted: {
@@ -177,17 +177,17 @@ namespace srt {
                 auto lib = spec_impl->package;
                 auto it = impl.indexes.find(lib->id);
                 if (it == impl.indexes.end()) {
-                    return true;
+                    return {};
                 }
                 auto &versionMap = it->second;
                 auto it2 = versionMap.find(lib->version);
                 if (it2 == versionMap.end()) {
-                    return true;
+                    return {};
                 }
                 auto &inferenceMap = it2->second;
                 auto it3 = inferenceMap.find(spec_impl->id);
                 if (it3 == inferenceMap.end()) {
-                    return true;
+                    return {};
                 }
                 impl.contributes.erase(it3->second);
                 inferenceMap.erase(it3);
@@ -197,13 +197,13 @@ namespace srt {
                         impl.indexes.erase(it);
                     }
                 }
-                return true;
+                return {};
             }
             default:
                 break;
         }
         std::abort();
-        return false;
+        return {};
     }
 
     std::vector<ContribSpec *> ContribCategory::find(const ContribLocator &loc) const {

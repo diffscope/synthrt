@@ -18,13 +18,17 @@ namespace srt {
             RecursiveDependency,
             FeatureNotSupported,
             InvalidArgument,
+            NotImplemented,
             SessionError,
         };
 
         inline Error() : Error(NoError) {
         }
 
-        inline Error(int type) : _type(type), _msg(defaultMessage(type)) {
+        inline explicit Error(int type) : Error(static_cast<Type>(type)) {
+        }
+
+        inline Error(Type type) : _type(type), _msg(defaultMessage(type)) {
         }
 
         inline Error(int type, std::string msg)

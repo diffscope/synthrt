@@ -20,7 +20,7 @@ namespace srt {
         Impl() : ContribSpec::Impl("inference") {
         }
 
-        Expected<bool> read(const std::filesystem::path &basePath, const JsonObject &obj) override;
+        Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj) override;
 
         std::filesystem::path path;
 
@@ -38,7 +38,7 @@ namespace srt {
         NO<InferenceInterpreter> interp = nullptr;
     };
 
-    Expected<bool> InferenceSpec::Impl::read(const std::filesystem::path &basePath,
+    Expected<void> InferenceSpec::Impl::read(const std::filesystem::path &basePath,
                                              const JsonObject &obj) {
         fs::path configPath;
         stdc::VersionNumber fmtVersion_;
@@ -221,7 +221,7 @@ namespace srt {
         apiLevel = apiLevel_;
         manifestSchema = std::move(schema_);
         manifestConfiguration = std::move(configuration_);
-        return true;
+        return {};
     }
 
     class InferenceCategory::Impl : public ContribCategory::Impl {
@@ -342,7 +342,7 @@ namespace srt {
         return spec;
     }
 
-    Expected<bool> InferenceCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
+    Expected<void> InferenceCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
         __stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
@@ -407,7 +407,7 @@ namespace srt {
 
             case ContribSpec::Ready:
             case ContribSpec::Finished: {
-                return true;
+                return {};
             }
 
             case ContribSpec::Deleted: {
@@ -416,7 +416,7 @@ namespace srt {
             default:
                 break;
         }
-        return false;
+        return {};
     }
 
     InferenceCategory::InferenceCategory(SynthUnit *su) : ContribCategory(*new Impl(this, su)) {

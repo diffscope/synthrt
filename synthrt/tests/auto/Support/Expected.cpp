@@ -33,4 +33,23 @@ BOOST_AUTO_TEST_CASE(test_Expected) {
     }
 }
 
+BOOST_AUTO_TEST_CASE(test_Expected_Void) {
+    // Construct from error
+    {
+        Expected<void> e((Error(Error::InvalidArgument)));
+        BOOST_VERIFY(!e.hasValue());
+        BOOST_VERIFY(e.error().type() == Error::InvalidArgument);
+        BOOST_VERIFY(e.error().message() == Error(Error::InvalidArgument).message());
+    }
+    // Construct from convertible Expected
+    {
+        Expected<void> e1 = Expected<const char *>(Error(Error::InvalidArgument));
+        BOOST_VERIFY(!e1.hasValue());
+        BOOST_VERIFY(e1.error().type() == Error::InvalidArgument);
+
+        Expected<void> e2 = Expected<const char *>("hello");
+        BOOST_VERIFY(e2.hasValue());
+    }
+}
+
 BOOST_AUTO_TEST_SUITE_END()

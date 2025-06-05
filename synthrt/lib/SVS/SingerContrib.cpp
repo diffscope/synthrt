@@ -20,7 +20,7 @@ namespace srt {
         }
 
     public:
-        Expected<bool> read(const std::filesystem::path &basePath, const JsonObject &obj) override;
+        Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj) override;
 
         std::filesystem::path path;
 
@@ -78,7 +78,7 @@ namespace srt {
         return true;
     }
 
-    Expected<bool> SingerSpec::Impl::read(const std::filesystem::path &basePath,
+    Expected<void> SingerSpec::Impl::read(const std::filesystem::path &basePath,
                                           const JsonObject &obj) {
         fs::path configPath;
         stdc::VersionNumber fmtVersion_;
@@ -280,7 +280,7 @@ namespace srt {
         demoAudio = std::move(demoAudio_);
         importDataList = std::move(imports_);
         configuration = std::move(configuration_);
-        return true;
+        return {};
     }
 
     static SingerImportData *staticEmptySingerImportData() {
@@ -413,7 +413,7 @@ namespace srt {
         return spec;
     }
 
-    Expected<bool> SingerCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
+    Expected<void> SingerCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
         __stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
@@ -471,11 +471,11 @@ namespace srt {
                     imports.push_back(SingerImport(&imp));
                 }
                 spec_impl->importList = std::move(imports);
-                return true;
+                return {};
             }
 
             case ContribSpec::Finished: {
-                return true;
+                return {};
             }
 
             case ContribSpec::Deleted: {
@@ -485,7 +485,7 @@ namespace srt {
                 break;
         }
         std::abort();
-        return false;
+        return {};
     }
 
     SingerCategory::SingerCategory(SynthUnit *su) : ContribCategory(*new Impl(this, su)) {

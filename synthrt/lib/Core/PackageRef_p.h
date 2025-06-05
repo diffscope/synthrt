@@ -21,7 +21,7 @@ namespace srt {
         ~PackageData();
 
     public:
-        Expected<bool>
+        Expected<void>
             parse(const std::filesystem::path &dir,
                   const std::map<std::string, ContribCategory *, std::less<>> &categories,
                   std::vector<ContribSpec *> *outContributes);

@@ -1,16 +1,15 @@
 #ifndef SYNTHRT_EXPECTED_H
 #define SYNTHRT_EXPECTED_H
 
-#include <type_traits>
-#include <optional>
 #include <cassert>
+#include <type_traits>
 
 #include <synthrt/Support/Error.h>
 
 namespace srt {
 
-    /// Expected - A simple re-implementation of \a llvm::Expected. Tagged union holding either a T
-    /// or an Error.
+    /// Expected - A simple re-implementation of \a llvm::Expected. Tagged union holding either
+    /// a T or an Error.
     template <class T>
     class Expected {
         static_assert(!std::is_reference_v<T>, "T must not be a reference");
@@ -30,6 +29,10 @@ namespace srt {
         using const_pointer = const typename std::remove_reference_t<T> *;
 
     public:
+        Expected() : _has_value(true) {
+            new (&_storage.val) value_type(value_type{});
+        }
+
         /// Create an Expected<T> error value from the given Error.
         Expected(Error err) : _has_value(false) {
             assert(!err.ok() && "Cannot create Expected<T> from Error success value.");
@@ -116,7 +119,7 @@ namespace srt {
             return _has_value;
         }
 
-        value_type &&take() {
+        T &&take() {
             return std::move(get());
         }
 
@@ -145,7 +148,7 @@ namespace srt {
 
         template <class U>
         void moveAssign(Expected<U> &&RHS) {
-            if constexpr (std::is_same_v<T, U>) {
+            if constexpr (std::is_same_v<value_type, U>) {
                 if (&RHS == this)
                     return;
             }
@@ -155,6 +158,93 @@ namespace srt {
 
         union Storage {
             value_type val;
+            error_type err;
+            char no_init;
+
+            // Do nothing in constructor and destructor.
+            Storage(){};
+            ~Storage(){};
+        };
+        Storage _storage;
+        bool _has_value : 1;
+    };
+
+    // Specialization for Expected<void>
+    template <>
+    class Expected<void> {
+        template <class U>
+        friend class Expected;
+
+    public:
+        using value_type = void;
+        using error_type = Error;
+
+    public:
+        Expected() : _has_value(true) {
+        }
+
+        /// Create an Expected<T> error value from the given Error.
+        Expected(Error err) : _has_value(false) {
+            assert(!err.ok() && "Cannot create Expected<T> from Error success value.");
+            new (&_storage) error_type(std::move(err));
+        }
+
+        Expected(Expected &&RHS) {
+            moveConstruct(std::move(RHS));
+        }
+
+        template <class U>
+        Expected(Expected<U> &&RHS) {
+            moveConstruct(std::move(RHS));
+        }
+
+        Expected &operator=(Expected &&RHS) {
+            moveAssign(std::move(RHS));
+            return *this;
+        }
+
+        ~Expected() {
+            if (!_has_value)
+                _storage.err.~error_type();
+        }
+
+        explicit operator bool() {
+            return _has_value;
+        }
+
+        error_type takeError() {
+            return _has_value ? Error::success() : std::move(_storage.err);
+        }
+
+        // Extra APIs
+        bool hasValue() const {
+            return _has_value;
+        }
+
+        const error_type &error() const & {
+            assert(!_has_value && "Expected doesn't contain an error");
+            return _storage.err;
+        }
+
+    protected:
+        template <class U>
+        void moveConstruct(Expected<U> &&RHS) {
+            _has_value = RHS._has_value;
+            if (!_has_value)
+                new (&_storage.err) error_type(std::move(RHS._storage.err));
+        }
+
+        template <class U>
+        void moveAssign(Expected<U> &&RHS) {
+            if constexpr (std::is_same_v<value_type, U>) {
+                if (&RHS == this)
+                    return;
+            }
+            this->~Expected();
+            new (this) Expected(std::move(RHS));
+        }
+
+        union Storage {
             error_type err;
             char no_init;
 

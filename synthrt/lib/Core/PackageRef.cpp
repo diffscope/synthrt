@@ -75,7 +75,7 @@ namespace srt {
         return true;
     }
 
-    Expected<bool>
+    Expected<void>
         PackageData::parse(const std::filesystem::path &dir,
                            const std::map<std::string, ContribCategory *, std::less<>> &categories,
                            std::vector<ContribSpec *> *outContributes) {
@@ -289,7 +289,7 @@ namespace srt {
         url = std::move(url_);
         dependencies = std::move(dependencies_);
         *outContributes = std::move(contributes_);
-        return true;
+        return {};
     }
 
     Expected<JsonObject> PackageData::readDesc(const std::filesystem::path &dir) {

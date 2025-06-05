@@ -17,7 +17,7 @@ namespace ds {
         // TODO: 读取 spec->manifestSchema() 并返回对应的 InferenceSchema 对象
         //       spec->manifestConfiguration() 也是可以读取作为参考的
         return srt::Error{
-            srt::Error::FeatureNotSupported,
+            srt::Error::NotImplemented,
             "not implemented",
         };
     }
@@ -27,7 +27,7 @@ namespace ds {
         // TODO: 读取 spec->manifestConfiguration() 并返回对应的 InferenceConfiguration 对象
         //       spec->manifestSchema() 也是可以读取作为参考的
         return srt::Error{
-            srt::Error::FeatureNotSupported,
+            srt::Error::NotImplemented,
             "not implemented",
         };
     }
@@ -38,7 +38,7 @@ namespace ds {
         // TODO: 读取 options 并返回对应的 InferenceImportOptions 对象
         //       spec 中所有内容均可读取作为参考
         return srt::Error{
-            srt::Error::FeatureNotSupported,
+            srt::Error::NotImplemented,
             "not implemented",
         };
     }

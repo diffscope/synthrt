@@ -23,8 +23,8 @@ namespace srt {
         virtual ~Impl() = default;
 
     public:
-        virtual Expected<bool> read(const std::filesystem::path &basePath, const JsonObject &obj) {
-            return false;
+        virtual Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj) {
+            return Error(Error::NotImplemented);
         }
 
     public:

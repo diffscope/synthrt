@@ -155,7 +155,7 @@ namespace srt {
                                                   const JsonValue &config) const = 0;
 
         /// Initializes the \a ContribSpec instance in the given state.
-        virtual Expected<bool> loadSpec(ContribSpec *spec, ContribSpec::State state);
+        virtual Expected<void> loadSpec(ContribSpec *spec, ContribSpec::State state);
 
         std::vector<ContribSpec *> find(const ContribLocator &loc) const;
 

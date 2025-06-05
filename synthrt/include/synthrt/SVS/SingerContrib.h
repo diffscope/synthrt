@@ -79,7 +79,7 @@ namespace srt {
         std::string key() const override;
         Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
                                           const JsonValue &config) const override;
-        Expected<bool> loadSpec(ContribSpec *spec, ContribSpec::State state) override;
+        Expected<void> loadSpec(ContribSpec *spec, ContribSpec::State state) override;
 
     protected:
         class Impl;
