@@ -475,7 +475,7 @@ namespace {
         static inline void construct(JsonValue &val) {
             auto &jv = static_cast<JV &>(val);
 #ifdef SYNTHRT_JSON_IN_PLACE
-            new (jv.buf.buf) JSON();
+            new (jv.storage.buf) JSON();
 #else
             jv.c = std::make_shared<JsonValueContainer>();
 #endif
@@ -484,7 +484,7 @@ namespace {
         static inline void construct(JsonValue &val, const JsonValue &RHS) {
             auto &jv = static_cast<JV &>(val);
 #ifdef SYNTHRT_JSON_IN_PLACE
-            new (jv.buf.buf) JSON(JV::unpack(RHS));
+            new (jv.storage.buf) JSON(JV::unpack(RHS));
 #else
             jv.c = static_cast<const JV &>(RHS).c;
 #endif
@@ -493,7 +493,7 @@ namespace {
         static inline void construct(JsonValue &val, JsonValue &&RHS) {
             auto &jv = static_cast<JV &>(val);
 #ifdef SYNTHRT_JSON_IN_PLACE
-            new (jv.buf.buf) JSON(std::move(JV::unpack(RHS)));
+            new (jv.storage.buf) JSON(std::move(JV::unpack(RHS)));
 #else
             jv.c = static_cast<const JV &>(RHS).c;
 #endif
@@ -503,9 +503,9 @@ namespace {
             auto &jv = static_cast<JV &>(val);
 #ifdef SYNTHRT_JSON_IN_PLACE
             if (move) {
-                new (jv.buf.buf) JSON(std::move(*reinterpret_cast<JSON *>(raw)));
+                new (jv.storage.buf) JSON(std::move(*reinterpret_cast<JSON *>(raw)));
             } else {
-                new (jv.buf.buf) JSON(*reinterpret_cast<JSON *>(raw));
+                new (jv.storage.buf) JSON(*reinterpret_cast<JSON *>(raw));
             }
 #else
             jv.c = std::make_shared<JsonValueContainer>();
@@ -526,7 +526,7 @@ namespace {
         static inline JSON &unpack(JsonValue &val) {
             auto &jv = static_cast<JV &>(val);
 #ifdef SYNTHRT_JSON_IN_PLACE
-            return *reinterpret_cast<JSON *>(jv.buf.buf);
+            return *reinterpret_cast<JSON *>(jv.storage.buf);
 #else
             return jv.c->json;
 #endif
@@ -535,7 +535,7 @@ namespace {
         static inline const JSON &unpack(const JsonValue &val) {
             auto &jv = static_cast<const JV &>(val);
 #ifdef SYNTHRT_JSON_IN_PLACE
-            return *reinterpret_cast<const JSON *>(jv.buf.buf);
+            return *reinterpret_cast<const JSON *>(jv.storage.buf);
 #else
             return jv.c->json;
 #endif

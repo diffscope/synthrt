@@ -42,13 +42,68 @@ namespace srt {
     public:
         using Base = std::shared_ptr<T>;
 
-        template <class... Args>
-        NO(Args &&...args) : Base(std::forward<Args>(args)...) {
+        template <typename... Args>
+        using Constructible = typename std::enable_if_t<std::is_constructible_v<Base, Args...>>;
+
+        constexpr NO() noexcept : Base() {
         }
+
+        NO(const Base &RHS) noexcept : Base(RHS) {
+        }
+
+        template <typename U, typename = Constructible<U *>>
+        explicit NO(U *p) : Base(p) {
+        }
+
+        template <typename U, typename Deleter, typename = Constructible<U *, Deleter>>
+        NO(U *p, Deleter d) : Base(p, std::move(d)) {
+        }
+
+        template <typename Deleter>
+        NO(nullptr_t p, Deleter d) : Base(p, std::move(d)) {
+        }
+
+        template <typename U, typename Deleter, typename Alloc,
+                  typename = Constructible<U *, Deleter, Alloc>>
+        NO(U *p, Deleter d, Alloc a) : Base(p, std::move(d), std::move(a)) {
+        }
+
+        template <typename Deleter, typename Alloc>
+        NO(nullptr_t p, Deleter d, Alloc a) : Base(p, std::move(d), std::move(a)) {
+        }
+
+        template <typename U>
+        NO(const std::shared_ptr<U> &RHS, T *p) noexcept : Base(RHS, p) {
+        }
+
+        template <typename U, typename = Constructible<const std::shared_ptr<U> &>>
+        NO(const std::shared_ptr<U> &RHS) noexcept : Base(RHS) {
+        }
+
+        NO(Base &&RHS) noexcept : Base(std::move(RHS)) {
+        }
+
+        template <typename U, typename = Constructible<std::shared_ptr<U>>>
+        NO(Base &&RHS) noexcept : Base(std::move(RHS)) {
+        }
+
+        template <typename U, typename = Constructible<const std::weak_ptr<U> &>>
+        explicit NO(const std::weak_ptr<U> &RHS) : Base(RHS) {
+        }
+
+        template <typename U, typename Deleter,
+                  typename = Constructible<std::unique_ptr<U, Deleter>>>
+        NO(std::unique_ptr<U, Deleter> &&RHS) : Base(std::move(RHS)) {
+        }
+
+        constexpr NO(nullptr_t) noexcept : Base() {
+        }
+
         template <class U>
         NO<U> as() const noexcept {
             return std::static_pointer_cast<U>(*this);
         }
+
         template <class... Args>
         static NO<T> create(Args &&...args) {
             return std::make_shared<T>(std::forward<Args>(args)...);

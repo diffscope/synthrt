@@ -164,7 +164,7 @@ namespace srt {
             } data;
             void *p;
             char buf[1];
-        } buf;
+        } storage;
 #else
         std::shared_ptr<JsonValueContainer> c;
 #endif

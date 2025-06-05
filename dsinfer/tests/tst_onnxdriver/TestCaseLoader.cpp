@@ -8,16 +8,10 @@
 #include <utility>
 
 #include <stdcorelib/path.h>
+#include <stdcorelib/str.h>
 #include <synthrt/Support/JSON.h>
 
 namespace test {
-
-    static inline std::string strToLower(const std::string_view input) {
-        std::string result(input);
-        std::transform(result.begin(), result.end(), result.begin(),
-                       [](unsigned char c) { return std::tolower(c); });
-        return result;
-    }
 
     TestCaseData::TestCaseData()
         : sessionInput(srt::NO<ds::Api::Onnx::SessionStartInput>::create()),
@@ -37,7 +31,7 @@ namespace test {
     }
 
     static ds::ITensor::DataType parse_data_type(const std::string_view str) {
-        auto s = strToLower(str);
+        auto s = stdc::to_lower(std::string(str));
         if (s == "float32" || s == "float") {
             return ds::ITensor::Float;
         }
