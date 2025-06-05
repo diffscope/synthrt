@@ -3,7 +3,7 @@
 
 #include <filesystem>
 
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 
 #include <onnxruntime_cxx_api.h>
 

@@ -8,7 +8,7 @@
 
 #include <synthrt/Core/NamedObject.h>
 #include <synthrt/Support/JSON.h>
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 
 #include <dsinfer/dsinfer_global.h>
 

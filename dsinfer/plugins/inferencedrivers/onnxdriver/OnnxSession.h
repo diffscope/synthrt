@@ -11,17 +11,17 @@ namespace ds {
         ~OnnxSession();
 
     public:
-        bool open(const std::filesystem::path &path, const srt::NO<InferenceSessionOpenArgs> &args,
-                  srt::Error *error) override;
-        bool close(srt::Error *error) override;
+        srt::Expected<void> open(const std::filesystem::path &path,
+                                 const srt::NO<InferenceSessionOpenArgs> &args) override;
+        srt::Expected<void> close() override;
         bool isOpen() const override;
 
         int64_t id() const override;
 
     public:
-        bool start(const srt::NO<srt::TaskStartInput> &input, srt::Error *error) override;
-        bool startAsync(const srt::NO<srt::TaskStartInput> &input,
-                        const StartAsyncCallback &callback, srt::Error *error) override;
+        srt::Expected<void> start(const srt::NO<srt::TaskStartInput> &input) override;
+        srt::Expected<void> startAsync(const srt::NO<srt::TaskStartInput> &input,
+                                       const StartAsyncCallback &callback) override;
         srt::NO<srt::TaskResult> result() const override;
         bool stop() override;
 

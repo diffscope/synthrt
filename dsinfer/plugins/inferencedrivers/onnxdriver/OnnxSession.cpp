@@ -25,20 +25,17 @@ namespace ds {
         __stdc_impl_t;
     }
 
-    bool OnnxSession::open(const std::filesystem::path &path,
-                           const srt::NO<InferenceSessionOpenArgs> &args, srt::Error *error) {
+    srt::Expected<void> OnnxSession::open(const std::filesystem::path &path,
+                                          const srt::NO<InferenceSessionOpenArgs> &args) {
         __stdc_impl_t;
         auto openArgs = args.as<Api::Onnx::SessionOpenArgs>();
         if (!openArgs) {
-            if (error) {
-                *error = {
-                    srt::Error::InvalidArgument,
-                    "session open args is null pointer"
-                };
-            }
-            return false;
+            return srt::Error{
+                srt::Error::InvalidArgument,
+                "session open args is null pointer",
+            };
         }
-        return impl.session.open(path, openArgs, error);
+        return impl.session.open(path, openArgs);
     }
 
     bool OnnxSession::isOpen() const {
@@ -46,7 +43,7 @@ namespace ds {
         return impl.session.isOpen();
     }
 
-    bool OnnxSession::close(srt::Error *error) {
+    srt::Expected<void> OnnxSession::close() {
         __stdc_impl_t;
         return impl.session.close();
     }
@@ -56,15 +53,15 @@ namespace ds {
         return impl.sessionId;
     }
 
-    bool OnnxSession::start(const srt::NO<srt::TaskStartInput> &input, srt::Error *error) {
+    srt::Expected<void> OnnxSession::start(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
-        return impl.session.run(input, error);
+        return impl.session.run(input);
     }
 
-    bool OnnxSession::startAsync(const srt::NO<srt::TaskStartInput> &input,
-                                 const StartAsyncCallback &callback, srt::Error *error) {
+    srt::Expected<void> OnnxSession::startAsync(const srt::NO<srt::TaskStartInput> &input,
+                                                const StartAsyncCallback &callback) {
         __stdc_impl_t;
-        return impl.session.runAsync(input, callback, error);
+        return impl.session.runAsync(input, callback);
     }
 
     srt::NO<srt::TaskResult> OnnxSession::result() const {

@@ -9,7 +9,7 @@
 #include <stdcorelib/support/versionnumber.h>
 
 #include <synthrt/Support/DisplayText.h>
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 
 namespace srt {
 

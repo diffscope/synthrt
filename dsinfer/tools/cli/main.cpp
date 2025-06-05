@@ -121,8 +121,10 @@ static void initializeSU(srt::SynthUnit &su) {
     onnxArgs->runtimePath = plugin->path().parent_path() / _TSTR("runtimes");
     onnxArgs->deviceIndex = 0;
 
-    srt::Error error;
-    onnxDriver->initialize(onnxArgs, &error);
+    if (auto exp = onnxDriver->initialize(onnxArgs); !exp) {
+        throw std::runtime_error(
+            stdc::formatN(R"(failed to initialize onnx driver: %1)", exp.error().message()));
+    }
 
     // Add driver
     auto &inferenceCate = *su.category("inference");
@@ -261,17 +263,17 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
         } else {
             inference = exp.take();
         }
-        if (srt::Error err; !inference->initialize(NO<Ac::AcousticInitArgs>::create(), &err)) {
+        if (auto exp = inference->initialize(NO<Ac::AcousticInitArgs>::create()); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to initialize acoustic inference for singer "%1": %2)",
-                              input.singer, err.message()));
+                              input.singer, exp.error().message()));
         }
 
         // Start inference
-        if (srt::Error err; !inference->start(input.input, &err)) {
+        if (auto exp = inference->start(input.input); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start acoustic inference for singer "%1": %2)",
-                              input.singer, err.message()));
+                              input.singer, exp.error().message()));
         }
         auto result = inference->result().as<Ac::AcousticResult>();
         if (inference->state() == srt::ITask::Failed) {
@@ -296,20 +298,20 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
         } else {
             inference = exp.take();
         }
-        if (srt::Error err; !inference->initialize(NO<Vo::VocoderInitArgs>::create(), &err)) {
+        if (auto exp = inference->initialize(NO<Vo::VocoderInitArgs>::create()); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to initialize vocoder inference for singer "%1": %2)",
-                              input.singer, err.message()));
+                              input.singer, exp.error().message()));
         }
 
         auto vocoderInput = NO<Vo::VocoderStartInput>::create();
         vocoderInput->mel = mel;
 
         // Start inference
-        if (srt::Error err; !inference->start(vocoderInput, &err)) {
+        if (auto exp = inference->start(vocoderInput); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start vocoder inference for singer "%1": %2)",
-                              input.singer, err.message()));
+                              input.singer, exp.error().message()));
         }
         auto result = inference->result().as<Vo::VocoderResult>();
         if (inference->state() == srt::ITask::Failed) {

@@ -46,7 +46,7 @@ namespace ds {
         ~Impl() {
         }
 
-        bool load(const fs::path &path, srt::Error *error) {
+        srt::Expected<void> load(const fs::path &path) {
             Log.srtInfo("Init - Loading onnx environment");
 
             auto dylib = std::make_unique<stdc::SharedLibrary>();
@@ -61,10 +61,7 @@ namespace ds {
             if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint)) {
                 std::string msg = stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);
-                if (error) {
-                    *error = srt::Error(srt::Error::SessionError, std::move(msg));
-                }
-                return false;
+                return srt::Error(srt::Error::SessionError, std::move(msg));
             }
 #ifdef _WIN32
             stdc::SharedLibrary::setLibraryPath(orgLibPath);
@@ -78,10 +75,7 @@ namespace ds {
             if (!handle) {
                 std::string msg = stdc::formatN("Failed to get API handle: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);
-                if (error) {
-                    *error = srt::Error(srt::Error::SessionError, std::move(msg));
-                }
-                return false;
+                return srt::Error(srt::Error::SessionError, std::move(msg));
             }
 
             /**
@@ -93,10 +87,7 @@ namespace ds {
             if (!api) {
                 std::string msg = stdc::formatN("%1: failed to get API instance");
                 Log.srtCritical("Init - %1", msg);
-                if (error) {
-                    *error = srt::Error(srt::Error::SessionError, std::move(msg));
-                }
-                return false;
+                return srt::Error(srt::Error::SessionError, std::move(msg));
             }
             Log.srtDebug("Init - ORT library version is %1", apiBase->GetVersionString());
 
@@ -113,7 +104,7 @@ namespace ds {
             ortApi = api;
 
             Log.srtInfo("Init - Onnx environment Load successful");
-            return true;
+            return {};
         }
 
         std::unique_ptr<stdc::SharedLibrary> ortDSO;
@@ -134,62 +125,49 @@ namespace ds {
     OnnxDriver::~OnnxDriver() {
     }
 
-    bool OnnxDriver::initialize(const srt::NO<InferenceDriverInitArgs> &args, srt::Error *error) {
+    srt::Expected<void> OnnxDriver::initialize(const srt::NO<InferenceDriverInitArgs> &args) {
         __stdc_impl_t;
 
         if (args->objectName() != Onnx::API_NAME) {
-            if (error) {
-                *error = {
-                    srt::Error::InvalidArgument,
-                    stdc::formatN(R"(invalid driver name: expected "%s", got "%s")", Onnx::API_NAME,
-                                  args->objectName()),
-                };
-            }
-            return false;
+            return srt::Error {
+                srt::Error::InvalidArgument,
+                stdc::formatN(R"(invalid driver name: expected "%s", got "%s")", Onnx::API_NAME,
+                                args->objectName()),
+            };
         }
 
         auto onnxArgs = args.as<Onnx::DriverInitArgs>();
         if (!onnxArgs) {
-            if (error) {
-                *error = {
-                    srt::Error::InvalidArgument,
-                    "onnx args is null pointer"
-                };
-            }
-            return false;
+            return srt::Error {
+                srt::Error::InvalidArgument,
+                "onnx args is null pointer"
+            };
         }
 
         // Example logging
         Log.srtDebug("initialize: driver name: %1", args->objectName());
 
         if (impl.loaded) {
-            if (error) {
-                *error = {
-                    srt::Error::FileDuplicated,
-                    "onnx runtime has been initialized by another instance",
-                };
-            }
-            return false;
+            return srt::Error {
+                srt::Error::FileDuplicated,
+                "onnx runtime has been initialized by another instance",
+            };
         }
 
         auto dllPath = onnxArgs->runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
 
-        if (!impl.load(dllPath, error)) {
-            if (error) {
-                *error = {
-                    srt::Error::SessionError,
-                    "failed to load onnx runtime library",
-                };
-            }
-            return false;
+        if (!impl.load(dllPath)) {
+            return srt::Error {
+                srt::Error::SessionError,
+                "failed to load onnx runtime library",
+            };
         }
 
         onnxdriver::Env::DeviceConfig devConfig;
         devConfig.ep = onnxArgs->ep;
         devConfig.deviceIndex = onnxArgs->deviceIndex;
         onnxdriver::Env::setDeviceConfig(devConfig);
-
-        return true;
+        return {};
     }
 
     srt::NO<InferenceSession> OnnxDriver::createSession() {

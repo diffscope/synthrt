@@ -10,14 +10,14 @@ namespace srt {
 
     ITask::~ITask() = default;
 
-    bool ITask::initialize(const NO<TaskInitArgs> &args, Error *error) {
-        return false;
+    Expected<void> ITask::initialize(const NO<TaskInitArgs> &args) {
+        return {};
     }
 
-    bool ITask::startAsync(
+    Expected<void> ITask::startAsync(
         const NO<TaskStartInput> &input,
-        const std::function<void(const NO<TaskResult> &, const Error &)> &callback, Error *error) {
-        return false;
+        const std::function<void(const NO<TaskResult> &, const Error &)> &callback) {
+        return {};
     }
 
     ITask::State ITask::state() const {

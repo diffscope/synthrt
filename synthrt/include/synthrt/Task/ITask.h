@@ -4,7 +4,7 @@
 #include <functional>
 
 #include <synthrt/Core/NamedObject.h>
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 
 namespace srt {
 
@@ -43,11 +43,11 @@ namespace srt {
         using StartAsyncCallback = std::function<void(const NO<TaskResult> &, const Error &)>;
 
     public:
-        virtual bool initialize(const NO<TaskInitArgs> &args, Error *error);
+        virtual Expected<void> initialize(const NO<TaskInitArgs> &args);
 
-        virtual bool start(const NO<TaskStartInput> &input, Error *error) = 0;
-        virtual bool startAsync(const NO<TaskStartInput> &input, const StartAsyncCallback &callback,
-                                Error *error);
+        virtual Expected<void> start(const NO<TaskStartInput> &input) = 0;
+        virtual Expected<void> startAsync(const NO<TaskStartInput> &input,
+                                          const StartAsyncCallback &callback);
         virtual bool stop() = 0;
 
         State state() const;

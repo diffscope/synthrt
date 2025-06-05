@@ -22,20 +22,20 @@
 
 #include "TestCaseLoader.h"
 
-#define TST_CHECK_ASSIGN(var, expr)                        \
-    do {                                                   \
-        var = (expr);                                      \
-        BOOST_TEST_CONTEXT("Expression: " #expr) {         \
-            BOOST_CHECK(var);                              \
-        }                                                  \
+#define TST_CHECK_ASSIGN(var, expr)                                                                \
+    do {                                                                                           \
+        var = (expr);                                                                              \
+        BOOST_TEST_CONTEXT("Expression: " #expr) {                                                 \
+            BOOST_CHECK(var);                                                                      \
+        }                                                                                          \
     } while (false)
 
-#define TST_REQUIRE_ASSIGN(var, expr)                      \
-    do {                                                   \
-        var = (expr);                                      \
-        BOOST_TEST_CONTEXT("Expression: " #expr) {         \
-            BOOST_REQUIRE(var);                            \
-        }                                                  \
+#define TST_REQUIRE_ASSIGN(var, expr)                                                              \
+    do {                                                                                           \
+        var = (expr);                                                                              \
+        BOOST_TEST_CONTEXT("Expression: " #expr) {                                                 \
+            BOOST_REQUIRE(var);                                                                    \
+        }                                                                                          \
     } while (false)
 
 namespace fs = std::filesystem;
@@ -49,16 +49,17 @@ struct InferenceFixture {
         modelDir = resDir / _TSTR("models");
         caseDir = resDir / _TSTR("cases");
 
-        auto error = initializeSU();
-        BOOST_TEST_MESSAGE("Driver initialization " + std::string(error.ok() ? "successful" : "failed: " + error.message()));
-        if (!error.ok()) {
-            BOOST_FAIL("Driver initialization failed: " + error.message());
+        auto exp = initializeSU();
+        BOOST_TEST_MESSAGE("Driver initialization " +
+                           std::string(exp ? "successful" : "failed: " + exp.error().message()));
+        if (!exp) {
+            BOOST_FAIL("Driver initialization failed: " + exp.error().message());
         }
     }
 
     ~InferenceFixture() = default;
 
-    static srt::Error initializeSU() {
+    static srt::Expected<void> initializeSU() {
         if (driver) {
             return {}; // success
         }
@@ -74,8 +75,10 @@ struct InferenceFixture {
         const char *pluginKey = "onnx";
         auto plugin = su.plugin<ds::InferenceDriverPlugin>(pluginKey);
         if (!plugin) {
-            return {srt::Error::FileNotFound,
-                stdc::formatN("Could not load plugin \"%1\", path: %2", pluginKey, pluginPath)};
+            return srt::Error{
+                srt::Error::FileNotFound,
+                stdc::formatN("Could not load plugin \"%1\", path: %2", pluginKey, pluginPath),
+            };
         }
 
         auto onnxDriver = plugin->create();
@@ -85,13 +88,12 @@ struct InferenceFixture {
         onnxArgs->runtimePath = plugin->path().parent_path() / _TSTR("runtimes");
         onnxArgs->deviceIndex = 0;
 
-        srt::Error error;
-        bool ok = onnxDriver->initialize(onnxArgs, &error);
-
-        if (ok) {
+        auto exp = onnxDriver->initialize(onnxArgs);
+        if (exp) {
             driver = std::move(onnxDriver);
+            return {};
         }
-        return error;
+        return exp.error();
     }
 
 
@@ -127,8 +129,10 @@ constexpr ds::ITensor::DataType getTensorDataType() {
 }
 
 template <typename T>
-static inline srt::NO<ds::Tensor> createTensorFromData(const std::vector<int64_t> &shape, const std::vector<T> &data) {
-    int64_t shapeSize = std::accumulate(shape.begin(), shape.end(), int64_t{1}, std::multiplies<>());
+static inline srt::NO<ds::Tensor> createTensorFromData(const std::vector<int64_t> &shape,
+                                                       const std::vector<T> &data) {
+    int64_t shapeSize =
+        std::accumulate(shape.begin(), shape.end(), int64_t{1}, std::multiplies<>());
     if (shapeSize != static_cast<int64_t>(data.size())) {
         BOOST_FAIL("Size mismatch: shapeSize = " << shapeSize << ", data.size() = " << data.size());
         return {};
@@ -144,8 +148,7 @@ static inline std::vector<int64_t> getVectorDataShape(const std::vector<T> &data
 }
 
 template <typename T>
-static inline bool checkEqual(T x, T y, T epsilon = 1e-6)
-{
+static inline bool checkEqual(T x, T y, T epsilon = 1e-6) {
     if constexpr (std::is_floating_point_v<T>) {
         T diff = std::fabs(x - y);
         T norm = std::max({T(1), std::fabs(x), std::fabs(y)});
@@ -157,19 +160,19 @@ static inline bool checkEqual(T x, T y, T epsilon = 1e-6)
 
 BOOST_FIXTURE_TEST_SUITE(InferenceTests, InferenceFixture)
 
-BOOST_AUTO_TEST_CASE(initialize_driver)
-{
-    auto error = InferenceFixture::initializeSU();
+BOOST_AUTO_TEST_CASE(initialize_driver) {
+    auto exp = InferenceFixture::initializeSU();
     BOOST_TEST_MESSAGE("Initializing driver...");
 
-    BOOST_CHECK_MESSAGE(error.ok(), error.message());
-    if (error.ok()) {
+    BOOST_CHECK_MESSAGE(bool(exp), exp.error().message());
+    if (exp) {
         BOOST_TEST_MESSAGE("Driver initialized successfully");
     }
 }
 
 struct SessionResultValidator {
-    explicit SessionResultValidator(const std::shared_ptr<test::TestCaseData> &testCaseData) : testCase(testCaseData) {
+    explicit SessionResultValidator(const std::shared_ptr<test::TestCaseData> &testCaseData)
+        : testCase(testCaseData) {
     }
 
     void operator()(const srt::NO<srt::TaskResult> &result_, const srt::Error &error) const {
@@ -185,7 +188,8 @@ struct SessionResultValidator {
 
             // Check that output tensor exists
             auto it = result->outputs.find(outputName);
-            BOOST_REQUIRE_MESSAGE(it != result->outputs.end(), "Output tensor '" << outputName << "' not found");
+            BOOST_REQUIRE_MESSAGE(it != result->outputs.end(),
+                                  "Output tensor '" << outputName << "' not found");
             auto outputTensor = it->second;
             BOOST_REQUIRE(outputTensor != nullptr);
 
@@ -208,21 +212,27 @@ struct SessionResultValidator {
 
             switch (actualDataType) {
                 case ds::ITensor::Float: {
-                    auto actual = reinterpret_cast<const float*>(outputRaw.data());
-                    auto expected = reinterpret_cast<const float*>(expectedRaw.data());
+                    auto actual = reinterpret_cast<const float *>(outputRaw.data());
+                    auto expected = reinterpret_cast<const float *>(expectedRaw.data());
                     size_t count = byteSize / sizeof(float);
-                    BOOST_TEST_MESSAGE("Floating point data comparison using tolerance " << f32_tolerance);
+                    BOOST_TEST_MESSAGE("Floating point data comparison using tolerance "
+                                       << f32_tolerance);
                     for (size_t i = 0; i < count; ++i) {
                         bool isEqual = checkEqual(actual[i], expected[i], f32_tolerance);
-                        BOOST_CHECK_MESSAGE(isEqual, "Output: \"" << outputName << "\"; Index: " << i << "; Actual: " << actual[i] << "; Expected: " << expected[i]);
+                        BOOST_CHECK_MESSAGE(isEqual, "Output: \"" << outputName << "\"; Index: "
+                                                                  << i << "; Actual: " << actual[i]
+                                                                  << "; Expected: " << expected[i]);
                     }
                     break;
                 }
                 default: {
                     // Compare raw data byte-by-byte
                     BOOST_TEST_MESSAGE("Comparing raw data byte-by-byte");
-                    bool dataMatch = std::memcmp(outputRaw.data(), expectedRaw.data(), byteSize) == 0;
-                    BOOST_CHECK_MESSAGE(dataMatch, "Output data for '" << outputName << "' should match expected values");
+                    bool dataMatch =
+                        std::memcmp(outputRaw.data(), expectedRaw.data(), byteSize) == 0;
+                    BOOST_CHECK_MESSAGE(dataMatch, "Output data for '"
+                                                       << outputName
+                                                       << "' should match expected values");
                     break;
                 }
             }
@@ -232,8 +242,7 @@ struct SessionResultValidator {
     std::shared_ptr<test::TestCaseData> testCase;
 };
 
-BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
-{
+BOOST_AUTO_TEST_CASE(basic_model_input_and_output) {
     BOOST_REQUIRE(driver != nullptr);
 
     // Load test case data from JSON file using your loader
@@ -254,16 +263,21 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
     auto sessionOpenArgs = srt::NO<ds::Api::Onnx::SessionOpenArgs>::create();
     sessionOpenArgs->useCpu = false;
 
-    srt::Error error;
+    srt::Expected<void> sessionOpenRes =
+        session->open(modelDir / testCase->meta.model_path, sessionOpenArgs);
+    srt::Error error = sessionOpenRes ? srt::Error::success() : sessionOpenRes.error();
     bool sessionOpenOk = false;
-    TST_CHECK_ASSIGN(sessionOpenOk, session->open(modelDir / testCase->meta.model_path, sessionOpenArgs, &error));
+    TST_CHECK_ASSIGN(sessionOpenOk, bool(sessionOpenRes));
     BOOST_CHECK_EQUAL(session->isOpen(), sessionOpenOk);
     BOOST_CHECK_EQUAL(error.ok(), sessionOpenOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT open session: " << error.message());
 
     // Start session using loaded inputs and requested outputs
+    srt::Expected<void> sessionStartRes =
+        session->start(testCase->sessionInput.as<srt::TaskStartInput>());
+    error = sessionStartRes ? srt::Error::success() : sessionStartRes.error();
     bool sessionStartOk = false;
-    TST_CHECK_ASSIGN(sessionStartOk, session->start(testCase->sessionInput.as<srt::TaskStartInput>(), &error));
+    TST_CHECK_ASSIGN(sessionStartOk, bool(sessionStartRes));
     BOOST_CHECK_EQUAL(error.ok(), sessionStartOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT start session: " << error.message());
 
@@ -275,8 +289,7 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output)
     validator(result_, error);
 }
 
-BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async)
-{
+BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async) {
     BOOST_REQUIRE(driver != nullptr);
 
     // Load test case data from JSON file using your loader
@@ -297,9 +310,11 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async)
     auto sessionOpenArgs = srt::NO<ds::Api::Onnx::SessionOpenArgs>::create();
     sessionOpenArgs->useCpu = false;
 
-    srt::Error error;
+    srt::Expected<void> sessionOpenRes =
+        session->open(modelDir / testCase->meta.model_path, sessionOpenArgs);
+    srt::Error error = sessionOpenRes ? srt::Error::success() : sessionOpenRes.error();
     bool sessionOpenOk = false;
-    TST_CHECK_ASSIGN(sessionOpenOk, session->open(modelDir / testCase->meta.model_path, sessionOpenArgs, &error));
+    TST_CHECK_ASSIGN(sessionOpenOk, bool(sessionOpenRes));
     BOOST_CHECK_EQUAL(session->isOpen(), sessionOpenOk);
     BOOST_CHECK_EQUAL(error.ok(), sessionOpenOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT open session: " << error.message());
@@ -309,8 +324,11 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async)
     SessionResultValidator validator(testCase);
 
     // Start session using loaded inputs and requested outputs
+    srt::Expected<void> sessionStartRes =
+        session->startAsync(testCase->sessionInput.as<srt::TaskStartInput>(), validator);
+    error = sessionStartRes ? srt::Error::success() : sessionStartRes.error();
     bool sessionStartOk = false;
-    TST_CHECK_ASSIGN(sessionStartOk, session->startAsync(testCase->sessionInput.as<srt::TaskStartInput>(), validator, &error));
+    TST_CHECK_ASSIGN(sessionStartOk, bool(sessionStartRes));
     BOOST_CHECK_EQUAL(error.ok(), sessionStartOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT start session: " << error.message());
 }

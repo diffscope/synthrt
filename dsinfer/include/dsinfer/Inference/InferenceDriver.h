@@ -2,7 +2,7 @@
 #define DSINFER_INFERENCEDRIVER_H
 
 #include <synthrt/Support/JSON.h>
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 #include <synthrt/Core/NamedObject.h>
 
 namespace ds {
@@ -24,8 +24,7 @@ namespace ds {
     public:
         virtual ~InferenceDriver() = default;
 
-        virtual bool initialize(const srt::NO<InferenceDriverInitArgs> &args,
-                                srt::Error *error) = 0;
+        virtual srt::Expected<void> initialize(const srt::NO<InferenceDriverInitArgs> &args) = 0;
 
         virtual srt::NO<InferenceSession> createSession() = 0;
     };

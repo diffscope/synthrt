@@ -19,11 +19,11 @@ namespace ds {
 
     AcousticInference::~AcousticInference() = default;
 
-    bool AcousticInference::initialize(const srt::NO<srt::TaskInitArgs> &args, srt::Error *error) {
-        return false;
+    srt::Expected<void> AcousticInference::initialize(const srt::NO<srt::TaskInitArgs> &args) {
+        return srt::Error(srt::Error::NotImplemented);
     }
 
-    bool AcousticInference::start(const srt::NO<srt::TaskStartInput> &input, srt::Error *error) {
+    srt::Expected<void> AcousticInference::start(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
         // TODO:
         setState(Running); // 设置状态
@@ -32,13 +32,13 @@ namespace ds {
 
         setState(Idle);
         impl.result = srt::NO<AcousticResult>::create(); // 创建结果
-        return false;
+        return srt::Error(srt::Error::NotImplemented);
     }
 
-    bool AcousticInference::startAsync(const srt::NO<srt::TaskStartInput> &input,
-                                       const StartAsyncCallback &callback, srt::Error *error) {
+    srt::Expected<void> AcousticInference::startAsync(const srt::NO<srt::TaskStartInput> &input,
+                                                      const StartAsyncCallback &callback) {
         // TODO:
-        return false;
+        return srt::Error(srt::Error::NotImplemented);
     }
 
     bool AcousticInference::stop() {

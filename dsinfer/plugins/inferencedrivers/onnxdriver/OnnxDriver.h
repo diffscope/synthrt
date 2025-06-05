@@ -13,7 +13,7 @@ namespace ds {
         ~OnnxDriver();
 
     public:
-        bool initialize(const srt::NO<InferenceDriverInitArgs> &args, srt::Error *error) override;
+        srt::Expected<void> initialize(const srt::NO<InferenceDriverInitArgs> &args) override;
 
         srt::NO<InferenceSession> createSession() override;
 

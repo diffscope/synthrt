@@ -11,11 +11,11 @@ namespace ds {
         ~AcousticInference();
 
     public:
-        bool initialize(const srt::NO<srt::TaskInitArgs> &args, srt::Error *error) override;
+        srt::Expected<void> initialize(const srt::NO<srt::TaskInitArgs> &args) override;
 
-        bool start(const srt::NO<srt::TaskStartInput> &input, srt::Error *error) override;
-        bool startAsync(const srt::NO<srt::TaskStartInput> &input,
-                        const StartAsyncCallback &callback, srt::Error *error) override;
+        srt::Expected<void> start(const srt::NO<srt::TaskStartInput> &input) override;
+        srt::Expected<void> startAsync(const srt::NO<srt::TaskStartInput> &input,
+                                       const StartAsyncCallback &callback) override;
         bool stop() override;
 
         srt::NO<srt::TaskResult> result() const override;

@@ -14,7 +14,7 @@
 #include <stdcorelib/pimpl.h>
 
 #include <synthrt/synthrt_global.h>
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 
 #include <hash-library/sha256.h>
 
@@ -590,21 +590,18 @@ namespace ds::onnxdriver {
         return true;
     }
 
-    bool Session::open(const fs::path &path, const srt::NO<Api::Onnx::SessionOpenArgs> &args, srt::Error *error) {
+    srt::Expected<void> Session::open(const fs::path &path, const srt::NO<Api::Onnx::SessionOpenArgs> &args) {
         __stdc_impl_t;
 
         if (isOpen()) {
             Log.srtWarning("Session - Session %1 is already open!", path.string());
-            return false;
+            return srt::Error(srt::Error::SessionError, "session is already open");
         }
 
         // Open
         Log.srtDebug("Session - Try open " + path.string());
         if (!fs::is_regular_file(path)) {
-            if (error) {
-                *error = srt::Error(srt::Error::FileNotFound, "not a regular file");
-            }
-            return false;
+            return srt::Error(srt::Error::FileNotFound, "not a regular file");
         }
 
         fs::path canonical_path = fs::canonical(path);
@@ -644,10 +641,7 @@ namespace ds::onnxdriver {
         {
             std::string sha256_str;
             if (!getFileInfo(canonical_path, sha256, sha256_str, size)) {
-                if (error) {
-                    *error = srt::Error(srt::Error::FileNotFound, "failed to read file");
-                }
-                return false;
+                return srt::Error(srt::Error::FileNotFound, "failed to read file");
             }
             Log.srtDebug("Session - SHA256 is %1", sha256_str);
         }
@@ -673,13 +667,10 @@ namespace ds::onnxdriver {
         image = new SessionImage();
         if (std::string error1; !image->open(canonical_path, hints, &error1)) {
             delete image;
-            if (error) {
-                *error = {
-                    srt::Error::FileNotFound,
-                    "failed to read file: " + error1,
-                };
-            }
-            return false;
+            return srt::Error {
+                srt::Error::FileNotFound,
+                "failed to read file: " + error1,
+            };
         }
 
         // Insert
@@ -710,14 +701,14 @@ namespace ds::onnxdriver {
         impl.image = image;
         impl.hints = hints;
         impl.realPath = canonical_path;
-        return true;
+        return {};
     }
 
-    bool Session::close() {
+    srt::Expected<void> Session::close() {
         __stdc_impl_t;
 
         if (!impl.group)
-            return false;
+            return srt::Error(srt::Error::SessionError, "session is not open");
 
         const auto &path = impl.realPath;
         const auto &filename = path.filename();
@@ -758,7 +749,7 @@ namespace ds::onnxdriver {
         impl.image = nullptr;
         impl.hints = 0;
         impl.realPath.clear();
-        return true;
+        return {};
     }
 
     fs::path Session::path() const {
@@ -797,64 +788,48 @@ namespace ds::onnxdriver {
         impl.runOptions.SetTerminate();
     }
 
-    bool Session::run(const srt::NO<srt::TaskStartInput> &input, srt::Error *error) {
+    srt::Expected<void> Session::run(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
         srt::Error tmpError;
         if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
             tmpError = {srt::Error::InvalidArgument, "invalid task start input"};
-            if (error) {
-                *error = tmpError;  // copy
-            }
-            impl.sessionResult->error = std::move(tmpError);
-            return false;
+            impl.sessionResult->error = tmpError;
+            return tmpError;
         }
         if (!impl.group) {
             tmpError = {srt::Error::SessionError, "session is not open"};
-            if (error) {
-                *error = tmpError;
-            }
-            impl.sessionResult->error = std::move(tmpError);
-            return {};
+            impl.sessionResult->error = tmpError;
+            return tmpError;
         }
         auto startInput = input.as<Api::Onnx::SessionStartInput>();
         bool ok = impl.sessionRun(startInput, &tmpError);
         if (!ok) {
-            if (error) {
-                *error = tmpError;
-            }
-            impl.sessionResult->error = std::move(tmpError);
+            impl.sessionResult->error = tmpError;
+            return tmpError;
         }
-        return ok;
+        return {};
     }
 
-    bool Session::runAsync(const srt::NO<srt::TaskStartInput> &input, const srt::ITask::StartAsyncCallback &callback, srt::Error *error) {
+    srt::Expected<void> Session::runAsync(const srt::NO<srt::TaskStartInput> &input, const srt::ITask::StartAsyncCallback &callback) {
         __stdc_impl_t;
         srt::Error tmpError;
         if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
             tmpError = {srt::Error::InvalidArgument, "invalid task start input"};
-            if (error) {
-                *error = tmpError;  // copy
-            }
-            impl.sessionResult->error = std::move(tmpError);
-            return false;
+            impl.sessionResult->error = tmpError;
+            return tmpError;
         }
         if (!impl.group) {
             tmpError = {srt::Error::SessionError, "session is not open"};
-            if (error) {
-                *error = tmpError;
-            }
-            impl.sessionResult->error = std::move(tmpError);
-            return {};
+            impl.sessionResult->error = tmpError;
+            return tmpError;
         }
         auto startInput = input.as<Api::Onnx::SessionStartInput>();
         bool ok = impl.sessionRunAsync(startInput, callback, &tmpError);
         if (!ok) {
-            if (error) {
-                *error = tmpError;
-            }
-            impl.sessionResult->error = std::move(tmpError);
+            impl.sessionResult->error = tmpError;
+            return tmpError;
         }
-        return ok;
+        return {};
     }
 
     srt::NO<srt::TaskResult> Session::result() const {

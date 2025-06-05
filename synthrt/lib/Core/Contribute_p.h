@@ -6,7 +6,7 @@
 #include <unordered_map>
 #include <shared_mutex>
 
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 #include <synthrt/Core/Contribute.h>
 
 #include "NamedObject_p.h"

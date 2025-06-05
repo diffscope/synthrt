@@ -6,7 +6,7 @@
 #include <filesystem>
 #include <functional>
 
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <synthrt/Task/ITask.h>
 
@@ -30,14 +30,14 @@ namespace ds::onnxdriver {
         Session &operator=(Session &&other) noexcept;
 
     public:
-        bool open(const std::filesystem::path &path, const srt::NO<Api::Onnx::SessionOpenArgs> &args, srt::Error *error);
-        bool close();
+        srt::Expected<void> open(const std::filesystem::path &path, const srt::NO<Api::Onnx::SessionOpenArgs> &args);
+        srt::Expected<void> close();
 
         const std::vector<std::string> &inputNames() const;
         const std::vector<std::string> &outputNames() const;
 
-        bool run(const srt::NO<srt::TaskStartInput> &input, srt::Error *error = nullptr);
-        bool runAsync(const srt::NO<srt::TaskStartInput> &input, const srt::ITask::StartAsyncCallback &callback, srt::Error *error = nullptr);
+        srt::Expected<void> run(const srt::NO<srt::TaskStartInput> &input);
+        srt::Expected<void> runAsync(const srt::NO<srt::TaskStartInput> &input, const srt::ITask::StartAsyncCallback &callback);
 
         void terminate();
 
