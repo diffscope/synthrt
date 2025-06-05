@@ -77,9 +77,9 @@ namespace srt {
 
     protected:
         std::string key() const override;
-        ContribSpec *parseSpec(const std::filesystem::path &basePath, const JsonValue &config,
-                               Error *error) const override;
-        bool loadSpec(ContribSpec *spec, ContribSpec::State state, Error *error) override;
+        Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
+                                          const JsonValue &config) const override;
+        Expected<bool> loadSpec(ContribSpec *spec, ContribSpec::State state) override;
 
     protected:
         class Impl;

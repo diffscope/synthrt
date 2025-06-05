@@ -1,6 +1,7 @@
 #include "SingerContrib.h"
 
 #include <fstream>
+#include <cstdlib>
 
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/path.h>
@@ -19,8 +20,7 @@ namespace srt {
         }
 
     public:
-        bool read(const std::filesystem::path &basePath, const JsonObject &obj,
-                  Error *error) override;
+        Expected<bool> read(const std::filesystem::path &basePath, const JsonObject &obj) override;
 
         std::filesystem::path path;
 
@@ -51,7 +51,6 @@ namespace srt {
             auto inference = ContribLocator::fromString(val.toString());
             if (inference.id().empty()) {
                 *errorMessage = R"(invalid id)";
-                return false;
             }
             SingerImportData res;
             res.inferenceLocator = inference;
@@ -60,13 +59,11 @@ namespace srt {
         }
         if (!val.isObject()) {
             *errorMessage = R"(invalid data type)";
-            return false;
         }
         auto obj = val.toObject();
         auto it = obj.find("id");
         if (it == obj.end()) {
             *errorMessage = R"(missing "id" field)";
-            return false;
         }
         auto inference = ContribLocator::fromString(it->second.toString());
         SingerImportData res;
@@ -81,8 +78,8 @@ namespace srt {
         return true;
     }
 
-    bool SingerSpec::Impl::read(const std::filesystem::path &basePath, const JsonObject &obj,
-                                Error *error) {
+    Expected<bool> SingerSpec::Impl::read(const std::filesystem::path &basePath,
+                                          const JsonObject &obj) {
         fs::path configPath;
         stdc::VersionNumber fmtVersion_;
         std::string id_;
@@ -102,56 +99,50 @@ namespace srt {
             // id
             auto it = obj.find("id");
             if (it == obj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"(missing "id" field in singer contribute field)",
                 };
-                return false;
             }
             id_ = it->second.toString();
             if (!ContribLocator::isValidLocator(id_)) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"("id" field has invalid value in singer contribute field)",
                 };
-                return false;
             }
 
             // model
             it = obj.find("model");
             if (it == obj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"(missing "model" field in singer contribute field)",
                 };
-                return false;
             }
             model_ = it->second.toString();
             if (model_.empty()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"("model" field has invalid value in singer contribute field)",
                 };
-                return false;
             }
 
             // path
             it = obj.find("path");
             if (it == obj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"(missing "path" field in singer contribute field)",
                 };
-                return false;
             }
 
             std::string configPathString = it->second.toString();
             if (configPathString.empty()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"("path" field has invalid value in singer contribute field)",
                 };
-                return false;
             }
 
             configPath = stdc::path::from_utf8(configPathString);
@@ -165,11 +156,10 @@ namespace srt {
         {
             std::ifstream file(configPath);
             if (!file.is_open()) {
-                *error = {
+                return Error{
                     Error::FileNotFound,
                     stdc::formatN(R"(%1: failed to open singer manifest)", configPath),
                 };
-                return false;
             }
 
             std::stringstream ss;
@@ -178,18 +168,16 @@ namespace srt {
             std::string error2;
             auto root = JsonValue::fromJson(ss.str(), true, &error2);
             if (!error2.empty()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: invalid singer manifest format: %2)", configPath, error2),
                 };
-                return false;
             }
             if (!root.isObject()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: invalid singer manifest format)", configPath),
                 };
-                return false;
             }
             configObj = root.toObject();
         }
@@ -199,20 +187,18 @@ namespace srt {
         {
             auto it = configObj.find("$version");
             if (it == configObj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: missing "$version" field)", configPath),
                 };
-                return false;
             }
             fmtVersion_ = stdc::VersionNumber::fromString(it->second.toString());
             if (fmtVersion_ > stdc::VersionNumber(1)) {
-                *error = {
+                return Error{
                     Error::FeatureNotSupported,
                     stdc::formatN(R"(%1: format version "%1" is not supported)",
                                   fmtVersion_.toString()),
                 };
-                return false;
             }
         }
         // name
@@ -251,23 +237,21 @@ namespace srt {
             auto it = configObj.find("imports");
             if (it != configObj.end()) {
                 if (!it->second.isArray()) {
-                    *error = {
+                    return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(%1: "imports" field has invalid value)", configPath),
                     };
-                    return false;
                 }
 
                 for (const auto &item : it->second.toArray()) {
                     SingerImportData singerImport;
                     std::string errorMessage;
                     if (!readSingerImport(item, &singerImport, &errorMessage)) {
-                        *error = {
+                        return Error{
                             Error::InvalidFormat,
                             stdc::formatN(R"(%1: invalid "imports" field entry %2: %3)", configPath,
                                           imports_.size() + 1, errorMessage),
                         };
-                        return false;
                     }
                     imports_.push_back(singerImport);
                 }
@@ -278,11 +262,10 @@ namespace srt {
             auto it = configObj.find("configuration");
             if (it != configObj.end()) {
                 if (!it->second.isObject()) {
-                    *error = {
+                    return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(%1: "configuration" field has invalid value)", configPath),
                     };
-                    return false;
                 }
                 configuration_ = it->second.toObject();
             }
@@ -414,24 +397,23 @@ namespace srt {
         return "singers";
     }
 
-    ContribSpec *SingerCategory::parseSpec(const std::filesystem::path &basePath,
-                                           const JsonValue &config, Error *error) const {
+    Expected<ContribSpec *> SingerCategory::parseSpec(const std::filesystem::path &basePath,
+                                                      const JsonValue &config) const {
         if (!config.isObject()) {
-            *error = {
+            return Error{
                 Error::InvalidFormat,
                 R"(invalid inference specification)",
             };
-            return nullptr;
         }
         auto spec = new SingerSpec();
-        if (!spec->_impl->read(basePath, config.toObject(), error)) {
+        if (auto exp = spec->_impl->read(basePath, config.toObject()); !exp) {
             delete spec;
-            return nullptr;
+            return exp.error();
         }
         return spec;
     }
 
-    bool SingerCategory::loadSpec(ContribSpec *spec, ContribSpec::State state, Error *error) {
+    Expected<bool> SingerCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
         __stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
@@ -447,7 +429,7 @@ namespace srt {
                         imp.inferenceLocator.id());
                     imp.inferenceLocator = newLocator;
                 }
-                return ContribCategory::loadSpec(spec, state, error);
+                return ContribCategory::loadSpec(spec, state);
             }
 
             case ContribSpec::Ready: {
@@ -460,29 +442,27 @@ namespace srt {
                     // Find inference
                     auto inferences = inferenceReg->findInferences(imp.inferenceLocator);
                     if (inferences.empty()) {
-                        *error = {
+                        return Error{
                             Error::FeatureNotSupported,
                             stdc::formatN(R"(required inference "%1" of singer "%2" not found)",
                                           imp.inferenceLocator.toString(), spec1->id()),
                         };
-                        return false;
                     }
 
                     // Create options
                     auto inference = inferences.front();
-                    Error err1;
-                    auto options = inference->createImportOptions(imp.manifestOptions, &err1);
+                    auto options = inference->createImportOptions(imp.manifestOptions);
                     if (!options) {
-                        *error = {
+                        return Error{
                             Error::InvalidFormat,
                             stdc::formatN(
                                 R"(failed to parse options of inference "%1" imported by singer "%2": %3)",
-                                imp.inferenceLocator.toString(), spec1->id(), err1.message()),
+                                imp.inferenceLocator.toString(), spec1->id(),
+                                options.error().message()),
                         };
-                        return false;
                     }
                     imp.inference = inference;
-                    imp.options = options;
+                    imp.options = options.get();
                 }
 
                 std::vector<SingerImport> imports;
@@ -499,11 +479,12 @@ namespace srt {
             }
 
             case ContribSpec::Deleted: {
-                return ContribCategory::loadSpec(spec, state, error);
+                return ContribCategory::loadSpec(spec, state);
             }
             default:
                 break;
         }
+        std::abort();
         return false;
     }
 

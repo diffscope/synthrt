@@ -20,8 +20,7 @@ namespace srt {
         Impl() : ContribSpec::Impl("inference") {
         }
 
-        bool read(const std::filesystem::path &basePath, const JsonObject &obj,
-                  Error *error) override;
+        Expected<bool> read(const std::filesystem::path &basePath, const JsonObject &obj) override;
 
         std::filesystem::path path;
 
@@ -39,8 +38,8 @@ namespace srt {
         NO<InferenceInterpreter> interp = nullptr;
     };
 
-    bool InferenceSpec::Impl::read(const std::filesystem::path &basePath, const JsonObject &obj,
-                                   Error *error) {
+    Expected<bool> InferenceSpec::Impl::read(const std::filesystem::path &basePath,
+                                             const JsonObject &obj) {
         fs::path configPath;
         stdc::VersionNumber fmtVersion_;
         std::string id_;
@@ -57,56 +56,50 @@ namespace srt {
             // id
             auto it = obj.find("id");
             if (it == obj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"(missing "id" field in inference contribute field)",
                 };
-                return false;
             }
             id_ = it->second.toString();
             if (!ContribLocator::isValidLocator(id_)) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"("id" field has invalid value in inference contribute field)",
                 };
-                return false;
             }
 
             // class
             it = obj.find("class");
             if (it == obj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"(missing "class" field in inference contribute field)",
                 };
-                return false;
             }
             className_ = it->second.toString();
             if (className_.empty()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"("class" field has invalid value in inference contribute field)",
                 };
-                return false;
             }
 
             // configuration
             it = obj.find("configuration");
             if (it == obj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"(missing "configuration" field in inference contribute field)",
                 };
-                return false;
             }
 
             std::string configPathString = it->second.toString();
             if (configPathString.empty()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     R"("configuration" field has invalid value in inference contribute field)",
                 };
-                return false;
             }
 
             configPath = stdc::path::from_utf8(configPathString);
@@ -120,11 +113,10 @@ namespace srt {
         {
             std::ifstream file(configPath);
             if (!file.is_open()) {
-                *error = {
+                return Error{
                     Error::FileNotFound,
                     stdc::formatN(R"(%1: failed to open inference manifest)", configPath),
                 };
-                return false;
             }
 
             std::stringstream ss;
@@ -133,19 +125,17 @@ namespace srt {
             std::string error2;
             auto root = JsonValue::fromJson(ss.str(), true, &error2);
             if (!error2.empty()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: invalid inference manifest format: %2)", configPath,
                                   error2),
                 };
-                return false;
             }
             if (!root.isObject()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: invalid inference manifest format)", configPath),
                 };
-                return false;
             }
             configObj = root.toObject();
         }
@@ -155,20 +145,18 @@ namespace srt {
         {
             auto it = configObj.find("$version");
             if (it == configObj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: missing "$version" field)", configPath),
                 };
-                return false;
             }
             fmtVersion_ = stdc::VersionNumber::fromString(it->second.toString());
             if (fmtVersion_ > stdc::VersionNumber(1)) {
-                *error = {
+                return Error{
                     Error::FeatureNotSupported,
                     stdc::formatN(R"(%1: format version "%2" is not supported)", configPath,
                                   fmtVersion_.toString()),
                 };
-                return false;
             }
         }
         // name
@@ -185,19 +173,17 @@ namespace srt {
         {
             auto it = configObj.find("level");
             if (it == configObj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: missing "level" field)", configPath),
                 };
-                return false;
             }
             apiLevel_ = it->second.toInt();
             if (apiLevel_ == 0) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: "level" field has invalid value)", configPath),
                 };
-                return false;
             }
         }
         // schema
@@ -205,11 +191,10 @@ namespace srt {
             auto it = configObj.find("schema");
             if (it != configObj.end()) {
                 if (!it->second.isObject()) {
-                    *error = {
+                    return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(%1: "schema" field has invalid value)", configPath),
                     };
-                    return false;
                 }
                 schema_ = it->second.toObject();
             }
@@ -219,11 +204,10 @@ namespace srt {
             auto it = configObj.find("configuration");
             if (it != configObj.end()) {
                 if (!it->second.isObject()) {
-                    *error = {
+                    return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(%1: "configuration" field has invalid value)", configPath),
                     };
-                    return false;
                 }
                 configuration_ = it->second.toObject();
             }
@@ -296,17 +280,17 @@ namespace srt {
         return impl.path;
     }
 
-    NO<InferenceImportOptions> InferenceSpec::createImportOptions(const JsonValue &options,
-                                                                  Error *error) const {
+    Expected<NO<InferenceImportOptions>>
+        InferenceSpec::createImportOptions(const JsonValue &options) const {
         __stdc_impl_t;
-        return impl.interp->createImportOptions(this, options, error);
+        return impl.interp->createImportOptions(this, options);
     }
 
-    NO<Inference> InferenceSpec::createInference(const NO<InferenceImportOptions> &importOptions,
-                                                 const NO<InferenceRuntimeOptions> &runtimeOptions,
-                                                 Error *error) const {
+    Expected<NO<Inference>>
+        InferenceSpec::createInference(const NO<InferenceImportOptions> &importOptions,
+                                       const NO<InferenceRuntimeOptions> &runtimeOptions) const {
         __stdc_impl_t;
-        return impl.interp->createInference(this, importOptions, runtimeOptions, error);
+        return impl.interp->createInference(this, importOptions, runtimeOptions);
     }
 
     InferenceSpec::InferenceSpec() : ContribSpec(*new Impl()) {
@@ -341,25 +325,24 @@ namespace srt {
         return "inferences";
     }
 
-    ContribSpec *InferenceCategory::parseSpec(const std::filesystem::path &basePath,
-                                              const JsonValue &config, Error *error) const {
+    Expected<ContribSpec *> InferenceCategory::parseSpec(const std::filesystem::path &basePath,
+                                                         const JsonValue &config) const {
         __stdc_impl_t;
         if (!config.isObject()) {
-            *error = {
+            return Error{
                 Error::InvalidFormat,
                 R"(invalid inference specification)",
             };
-            return nullptr;
         }
         auto spec = new InferenceSpec();
-        if (!spec->_impl->read(basePath, config.toObject(), error)) {
+        if (auto exp = spec->_impl->read(basePath, config.toObject()); !exp) {
             delete spec;
-            return nullptr;
+            return exp.error();
         }
         return spec;
     }
 
-    bool InferenceCategory::loadSpec(ContribSpec *spec, ContribSpec::State state, Error *error) {
+    Expected<bool> InferenceCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
         __stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
@@ -377,13 +360,12 @@ namespace srt {
                     auto plugin =
                         SU()->plugin<InferenceInterpreterPlugin>(spec1->className().c_str());
                     if (!plugin) {
-                        *error = {
+                        return Error{
                             Error::FeatureNotSupported,
                             stdc::formatN(
                                 R"(required interpreter "%1" of inference "%2" not found)",
                                 spec1->className(), spec1->id()),
                         };
-                        return false;
                     }
                     interp = plugin->create();
                     impl.interpreters[key] = interp;
@@ -391,38 +373,36 @@ namespace srt {
 
                 // Check api level
                 if (interp->apiLevel() < spec1->apiLevel()) {
-                    *error = {
+                    return Error{
                         Error::FeatureNotSupported,
                         stdc::formatN(
                             R"(required interpreter "%1" of api level %2 doesn't support inference "%3" of api level %4)",
                             spec1->className(), interp->apiLevel(), spec1->id(), spec1->apiLevel()),
                     };
-                    return false;
                 }
 
                 // Create schema and configuration
-                Error err1;
-                auto schema = interp->createSchema(spec1, &err1);
+                auto schema = interp->createSchema(spec1);
                 if (!schema) {
-                    *error = {
+                    return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(failed to parse inference schema of "%1": %2)",
-                                      spec1->id(), err1.message()),
+                                      spec1->id(), schema.error().message()),
                     };
                 }
-                spec_impl->schema = schema;
+                spec_impl->schema = schema.get();
 
-                auto config = interp->createConfiguration(spec1, &err1);
+                auto config = interp->createConfiguration(spec1);
                 if (!config) {
-                    *error = {
+                    return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(failed to parse inference configuration of "%1": %2)",
-                                      spec1->id(), err1.message()),
+                                      spec1->id(), config.error().message()),
                     };
                 }
-                spec_impl->configuration = config;
+                spec_impl->configuration = config.get();
                 spec_impl->interp = interp;
-                return ContribCategory::loadSpec(spec, state, error);
+                return ContribCategory::loadSpec(spec, state);
             }
 
             case ContribSpec::Ready:
@@ -431,7 +411,7 @@ namespace srt {
             }
 
             case ContribSpec::Deleted: {
-                return ContribCategory::loadSpec(spec, state, error);
+                return ContribCategory::loadSpec(spec, state);
             }
             default:
                 break;

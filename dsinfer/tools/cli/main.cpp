@@ -188,6 +188,8 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
     if (auto exp = su.open(packagePath, false); !exp) {
         throw std::runtime_error(stdc::formatN(R"(failed to open package "%1": %2)", packagePath,
                                                exp.error().message()));
+    } else {
+        pkg = exp.take();
     }
     if (!pkg.isLoaded()) {
         throw std::runtime_error(stdc::formatN(R"(failed to load package "%1": %2)", packagePath,
@@ -250,13 +252,14 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
     {
         // Prepare
         NO<srt::Inference> inference;
-        if (srt::Error err;
-            inference = importAcoustic.inference->createInference(
-                importAcoustic.options, NO<Ac::AcousticRuntimeOptions>::create(), &err),
-            !err.ok()) {
+        if (auto exp = importAcoustic.inference->createInference(
+                importAcoustic.options, NO<Ac::AcousticRuntimeOptions>::create());
+            !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to create acoustic inference for singer "%1": %2)",
-                              input.singer, err.message()));
+                              input.singer, exp.error().message()));
+        } else {
+            inference = exp.take();
         }
         if (srt::Error err; !inference->initialize(NO<Ac::AcousticInitArgs>::create(), &err)) {
             throw std::runtime_error(
@@ -284,13 +287,14 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
     {
         // Prepare
         NO<srt::Inference> inference;
-        if (srt::Error err;
-            inference = importVocoder.inference->createInference(
-                importVocoder.options, NO<Vo::VocoderRuntimeOptions>::create(), &err),
-            !err.ok()) {
+        if (auto exp = importVocoder.inference->createInference(
+                importVocoder.options, NO<Vo::VocoderRuntimeOptions>::create());
+            !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to create vocoder inference for singer "%1": %2)",
-                              input.singer, err.message()));
+                              input.singer, exp.error().message()));
+        } else {
+            inference = exp.take();
         }
         if (srt::Error err; !inference->initialize(NO<Vo::VocoderInitArgs>::create(), &err)) {
             throw std::runtime_error(

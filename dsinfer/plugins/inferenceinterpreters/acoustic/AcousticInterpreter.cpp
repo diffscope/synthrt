@@ -80,17 +80,16 @@ namespace ds {
         return 1;
     }
 
-    srt::NO<srt::InferenceSchema> AcousticInterpreter::createSchema(const srt::InferenceSpec *spec,
-                                                                    srt::Error *error) const {
+    srt::Expected<srt::NO<srt::InferenceSchema>>
+        AcousticInterpreter::createSchema(const srt::InferenceSpec *spec) const {
         // TODO: 读取 spec->manifestSchema() 并返回对应的 InferenceSchema 对象
         //       spec->manifestConfiguration() 也是可以读取作为参考的
         if (!spec) {
             // fatal error: null pointer, return immediately
-            if (error) {
-                *error = {srt::Error::InvalidArgument,
-                          "fatal in createSchema: InferenceSpec is nullptr"};
-            }
-            return {};
+            return srt::Error{
+                srt::Error::InvalidArgument,
+                "fatal in createSchema: InferenceSpec is nullptr",
+            };
         }
 
         const auto &schema = spec->manifestSchema();
@@ -102,9 +101,7 @@ namespace ds {
 
         auto collectError = [&](auto &&msg) {
             hasErrors = true;
-            if (error) {
-                errorList.emplace_back(std::forward<decltype(msg)>(msg));
-            }
+            errorList.emplace_back(std::forward<decltype(msg)>(msg));
         };
 
         // speakers, string[]
@@ -218,27 +215,24 @@ namespace ds {
         } // transitionControls
 
         if (hasErrors) {
-            if (error) {
-                *error = {srt::Error::InvalidFormat,
-                          formatErrorMessage("error parsing schema", errorList)};
-            }
-            return {};
+            return srt::Error{
+                srt::Error::InvalidFormat,
+                formatErrorMessage("error parsing schema", errorList),
+            };
         }
         return result;
     }
 
-    srt::NO<srt::InferenceConfiguration>
-        AcousticInterpreter::createConfiguration(const srt::InferenceSpec *spec,
-                                                 srt::Error *error) const {
+    srt::Expected<srt::NO<srt::InferenceConfiguration>>
+        AcousticInterpreter::createConfiguration(const srt::InferenceSpec *spec) const {
         // TODO: 读取 spec->manifestConfiguration() 并返回对应的 InferenceConfiguration 对象
         //       spec->manifestSchema() 也是可以读取作为参考的
         if (!spec) {
             // fatal error: null pointer, return immediately
-            if (error) {
-                *error = {srt::Error::InvalidArgument,
-                          "fatal in createConfiguration: InferenceSpec is nullptr"};
-            }
-            return {};
+            return srt::Error{
+                srt::Error::InvalidArgument,
+                "fatal in createConfiguration: InferenceSpec is nullptr",
+            };
         }
 
         const auto &config = spec->manifestConfiguration();
@@ -250,9 +244,7 @@ namespace ds {
 
         auto collectError = [&](auto &&msg) {
             hasErrors = true;
-            if (error) {
-                errorList.emplace_back(std::forward<decltype(msg)>(msg));
-            }
+            errorList.emplace_back(std::forward<decltype(msg)>(msg));
         };
 
         auto plJsonLoadHelper = [&](const std::string &fieldName, const std::filesystem::path &path,
@@ -617,25 +609,24 @@ namespace ds {
         } // melScale
 
         if (hasErrors) {
-            if (error) {
-                *error = {srt::Error::InvalidFormat,
-                          formatErrorMessage("error parsing configuration", errorList)};
-            }
-            return {};
+            return srt::Error{
+                srt::Error::InvalidFormat,
+                formatErrorMessage("error parsing configuration", errorList),
+            };
         }
         return result;
     }
 
-    srt::NO<srt::InferenceImportOptions> AcousticInterpreter::createImportOptions(
-        const srt::InferenceSpec *spec, const srt::JsonValue &options, srt::Error *error) const {
+    srt::Expected<srt::NO<srt::InferenceImportOptions>>
+        AcousticInterpreter::createImportOptions(const srt::InferenceSpec *spec,
+                                                 const srt::JsonValue &options) const {
         // TODO: 读取 options 并返回对应的 InferenceImportOptions 对象
         //       spec 中所有内容均可读取作为参考
         if (!options.isObject()) {
-            if (error) {
-                *error = {srt::Error::InvalidFormat,
-                          "invalid import options format: import options JSON should be an object"};
-            }
-            return {};
+            return srt::Error{
+                srt::Error::InvalidFormat,
+                "invalid import options format: import options JSON should be an object",
+            };
         }
         const auto &obj = options.toObject();
         auto result = srt::NO<Ac::AcousticImportOptions>::create();
@@ -644,28 +635,23 @@ namespace ds {
         {
             static_assert(std::is_same_v<decltype(result->speakerMapping),
                                          std::map<std::string, std::string>>);
-            if (auto it = obj.find("speakerMapping");
-                it != obj.end()) {
+            if (auto it = obj.find("speakerMapping"); it != obj.end()) {
                 auto val = it->second;
                 if (!val.isObject()) {
-                    if (error) {
-                        *error = {
-                            srt::Error::InvalidFormat,
-                            "invalid import options format: "
-                            R"(object field "speakerMapping" type mismatch)"};
-                    }
-                    return {};
+                    return srt::Error{
+                        srt::Error::InvalidFormat,
+                        "invalid import options format: "
+                        R"(object field "speakerMapping" type mismatch)",
+                    };
                 }
                 const auto &speakerMappingObj = val.toObject();
                 for (const auto &[speakerKey, speakerValue] : std::as_const(speakerMappingObj)) {
                     if (!speakerValue.isString()) {
-                        if (error) {
-                            *error = {
-                                srt::Error::InvalidFormat,
-                                "invalid import options format: "
-                                R"(object field "speakerMapping" values type mismatch: string expected)"};
-                        }
-                        return {};
+                        return srt::Error{
+                            srt::Error::InvalidFormat,
+                            "invalid import options format: "
+                            R"(object field "speakerMapping" values type mismatch: string expected)",
+                        };
                     }
                     result->speakerMapping[speakerKey] = speakerValue.toString();
                 }
@@ -675,9 +661,9 @@ namespace ds {
         return result;
     }
 
-    srt::NO<srt::Inference> AcousticInterpreter::createInference(
+    srt::Expected<srt::NO<srt::Inference>> AcousticInterpreter::createInference(
         const srt::InferenceSpec *spec, const srt::NO<srt::InferenceImportOptions> &importOptions,
-        const srt::NO<srt::InferenceRuntimeOptions> &runtimeOptions, srt::Error *error) {
+        const srt::NO<srt::InferenceRuntimeOptions> &runtimeOptions) {
         // TODO: importOptions 和 runtimeOptions 均可读取作为参考
         return srt::NO<AcousticInference>::create(spec);
     }

@@ -5,6 +5,7 @@
 #include <map>
 #include <filesystem>
 
+#include <synthrt/Support/Expected.h>
 #include <synthrt/Core/PackageRef.h>
 
 namespace srt {
@@ -20,11 +21,12 @@ namespace srt {
         ~PackageData();
 
     public:
-        bool parse(const std::filesystem::path &dir,
-                   const std::map<std::string, ContribCategory *, std::less<>> &categories,
-                   std::vector<ContribSpec *> *outContributes, Error *error);
+        Expected<bool>
+            parse(const std::filesystem::path &dir,
+                  const std::map<std::string, ContribCategory *, std::less<>> &categories,
+                  std::vector<ContribSpec *> *outContributes);
 
-        static bool readDesc(const std::filesystem::path &dir, JsonObject *out, Error *error);
+        static Expected<JsonObject> readDesc(const std::filesystem::path &dir);
 
         SynthUnit *su;
 

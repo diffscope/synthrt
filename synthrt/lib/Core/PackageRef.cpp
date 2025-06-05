@@ -75,9 +75,10 @@ namespace srt {
         return true;
     }
 
-    bool PackageData::parse(const std::filesystem::path &dir,
-                            const std::map<std::string, ContribCategory *, std::less<>> &categories,
-                            std::vector<ContribSpec *> *outContributes, Error *error) {
+    Expected<bool>
+        PackageData::parse(const std::filesystem::path &dir,
+                           const std::map<std::string, ContribCategory *, std::less<>> &categories,
+                           std::vector<ContribSpec *> *outContributes) {
         std::string id_;
         stdc::VersionNumber version_;
         stdc::VersionNumber compatVersion_;
@@ -92,8 +93,10 @@ namespace srt {
 
         // Read desc
         JsonObject obj;
-        if (!readDesc(dir, &obj, error)) {
-            return false;
+        if (auto exp = readDesc(dir); !exp) {
+            return exp.error();
+        } else {
+            obj = exp.take();
         }
 
         auto canonicalDir = fs::canonical(dir);
@@ -103,38 +106,34 @@ namespace srt {
         {
             auto it = obj.find("id");
             if (it == obj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: missing "id" field)", descPath),
                 };
-                return false;
             }
             id_ = it->second.toString();
             if (!ContribLocator::isValidLocator(id_)) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: "id" field has invalid value)", descPath),
                 };
-                return false;
             }
         }
         // version
         {
             auto it = obj.find("version");
             if (it == obj.end()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: missing "version" field)", descPath),
                 };
-                return false;
             }
             version_ = stdc::VersionNumber::fromString(it->second.toString());
             if (version_.isEmpty()) {
-                *error = {
+                return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: invalid version)", descPath),
                 };
-                return false;
             }
         }
         // compatVersion
@@ -143,11 +142,10 @@ namespace srt {
             if (it != obj.end()) {
                 compatVersion_ = stdc::VersionNumber::fromString(it->second.toString());
                 if (compatVersion_ > version_) {
-                    *error = {
+                    return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(%1: invalid compat version)", descPath),
                     };
-                    return false;
                 }
             } else {
                 compatVersion_ = version_;
@@ -193,23 +191,21 @@ namespace srt {
             auto it = obj.find("dependencies");
             if (it != obj.end()) {
                 if (!it->second.isArray()) {
-                    *error = {
+                    return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(%1: "dependencies" field has invalid value)", descPath),
                     };
-                    return false;
                 }
 
                 for (const auto &item : it->second.toArray()) {
                     std::string errorMessage;
                     PackageDependency dep;
                     if (!readDependency(item, &dep, &errorMessage)) {
-                        *error = {
+                        return Error{
                             Error::InvalidFormat,
                             stdc::formatN(R"(%1: invalid "dependencies" field entry %2: %3)",
                                           descPath, dependencies_.size() + 1, errorMessage),
                         };
-                        return false;
                     }
                     dependencies_.push_back(dep);
                 }
@@ -220,20 +216,20 @@ namespace srt {
             auto it = obj.find("contributes");
             if (it != obj.end()) {
                 if (!it->second.isObject()) {
-                    *error = {
+                    return Error{
                         Error::InvalidFormat,
                         R"("contributes" field has invalid value in package manifest)",
                     };
-                    return false;
                 }
             }
 
             do {
+                Error error1;
                 for (const auto &pair : it->second.toObject()) {
                     const auto &contributeKey = pair.first;
                     auto it2 = categories.find(contributeKey);
                     if (it2 == categories.end()) {
-                        *error = {
+                        error1 = {
                             Error::FeatureNotSupported,
                             stdc::formatN(R"(unknown contribute "%1")", contributeKey),
                         };
@@ -242,7 +238,7 @@ namespace srt {
 
                     const auto &cate = it2->second;
                     if (!pair.second.isArray()) {
-                        *error = {
+                        error1 = {
                             Error::InvalidFormat,
                             stdc::formatN(
                                 R"(contribute "%1" field has invalid value in package manifest)",
@@ -253,16 +249,17 @@ namespace srt {
 
                     std::set<std::string_view> idSet;
                     for (const auto &item : pair.second.toArray()) {
-                        auto contribute = cate->parseSpec(canonicalDir, item, error);
+                        auto contribute = cate->parseSpec(canonicalDir, item);
                         if (!contribute) {
+                            error1 = contribute.error();
                             goto out_failed;
                         }
-                        contributes_.push_back(contribute);
+                        contributes_.push_back(contribute.get());
 
                         // Check id
-                        const auto &contributeId = contribute->id();
+                        const auto &contributeId = contribute.get()->id();
                         if (idSet.count(contributeId)) {
-                            *error = {
+                            error1 = {
                                 Error::InvalidFormat,
                                 stdc::formatN(R"(contribute "%1" object has duplicated id "%2")",
                                               pair.first, contributeId),
@@ -277,7 +274,7 @@ namespace srt {
 
             out_failed:
                 stdc::delete_all(contributes_);
-                return false;
+                return error1;
             } while (false);
         }
 
@@ -295,15 +292,14 @@ namespace srt {
         return true;
     }
 
-    bool PackageData::readDesc(const std::filesystem::path &dir, JsonObject *out, Error *error) {
+    Expected<JsonObject> PackageData::readDesc(const std::filesystem::path &dir) {
         const auto &descPath = dir / _TSTR("desc.json");
         std::ifstream file(descPath);
         if (!file.is_open()) {
-            *error = {
+            return Error{
                 Error::FileNotFound,
                 stdc::formatN(R"("%1": failed to open package manifest)", descPath),
             };
-            return false;
         }
 
         std::stringstream ss;
@@ -312,21 +308,18 @@ namespace srt {
         std::string error2;
         auto root = JsonValue::fromJson(ss.str(), true, &error2);
         if (!error2.empty()) {
-            *error = {
+            return Error{
                 Error::InvalidFormat,
                 stdc::formatN(R"("%1": invalid package manifest format: %2)", descPath, error2),
             };
-            return false;
         }
         if (!root.isObject()) {
-            *error = {
+            return Error{
                 Error::InvalidFormat,
                 stdc::formatN(R"("%1": invalid package manifest format: not an object)", descPath),
             };
-            return false;
         }
-        *out = root.toObject();
-        return true;
+        return root.toObject();
     }
 
     static PackageData &staticEmptyPackageData() {

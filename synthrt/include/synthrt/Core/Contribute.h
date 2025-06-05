@@ -5,7 +5,7 @@
 
 #include <stdcorelib/support/versionnumber.h>
 
-#include <synthrt/Support/Error.h>
+#include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/Core/NamedObject.h>
@@ -151,11 +151,11 @@ namespace srt {
         /// Parses the contribution specification from the given JSON configuration.
         /// \param basePath The path of the configuration directory.
         /// \return The uninitialized \a ContribSpec instance.
-        virtual ContribSpec *parseSpec(const std::filesystem::path &basePath,
-                                       const JsonValue &config, Error *err) const = 0;
+        virtual Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
+                                                  const JsonValue &config) const = 0;
 
         /// Initializes the \a ContribSpec instance in the given state.
-        virtual bool loadSpec(ContribSpec *spec, ContribSpec::State state, Error *err);
+        virtual Expected<bool> loadSpec(ContribSpec *spec, ContribSpec::State state);
 
         std::vector<ContribSpec *> find(const ContribLocator &loc) const;
 

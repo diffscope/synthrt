@@ -94,7 +94,7 @@ namespace srt {
         /// After calling this the Expected<T> is in an indeterminate state that can
         /// only be safely destructed. No further calls (beside the destructor) should
         /// be made on the Expected<T> value.
-        Error takeError() {
+        error_type takeError() {
             return _has_value ? Error::success() : std::move(_storage.err);
         }
 
@@ -116,7 +116,11 @@ namespace srt {
             return _has_value;
         }
 
-        const Error &error() const & {
+        value_type &&take() {
+            return std::move(get());
+        }
+
+        const error_type &error() const & {
             assert(!_has_value && "Expected doesn't contain an error");
             return _storage.err;
         }

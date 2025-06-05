@@ -4,6 +4,7 @@
 #include <regex>
 #include <utility>
 #include <mutex>
+#include <cstdlib>
 
 #include <stdcorelib/str.h>
 #include <stdcorelib/pimpl.h>
@@ -153,7 +154,7 @@ namespace srt {
         return impl.su;
     }
 
-    bool ContribCategory::loadSpec(ContribSpec *spec, ContribSpec::State state, Error *error) {
+    Expected<bool> ContribCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
         __stdc_impl_t;
 
         auto spec_impl = spec->_impl.get();
@@ -201,6 +202,7 @@ namespace srt {
             default:
                 break;
         }
+        std::abort();
         return false;
     }
 

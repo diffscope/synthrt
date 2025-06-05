@@ -13,6 +13,7 @@ BOOST_AUTO_TEST_CASE(test_Expected) {
         Expected<std::string> e((Error(Error::InvalidArgument)));
         BOOST_VERIFY(!e.hasValue());
         BOOST_VERIFY(e.error().type() == Error::InvalidArgument);
+        BOOST_VERIFY(e.error().message() == Error(Error::InvalidArgument).message());
     }
     // Construct from value
     {

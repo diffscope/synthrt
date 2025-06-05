@@ -21,7 +21,7 @@ namespace srt {
 
         using Decl = SynthUnit;
 
-        PackageData *open(const std::filesystem::path &path, bool noLoad, Error *error);
+        Expected<PackageData *> open(const std::filesystem::path &path, bool noLoad);
         bool close(PackageData *spec);
 
     public:

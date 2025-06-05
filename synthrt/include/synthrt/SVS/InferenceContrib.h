@@ -10,7 +10,8 @@ namespace srt {
     /// by a specific inference interpreter.
     class InferenceInfoBase : public NamedObject {
     public:
-        inline InferenceInfoBase(const std::string &name, const std::string &className, int apiLevel)
+        inline InferenceInfoBase(const std::string &name, const std::string &className,
+                                 int apiLevel)
             : NamedObject(name), _className(className), _apiLevel(apiLevel) {
         }
         virtual ~InferenceInfoBase() = default;
@@ -80,13 +81,12 @@ namespace srt {
 
     public:
         /// Mainly called by \a SingerSpec at loading state.
-        NO<InferenceImportOptions> createImportOptions(const JsonValue &options,
-                                                       Error *error) const;
+        Expected<NO<InferenceImportOptions>> createImportOptions(const JsonValue &options) const;
 
         /// Creates an inference interface with the given options.
-        NO<Inference> createInference(const NO<InferenceImportOptions> &importOptions,
-                                      const NO<InferenceRuntimeOptions> &runtimeOptions,
-                                      Error *error) const;
+        Expected<NO<Inference>>
+            createInference(const NO<InferenceImportOptions> &importOptions,
+                            const NO<InferenceRuntimeOptions> &runtimeOptions) const;
 
     protected:
         class Impl;
@@ -107,9 +107,9 @@ namespace srt {
 
     protected:
         std::string key() const override;
-        ContribSpec *parseSpec(const std::filesystem::path &basePath, const JsonValue &config,
-                               Error *error) const override;
-        bool loadSpec(ContribSpec *spec, ContribSpec::State state, Error *error) override;
+        Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
+                                          const JsonValue &config) const override;
+        Expected<bool> loadSpec(ContribSpec *spec, ContribSpec::State state) override;
 
     protected:
         class Impl;

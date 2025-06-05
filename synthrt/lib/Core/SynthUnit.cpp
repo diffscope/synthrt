@@ -31,16 +31,14 @@ namespace srt {
         stdc::delete_all(categories);
     }
 
-    PackageData *SynthUnit::Impl::open(const std::filesystem::path &path, bool noLoad,
-                                       Error *error) {
+    Expected<PackageData *> SynthUnit::Impl::open(const std::filesystem::path &path, bool noLoad) {
         __stdc_decl_t;
         auto canonicalPath = stdc::path::canonical(path);
         if (canonicalPath.empty() || !fs::is_directory(canonicalPath)) {
-            *error = {
+            return Error{
                 Error::FileNotFound,
                 stdc::formatN(R"(invalid package path "%1")", path),
             };
-            return nullptr;
         }
 
         // Check package path
@@ -59,10 +57,10 @@ namespace srt {
         auto spec = new PackageData(&decl);
         std::vector<ContribSpec *> contributes;
 
-        if (!spec->parse(canonicalPath, cateKeyMap, &contributes, error)) {
+        if (auto exp = spec->parse(canonicalPath, cateKeyMap, &contributes); !exp) {
             delete spec;
             stdc::delete_all(contributes); // Maybe redundant
-            return nullptr;
+            return exp.error();
         }
 
         // Set parent
@@ -194,12 +192,11 @@ namespace srt {
                 auto depPaths = searchDependencies(dep.id, dep.version);
                 for (auto it = depPaths.rbegin(); it != depPaths.rend(); ++it) {
                     const auto &depPath = *it;
-                    Error error2;
-                    auto depPkg = open(depPath, true, &error2);
+                    auto depPkg = open(depPath, true);
                     if (!depPkg) {
                         continue; // ignore
                     }
-                    dependencies.push_back(depPkg);
+                    dependencies.push_back(depPkg.get());
                     success = true;
                     break;
                 }
@@ -250,7 +247,8 @@ namespace srt {
                     break;
                 }
                 const auto &cate = it->second;
-                if (!cate->loadSpec(contribute, ContribSpec::Initialized, &error1)) {
+                if (auto exp = cate->loadSpec(contribute, ContribSpec::Initialized); !exp) {
+                    error1 = exp.error();
                     i--;
                     failed = true;
                     break;
@@ -263,8 +261,7 @@ namespace srt {
                 for (; i >= 0; --i) {
                     const auto &contribute = contributes[i];
                     const auto &cate = categories.at(contribute->_impl->category);
-                    Error error2;
-                    std::ignore = cate->loadSpec(contribute, ContribSpec::Deleted, &error2);
+                    std::ignore = cate->loadSpec(contribute, ContribSpec::Deleted);
                     contribute->_impl->state = ContribSpec::Deleted;
                 }
 
@@ -286,7 +283,8 @@ namespace srt {
             for (; i < contributes.size(); ++i) {
                 const auto &contribute = contributes[i];
                 const auto &cate = categories.at(contribute->_impl->category);
-                if (!cate->loadSpec(contribute, ContribSpec::Ready, &error1)) {
+                if (auto exp = cate->loadSpec(contribute, ContribSpec::Ready); !exp) {
+                    error1 = exp.error();
                     i--;
                     failed = true;
                     break;
@@ -299,8 +297,7 @@ namespace srt {
                 for (; i >= 0; --i) {
                     const auto &contribute = contributes[i];
                     const auto &cate = categories.at(contribute->_impl->category);
-                    Error error2;
-                    std::ignore = cate->loadSpec(contribute, ContribSpec::Finished, &error2);
+                    std::ignore = cate->loadSpec(contribute, ContribSpec::Finished);
                     contribute->_impl->state = ContribSpec::Finished;
                 }
 
@@ -308,8 +305,7 @@ namespace srt {
                 for (i = int(contributes.size()) - 1; i >= 0; i--) {
                     const auto &contribute = contributes[i];
                     const auto &cate = categories.at(contribute->_impl->category);
-                    Error error2;
-                    std::ignore = cate->loadSpec(contribute, ContribSpec::Deleted, &error2);
+                    std::ignore = cate->loadSpec(contribute, ContribSpec::Deleted);
                     contribute->_impl->state = ContribSpec::Deleted;
                 }
 
@@ -394,8 +390,7 @@ namespace srt {
                  ++it) {
                 const auto &contribute = *it;
                 const auto &cate = categories.at(contribute->_impl->category);
-                Error error2;
-                std::ignore = cate->loadSpec(contribute, ContribSpec::Finished, &error2);
+                std::ignore = cate->loadSpec(contribute, ContribSpec::Finished);
                 contribute->_impl->state = ContribSpec::Finished;
             }
 
@@ -404,8 +399,7 @@ namespace srt {
                  ++it) {
                 const auto &contribute = *it;
                 const auto &cate = categories.at(contribute->_impl->category);
-                Error error2;
-                std::ignore = cate->loadSpec(contribute, ContribSpec::Deleted, &error2);
+                std::ignore = cate->loadSpec(contribute, ContribSpec::Deleted);
                 contribute->_impl->state = ContribSpec::Deleted;
             }
         }
@@ -437,9 +431,10 @@ namespace srt {
                     }
 
                     JsonObject obj;
-                    Error error;
-                    if (!PackageData::readDesc(entry.path(), &obj, &error)) {
+                    if (auto exp = PackageData::readDesc(entry.path()); !exp) {
                         continue;
+                    } else {
+                        obj = exp.take();
                     }
 
                     // Search id, version, compatVersion
@@ -538,12 +533,11 @@ namespace srt {
 
     Expected<PackageRef> SynthUnit::open(const std::filesystem::path &path, bool noLoad) {
         __stdc_impl_t;
-        Error err;
-        auto result = impl.open(path, noLoad, &err);
+        auto result = impl.open(path, noLoad);
         if (!result) {
-            return err;
+            return result.error();
         }
-        return PackageRef(result);
+        return PackageRef(result.get());
     }
 
     PackageRef SynthUnit::find(const std::string_view &id,
