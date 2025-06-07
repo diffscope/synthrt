@@ -162,11 +162,14 @@ BOOST_FIXTURE_TEST_SUITE(InferenceTests, InferenceFixture)
 
 BOOST_AUTO_TEST_CASE(initialize_driver) {
     auto exp = InferenceFixture::initializeSU();
+    auto initialize_driver_ok = static_cast<bool>(exp);
     BOOST_TEST_MESSAGE("Initializing driver...");
 
-    BOOST_CHECK_MESSAGE(bool(exp), exp.error().message());
-    if (exp) {
+    BOOST_CHECK(initialize_driver_ok);
+    if (initialize_driver_ok) {
         BOOST_TEST_MESSAGE("Driver initialized successfully");
+    } else {
+        BOOST_FAIL("Driver initialization failed: " << exp.error().message());
     }
 }
 
