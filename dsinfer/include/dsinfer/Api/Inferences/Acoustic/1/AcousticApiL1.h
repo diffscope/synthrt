@@ -6,13 +6,13 @@
 #include <map>
 #include <set>
 #include <filesystem>
-#include <optional>
 
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/Inference.h>
 
 #include <dsinfer/Core/Tensor.h>
 #include <dsinfer/Core/ParamTag.h>
+#include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
 namespace ds::Api::Acoustic::L1 {
 
@@ -21,81 +21,6 @@ namespace ds::Api::Acoustic::L1 {
     static constexpr char API_CLASS[] = "ai.svs.AcousticInference";
 
     static constexpr int API_LEVEL = 1;
-
-    namespace Tags {
-
-        /// Variance controls
-        static constexpr ParamTag Energy("energy");
-        static constexpr ParamTag Breathiness("breathiness");
-        static constexpr ParamTag Voicing("voicing");
-        static constexpr ParamTag Tension("tension");
-
-        /// Transition controls
-        static constexpr ParamTag Gender("gender");
-        static constexpr ParamTag Velocity("velocity");
-
-    };
-
-    enum MelBase {
-        MelBase_E,
-        MelBase_10,
-    };
-
-    enum MelScale {
-        MelScale_Slaney,
-        MelScale_HTK,
-    };
-
-    enum GlideType {
-        GT_None,
-        GT_Up,
-        GT_Down,
-    };
-
-    struct InputPhonemeInfo {
-        struct Speaker {
-            std::string name;
-            double proportion = 1;  // range: [0, 1]
-        };
-
-        std::string token;
-        int tone = 0;
-        double start = 0;
-        std::vector<Speaker> speakers;
-    };
-
-    struct InputNoteInfo {
-        int key = 0;
-        int cents = 0;
-        double duration = 0;
-        GlideType glide = GT_None;
-        bool is_rest = false;
-    };
-
-    struct InputWordInfo {
-        std::vector<InputPhonemeInfo> phones;
-        std::vector<InputNoteInfo> notes;
-    };
-
-    struct InputParameterInfo {
-        struct RetakeRange {
-            double start = 0;  // seconds (include)
-            double end = 0;  // seconds (exclude)
-        };
-
-        ParamTag tag;
-        std::vector<double> values;
-        double interval = 0;  // seconds
-        std::optional<RetakeRange> retake;  // if no value, retake the full range
-    };
-
-    struct InputSpeakerProportionInfo {
-        std::string name;
-        double interval = 0;  // seconds
-        std::vector<double> proportions;
-    };
-
-    using InputSpeakerInfo = std::vector<InputSpeakerProportionInfo>;
 
     class AcousticSchema : public srt::InferenceSchema {
     public:
@@ -114,6 +39,9 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticConfiguration : public srt::InferenceConfiguration {
     public:
+        using MelBase = Common::L1::MelBase;
+        using MelScale = Common::L1::MelScale;
+
         inline AcousticConfiguration()
             : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
         }
@@ -173,10 +101,10 @@ namespace ds::Api::Acoustic::L1 {
         int melMaxFreq = 0;
 
         /// 梅尔频谱底数
-        MelBase melBase = MelBase_E;
+        MelBase melBase = MelBase::MelBase_E;
 
         /// melScale
-        MelScale melScale = MelScale_Slaney;
+        MelScale melScale = MelScale::MelScale_Slaney;
     };
 
     class AcousticImportOptions : public srt::InferenceImportOptions {
@@ -208,6 +136,10 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticStartInput : public srt::TaskStartInput {
     public:
+        using InputWordInfo = Common::L1::InputWordInfo;
+        using InputParameterInfo = Common::L1::InputParameterInfo;
+        using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
+
         inline AcousticStartInput() : srt::TaskStartInput(API_NAME) {
         }
 

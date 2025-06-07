@@ -11,21 +11,22 @@
 
 namespace ds {
 
+    namespace Co = Api::Common::L1;
     namespace Ac = Api::Acoustic::L1;
 
     static inline std::string formatErrorMessage(const std::string &msgPrefix,
                                                  const std::vector<std::string> &errorList);
 
     static constexpr auto varianceTagMapping = std::array{
-        std::pair{Ac::Tags::Energy.name(),      Ac::Tags::Energy     },
-        std::pair{Ac::Tags::Breathiness.name(), Ac::Tags::Breathiness},
-        std::pair{Ac::Tags::Voicing.name(),     Ac::Tags::Voicing    },
-        std::pair{Ac::Tags::Tension.name(),     Ac::Tags::Tension    },
+        std::pair{Co::Tags::Energy.name(),      Co::Tags::Energy     },
+        std::pair{Co::Tags::Breathiness.name(), Co::Tags::Breathiness},
+        std::pair{Co::Tags::Voicing.name(),     Co::Tags::Voicing    },
+        std::pair{Co::Tags::Tension.name(),     Co::Tags::Tension    },
     };
 
     static constexpr auto transitionTagMapping = std::array{
-        std::pair{Ac::Tags::Gender.name(),   Ac::Tags::Gender  },
-        std::pair{Ac::Tags::Velocity.name(), Ac::Tags::Velocity},
+        std::pair{Co::Tags::Gender.name(),   Co::Tags::Gender  },
+        std::pair{Co::Tags::Velocity.name(), Co::Tags::Velocity},
     };
 
     template <size_t N>
@@ -217,7 +218,7 @@ namespace ds {
         if (hasErrors) {
             return srt::Error{
                 srt::Error::InvalidFormat,
-                formatErrorMessage("error parsing schema", errorList),
+                formatErrorMessage("error parsing acoustic schema", errorList),
             };
         }
         return result;
@@ -574,14 +575,14 @@ namespace ds {
 
         // melBase, enum (json values are strings, case-insensitive)
         {
-            static_assert(std::is_same_v<decltype(result->melBase), Ac::MelBase>);
+            static_assert(std::is_same_v<decltype(result->melBase), Co::MelBase>);
             if (const auto it = config.find("melBase"); it != config.end()) {
                 const auto melBase = it->second.toString();
                 const auto melBaseLower = stdc::to_lower(melBase);
                 if (melBaseLower == "e") {
-                    result->melBase = Ac::MelBase_E;
+                    result->melBase = Co::MelBase_E;
                 } else if (melBaseLower == "10") {
-                    result->melBase = Ac::MelBase_10;
+                    result->melBase = Co::MelBase_10;
                 } else {
                     collectError(stdc::formatN(
                         R"(enum string field "melBase" invalid: expect "e", "10"; got "%1")",
@@ -592,14 +593,14 @@ namespace ds {
 
         // melScale, enum (json value is string, case-insensitive)
         {
-            static_assert(std::is_same_v<decltype(result->melScale), Ac::MelScale>);
+            static_assert(std::is_same_v<decltype(result->melScale), Co::MelScale>);
             if (const auto it = config.find("melScale"); it != config.end()) {
                 const auto melScale = it->second.toString();
                 const auto melScaleLower = stdc::to_lower(melScale);
                 if (melScaleLower == "slaney") {
-                    result->melScale = Ac::MelScale_Slaney;
+                    result->melScale = Co::MelScale_Slaney;
                 } else if (melScaleLower == "htk") {
-                    result->melScale = Ac::MelScale_HTK;
+                    result->melScale = Co::MelScale_HTK;
                 } else {
                     collectError(stdc::format(
                         R"(enum string field "melScale" invalid: expect "slaney", "htk"; got "%1")",
@@ -611,7 +612,7 @@ namespace ds {
         if (hasErrors) {
             return srt::Error{
                 srt::Error::InvalidFormat,
-                formatErrorMessage("error parsing configuration", errorList),
+                formatErrorMessage("error parsing acoustic configuration", errorList),
             };
         }
         return result;
@@ -625,7 +626,7 @@ namespace ds {
         if (!options.isObject()) {
             return srt::Error{
                 srt::Error::InvalidFormat,
-                "invalid import options format: import options JSON should be an object",
+                "invalid acoustic import options format: import options JSON should be an object",
             };
         }
         const auto &obj = options.toObject();
@@ -640,7 +641,7 @@ namespace ds {
                 if (!val.isObject()) {
                     return srt::Error{
                         srt::Error::InvalidFormat,
-                        "invalid import options format: "
+                        "invalid acoustic import options format: "
                         R"(object field "speakerMapping" type mismatch)",
                     };
                 }
@@ -649,7 +650,7 @@ namespace ds {
                     if (!speakerValue.isString()) {
                         return srt::Error{
                             srt::Error::InvalidFormat,
-                            "invalid import options format: "
+                            "invalid acoustic import options format: "
                             R"(object field "speakerMapping" values type mismatch: string expected)",
                         };
                     }

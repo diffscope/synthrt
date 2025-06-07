@@ -5,6 +5,7 @@
 #include <synthrt/SVS/Inference.h>
 
 #include <dsinfer/Core/Tensor.h>
+#include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
 namespace ds::Api::Vocoder::L1 {
 
@@ -13,16 +14,6 @@ namespace ds::Api::Vocoder::L1 {
     static constexpr char API_CLASS[] = "ai.svs.VocoderInference";
 
     static constexpr int API_LEVEL = 1;
-
-    enum MelBase {
-        MelBase_E,
-        MelBase_10,
-    };
-
-    enum MelScale {
-        MelScale_Slaney,
-        MelScale_HTK,
-    };
 
     class VocoderImportOptions : public srt::InferenceImportOptions {
     public:
@@ -52,6 +43,9 @@ namespace ds::Api::Vocoder::L1 {
 
     class VocoderConfiguration : public srt::InferenceConfiguration {
     public:
+        using MelBase = Common::L1::MelBase;
+        using MelScale = Common::L1::MelScale;
+
         inline VocoderConfiguration()
             : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
         }
@@ -81,10 +75,10 @@ namespace ds::Api::Vocoder::L1 {
         int melMaxFreq = 0;
 
         /// 梅尔频谱底数
-        MelBase melBase = MelBase_E;
+        MelBase melBase = MelBase::MelBase_E;
 
         /// melScale
-        MelScale melScale = MelScale_Slaney;
+        MelScale melScale = MelScale::MelScale_Slaney;
     };
 
     class VocoderInitArgs : public srt::InferenceInitArgs {

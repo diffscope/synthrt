@@ -1,5 +1,6 @@
 #include "VocoderInterpreter.h"
 
+#include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
@@ -8,6 +9,7 @@
 
 namespace ds {
 
+    namespace Co = Api::Common::L1;
     namespace Vo = Api::Vocoder::L1;
 
     static inline std::string formatErrorMessage(const std::string &msgPrefix,
@@ -153,14 +155,14 @@ namespace ds {
 
         // melBase, enum (json values are strings, case-insensitive)
         {
-            static_assert(std::is_same_v<decltype(result->melBase), Vo::MelBase>);
+            static_assert(std::is_same_v<decltype(result->melBase), Co::MelBase>);
             if (const auto it = config.find("melBase"); it != config.end()) {
                 const auto melBase = it->second.toString();
                 const auto melBaseLower = stdc::to_lower(melBase);
                 if (melBaseLower == "e") {
-                    result->melBase = Vo::MelBase_E;
+                    result->melBase = Co::MelBase_E;
                 } else if (melBaseLower == "10") {
-                    result->melBase = Vo::MelBase_10;
+                    result->melBase = Co::MelBase_10;
                 } else {
                     collectError(stdc::formatN(
                         R"(enum string field "melBase" invalid: expect "e", "10"; got "%1")",
@@ -171,14 +173,14 @@ namespace ds {
 
         // melScale, enum (json value is string, case-insensitive)
         {
-            static_assert(std::is_same_v<decltype(result->melScale), Vo::MelScale>);
+            static_assert(std::is_same_v<decltype(result->melScale), Co::MelScale>);
             if (const auto it = config.find("melScale"); it != config.end()) {
                 const auto melScale = it->second.toString();
                 const auto melScaleLower = stdc::to_lower(melScale);
                 if (melScaleLower == "slaney") {
-                    result->melScale = Vo::MelScale_Slaney;
+                    result->melScale = Co::MelScale_Slaney;
                 } else if (melScaleLower == "htk") {
-                    result->melScale = Vo::MelScale_HTK;
+                    result->melScale = Co::MelScale_HTK;
                 } else {
                     collectError(stdc::format(
                         R"(enum string field "melScale" invalid: expect "slaney", "htk"; got "%1")",
