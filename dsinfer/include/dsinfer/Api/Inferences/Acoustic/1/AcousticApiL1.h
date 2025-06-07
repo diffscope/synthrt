@@ -54,20 +54,22 @@ namespace ds::Api::Acoustic::L1 {
 
     struct InputPhonemeInfo {
         struct Speaker {
-            bool mixed = false;
             std::string name;
+            double proportion = 1;  // range: [0, 1]
         };
 
         std::string token;
         int tone = 0;
-        Speaker speaker;
         double start = 0;
+        std::vector<Speaker> speakers;
     };
 
     struct InputNoteInfo {
-        std::string key;
-        GlideType glide = GT_None;
+        int key = 0;
+        int cents = 0;
         double duration = 0;
+        GlideType glide = GT_None;
+        bool is_rest = false;
     };
 
     struct InputWordInfo {
@@ -76,25 +78,24 @@ namespace ds::Api::Acoustic::L1 {
     };
 
     struct InputParameterInfo {
-        struct Dynamic {
-            int interval = 5 /* ms */; // do not change
-            std::vector<float> values;
+        struct RetakeRange {
+            double start = 0;  // seconds (include)
+            double end = 0;  // seconds (exclude)
         };
 
         ParamTag tag;
-        std::optional<float> value;
-        std::optional<Dynamic> dynamic;
+        std::vector<double> values;
+        double interval = 0;  // seconds
+        std::optional<RetakeRange> retake;  // if no value, retake the full range
     };
 
     struct InputSpeakerProportionInfo {
         std::string name;
-        InputParameterInfo parameter;
+        double interval = 0;  // seconds
+        std::vector<double> proportions;
     };
 
-    struct InputSpeakerInfo {
-        bool mixed = false;
-        std::vector<InputSpeakerProportionInfo> proportions;
-    };
+    using InputSpeakerInfo = std::vector<InputSpeakerProportionInfo>;
 
     class AcousticSchema : public srt::InferenceSchema {
     public:
