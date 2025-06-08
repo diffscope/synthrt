@@ -60,7 +60,7 @@ namespace srt {
         }
 
         template <typename Deleter>
-        NO(nullptr_t p, Deleter d) : Base(p, std::move(d)) {
+        NO(std::nullptr_t p, Deleter d) : Base(p, std::move(d)) {
         }
 
         template <typename U, typename Deleter, typename Alloc,
@@ -69,7 +69,7 @@ namespace srt {
         }
 
         template <typename Deleter, typename Alloc>
-        NO(nullptr_t p, Deleter d, Alloc a) : Base(p, std::move(d), std::move(a)) {
+        NO(std::nullptr_t p, Deleter d, Alloc a) : Base(p, std::move(d), std::move(a)) {
         }
 
         template <typename U>
@@ -96,7 +96,7 @@ namespace srt {
         NO(std::unique_ptr<U, Deleter> &&RHS) : Base(std::move(RHS)) {
         }
 
-        constexpr NO(nullptr_t) noexcept : Base() {
+        constexpr NO(std::nullptr_t) noexcept : Base() {
         }
 
         template <class U>
