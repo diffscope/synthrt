@@ -118,22 +118,26 @@ namespace srt {
         bool hasValue() const {
             return _has_value;
         }
-
+        reference value() {
+            return get();
+        }
+        const_reference value() const {
+            return get();
+        }
         T &&take() {
             return std::move(get());
         }
-
         const error_type &error() const & {
             assert(!_has_value && "Expected doesn't contain an error");
             return _storage.err;
         }
-
-        T orElse(const T &defaultValue) const {
-            return _has_value ? _storage.val : defaultValue;
+        template <class U = T>
+        T valueOr(const U &defaultValue) const & {
+            return _has_value ? **this : static_cast<T>(std::forward<U>(defaultValue));
         }
-
-        T orElse(T &&defaultValue) const {
-            return _has_value ? std::move(_storage.val) : std::move(defaultValue);
+        template <class U = T>
+        T valueOr(U &&defaultValue) && {
+            return _has_value ? std::move(**this) : static_cast<T>(std::forward<U>(defaultValue));
         }
 
     protected:
@@ -220,7 +224,6 @@ namespace srt {
         bool hasValue() const {
             return _has_value;
         }
-
         const error_type &error() const & {
             assert(!_has_value && "Expected doesn't contain an error");
             return _storage.err;

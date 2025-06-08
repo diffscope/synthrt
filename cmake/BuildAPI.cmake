@@ -190,7 +190,10 @@ macro(${_CUR_MACRO_PREFIX}_add_executable _target)
     qm_configure_target(${_target} ${FUNC_UNPARSED_ARGUMENTS})
 
     # Add include directories
-    target_include_directories(${_target} PRIVATE ${_CUR_SOURCE_DIR}/${_CUR_INCLUDE_DIR})
+    if(_CUR_INCLUDE_DIR)
+        target_include_directories(${_target} PRIVATE ${_CUR_SOURCE_DIR}/${_CUR_INCLUDE_DIR})
+    endif()
+
     target_include_directories(${_target} PRIVATE ${_CUR_BUILD_INCLUDE_DIR})
     target_include_directories(${_target} PRIVATE .)
 
@@ -466,10 +469,15 @@ macro(_cur_add_library_internal _target _type)
             LIBRARY DESTINATION "${_install_library_dir}" OPTIONAL
         )
 
-        target_include_directories(${_target} ${_include_scope}
+        target_include_directories(${_target} INTERFACE
             "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
-            "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${_CUR_INCLUDE_DIR}>"
         )
+
+        if(_CUR_INCLUDE_DIR)
+            target_include_directories(${_target} INTERFACE
+                "$<INSTALL_INTERFACE:${_CUR_INCLUDE_DIR}>"
+            )
+        endif()
 
         set(_install_options
             INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/${_CUR_INSTALL_NAME}/${_inc_name}"
@@ -483,6 +491,9 @@ macro(_cur_add_library_internal _target _type)
         )
         target_include_directories(${_target} ${_include_scope}
             "$<BUILD_INTERFACE:${_CUR_GENERATED_INCLUDE_DIR}>"
+        )
+        target_include_directories(${_target} INTERFACE
+            "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${_CUR_INSTALL_NAME}>"
         )
     endif()
 endmacro()
