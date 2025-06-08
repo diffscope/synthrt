@@ -8,11 +8,11 @@ namespace ds {
     public:
         AcousticInterpreterPlugin() = default;
 
-        const char *key() const {
+        const char *key() const override {
             return "ai.svs.AcousticInference";
         }
 
-        srt::NO<srt::InferenceInterpreter> create() {
+        srt::NO<srt::InferenceInterpreter> create() override {
             return srt::NO<AcousticInterpreter>::create();
         }
     };

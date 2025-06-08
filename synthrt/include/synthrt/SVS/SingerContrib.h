@@ -13,6 +13,29 @@ namespace srt {
 
     class SingerImportData;
 
+    /// SingerInfoBase - The base class storing singer information.
+    class SingerInfoBase : public NamedObject {
+    public:
+        inline SingerInfoBase(const std::string &name, int apiLevel)
+            : NamedObject(name), _apiLevel(apiLevel) {
+        }
+        virtual ~SingerInfoBase() = default;
+
+        inline int apiLevel() const {
+            return _apiLevel;
+        }
+
+    protected:
+        int _apiLevel;
+    };
+
+    class SingerConfiguration : public SingerInfoBase {
+    public:
+        inline SingerConfiguration(const std::string &model, int apiLevel)
+            : SingerInfoBase(model, apiLevel) {
+        }
+    };
+
     class SYNTHRT_EXPORT SingerImport {
     public:
         SingerImport();
@@ -46,19 +69,21 @@ namespace srt {
         ~SingerSpec();
 
     public:
-        /// The \a model attribute indicates the engine to which the singer's voice library belongs
-        const std::string &model() const;
-
-        /// Author information, for display purposes only.
+        /// The \a arch attribute indicates the engine to which the singer's voice library belongs
+        const std::string &arch() const;
         DisplayText name() const;
-        std::filesystem::path avatar() const;
-        std::filesystem::path background() const;
-        std::filesystem::path demoAudio() const;
+        int apiLevel() const;
 
-        std::filesystem::path path() const;
+        const std::filesystem::path &avatar() const;
+        const std::filesystem::path &background() const;
+        const std::filesystem::path &demoAudio() const;
 
         stdc::array_view<SingerImport> imports() const;
-        const JsonObject &configuration() const; // Misc resources
+
+        const JsonObject &manifestConfiguration() const;
+        NO<SingerConfiguration> configuration() const;
+
+        const std::filesystem::path &path() const;
 
     protected:
         class Impl;
@@ -86,9 +111,7 @@ namespace srt {
         explicit SingerCategory(SynthUnit *su);
 
         friend class SynthUnit;
-
-        template <class T>
-        friend class ContribCategoryRegistrar;
+        friend class ContribCategoryRegistrar<SingerCategory>;
     };
 
 }

@@ -103,6 +103,7 @@ static void initializeSU(srt::SynthUnit &su) {
         appDir.parent_path() / _TSTR("lib") / _TSTR("plugins") / _TSTR("dsinfer");
 
     // Set default plugin directories
+    su.addPluginPath("org.openvpi.SingerProvider", defaultPluginDir / _TSTR("singerproviders"));
     su.addPluginPath("org.openvpi.InferenceDriver", defaultPluginDir / _TSTR("inferencedrivers"));
     su.addPluginPath("org.openvpi.InferenceInterpreter",
                      defaultPluginDir / _TSTR("inferenceinterpreters"));

@@ -8,11 +8,11 @@ namespace ds {
     public:
         VocoderInterpreterPlugin() = default;
 
-        const char *key() const {
+        const char *key() const override {
             return "ai.svs.VocoderInference";
         }
 
-        srt::NO<srt::InferenceInterpreter> create() {
+        srt::NO<srt::InferenceInterpreter> create() override {
             return srt::NO<VocoderInterpreter>::create();
         }
     };

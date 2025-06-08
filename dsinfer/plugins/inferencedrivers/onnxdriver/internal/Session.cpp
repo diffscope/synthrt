@@ -88,7 +88,7 @@ namespace ds::onnxdriver {
         SessionRunContext() = default;
 
         explicit SessionRunContext(size_t inputSize, size_t outputSize)
-                : outputValuePtrs(outputSize, nullptr) {
+            : outputValuePtrs(outputSize, nullptr) {
             inputNames.reserve(inputSize);
             outputNames.reserve(outputSize);
             inputValueRegistry.reserve(inputSize);
@@ -148,7 +148,7 @@ namespace ds::onnxdriver {
         std::unique_ptr<SessionAsyncRunContext> asyncContext;
         srt::NO<Api::Onnx::SessionResult> sessionResult;
 
-        Impl() : sessionResult(srt::NO<Api::Onnx::SessionResult>::create()){
+        Impl() : sessionResult(srt::NO<Api::Onnx::SessionResult>::create()) {
         }
 
         static inline size_t getTensorDataTypeSize(ITensor::DataType type) {
@@ -160,7 +160,7 @@ namespace ds::onnxdriver {
                 case ITensor::Bool:
                     return sizeof(bool);
                 default:
-                    return 0;  // error
+                    return 0; // error
             }
         }
 
@@ -174,27 +174,33 @@ namespace ds::onnxdriver {
                 return ITensor::Bool;
             } else {
                 static_assert(sizeof(T) == 0, "Unsupported type for getTensorDType");
-                return ITensor::Float; // fallback to avoid warnings, won't compile anyway due to static_assert
+                return ITensor::Float; // fallback to avoid warnings, won't compile anyway due to
+                                       // static_assert
             }
         }
 
         template <typename T>
-        static inline Ort::Value _createOrtValueFromTensorImpl(const uint8_t *rawBuffer, const size_t dataLength,
-                                                                  const stdc::array_view<int64_t> shape) {
+        static inline Ort::Value
+            _createOrtValueFromTensorImpl(const uint8_t *rawBuffer, const size_t dataLength,
+                                          const stdc::array_view<int64_t> shape) {
             // Caller should ensure dataLength matches shape
             const auto dataBuffer = reinterpret_cast<const T *>(rawBuffer);
-            auto ortTensor = Ort::Value::CreateTensor<T>(Ort::AllocatorWithDefaultOptions{}, shape.data(), shape.size());
+            auto ortTensor = Ort::Value::CreateTensor<T>(Ort::AllocatorWithDefaultOptions{},
+                                                         shape.data(), shape.size());
             auto ortTensorBuffer = ortTensor.template GetTensorMutableData<T>();
             std::memcpy(ortTensorBuffer, dataBuffer, dataLength * sizeof(T));
             return ortTensor;
         }
 
-        static inline Ort::Value createOrtValueFromTensor(const srt::NO<ITensor> &tensor, const Ort::MemoryInfo &memoryInfo, srt::Error *error = nullptr) {
+        static inline Ort::Value createOrtValueFromTensor(const srt::NO<ITensor> &tensor,
+                                                          const Ort::MemoryInfo &memoryInfo,
+                                                          srt::Error *error = nullptr) {
             const auto &rawData = tensor->data();
             const auto dtype = tensor->dataType();
             auto shape = tensor->shape();
             auto dataLength = tensor->size() / getTensorDataTypeSize(dtype);
-            auto dataLengthFromShape = std::accumulate(shape.begin(), shape.end(), int64_t{1}, std::multiplies<>());
+            auto dataLengthFromShape =
+                std::accumulate(shape.begin(), shape.end(), int64_t{1}, std::multiplies<>());
             if (dataLength != dataLengthFromShape) {
                 if (error) {
                     *error = {srt::Error::InvalidArgument, "Shape does not match data length"};
@@ -205,7 +211,8 @@ namespace ds::onnxdriver {
                 case ITensor::Float:
                     return _createOrtValueFromTensorImpl<float>(rawData.data(), dataLength, shape);
                 case ITensor::Int64:
-                    return _createOrtValueFromTensorImpl<int64_t>(rawData.data(), dataLength, shape);
+                    return _createOrtValueFromTensorImpl<int64_t>(rawData.data(), dataLength,
+                                                                  shape);
                 case ITensor::Bool:
                     return _createOrtValueFromTensorImpl<bool>(rawData.data(), dataLength, shape);
                 default:
@@ -216,7 +223,8 @@ namespace ds::onnxdriver {
             }
         }
 
-        static inline srt::NO<ITensor> createTensorFromOrtValue(const Ort::Value &ortValue, srt::Error *error = nullptr) {
+        static inline srt::NO<ITensor> createTensorFromOrtValue(const Ort::Value &ortValue,
+                                                                srt::Error *error = nullptr) {
             if (!ortValue.IsTensor()) {
                 if (error) {
                     *error = {srt::Error::InvalidArgument, "Ort::Value is not a tensor"};
@@ -247,18 +255,22 @@ namespace ds::onnxdriver {
                     break;
                 default:
                     if (error) {
-                        *error = {srt::Error::InvalidArgument, "Unsupported ONNX tensor element type"};
+                        *error = {srt::Error::InvalidArgument,
+                                  "Unsupported ONNX tensor element type"};
                     }
                     return {};
             }
 
-            const uint8_t *rawData = reinterpret_cast<const uint8_t *>(ortValue.GetTensorData<void>());
+            const uint8_t *rawData =
+                reinterpret_cast<const uint8_t *>(ortValue.GetTensorData<void>());
             std::vector<uint8_t> data(rawData, rawData + totalSize * elementSize);
 
-            return srt::NO<Tensor>::create(tensorType, std::move(shape), std::move(data)).as<ITensor>();
+            return srt::NO<Tensor>::create(tensorType, std::move(shape), std::move(data))
+                .as<ITensor>();
         }
 
-        inline srt::Error validateInputValueMap(const srt::NO<Api::Onnx::SessionStartInput> &input) {
+        inline srt::Error
+            validateInputValueMap(const srt::NO<Api::Onnx::SessionStartInput> &input) {
             const auto &inputValueMap = input->inputs;
             if (inputValueMap.empty()) {
                 return {srt::Error::SessionError, "Input map is empty"};
@@ -315,16 +327,14 @@ namespace ds::onnxdriver {
             return {}; // no error
         }
 
-        static void runAsyncCallback(void* user_data, OrtValue** outputs, size_t num_outputs, OrtStatusPtr status) {
+        static void runAsyncCallback(void *user_data, OrtValue **outputs, size_t num_outputs,
+                                     OrtStatusPtr status) {
             auto &impl = *static_cast<Impl *>(user_data);
             auto &ctx = *impl.context;
             impl.sessionResult->outputs.clear();
             Ort::Status runStatus(status);
             if (!runStatus.IsOK()) {
-                impl.sessionResult->error = {
-                    srt::Error::SessionError,
-                    runStatus.GetErrorMessage()
-                };
+                impl.sessionResult->error = {srt::Error::SessionError, runStatus.GetErrorMessage()};
                 impl.asyncContext->callback(impl.sessionResult, impl.sessionResult->error);
                 srtCritical("runAsyncCallback failed");
                 return;
@@ -352,11 +362,12 @@ namespace ds::onnxdriver {
 
             ScopedTimer timer([&](const ScopedTimer::duration_t &elapsed) {
                 // When finished, print time elapsed
-                auto elapsedStr =
-                         static_cast<const std::ostringstream &>(std::ostringstream() << std::fixed << std::setprecision(3) << elapsed.count())
-                        .str();
+                auto elapsedStr = static_cast<const std::ostringstream &>(
+                                      std::ostringstream()
+                                      << std::fixed << std::setprecision(3) << elapsed.count())
+                                      .str();
                 Log.srtInfo("Session [%1] - Finished inference in %2 seconds", filename,
-                                      elapsedStr);
+                            elapsedStr);
             });
 
             if (!(sessionStartInput && sessionStartInput->objectName() == Api::Onnx::API_NAME)) {
@@ -366,7 +377,8 @@ namespace ds::onnxdriver {
                 return false;
             }
 
-            if (auto validateError = validateInputValueMap(sessionStartInput); !validateError.ok()) {
+            if (auto validateError = validateInputValueMap(sessionStartInput);
+                !validateError.ok()) {
                 if (error) {
                     *error = std::move(validateError);
                 }
@@ -391,7 +403,8 @@ namespace ds::onnxdriver {
                         if (!ortValue) {
                             if (error) {
                                 *error = {srt::Error::InvalidArgument,
-                                    "Could not create Ort Tensor for input name \"" + name + "\""};
+                                          "Could not create Ort Tensor for input name \"" + name +
+                                              "\""};
                             }
                             return false;
                         }
@@ -403,7 +416,7 @@ namespace ds::onnxdriver {
                     } else {
                         if (error) {
                             *error = {srt::Error::InvalidArgument,
-                                "Unknown tensor backend for input name \"" + name + "\""};
+                                      "Unknown tensor backend for input name \"" + name + "\""};
                         }
                         return false;
                     }
@@ -414,9 +427,9 @@ namespace ds::onnxdriver {
                 }
                 runOptions.UnsetTerminate();
 
-                Ort::Status statusRun(Ort::GetApi().Run(image->session, runOptions,
-                    ctx.inputNames.data(), ctx.inputValuePtrs.data(), inputCount,
-                    ctx.outputNames.data(), outputCount, ctx.outputValuePtrs.data()));
+                Ort::Status statusRun(Ort::GetApi().Run(
+                    image->session, runOptions, ctx.inputNames.data(), ctx.inputValuePtrs.data(),
+                    inputCount, ctx.outputNames.data(), outputCount, ctx.outputValuePtrs.data()));
 
                 if (!statusRun.IsOK()) {
                     ctx.releaseOutputValues();
@@ -428,10 +441,12 @@ namespace ds::onnxdriver {
                 sessionResult->outputs.clear();
                 for (size_t i = 0; i < ctx.outputValuePtrs.size(); ++i) {
                     // Transfer ownership of the raw OrtValue* to an Ort::Value wrapper,
-                    // which will subsequently be managed by OnnxTensor. No manual release is required.
+                    // which will subsequently be managed by OnnxTensor. No manual release is
+                    // required.
                     Ort::Value managedOrtValue(ctx.outputValuePtrs[i]);
 
-                    // Null the raw pointer to prevent double release in SessionRunContext's destructor.
+                    // Null the raw pointer to prevent double release in SessionRunContext's
+                    // destructor.
                     ctx.outputValuePtrs[i] = nullptr;
 
                     sessionResult->outputs.emplace(
@@ -449,18 +464,19 @@ namespace ds::onnxdriver {
         }
 
         inline bool sessionRunAsync(const srt::NO<Api::Onnx::SessionStartInput> &sessionStartInput,
-                               const srt::ITask::StartAsyncCallback &callback,
-                               srt::Error *error = nullptr) {
+                                    const srt::ITask::StartAsyncCallback &callback,
+                                    srt::Error *error = nullptr) {
             const auto &filename = realPath.filename();
             Log.srtInfo("Session [%1] - Running inference", filename);
 
             ScopedTimer timer([&](const ScopedTimer::duration_t &elapsed) {
                 // When finished, print time elapsed
-                auto elapsedStr =
-                    static_cast<const std::ostringstream &>(std::ostringstream() << std::fixed << std::setprecision(3) << elapsed.count())
-                        .str();
+                auto elapsedStr = static_cast<const std::ostringstream &>(
+                                      std::ostringstream()
+                                      << std::fixed << std::setprecision(3) << elapsed.count())
+                                      .str();
                 Log.srtInfo("Session [%1] - Finished inference in %2 seconds", filename,
-                                      elapsedStr);
+                            elapsedStr);
             });
 
             if (!(sessionStartInput && sessionStartInput->objectName() == Api::Onnx::API_NAME)) {
@@ -470,7 +486,8 @@ namespace ds::onnxdriver {
                 return false;
             }
 
-            if (auto validateError = validateInputValueMap(sessionStartInput); !validateError.ok()) {
+            if (auto validateError = validateInputValueMap(sessionStartInput);
+                !validateError.ok()) {
                 if (error) {
                     *error = std::move(validateError);
                 }
@@ -496,7 +513,8 @@ namespace ds::onnxdriver {
                         if (!ortValue) {
                             if (error) {
                                 *error = {srt::Error::InvalidArgument,
-                                    "Could not create Ort Tensor for input name \"" + name + "\""};
+                                          "Could not create Ort Tensor for input name \"" + name +
+                                              "\""};
                             }
                             return false;
                         }
@@ -508,7 +526,7 @@ namespace ds::onnxdriver {
                     } else {
                         if (error) {
                             *error = {srt::Error::InvalidArgument,
-                                "Unknown tensor backend for input name \"" + name + "\""};
+                                      "Unknown tensor backend for input name \"" + name + "\""};
                         }
                         return false;
                     }
@@ -520,9 +538,9 @@ namespace ds::onnxdriver {
                 runOptions.UnsetTerminate();
 
                 asyncContext->callback = callback;
-                Ort::Status statusRun(Ort::GetApi().RunAsync(image->session, runOptions,
-                    ctx.inputNames.data(), ctx.inputValuePtrs.data(), inputCount,
-                    ctx.outputNames.data(), outputCount, ctx.outputValuePtrs.data(),
+                Ort::Status statusRun(Ort::GetApi().RunAsync(
+                    image->session, runOptions, ctx.inputNames.data(), ctx.inputValuePtrs.data(),
+                    inputCount, ctx.outputNames.data(), outputCount, ctx.outputValuePtrs.data(),
                     runAsyncCallback, static_cast<void *>(this)));
                 if (!statusRun.IsOK()) {
                     ctx.releaseOutputValues();
@@ -590,7 +608,8 @@ namespace ds::onnxdriver {
         return true;
     }
 
-    srt::Expected<void> Session::open(const fs::path &path, const srt::NO<Api::Onnx::SessionOpenArgs> &args) {
+    srt::Expected<void> Session::open(const fs::path &path,
+                                      const srt::NO<Api::Onnx::SessionOpenArgs> &args) {
         __stdc_impl_t;
 
         if (isOpen()) {
@@ -667,7 +686,7 @@ namespace ds::onnxdriver {
         image = new SessionImage();
         if (std::string error1; !image->open(canonical_path, hints, &error1)) {
             delete image;
-            return srt::Error {
+            return srt::Error{
                 srt::Error::FileNotFound,
                 "failed to read file: " + error1,
             };
@@ -675,8 +694,7 @@ namespace ds::onnxdriver {
 
         // Insert
         if (!image_group) {
-            Log.srtDebug(
-                "Session - The session image group doesn't exist. Creating a new group.");
+            Log.srtDebug("Session - The session image group doesn't exist. Creating a new group.");
 
             SessionSystem::ImageGroup group;
             group.path = canonical_path;
@@ -724,8 +742,7 @@ namespace ds::onnxdriver {
             assert(it != images.end());
             auto &data = it->second;
             if (--data.count != 0) {
-                Log.srtDebug("SessionImage [%1] - ref(), now ref count = %2", filename,
-                                       data.count);
+                Log.srtDebug("SessionImage [%1] - ref(), now ref count = %2", filename, data.count);
                 goto out_success;
             }
             Log.srtDebug("SessionImage [%1] - delete", filename);
@@ -752,7 +769,7 @@ namespace ds::onnxdriver {
         return srt::Expected<void>();
     }
 
-    fs::path Session::path() const {
+    const std::filesystem::path &Session::path() const {
         __stdc_impl_t;
         return impl.realPath;
     }
@@ -810,7 +827,8 @@ namespace ds::onnxdriver {
         return srt::Expected<void>();
     }
 
-    srt::Expected<void> Session::runAsync(const srt::NO<srt::TaskStartInput> &input, const srt::ITask::StartAsyncCallback &callback) {
+    srt::Expected<void> Session::runAsync(const srt::NO<srt::TaskStartInput> &input,
+                                          const srt::ITask::StartAsyncCallback &callback) {
         __stdc_impl_t;
         srt::Error tmpError;
         if (!(input && input->objectName() == Api::Onnx::API_NAME)) {

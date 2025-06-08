@@ -84,8 +84,8 @@ namespace srt {
         virtual ~ContribSpec();
 
     public:
-        std::string_view category() const;
-        std::string_view id() const;
+        const std::string &category() const;
+        const std::string &id() const;
 
     public:
         /// Load state. Internal use only.

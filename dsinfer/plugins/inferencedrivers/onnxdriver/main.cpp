@@ -13,7 +13,6 @@ namespace ds {
             return "onnx";
         }
 
-    public:
         srt::NO<InferenceDriver> create() override {
             return srt::NO<OnnxDriver>::create();
         }

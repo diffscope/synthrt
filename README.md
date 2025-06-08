@@ -57,6 +57,31 @@ cmake --build build --target all
 cmake --build build --target install
 ```
 
+## How to Use
+
+1. CMakeLists.txt
+
+```cmake
+cmake_minimum_required(VERSION 3.16)
+
+project(example)
+
+find_package(dsinfer CONFIG REQUIRED)
+add_executable(example main.cpp)
+target_link_libraries(example dsinfer::dsinfer)
+```
+
+2. CMake Configure & Build
+
+```sh
+cmake -B build -G Ninja \
+    -DCMAKE_PREFIX_PATH=<dir> \  # `synthrt` install directory
+    -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake \
+    -DCMAKE_BUILD_TYPE=Release
+
+cmake --build build --target all
+```
+
 ## TODO
 
 - Logging

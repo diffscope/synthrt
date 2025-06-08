@@ -1,3 +1,5 @@
+add_subdirectory(singerproviders)
+
 add_subdirectory(inferencedrivers)
 
 add_subdirectory(inferenceinterpreters)

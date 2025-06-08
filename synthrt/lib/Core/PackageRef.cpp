@@ -367,7 +367,7 @@ namespace srt {
         return _data->copyright;
     }
 
-    std::filesystem::path PackageRef::readme() const {
+    const std::filesystem::path &PackageRef::readme() const {
         return _data->readme;
     }
 
@@ -407,7 +407,7 @@ namespace srt {
         return it2->second;
     }
 
-    std::filesystem::path PackageRef::path() const {
+    const std::filesystem::path &PackageRef::path() const {
         return _data->path;
     }
 

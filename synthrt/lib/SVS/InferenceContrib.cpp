@@ -275,7 +275,7 @@ namespace srt {
         return impl.configuration;
     }
 
-    std::filesystem::path InferenceSpec::path() const {
+    const std::filesystem::path &InferenceSpec::path() const {
         __stdc_impl_t;
         return impl.path;
     }
@@ -346,10 +346,10 @@ namespace srt {
         __stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
-                auto spec1 = static_cast<InferenceSpec *>(spec);
-                auto spec_impl = static_cast<InferenceSpec::Impl *>(spec1->_impl.get());
+                auto infSpec = static_cast<InferenceSpec *>(spec);
+                auto spec_impl = static_cast<InferenceSpec::Impl *>(infSpec->_impl.get());
 
-                const auto &key = spec1->className();
+                const auto &key = infSpec->className();
                 NO<InferenceInterpreter> interp;
 
                 // Search interpreter cache
@@ -358,13 +358,13 @@ namespace srt {
                 } else {
                     // Search interpreter
                     auto plugin =
-                        SU()->plugin<InferenceInterpreterPlugin>(spec1->className().c_str());
+                        SU()->plugin<InferenceInterpreterPlugin>(infSpec->className().c_str());
                     if (!plugin) {
                         return Error{
                             Error::FeatureNotSupported,
                             stdc::formatN(
                                 R"(required interpreter "%1" of inference "%2" not found)",
-                                spec1->className(), spec1->id()),
+                                infSpec->className(), infSpec->id()),
                         };
                     }
                     interp = plugin->create();
@@ -372,32 +372,32 @@ namespace srt {
                 }
 
                 // Check api level
-                if (interp->apiLevel() < spec1->apiLevel()) {
+                if (interp->apiLevel() < infSpec->apiLevel()) {
                     return Error{
                         Error::FeatureNotSupported,
                         stdc::formatN(
                             R"(required interpreter "%1" of api level %2 doesn't support inference "%3" of api level %4)",
-                            spec1->className(), interp->apiLevel(), spec1->id(), spec1->apiLevel()),
+                            infSpec->className(), interp->apiLevel(), infSpec->id(), infSpec->apiLevel()),
                     };
                 }
 
                 // Create schema and configuration
-                auto schema = interp->createSchema(spec1);
+                auto schema = interp->createSchema(infSpec);
                 if (!schema) {
                     return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(failed to parse inference schema of "%1": %2)",
-                                      spec1->id(), schema.error().message()),
+                                      infSpec->id(), schema.error().message()),
                     };
                 }
                 spec_impl->schema = schema.get();
 
-                auto config = interp->createConfiguration(spec1);
+                auto config = interp->createConfiguration(infSpec);
                 if (!config) {
                     return Error{
                         Error::InvalidFormat,
                         stdc::formatN(R"(failed to parse inference configuration of "%1": %2)",
-                                      spec1->id(), config.error().message()),
+                                      infSpec->id(), config.error().message()),
                     };
                 }
                 spec_impl->configuration = config.get();

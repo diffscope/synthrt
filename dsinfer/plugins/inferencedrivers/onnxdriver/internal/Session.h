@@ -41,7 +41,7 @@ namespace ds::onnxdriver {
 
         void terminate();
 
-        std::filesystem::path path() const;
+        const std::filesystem::path &path() const;
         bool isOpen() const;
 
         srt::NO<srt::TaskResult> result() const;

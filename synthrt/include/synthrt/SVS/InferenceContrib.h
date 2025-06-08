@@ -77,7 +77,7 @@ namespace srt {
         const JsonObject &manifestConfiguration() const;
         NO<InferenceConfiguration> configuration() const;
 
-        std::filesystem::path path() const;
+        const std::filesystem::path &path() const;
 
     public:
         /// Mainly called by \a SingerSpec at loading state.
@@ -116,9 +116,7 @@ namespace srt {
         explicit InferenceCategory(SynthUnit *env);
 
         friend class SynthUnit;
-
-        template <class InferenceCategory>
-        friend class ContribCategoryRegistrar;
+        friend class ContribCategoryRegistrar<InferenceCategory>;
     };
 
 }

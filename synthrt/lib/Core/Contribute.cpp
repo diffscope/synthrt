@@ -77,12 +77,12 @@ namespace srt {
 
     ContribSpec::~ContribSpec() = default;
 
-    std::string_view ContribSpec::category() const {
+    const std::string &ContribSpec::category() const {
         __stdc_impl_t;
         return impl.category;
     }
 
-    std::string_view ContribSpec::id() const {
+    const std::string &ContribSpec::id() const {
         __stdc_impl_t;
         return impl.id;
     }

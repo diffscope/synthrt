@@ -5,23 +5,24 @@
 #include <stdcorelib/support/sharedlibrary.h>
 
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
+#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
 #include "OnnxSession.h"
 #include "OnnxDriver_Logger.h"
 #include "internal/Env.h"
 
 #ifndef ORT_API_MANUAL_INIT
-# error "dsinfer requires ort to be manually initialized, but ORT_API_MANUAL_INIT is not set!"
+#  error "dsinfer requires ort to be manually initialized, but ORT_API_MANUAL_INIT is not set!"
 #endif
 
 #include <onnxruntime_cxx_api.h>
 
 #if defined(_WIN32)
-# define ONNXRUNTIME_DYLIB_FILENAME _TSTR("onnxruntime.dll")
+#  define ONNXRUNTIME_DYLIB_FILENAME _TSTR("onnxruntime.dll")
 #elif defined(__APPLE__)
-# define ONNXRUNTIME_DYLIB_FILENAME _TSTR("libonnxruntime.dylib")
+#  define ONNXRUNTIME_DYLIB_FILENAME _TSTR("libonnxruntime.dylib")
 #else
-# define ONNXRUNTIME_DYLIB_FILENAME _TSTR("libonnxruntime.so")
+#  define ONNXRUNTIME_DYLIB_FILENAME _TSTR("libonnxruntime.so")
 #endif
 
 namespace fs = std::filesystem;
@@ -59,7 +60,8 @@ namespace ds {
             auto orgLibPath = stdc::SharedLibrary::setLibraryPath(path.parent_path());
 #endif
             if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint)) {
-                std::string msg = stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
+                std::string msg =
+                    stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);
                 return srt::Error(srt::Error::SessionError, std::move(msg));
             }
@@ -71,9 +73,11 @@ namespace ds {
              *  2. Get Ort API getter handle
              */
             Log.srtDebug("Init - Getting ORT API handle");
-            auto handle = reinterpret_cast<OrtApiBase *(ORT_API_CALL *) ()>(dylib->resolve("OrtGetApiBase"));
+            auto handle =
+                reinterpret_cast<OrtApiBase *(ORT_API_CALL *) ()>(dylib->resolve("OrtGetApiBase"));
             if (!handle) {
-                std::string msg = stdc::formatN("Failed to get API handle: %1 [%2]", dylib->lastError(), path);
+                std::string msg =
+                    stdc::formatN("Failed to get API handle: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);
                 return srt::Error(srt::Error::SessionError, std::move(msg));
             }
@@ -119,36 +123,41 @@ namespace ds {
         const OrtApiBase *ortApiBase = nullptr;
     };
 
-    OnnxDriver::OnnxDriver() : InferenceDriver(Onnx::API_NAME), _impl(std::make_unique<Impl>()) {
+    OnnxDriver::OnnxDriver() : _impl(std::make_unique<Impl>()) {
     }
 
     OnnxDriver::~OnnxDriver() {
+    }
+
+    std::string OnnxDriver::arch() const {
+        return DiffSinger::L1::API_NAME;
+    }
+
+    std::string OnnxDriver::backend() const {
+        return Api::Onnx::API_NAME;
     }
 
     srt::Expected<void> OnnxDriver::initialize(const srt::NO<InferenceDriverInitArgs> &args) {
         __stdc_impl_t;
 
         if (args->objectName() != Onnx::API_NAME) {
-            return srt::Error {
+            return srt::Error{
                 srt::Error::InvalidArgument,
                 stdc::formatN(R"(invalid driver name: expected "%s", got "%s")", Onnx::API_NAME,
-                                args->objectName()),
+                              args->objectName()),
             };
         }
 
         auto onnxArgs = args.as<Onnx::DriverInitArgs>();
         if (!onnxArgs) {
-            return srt::Error {
-                srt::Error::InvalidArgument,
-                "onnx args is null pointer"
-            };
+            return srt::Error{srt::Error::InvalidArgument, "onnx args is null pointer"};
         }
 
         // Example logging
         Log.srtDebug("initialize: driver name: %1", args->objectName());
 
         if (impl.loaded) {
-            return srt::Error {
+            return srt::Error{
                 srt::Error::FileDuplicated,
                 "onnx runtime has been initialized by another instance",
             };
@@ -157,7 +166,7 @@ namespace ds {
         auto dllPath = onnxArgs->runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
 
         if (!impl.load(dllPath)) {
-            return srt::Error {
+            return srt::Error{
                 srt::Error::SessionError,
                 "failed to load onnx runtime library",
             };

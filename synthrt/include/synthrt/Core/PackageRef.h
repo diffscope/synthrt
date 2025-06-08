@@ -64,7 +64,7 @@ namespace srt {
         DisplayText description() const;
         DisplayText vendor() const;
         DisplayText copyright() const;
-        std::filesystem::path readme() const;
+        const std::filesystem::path &readme() const;
         std::string_view url() const;
 
         /// Supported contribute categories:
@@ -74,7 +74,7 @@ namespace srt {
         ContribSpec *contribute(const std::string_view &category, const std::string_view &id) const;
 
         /// Loader-specific
-        std::filesystem::path path() const;
+        const std::filesystem::path &path() const;
         stdc::array_view<PackageDependency> dependencies() const;
 
     public:

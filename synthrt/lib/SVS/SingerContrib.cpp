@@ -9,6 +9,7 @@
 #include "PackageRef.h"
 #include "InferenceContrib.h"
 #include "Contribute_p.h"
+#include "SingerProviderPlugin.h"
 
 namespace fs = std::filesystem;
 
@@ -24,8 +25,10 @@ namespace srt {
 
         std::filesystem::path path;
 
+        std::string arch;
+
         DisplayText name;
-        std::string model;
+        int apiLevel = 0;
 
         std::filesystem::path avatar;
         std::filesystem::path background;
@@ -34,7 +37,10 @@ namespace srt {
         std::vector<SingerImportData> importDataList;
         std::vector<SingerImport> importList; // wrapper of importDataList
 
-        JsonObject configuration;
+        JsonObject manifestConfiguration;
+        NO<SingerConfiguration> configuration;
+
+        NO<SingerProvider> prov = nullptr;
     };
 
     class SingerImportData {
@@ -83,9 +89,10 @@ namespace srt {
         fs::path configPath;
         stdc::VersionNumber fmtVersion_;
         std::string id_;
-        std::string model_;
+        std::string arch_;
 
         DisplayText name_;
+        int apiLevel_;
 
         fs::path avatar_;
         fs::path background_;
@@ -112,19 +119,19 @@ namespace srt {
                 };
             }
 
-            // model
-            it = obj.find("model");
+            // arch
+            it = obj.find("arch");
             if (it == obj.end()) {
                 return Error{
                     Error::InvalidFormat,
-                    R"(missing "model" field in singer contribute field)",
+                    R"(missing "arch" field in singer contribute field)",
                 };
             }
-            model_ = it->second.toString();
-            if (model_.empty()) {
+            arch_ = it->second.toString();
+            if (arch_.empty()) {
                 return Error{
                     Error::InvalidFormat,
-                    R"("model" field has invalid value in singer contribute field)",
+                    R"("arch" field has invalid value in singer contribute field)",
                 };
             }
 
@@ -211,6 +218,23 @@ namespace srt {
                 name_ = id_;
             }
         }
+        // level
+        {
+            auto it = configObj.find("level");
+            if (it == configObj.end()) {
+                return Error{
+                    Error::InvalidFormat,
+                    stdc::formatN(R"(%1: missing "level" field)", configPath),
+                };
+            }
+            apiLevel_ = it->second.toInt();
+            if (apiLevel_ == 0) {
+                return Error{
+                    Error::InvalidFormat,
+                    stdc::formatN(R"(%1: "level" field has invalid value)", configPath),
+                };
+            }
+        }
         // avatar
         {
             auto it = configObj.find("avatar");
@@ -273,13 +297,14 @@ namespace srt {
 
         path = fs::canonical(configPath).parent_path();
         id = std::move(id_);
-        model = std::move(model_);
+        arch = std::move(arch_);
         name = std::move(name_);
+        apiLevel = apiLevel_;
         avatar = std::move(avatar_);
         background = std::move(background_);
         demoAudio = std::move(demoAudio_);
         importDataList = std::move(imports_);
-        configuration = std::move(configuration_);
+        manifestConfiguration = std::move(configuration_);
         return Expected<void>();
     }
 
@@ -318,9 +343,9 @@ namespace srt {
 
     SingerSpec::~SingerSpec() = default;
 
-    const std::string &SingerSpec::model() const {
+    const std::string &SingerSpec::arch() const {
         __stdc_impl_t;
-        return impl.model;
+        return impl.arch;
     }
 
     DisplayText SingerSpec::name() const {
@@ -328,17 +353,22 @@ namespace srt {
         return impl.name;
     }
 
-    std::filesystem::path SingerSpec::avatar() const {
+    int SingerSpec::apiLevel() const {
+        __stdc_impl_t;
+        return impl.apiLevel;
+    }
+
+    const std::filesystem::path &SingerSpec::avatar() const {
         __stdc_impl_t;
         return impl.avatar;
     }
 
-    std::filesystem::path SingerSpec::background() const {
+    const std::filesystem::path &SingerSpec::background() const {
         __stdc_impl_t;
         return impl.background;
     }
 
-    std::filesystem::path SingerSpec::demoAudio() const {
+    const std::filesystem::path &SingerSpec::demoAudio() const {
         __stdc_impl_t;
         return impl.demoAudio;
     }
@@ -348,12 +378,17 @@ namespace srt {
         return impl.importList;
     }
 
-    const JsonObject &SingerSpec::configuration() const {
+    const JsonObject &SingerSpec::manifestConfiguration() const {
+        __stdc_impl_t;
+        return impl.manifestConfiguration;
+    }
+
+    NO<SingerConfiguration> SingerSpec::configuration() const {
         __stdc_impl_t;
         return impl.configuration;
     }
 
-    std::filesystem::path SingerSpec::path() const {
+    const std::filesystem::path &SingerSpec::path() const {
         __stdc_impl_t;
         return impl.path;
     }
@@ -367,6 +402,8 @@ namespace srt {
         explicit Impl(SingerCategory *decl, SynthUnit *su)
             : ContribCategory::Impl(decl, "singer", su) {
         }
+
+        std::map<std::string, NO<SingerProvider>> providers;
     };
 
     SingerCategory::~SingerCategory() = default;
@@ -417,17 +454,60 @@ namespace srt {
         __stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
-                // Fix imports
                 auto singerSpec = static_cast<SingerSpec *>(spec);
-                auto spec_d = static_cast<SingerSpec::Impl *>(singerSpec->_impl.get());
-                for (auto &imp : spec_d->importDataList) {
-                    ContribLocator newLocator(
-                        imp.inferenceLocator.package().empty() ? spec->parent().id()
-                                                               : imp.inferenceLocator.package(),
-                        imp.inferenceLocator.version().isEmpty() ? spec->parent().version()
-                                                                 : imp.inferenceLocator.version(),
-                        imp.inferenceLocator.id());
-                    imp.inferenceLocator = newLocator;
+                auto spec_impl = static_cast<SingerSpec::Impl *>(singerSpec->_impl.get());
+
+                const auto &key = singerSpec->arch();
+                NO<SingerProvider> prov;
+
+                // Search provider cache
+                if (auto it = impl.providers.find(key); it != impl.providers.end()) {
+                    prov = it->second;
+                } else {
+                    // Search provider
+                    auto plugin = SU()->plugin<SingerProviderPlugin>(singerSpec->arch().c_str());
+                    if (!plugin) {
+                        return Error{
+                            Error::FeatureNotSupported,
+                            stdc::formatN(R"(required arch "%1" of singer "%2" not found)",
+                                          singerSpec->arch(), singerSpec->id()),
+                        };
+                    }
+                    prov = plugin->create();
+                    impl.providers[key] = prov;
+                }
+
+                // Check api level
+                if (prov->apiLevel() < singerSpec->apiLevel()) {
+                    return Error{
+                        Error::FeatureNotSupported,
+                        stdc::formatN(
+                            R"(required arch "%1" of api level %2 doesn't support singer "%3" of api level %4)",
+                            singerSpec->arch(), prov->apiLevel(), singerSpec->id(),
+                            singerSpec->apiLevel()),
+                    };
+                }
+
+                // Create configuration
+                auto config = prov->createConfiguration(singerSpec);
+                if (!config) {
+                    return Error{
+                        Error::InvalidFormat,
+                        stdc::formatN(R"(failed to parse inference configuration of "%1": %2)",
+                                      singerSpec->id(), config.error().message()),
+                    };
+                }
+                spec_impl->configuration = config.get();
+                spec_impl->prov = prov;
+
+                // Fix imports
+                for (auto &imp : spec_impl->importDataList) {
+                    auto &loc = imp.inferenceLocator;
+                    ContribLocator newLoc(
+                        loc.package().empty() ? spec->parent().id() : loc.package(),
+                        loc.version().isEmpty() ? spec->parent().version() : loc.version(),
+                        loc.id());
+                    loc = newLoc;
                 }
                 return ContribCategory::loadSpec(spec, state);
             }
