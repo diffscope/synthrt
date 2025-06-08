@@ -22,6 +22,8 @@ namespace ds {
     /// the ID "dsdriver" before it can be called by the inference interpreters.
     class InferenceDriver : public srt::NamedObject {
     public:
+        inline InferenceDriver(const std::string &name) : srt::NamedObject(name) {
+        }
         virtual ~InferenceDriver() = default;
 
         virtual srt::Expected<void> initialize(const srt::NO<InferenceDriverInitArgs> &args) = 0;

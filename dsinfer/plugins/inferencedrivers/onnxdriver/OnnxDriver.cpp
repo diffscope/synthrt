@@ -119,7 +119,7 @@ namespace ds {
         const OrtApiBase *ortApiBase = nullptr;
     };
 
-    OnnxDriver::OnnxDriver() : _impl(std::make_unique<Impl>()) {
+    OnnxDriver::OnnxDriver() : InferenceDriver(Onnx::API_NAME), _impl(std::make_unique<Impl>()) {
     }
 
     OnnxDriver::~OnnxDriver() {
