@@ -3,6 +3,7 @@
 #include <fstream>
 #include <cstdlib>
 
+#include <stdcorelib/3rdparty/llvm/smallvector.h>
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/path.h>
 
@@ -14,6 +15,16 @@
 namespace fs = std::filesystem;
 
 namespace srt {
+
+    static constexpr int kNumSingerImportFields = 5;
+
+    class SingerImportData {
+    public:
+        ContribLocator inferenceLocator;
+        InferenceSpec *inference;
+        JsonValue manifestOptions;
+        NO<InferenceImportOptions> options;
+    };
 
     class SingerSpec::Impl : public ContribSpec::Impl {
     public:
@@ -34,21 +45,14 @@ namespace srt {
         std::filesystem::path background;
         std::filesystem::path demoAudio;
 
-        std::vector<SingerImportData> importDataList;
-        std::vector<SingerImport> importList; // wrapper of importDataList
+        llvm::SmallVector<SingerImportData, kNumSingerImportFields> importDataList;
+        llvm::SmallVector<SingerImport, kNumSingerImportFields>
+            importList; // wrapper of importDataList
 
         JsonObject manifestConfiguration;
         NO<SingerConfiguration> configuration;
 
         NO<SingerProvider> prov = nullptr;
-    };
-
-    class SingerImportData {
-    public:
-        ContribLocator inferenceLocator;
-        InferenceSpec *inference;
-        JsonValue manifestOptions;
-        NO<InferenceImportOptions> options;
     };
 
     static bool readSingerImport(const JsonValue &val, SingerImportData *out,
@@ -98,7 +102,7 @@ namespace srt {
         fs::path background_;
         fs::path demoAudio_;
 
-        std::vector<SingerImportData> imports_;
+        llvm::SmallVector<SingerImportData, kNumSingerImportFields> imports_;
         JsonObject configuration_;
 
         // Parse desc
@@ -545,7 +549,7 @@ namespace srt {
                     imp.options = options.get();
                 }
 
-                std::vector<SingerImport> imports;
+                llvm::SmallVector<SingerImport, kNumSingerImportFields> imports;
                 imports.reserve(importDataList.size());
                 for (const auto &imp : std::as_const(importDataList)) {
                     imports.push_back(SingerImport(&imp));

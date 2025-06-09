@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <shared_mutex>
 
+#include <stdcorelib/3rdparty/llvm/smallvector.h>
 #include <stdcorelib/support/sharedlibrary.h>
 
 #include <synthrt/Plugin/PluginFactory.h>
@@ -22,7 +23,7 @@ namespace srt {
     public:
         void scanPlugins(const char *iid) const;
 
-        std::map<std::string, std::vector<std::filesystem::path>, std::less<>> pluginPaths;
+        std::map<std::string, llvm::SmallVector<std::filesystem::path>, std::less<>> pluginPaths;
         std::unordered_set<Plugin *> staticPlugins;
         mutable std::map<std::filesystem::path::string_type, stdc::SharedLibrary *, std::less<>>
             libraryInstances;

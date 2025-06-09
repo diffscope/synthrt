@@ -30,7 +30,7 @@ namespace srt {
 
         void addPluginPath(const char *iid, const std::filesystem::path &path);
         void setPluginPaths(const char *iid, stdc::array_view<std::filesystem::path> paths);
-        stdc::array_view<std::filesystem::path> pluginPaths(const char *iid) const;
+        std::vector<std::filesystem::path> pluginPaths(const char *iid) const;
 
     public:
         Plugin *plugin(const char *iid, const char *key) const;
@@ -43,6 +43,8 @@ namespace srt {
         std::unique_ptr<Impl> _impl;
 
         explicit PluginFactory(Impl &impl);
+
+        STDCORELIB_DISABLE_COPY_MOVE(PluginFactory);
     };
 
     template <class T>

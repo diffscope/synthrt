@@ -14,9 +14,6 @@ namespace srt {
         /// Called when \a SingerSpec loads.
         virtual Expected<NO<SingerConfiguration>>
             createConfiguration(const SingerSpec *spec) const = 0;
-
-    protected:
-        int _apiLevel;
     };
 
 }

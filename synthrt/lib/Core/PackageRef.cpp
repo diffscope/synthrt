@@ -78,7 +78,7 @@ namespace srt {
     Expected<void>
         PackageData::parse(const std::filesystem::path &dir,
                            const std::map<std::string, ContribCategory *, std::less<>> &categories,
-                           std::vector<ContribSpec *> *outContributes) {
+                           llvm::SmallVectorImpl<ContribSpec *> *outContributes) {
         std::string id_;
         stdc::VersionNumber version_;
         stdc::VersionNumber compatVersion_;
@@ -87,9 +87,9 @@ namespace srt {
         DisplayText description_;
         fs::path readme_;
         std::string url_;
-        std::vector<PackageDependency> dependencies_;
+        llvm::SmallVector<PackageDependency> dependencies_;
 
-        std::vector<ContribSpec *> contributes_;
+        llvm::SmallVector<ContribSpec *> contributes_;
 
         // Read desc
         JsonObject obj;

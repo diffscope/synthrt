@@ -5,6 +5,8 @@
 #include <map>
 #include <filesystem>
 
+#include <stdcorelib/3rdparty/llvm/smallvector.h>
+
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Core/PackageRef.h>
 
@@ -24,7 +26,7 @@ namespace srt {
         Expected<void>
             parse(const std::filesystem::path &dir,
                   const std::map<std::string, ContribCategory *, std::less<>> &categories,
-                  std::vector<ContribSpec *> *outContributes);
+                  llvm::SmallVectorImpl<ContribSpec *> *outContributes);
 
         static Expected<JsonObject> readDesc(const std::filesystem::path &dir);
 
@@ -45,7 +47,7 @@ namespace srt {
         std::map<std::string, std::map<std::string, ContribSpec *, std::less<>>, std::less<>>
             contributes; // category -> [ name -> spec ]
 
-        std::vector<PackageDependency> dependencies;
+        llvm::SmallVector<PackageDependency> dependencies;
 
         // state
         Error err;

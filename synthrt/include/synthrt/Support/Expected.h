@@ -173,7 +173,7 @@ namespace srt {
         bool _has_value : 1;
     };
 
-    // Specialization for Expected<void>
+    /// Specialization for Expected<void>
     template <>
     class Expected<void> {
         template <class U>
@@ -187,7 +187,6 @@ namespace srt {
         Expected() : _has_value(true) {
         }
 
-        /// Create an Expected<T> error value from the given Error.
         Expected(Error err) : _has_value(false) {
             assert(!err.ok() && "Cannot create Expected<T> from Error success value.");
             new (&_storage) error_type(std::move(err));

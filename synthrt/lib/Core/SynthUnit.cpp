@@ -15,7 +15,7 @@ namespace fs = std::filesystem;
 
 namespace srt {
 
-    std::vector<ContribCategory *(*) (SynthUnit *)> SynthUnit::Impl::categoryFactories;
+    llvm::SmallVector<ContribCategory *(*) (SynthUnit *)> SynthUnit::Impl::categoryFactories;
 
     SynthUnit::Impl::Impl(SynthUnit *decl) : PluginFactory::Impl(decl) {
         for (const auto &factory : categoryFactories) {
@@ -55,7 +55,7 @@ namespace srt {
 
         // Parse spec
         auto spec = new PackageData(&decl);
-        std::vector<ContribSpec *> contributes;
+        llvm::SmallVector<ContribSpec *> contributes;
 
         if (auto exp = spec->parse(canonicalPath, cateKeyMap, &contributes); !exp) {
             delete spec;
@@ -146,7 +146,7 @@ namespace srt {
         }
 
         // Load dependencies
-        std::vector<PackageData *> dependencies;
+        llvm::SmallVector<PackageData *> dependencies;
         auto closeDependencies = [&dependencies, this]() {
             for (auto it = dependencies.rbegin(); it != dependencies.rend(); ++it) {
                 std::ignore = close(*it);
@@ -154,8 +154,8 @@ namespace srt {
         };
         auto searchDependencies =
             [this](const std::string &id,
-                   const stdc::VersionNumber &version) -> std::vector<fs::path> {
-            std::vector<fs::path> res;
+                   const stdc::VersionNumber &version) -> llvm::SmallVector<fs::path> {
+            llvm::SmallVector<fs::path> res;
             auto it = cachedPackageIndexesMap.find(id);
             if (it == cachedPackageIndexesMap.end()) {
                 return {};
@@ -188,34 +188,59 @@ namespace srt {
                 stdc::VersionNumber depVersion;
 
                 // Try to load all matched packages
-                bool success = false;
+                fs::path foundPath;
                 auto depPaths = searchDependencies(dep.id, dep.version);
                 for (auto it = depPaths.rbegin(); it != depPaths.rend(); ++it) {
                     const auto &depPath = *it;
+
+                    // Test
                     auto depPkg = open(depPath, true);
                     if (!depPkg) {
                         continue; // ignore
                     }
-                    dependencies.push_back(depPkg.get());
-                    success = true;
+                    std::ignore = close(depPkg.get());
+                    foundPath = depPath;
                     break;
                 }
 
-                if (success) {
-                    continue;
+                if (foundPath.empty()) {
+                    if (!dep.required) {
+                        continue; // ignore
+                    }
+
+                    // Not found
+                    error1 = {
+                        Error::FileNotFound,
+                        stdc::formatN(R"(required package "%1[%2]" not found)", dep.id,
+                                      dep.version.toString()),
+                    };
+                    goto out_deps;
                 }
 
-                if (!dep.required) {
-                    continue; // ignore
-                }
+                {
+                    // Load
+                    auto depPkg = open(foundPath, false);
+                    if (!depPkg) {
+                        error1 = {
+                            Error::FileNotFound,
+                            stdc::formatN(R"(required package "%1[%2]" not valid: %3)", dep.id,
+                                          dep.version.toString(), depPkg.error().message()),
+                        };
+                        goto out_deps;
+                    }
 
-                // Not found
-                error1 = {
-                    Error::FileNotFound,
-                    stdc::formatN(R"(required package "%1[%2]" not found)", dep.id,
-                                  dep.version.toString()),
-                };
-                goto out_deps;
+                    auto depSpec = depPkg.get();
+                    if (!depSpec->loaded) {
+                        error1 = {
+                            Error::FileNotFound,
+                            stdc::formatN(R"(required package "%1[%2]" not loaded: %3)", dep.id,
+                                          dep.version.toString(), depSpec->err.message()),
+                        };
+                        std::ignore = close(depSpec);
+                        goto out_deps;
+                    }
+                    dependencies.push_back(depSpec);
+                }
             }
             break;
 
@@ -406,7 +431,7 @@ namespace srt {
 
         // Unload dependencies
         for (auto it = pkgToClose.linked.rbegin(); it != pkgToClose.linked.rend(); ++it) {
-            close(*it);
+            std::ignore = close(*it);
         }
 
         delete spec;
@@ -528,7 +553,7 @@ namespace srt {
     std::vector<std::filesystem::path> SynthUnit::packagePaths() const {
         __stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.su_mtx);
-        return impl.packagePaths;
+        return {impl.packagePaths.begin(), impl.packagePaths.end()};
     }
 
     Expected<PackageRef> SynthUnit::open(const std::filesystem::path &path, bool noLoad) {

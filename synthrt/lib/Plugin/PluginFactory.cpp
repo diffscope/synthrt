@@ -101,7 +101,7 @@ namespace srt {
         if (paths.empty()) {
             impl.pluginPaths.erase(iid);
         } else {
-            std::vector<fs::path> realPaths;
+            llvm::SmallVector<fs::path> realPaths;
             realPaths.reserve(paths.size());
             for (const auto &path : paths) {
                 if (fs::is_directory(path)) {
@@ -113,7 +113,7 @@ namespace srt {
         impl.pluginsDirty.insert(iid);
     }
 
-    stdc::array_view<std::filesystem::path> PluginFactory::pluginPaths(const char *iid) const {
+    std::vector<std::filesystem::path> PluginFactory::pluginPaths(const char *iid) const {
         __stdc_impl_t;
 
         std::shared_lock<std::shared_mutex> lock(impl.plugins_mtx);
@@ -121,7 +121,7 @@ namespace srt {
         if (it == impl.pluginPaths.end()) {
             return {};
         }
-        return it->second;
+        return {it->second.begin(), it->second.end()};
     }
 
     Plugin *PluginFactory::plugin(const char *iid, const char *key) const {
