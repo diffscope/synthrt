@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_OBJECT_P_H
-#define SYNTHRT_OBJECT_P_H
+#ifndef SYNTHRT_NAMEDOBJECT_P_H
+#define SYNTHRT_NAMEDOBJECT_P_H
 
 #include <map>
 
@@ -33,4 +33,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_OBJECT_P_H
+#endif // SYNTHRT_NAMEDOBJECT_P_H

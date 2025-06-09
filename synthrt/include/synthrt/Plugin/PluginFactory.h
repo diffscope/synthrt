@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <vector>
+#include <map>
 
 #include <stdcorelib/adt/array_view.h>
 
@@ -13,20 +14,22 @@ namespace srt {
     /// PluginFactory - Manages plugin loading and lifecycle.
     ///
     /// Plugins:
-    ///  - dynamic plugins: shared libraries loaded from registered directories per \c iid
-    ///  - static plugins :  class instances (not owned by PluginFactory)
+    ///  - filesystem plugins: shared libraries loaded from registered directories per \c iid
+    ///  - runtime plugins   : runtime class instances (not owned by PluginFactory)
+    ///  - static plugins    : static class instances (not owned by PluginFactory)
     class SYNTHRT_EXPORT PluginFactory {
     public:
         PluginFactory();
         virtual ~PluginFactory();
 
     public:
-        /// Adds a static plugin to the factory. A static plugin is usually a static instance which
-        /// is not allocated on the heap.
-        ///
-        /// The memory ownership of static plugins is not transferred to the PluginFactory.
-        void addStaticPlugin(Plugin *plugin);
-        std::vector<Plugin *> staticPlugins() const;
+        static std::vector<std::string> staticPluginSets();
+        static std::vector<StaticPlugin> staticPlugins(const char *pluginSet);
+        static std::vector<Plugin *> staticInstances(const char *pluginSet);
+
+    public:
+        void addRuntimePlugin(Plugin *plugin);
+        std::vector<Plugin *> runtimePlugins() const;
 
         void addPluginPath(const char *iid, const std::filesystem::path &path);
         void setPluginPaths(const char *iid, stdc::array_view<std::filesystem::path> paths);

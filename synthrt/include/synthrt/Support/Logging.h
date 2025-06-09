@@ -1,5 +1,5 @@
-#ifndef LOGGING_H
-#define LOGGING_H
+#ifndef SYNTHRT_LOGGING_H
+#define SYNTHRT_LOGGING_H
 
 #include <stdcorelib/str.h>
 
@@ -206,4 +206,4 @@ static inline const srt::LogCategory &_srtGetLogCategory() {
 #define srtCriticalF(...) srtLogF(Critical, __VA_ARGS__)
 #define srtFatalF(...)    srtLogF(Critical, __VA_ARGS__)
 
-#endif // LOGGING_H
+#endif // SYNTHRT_LOGGING_H

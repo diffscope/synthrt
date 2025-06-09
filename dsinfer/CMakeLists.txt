@@ -9,6 +9,7 @@ project(dsinfer
 # ----------------------------------
 option(DSINFER_ENABLE_DIRECTML "Enable DirectML provider" OFF)
 option(DSINFER_ENABLE_CUDA "Enable CUDA provider" OFF)
+option(DSINFER_ENABLE_STATIC_PLUGINS "Enable static plugin linking" OFF) # TODO: Implement this option
 
 # ----------------------------------
 # Project Variables

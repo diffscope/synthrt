@@ -6,10 +6,32 @@
 #include <mutex>
 
 #include <stdcorelib/pimpl.h>
+#include <stdcorelib/3rdparty/llvm/SmallVector.h>
 
 namespace fs = std::filesystem;
 
 namespace srt {
+
+    using StaticPluginMap = std::map<std::string, llvm::SmallVector<StaticPlugin, 20>>;
+
+    static StaticPluginMap &getStaticPluginMap() {
+        static StaticPluginMap staticPluginMap;
+        return staticPluginMap;
+    }
+
+    void StaticPlugin::registerStaticPlugin(const char *pluginSet, StaticPlugin plugin) {
+        auto &plugins = getStaticPluginMap()[pluginSet];
+
+        // insert the plugin in the list, sorted by address, so we can detect
+        // duplicate registrations
+        static const auto comparator = [=](const StaticPlugin &p1, const StaticPlugin &p2) {
+            using Less = std::less<decltype(plugin.instance)>;
+            return Less{}(p1.instance, p2.instance);
+        };
+        auto pos = std::lower_bound(plugins.begin(), plugins.end(), plugin, comparator);
+        if (pos == plugins.end() || pos->instance != plugin.instance)
+            plugins.insert(pos, plugin);
+    }
 
     PluginFactory::Impl::Impl(PluginFactory *decl) : _decl(decl) {
     }
@@ -23,7 +45,7 @@ namespace srt {
 
     void PluginFactory::Impl::scanPlugins(const char *iid) const {
         auto &plugins = allPlugins[iid];
-        for (const auto &plugin : staticPlugins) {
+        for (const auto &plugin : runtimePlugins) {
             if (strcmp(iid, plugin->iid()) == 0) {
                 std::ignore = plugins.insert(std::make_pair(plugin->key(), plugin));
             }
@@ -71,17 +93,50 @@ namespace srt {
 
     PluginFactory::~PluginFactory() = default;
 
-    void PluginFactory::addStaticPlugin(Plugin *plugin) {
+    std::vector<std::string> PluginFactory::staticPluginSets() {
+        auto &map = getStaticPluginMap();
+        std::vector<std::string> pluginSets;
+        pluginSets.reserve(map.size());
+        for (const auto &item : map) {
+            pluginSets.push_back(item.first);
+        }
+        return pluginSets;
+    }
+
+    std::vector<StaticPlugin> PluginFactory::staticPlugins(const char *pluginSet) {
+        auto &map = getStaticPluginMap();
+        auto it = map.find(pluginSet);
+        if (it == map.end()) {
+            return {};
+        }
+        return {it->second.begin(), it->second.end()};
+    }
+
+    std::vector<Plugin *> PluginFactory::staticInstances(const char *pluginSet) {
+        auto &map = getStaticPluginMap();
+        std::vector<Plugin *> instances;
+        auto it = map.find(pluginSet);
+        if (it == map.end()) {
+            return {};
+        }
+        const auto &plugins = it->second;
+        instances.reserve(plugins.size());
+        for (StaticPlugin plugin : plugins)
+            instances.push_back(plugin.instance());
+        return instances;
+    }
+
+    void PluginFactory::addRuntimePlugin(Plugin *plugin) {
         __stdc_impl_t;
         std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
-        impl.staticPlugins.emplace(plugin);
+        impl.runtimePlugins.emplace(plugin);
         impl.pluginsDirty.insert(plugin->iid());
     }
 
-    std::vector<Plugin *> PluginFactory::staticPlugins() const {
+    std::vector<Plugin *> PluginFactory::runtimePlugins() const {
         __stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.plugins_mtx);
-        return {impl.staticPlugins.begin(), impl.staticPlugins.end()};
+        return {impl.runtimePlugins.begin(), impl.runtimePlugins.end()};
     }
 
     void PluginFactory::addPluginPath(const char *iid, const std::filesystem::path &path) {

@@ -1,5 +1,5 @@
-#ifndef OBJECT_H
-#define OBJECT_H
+#ifndef SYNTHRT_NAMEDOBJECT_H
+#define SYNTHRT_NAMEDOBJECT_H
 
 #include <string>
 #include <string_view>
@@ -143,4 +143,4 @@ namespace srt {
 
 }
 
-#endif // OBJECT_H
+#endif // SYNTHRT_NAMEDOBJECT_H

@@ -23,6 +23,19 @@ namespace srt {
         std::filesystem::path path() const;
     };
 
+    class StaticPlugin {
+    public:
+        using PluginInstanceFunction = Plugin *(*) ();
+
+        constexpr StaticPlugin(PluginInstanceFunction i) : instance(i) {
+        }
+
+        PluginInstanceFunction instance = nullptr;
+
+    public:
+        SYNTHRT_EXPORT static void registerStaticPlugin(const char *pluginSet, StaticPlugin plugin);
+    };
+
 }
 
 #define SYNTHRT_EXPORT_PLUGIN(PLUGIN_NAME)                                                         \
@@ -30,5 +43,18 @@ namespace srt {
         static PLUGIN_NAME _instance;                                                              \
         return &_instance;                                                                         \
     }
+
+#define SYNTHRT_EXPORT_STATIC_PLUGIN(PLUGIN_NAME, PLUGIN_SET)                                      \
+    struct initializer {                                                                           \
+        initializer() {                                                                            \
+            srt::StaticPlugin::registerStaticPlugin(PLUGIN_SET,                                    \
+                                                    srt::StaticPlugin([]() -> srt::Plugin * {      \
+                                                        static PLUGIN_NAME _instance;              \
+                                                        return &_instance;                         \
+                                                    }));                                           \
+        }                                                                                          \
+        ~initializer() {                                                                           \
+        }                                                                                          \
+    } dummy;
 
 #endif // SYNTHRT_PLUGIN_H
