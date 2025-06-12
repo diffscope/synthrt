@@ -1,6 +1,5 @@
 #define BOOST_TEST_MODULE tst_inference
 
-
 #include <boost/test/unit_test.hpp>
 
 #include <filesystem>
@@ -19,6 +18,7 @@
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
+#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
 #include "TestCaseLoader.h"
 
@@ -82,6 +82,28 @@ struct InferenceFixture {
         }
 
         auto onnxDriver = plugin->create();
+
+        if (!onnxDriver) {
+            return srt::Error{srt::Error::SessionError, "Failed to create onnx driver"};
+        }
+
+        const auto arch = onnxDriver->arch();
+        constexpr auto expectedArch = ds::Api::DiffSinger::L1::API_NAME;
+        const bool isArchMatch = arch == expectedArch;
+
+        const auto backend = onnxDriver->backend();
+        constexpr auto expectedBackend = ds::Api::Onnx::API_NAME;
+        const bool isBackendMatch = backend == expectedBackend;
+
+        if (!isArchMatch || !isBackendMatch) {
+            return srt::Error(
+                srt::Error::SessionError,
+                stdc::formatN(
+                    R"(invalid driver: expected arch "%1", got "%2" (%3); expected backend "%4", got "%5" (%6))",
+                    expectedArch, arch, (isArchMatch ? "match" : "MISMATCH"),
+                    expectedBackend, backend, (isBackendMatch ? "match" : "MISMATCH")));
+        }
+
         auto onnxArgs = srt::NO<ds::Api::Onnx::DriverInitArgs>::create();
 
         onnxArgs->ep = ds::Api::Onnx::CPUExecutionProvider;
