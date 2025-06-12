@@ -12,6 +12,8 @@ namespace ds::Api::Common::L1 {
 
     namespace Tags {
 
+        static constexpr ParamTag Pitch("pitch");
+
         /// Variance controls
         static constexpr ParamTag Energy("energy");
         static constexpr ParamTag Breathiness("breathiness");
@@ -47,6 +49,7 @@ namespace ds::Api::Common::L1 {
         };
 
         std::string token;
+        std::string language;
         int tone = 0;
         double start = 0;
         std::vector<Speaker> speakers;
@@ -77,13 +80,12 @@ namespace ds::Api::Common::L1 {
         std::optional<RetakeRange> retake;  // if no value, retake the full range
     };
 
-    struct InputSpeakerProportionInfo {
+    struct InputSpeakerInfo {
         std::string name;
         double interval = 0;  // seconds
         std::vector<double> proportions;
     };
 
-    using InputSpeakerInfo = std::vector<InputSpeakerProportionInfo>;
 }
 
 #endif // DSINFER_API_COMMONAPIL1_H

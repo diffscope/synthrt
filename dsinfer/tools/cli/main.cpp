@@ -19,6 +19,8 @@
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
+#include "AcousticInputParser.h"
+
 namespace fs = std::filesystem;
 
 namespace Ac = ds::Api::Acoustic::L1;
@@ -169,7 +171,13 @@ struct InputObject {
                 return {};
             }
 
-            // TODO: parse acoustic input
+            // parse acoustic input
+            if (auto exp = ds::parseAcousticStartInput(docObj); exp) {
+                res.input = exp.take();
+            } else {
+                *err = exp.takeError().message();
+                return {};
+            }
         }
         return res;
     }

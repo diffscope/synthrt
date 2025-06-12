@@ -12,7 +12,7 @@ find_package(unofficial-bit7z CONFIG REQUIRED)
 
 dsinfer_add_executable(${PROJECT_NAME}
     SOURCES ${_src}
-    LINKS_PRIVATE dsinfer syscmdline::syscmdline unofficial::hash-library unofficial::bit7z::bit7z64
+    LINKS_PRIVATE dsinfer syscmdline::syscmdline unofficial::hash-library unofficial::bit7z::bit7z64 inputparser
     RC_NAME ${PROJECT_NAME}
     RC_DESCRIPTION ${PROJECT_DESCRIPTION}
 )
@@ -48,3 +48,5 @@ if(DSINFER_INSTALL AND SYNTHRT_INSTALL_DEPLOY)
         DESTINATION ${_so_dest}
     )
 endif()
+
+add_dependencies(${PROJECT_NAME} onnxdriver acoustic vocoder)

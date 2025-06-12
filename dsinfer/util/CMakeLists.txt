@@ -1,1 +1,2 @@
 add_subdirectory(onnxutil)
+add_subdirectory(inputparser)
