@@ -89,7 +89,7 @@ namespace test {
 
         // JSON: parse shape field. Must exist, and be an 1D array of numbers.
         // (for multidimensional data, they are expressed in the row-major form)
-        std::vector<uint8_t> raw;
+        ds::Tensor::Container raw;
         const auto &dataField = root["data"];
         if (!dataField.isArray()) {
             throw TestCaseException("Failed to parse JSON: data field must be an array");
@@ -127,7 +127,7 @@ namespace test {
                     if (!v.isBool()) {
                         throw TestCaseException("Failed to parse JSON: expected boolean type");
                     }
-                    raw.push_back(v.toBool() ? 1 : 0);
+                    raw.push_back(v.toBool() ? (std::byte)1 : (std::byte)0);
                 }
                 break;
             }
@@ -135,8 +135,7 @@ namespace test {
                 throw TestCaseException("Failed to parse JSON: unsupported data type");
         }
 
-        return srt::NO<ds::Tensor>::create(dtype, std::move(shape), std::move(raw))
-            .as<ds::ITensor>();
+        return ds::Tensor::createFromRawData(dtype, shape, std::move(raw)).valueOr(nullptr);
     }
 
     std::shared_ptr<TestCaseData> TestCaseLoader::load(const std::filesystem::path &jsonPath) {

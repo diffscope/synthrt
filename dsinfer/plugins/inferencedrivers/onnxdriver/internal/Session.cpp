@@ -1,6 +1,7 @@
 #include "Session.h"
 
 #include <cassert>
+#include <cstddef>
 #include <mutex>
 #include <shared_mutex>
 #include <sstream>
@@ -181,7 +182,7 @@ namespace ds::onnxdriver {
 
         template <typename T>
         static inline Ort::Value
-            _createOrtValueFromTensorImpl(const uint8_t *rawBuffer, const size_t dataLength,
+            _createOrtValueFromTensorImpl(const std::byte *rawBuffer, const size_t dataLength,
                                           const stdc::array_view<int64_t> shape) {
             // Caller should ensure dataLength matches shape
             const auto dataBuffer = reinterpret_cast<const T *>(rawBuffer);
@@ -195,10 +196,10 @@ namespace ds::onnxdriver {
         static inline Ort::Value createOrtValueFromTensor(const srt::NO<ITensor> &tensor,
                                                           const Ort::MemoryInfo &memoryInfo,
                                                           srt::Error *error = nullptr) {
-            const auto &rawData = tensor->data();
+            const auto &rawBuffer = tensor->rawData();
             const auto dtype = tensor->dataType();
             auto shape = tensor->shape();
-            auto dataLength = tensor->size() / getTensorDataTypeSize(dtype);
+            auto dataLength = tensor->elementCount();
             auto dataLengthFromShape =
                 std::accumulate(shape.begin(), shape.end(), int64_t{1}, std::multiplies<>());
             if (dataLength != dataLengthFromShape) {
@@ -209,12 +210,12 @@ namespace ds::onnxdriver {
             }
             switch (dtype) {
                 case ITensor::Float:
-                    return _createOrtValueFromTensorImpl<float>(rawData.data(), dataLength, shape);
+                    return _createOrtValueFromTensorImpl<float>(rawBuffer, dataLength, shape);
                 case ITensor::Int64:
-                    return _createOrtValueFromTensorImpl<int64_t>(rawData.data(), dataLength,
+                    return _createOrtValueFromTensorImpl<int64_t>(rawBuffer, dataLength,
                                                                   shape);
                 case ITensor::Bool:
-                    return _createOrtValueFromTensorImpl<bool>(rawData.data(), dataLength, shape);
+                    return _createOrtValueFromTensorImpl<bool>(rawBuffer, dataLength, shape);
                 default:
                     if (error) {
                         *error = {srt::Error::InvalidArgument, "Unsupported data type"};
@@ -261,12 +262,18 @@ namespace ds::onnxdriver {
                     return {};
             }
 
-            const uint8_t *rawData =
-                reinterpret_cast<const uint8_t *>(ortValue.GetTensorData<void>());
-            std::vector<uint8_t> data(rawData, rawData + totalSize * elementSize);
+            auto rawData =
+                static_cast<const std::byte *>(ortValue.GetTensorData<void>());
+            stdc::array_view<std::byte> data{rawData, rawData + totalSize * elementSize};
 
-            return srt::NO<Tensor>::create(tensorType, std::move(shape), std::move(data))
-                .as<ITensor>();
+            if (auto exp = Tensor::createFromRawView(tensorType, shape, data); exp) {
+                return exp.take();
+            } else {
+                if (error) {
+                    *error = exp.takeError();
+                }
+                return {};
+            }
         }
 
         inline srt::Error
@@ -347,9 +354,16 @@ namespace ds::onnxdriver {
                 // Null the raw pointer to prevent double release in SessionRunContext's destructor.
                 outputs[i] = nullptr;
 
+                auto exp = OnnxTensor::createFromOrtValue(std::move(managedOrtValue));
+                if (!exp) {
+                    impl.sessionResult->error = exp.takeError();
+                    impl.asyncContext->callback(impl.sessionResult, impl.sessionResult->error);
+                    return;
+                }
+
                 impl.sessionResult->outputs.emplace(
                     ctx.outputNames[i],
-                    srt::NO<OnnxTensor>::create(std::move(managedOrtValue)).as<ITensor>());
+                    exp.take());
             }
             impl.asyncContext->callback(impl.sessionResult, impl.sessionResult->error);
             srtDebug("runAsyncCallback completed");
@@ -449,9 +463,16 @@ namespace ds::onnxdriver {
                     // destructor.
                     ctx.outputValuePtrs[i] = nullptr;
 
+                    auto exp = OnnxTensor::createFromOrtValue(std::move(managedOrtValue));
+                    if (!exp) {
+                        if (error) {
+                            *error = exp.takeError();
+                        }
+                        return false;
+                    }
                     sessionResult->outputs.emplace(
                         ctx.outputNames[i],
-                        srt::NO<OnnxTensor>::create(std::move(managedOrtValue)).as<ITensor>());
+                        exp.take());
                 }
                 return true;
             } catch (const Ort::Exception &err) {

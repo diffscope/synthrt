@@ -230,10 +230,10 @@ struct SessionResultValidator {
                                           expectedShape.begin(), expectedShape.end());
 
             // Check data element-wise
-            auto outputRaw = outputTensor->data();
-            auto expectedRaw = expectedTensor->data();
-            size_t byteSize = outputTensor->size();
-            BOOST_CHECK_EQUAL(byteSize, expectedTensor->size());
+            auto outputRaw = outputTensor->rawView();
+            auto expectedRaw = expectedTensor->rawView();
+            size_t byteSize = outputTensor->byteSize();
+            BOOST_CHECK_EQUAL(byteSize, expectedTensor->byteSize());
 
             switch (actualDataType) {
                 case ds::ITensor::Float: {
