@@ -18,15 +18,17 @@ namespace ds {
                                                  const std::vector<std::string> &errorList);
 
     static constexpr auto varianceTagMapping = std::array{
-        std::pair{Co::Tags::Energy.name(),      Co::Tags::Energy     },
-        std::pair{Co::Tags::Breathiness.name(), Co::Tags::Breathiness},
-        std::pair{Co::Tags::Voicing.name(),     Co::Tags::Voicing    },
-        std::pair{Co::Tags::Tension.name(),     Co::Tags::Tension    },
+        std::pair{Co::Tags::Energy.name(),       Co::Tags::Energy      },
+        std::pair{Co::Tags::Breathiness.name(),  Co::Tags::Breathiness },
+        std::pair{Co::Tags::Voicing.name(),      Co::Tags::Voicing     },
+        std::pair{Co::Tags::Tension.name(),      Co::Tags::Tension     },
+        std::pair{Co::Tags::MouthOpening.name(), Co::Tags::MouthOpening},
     };
 
     static constexpr auto transitionTagMapping = std::array{
-        std::pair{Co::Tags::Gender.name(),   Co::Tags::Gender  },
-        std::pair{Co::Tags::Velocity.name(), Co::Tags::Velocity},
+        std::pair{Co::Tags::Gender.name(),    Co::Tags::Gender   },
+        std::pair{Co::Tags::Velocity.name(),  Co::Tags::Velocity },
+        std::pair{Co::Tags::ToneShift.name(), Co::Tags::ToneShift},
     };
 
     template <size_t N>

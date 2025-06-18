@@ -426,6 +426,10 @@ namespace ds {
                         return Co::InputParameterInfo{Co::Tags::Velocity};
                     } else if (tag == Co::Tags::Voicing.name()) {
                         return Co::InputParameterInfo{Co::Tags::Voicing};
+                    } else if (tag == Co::Tags::MouthOpening.name()) {
+                        return Co::InputParameterInfo{Co::Tags::MouthOpening};
+                    } else if (tag == Co::Tags::ToneShift.name()) {
+                        return Co::InputParameterInfo{Co::Tags::ToneShift};
                     }
                     return Co::InputParameterInfo{};
                 }();

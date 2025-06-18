@@ -158,6 +158,7 @@ namespace ds::Api::Acoustic::L1 {
         }
 
         srt::NO<ITensor> mel;
+        srt::NO<ITensor> f0;
     };
 
 }

@@ -95,6 +95,7 @@ namespace ds::Api::Vocoder::L1 {
         }
 
         srt::NO<ITensor> mel;
+        srt::NO<ITensor> f0;
     };
 
     class VocoderResult : public srt::TaskResult {

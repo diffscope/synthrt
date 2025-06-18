@@ -19,10 +19,12 @@ namespace ds::Api::Common::L1 {
         static constexpr ParamTag Breathiness("breathiness");
         static constexpr ParamTag Voicing("voicing");
         static constexpr ParamTag Tension("tension");
+        static constexpr ParamTag MouthOpening("mouth_opening");
 
         /// Transition controls
         static constexpr ParamTag Gender("gender");
         static constexpr ParamTag Velocity("velocity");
+        static constexpr ParamTag ToneShift("tone_shift");
 
     };
 
@@ -85,6 +87,10 @@ namespace ds::Api::Common::L1 {
         double interval = 0;  // seconds
         std::vector<double> proportions;
     };
+
+    namespace SpeakerEmbedding {
+        inline constexpr size_t Dimension = 256;
+    }
 
 }
 
