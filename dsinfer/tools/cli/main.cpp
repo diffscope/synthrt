@@ -21,6 +21,10 @@
 
 #include "AcousticInputParser.h"
 
+#define DRWAV_IMPLEMENTATION
+#include "dr_wav.h"
+
+
 namespace fs = std::filesystem;
 
 namespace Ac = ds::Api::Acoustic::L1;
@@ -335,7 +339,32 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
     }
 
     // Process audio data
-    // TODO
+    {
+        drwav_data_format format;
+        format.container = drwav_container_riff;
+        format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+        format.channels = 1;
+        format.sampleRate = 44100;
+        format.bitsPerSample = 32;
+
+        drwav wav;
+        if (!drwav_init_file_write(&wav, "output.wav", &format, nullptr)) {
+            cliLog.srtCritical("Failed to initialize WAV writer.");
+            return -1;
+        }
+
+        drwav_uint64 totalPCMFrameCount = audioData.size() / (format.channels * sizeof(float));
+
+        drwav_uint64 framesWritten =
+            drwav_write_pcm_frames(&wav, totalPCMFrameCount, audioData.data());
+        if (framesWritten != totalPCMFrameCount) {
+            cliLog.srtCritical("Failed to write all frames.");
+        }
+
+        drwav_uninit(&wav);
+
+        cliLog.srtSuccess("WAV file written successfully.");
+    }
 
     cliLog.srtDebug("Debug: %1", stdc::system::application_name());
     cliLog.srtSuccess("Success: %1", stdc::system::application_name());
