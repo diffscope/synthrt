@@ -260,6 +260,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
 
     // Run acoustic
     NO<ds::ITensor> mel;
+    NO<ds::ITensor> f0;
     {
         // Prepare
         NO<srt::Inference> inference;
@@ -291,6 +292,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
                               input.singer, result->error.message()));
         }
         mel = result->mel;
+        f0 = result->f0;
     }
 
     // Run vocoder
@@ -315,6 +317,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
 
         auto vocoderInput = NO<Vo::VocoderStartInput>::create();
         vocoderInput->mel = mel;
+        vocoderInput->f0 = f0;
 
         // Start inference
         if (auto exp = inference->start(vocoderInput); !exp) {
