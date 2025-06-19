@@ -3,9 +3,8 @@
 
 #include <cstddef>
 #include <cstdlib>
-#include <memory>
-#include <stdexcept>
 #include <limits>
+#include <new>
 
 namespace ds {
 
@@ -85,6 +84,9 @@ namespace ds {
                 return nullptr;
             return ptr;
 
+#elif defined(__cpp_aligned_new)
+            return std::aligned_alloc(alignment, size);
+
 #else
 #  error "AlignedAllocator: Unsupported platform"
 #endif
@@ -97,7 +99,10 @@ namespace ds {
 #elif defined(__MINGW32__) || defined(__MINGW64__)
             ::__mingw_aligned_free(p);
 
-#else
+#elif defined(__APPLE__) || defined(_POSIX_VERSION)
+            std::free(p);
+
+#elif defined(__cpp_aligned_new)
             std::free(p);
 
 #else
@@ -118,6 +123,6 @@ namespace ds {
         return !(a == b);
     }
 
-} // namespace ds
+}
 
 #endif // DSINFER_ALIGNEDALLOCATOR_H
