@@ -20,6 +20,7 @@
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
 #include "AcousticInputParser.h"
+#include "WavFile.h"
 
 namespace fs = std::filesystem;
 
@@ -183,7 +184,8 @@ struct InputObject {
     }
 };
 
-static int exec(const fs::path &packagePath, const fs::path &inputPath) {
+static int exec(const fs::path &packagePath, const fs::path &inputPath,
+                const fs::path &outputWavPath) {
     // Read input
     InputObject input;
     if (std::string err; input = InputObject::load(inputPath, &err), !err.empty()) {
@@ -335,7 +337,30 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath) {
     }
 
     // Process audio data
-    // TODO
+    {
+        drwav_data_format format;
+        format.container = drwav_container_riff;
+        format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+        format.channels = 1;
+        format.sampleRate = 44100;
+        format.bitsPerSample = 32;
+
+        WavFile wav;
+        if (!wav.init_file_write(outputWavPath, &format, nullptr)) {
+            cliLog.srtCritical("Failed to initialize WAV writer.");
+            return -1;
+        }
+
+        auto totalPCMFrameCount = audioData.size() / (format.channels * sizeof(float));
+
+        auto framesWritten = wav.write_pcm_frames(totalPCMFrameCount, audioData.data());
+        if (framesWritten != totalPCMFrameCount) {
+            cliLog.srtCritical("Failed to write all frames.");
+        }
+        wav.close();
+
+        cliLog.srtSuccess("WAV file written successfully.");
+    }
 
     cliLog.srtDebug("Debug: %1", stdc::system::application_name());
     cliLog.srtSuccess("Success: %1", stdc::system::application_name());
@@ -359,8 +384,9 @@ static inline std::string exception_message(const std::exception &e) {
 
 int main(int /*argc*/, char * /*argv*/[]) {
     auto cmdline = stdc::system::command_line_arguments();
-    if (cmdline.size() < 3) {
-        stdc::u8println("Usage: %1 <package> <input>", stdc::system::application_name());
+    if (cmdline.size() < 4) {
+        stdc::u8println("Usage: %1 <package> <input> <output_wav>",
+                        stdc::system::application_name());
         return 1;
     }
 
@@ -368,10 +394,11 @@ int main(int /*argc*/, char * /*argv*/[]) {
 
     const auto &packagePath = stdc::path::from_utf8(cmdline[1]);
     const auto &inputPath = stdc::path::from_utf8(cmdline[2]);
+    const auto &outputWavPath = stdc::path::from_utf8(cmdline[3]);
 
     int ret;
     try {
-        ret = exec(packagePath, inputPath);
+        ret = exec(packagePath, inputPath, outputWavPath);
     } catch (const std::exception &e) {
         std::string msg = exception_message(e);
         stdc::console::critical("Error: %1", msg);

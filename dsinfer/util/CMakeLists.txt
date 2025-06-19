@@ -1,2 +1,3 @@
 add_subdirectory(onnxutil)
 add_subdirectory(inputparser)
+add_subdirectory(wavfile)

@@ -12,7 +12,9 @@ find_package(unofficial-bit7z CONFIG REQUIRED)
 
 dsinfer_add_executable(${PROJECT_NAME}
     SOURCES ${_src}
-    LINKS_PRIVATE dsinfer syscmdline::syscmdline unofficial::hash-library unofficial::bit7z::bit7z64 inputparser
+    LINKS_PRIVATE dsinfer syscmdline::syscmdline unofficial::hash-library unofficial::bit7z::bit7z64
+        $<BUILD_INTERFACE:inputparser>
+        $<BUILD_INTERFACE:wavfile>
     RC_NAME ${PROJECT_NAME}
     RC_DESCRIPTION ${PROJECT_DESCRIPTION}
 )
