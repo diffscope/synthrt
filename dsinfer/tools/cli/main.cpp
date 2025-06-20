@@ -338,15 +338,17 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
 
     // Process audio data
     {
-        drwav_data_format format;
-        format.container = drwav_container_riff;
-        format.format = DR_WAVE_FORMAT_IEEE_FLOAT;
+        using ds::WavFile;
+
+        WavFile::DataFormat format{};
+        format.container = WavFile::Container::RIFF;
+        format.format = WavFile::WaveFormat::IEEE_FLOAT;
         format.channels = 1;
         format.sampleRate = 44100;
         format.bitsPerSample = 32;
 
         WavFile wav;
-        if (!wav.init_file_write(outputWavPath, &format, nullptr)) {
+        if (!wav.init_file_write(outputWavPath, format)) {
             cliLog.srtCritical("Failed to initialize WAV writer.");
             return -1;
         }

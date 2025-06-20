@@ -5,62 +5,49 @@
 #include <filesystem>
 #include <memory>
 
-#ifndef DR_WAV_IMPLEMENTATION
-#  define DR_WAV_IMPLEMENTATION
-#endif
-#include "dr_wav.h"
+namespace ds {
 
-class WavFile {
-public:
-    WavFile() : m_wav(std::make_unique<drwav>()) {
-    }
+    class WavFile {
+    public:
+        enum class Container { RIFF, RIFX, W64, RF64, AIFF };
 
-    ~WavFile() {
-        close();
-    }
+        enum class WaveFormat : uint32_t {
+            PCM = 0x1,
+            ADPCM = 0x2,
+            IEEE_FLOAT = 0x3,
+            ALAW = 0x6,
+            MULAW = 0x7,
+            DVI_ADPCM = 0x11,
+        };
 
-    drwav_bool32 init_file_write(const std::filesystem::path &path, const drwav_data_format *pFormat,
-                         const drwav_allocation_callbacks *pAllocationCallbacks) {
-        if (!m_wav) {
-            return false;
-        }
-#ifdef _WIN32
-        auto path_str = path.wstring();
-        return drwav_init_file_write_w(m_wav.get(), path_str.c_str(), pFormat, pAllocationCallbacks);
-#else
-        auto path_str = path.string();
-        return drwav_init_file_write(m_wav.get(), path_str.c_str(), pFormat, pAllocationCallbacks);
-#endif
-    }
+        struct DataFormat {
+            Container container;
+            WaveFormat format;
+            uint32_t channels;
+            uint32_t sampleRate;
+            uint32_t bitsPerSample;
+        };
 
-    drwav_uint64 write_pcm_frames(uint64_t frameCount, const void *pData) {
-        if (!m_wav) {
-            return 0;
-        }
-        return drwav_write_pcm_frames(m_wav.get(), frameCount, pData);
-    }
+        WavFile();
 
-    drwav *get() {
-        return m_wav.get();
-    }
+        ~WavFile();
 
-    void close() {
-        if (m_wav) {
-            drwav_uninit(m_wav.get());
-            m_wav.reset();
-        }
-    }
+        bool init_file_write(const std::filesystem::path &path, const DataFormat &dataFormat);
 
-    WavFile(const WavFile &) = delete;
-    WavFile &operator=(const WavFile &) = delete;
+        uint64_t write_pcm_frames(uint64_t frameCount, const void *pData);
 
-    WavFile(WavFile &&other) = delete;
+        void close();
 
-    WavFile &operator=(WavFile &&other) = delete;
+        WavFile(const WavFile &) = delete;
+        WavFile &operator=(const WavFile &) = delete;
 
+        WavFile(WavFile &&other) = default;
+        WavFile &operator=(WavFile &&other) = default;
 
-private:
-    std::unique_ptr<drwav> m_wav;
-};
+    protected:
+        class Impl;
+        std::unique_ptr<Impl> _impl;
+    };
 
+}
 #endif // DSINFER_WAVFILE_H
