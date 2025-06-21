@@ -106,9 +106,6 @@ namespace ds {
         return tensor;
     }
 
-
-    using SpeakerEmbeddingArray = std::array<float, Co::SpeakerEmbedding::Dimension>;
-
     static inline size_t getPhoneCount(const srt::NO<Ac::AcousticStartInput> &input) {
         assert(input != nullptr);
 
@@ -259,7 +256,7 @@ namespace ds {
     }
 
     inline srt::Expected<void> loadSpeakerEmbedding(const std::filesystem::path &path,
-                                                    SpeakerEmbeddingArray &outBuffer) {
+                                                    Co::SpeakerEmbedding::Vector &outBuffer) {
         std::ifstream file(path, std::ios::binary);
         if (!file) {
             return srt::Error(srt::Error::FileNotFound,
@@ -686,9 +683,9 @@ namespace ds {
                 return srt::Error(srt::Error::SessionError, "no speakers found in acoustic input");
             }
 
-            std::map<std::string, SpeakerEmbeddingArray> speakerEmbeddingMapping;
+            std::map<std::string, Co::SpeakerEmbedding::Vector> speakerEmbeddingMapping;
             for (const auto &[speaker, path] : std::as_const(config->speakers)) {
-                auto [it, _] = speakerEmbeddingMapping.emplace(speaker, SpeakerEmbeddingArray{});
+                auto [it, _] = speakerEmbeddingMapping.emplace(speaker, Co::SpeakerEmbedding::Vector{});
                 if (auto exp = loadSpeakerEmbedding(path, it->second); !exp) {
                     setState(Failed);
                     return exp.takeError();

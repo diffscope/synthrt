@@ -90,6 +90,7 @@ namespace ds::Api::Common::L1 {
 
     namespace SpeakerEmbedding {
         inline constexpr size_t Dimension = 256;
+        using Vector = std::array<float, Dimension>;
     }
 
 }
