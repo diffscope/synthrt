@@ -12,19 +12,19 @@ namespace ds::Api::Common::L1 {
 
     namespace Tags {
 
-        static constexpr ParamTag Pitch("pitch");
+        inline constexpr ParamTag Pitch("pitch");
 
         /// Variance controls
-        static constexpr ParamTag Energy("energy");
-        static constexpr ParamTag Breathiness("breathiness");
-        static constexpr ParamTag Voicing("voicing");
-        static constexpr ParamTag Tension("tension");
-        static constexpr ParamTag MouthOpening("mouth_opening");
+        inline constexpr ParamTag Energy("energy");
+        inline constexpr ParamTag Breathiness("breathiness");
+        inline constexpr ParamTag Voicing("voicing");
+        inline constexpr ParamTag Tension("tension");
+        inline constexpr ParamTag MouthOpening("mouth_opening");
 
         /// Transition controls
-        static constexpr ParamTag Gender("gender");
-        static constexpr ParamTag Velocity("velocity");
-        static constexpr ParamTag ToneShift("tone_shift");
+        inline constexpr ParamTag Gender("gender");
+        inline constexpr ParamTag Velocity("velocity");
+        inline constexpr ParamTag ToneShift("tone_shift");
 
     };
 

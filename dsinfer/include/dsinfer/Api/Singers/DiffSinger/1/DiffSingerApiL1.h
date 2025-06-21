@@ -5,9 +5,9 @@
 
 namespace ds::Api::DiffSinger::L1 {
 
-    static constexpr char API_NAME[] = "diffsinger";
+    inline constexpr char API_NAME[] = "diffsinger";
 
-    static constexpr int API_LEVEL = 1;
+    inline constexpr int API_LEVEL = 1;
 
     class DiffSingerConfiguration : public srt::SingerConfiguration {
     public:

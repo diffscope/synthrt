@@ -12,9 +12,9 @@
 
 namespace ds::Api::Onnx {
 
-    static constexpr char API_NAME[] = "onnx";
+    inline constexpr char API_NAME[] = "onnx";
 
-    static constexpr int API_VERSION = 1;
+    inline constexpr int API_VERSION = 1;
 
     enum ExecutionProvider {
         CPUExecutionProvider = 0,

@@ -9,11 +9,11 @@
 
 namespace ds::Api::Vocoder::L1 {
 
-    static constexpr char API_NAME[] = "vocoder";
+    inline constexpr char API_NAME[] = "vocoder";
 
-    static constexpr char API_CLASS[] = "ai.svs.VocoderInference";
+    inline constexpr char API_CLASS[] = "ai.svs.VocoderInference";
 
-    static constexpr int API_LEVEL = 1;
+    inline constexpr int API_LEVEL = 1;
 
     class VocoderImportOptions : public srt::InferenceImportOptions {
     public:
