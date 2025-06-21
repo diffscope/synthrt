@@ -7,6 +7,8 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
+#include <InterpreterCommon/SpeakerEmbedding.h>
+
 #include "AcousticInference.h"
 
 namespace ds {
@@ -321,10 +323,10 @@ namespace ds {
             }
         } // languages
 
-        // speakers, { string: path } (json value is { string: string } )
+        // speakers, { string: array } (json value is { string: string } )
         {
             static_assert(std::is_same_v<decltype(result->speakers),
-                                         std::map<std::string, std::filesystem::path>>);
+                                         std::map<std::string, Co::SpeakerEmbedding::Vector>>);
             if (const auto it = config.find("speakers"); it != config.end()) {
                 if (!it->second.isObject()) {
                     collectError(R"(object field "speakers" type mismatch)");
@@ -335,10 +337,21 @@ namespace ds {
                             collectError(
                                 R"(object field "speakers" values type mismatch: string expected)");
                         } else {
-                            result->speakers.emplace(
-                                key,
-                                stdc::path::clean_path(
-                                    spec->path() / stdc::path::from_utf8(value.toStringView())));
+                            // Get speaker embedding vector file (.emb) path
+                            auto path = stdc::clean_path(
+                                spec->path() / stdc::path::from_utf8(value.toStringView()));
+                            // Insert the key with empty vector
+                            auto [it, _] =
+                                result->speakers.emplace(key, Co::SpeakerEmbedding::Vector{});
+                            // Try loading .emb file into the vector
+                            if (auto exp =
+                                    InterpreterCommon::loadSpeakerEmbedding(path, it->second);
+                                !exp) {
+                                // Failed to load .emb file
+                                collectError(stdc::formatN(
+                                    R"(could not load speaker ("%1") embedding vector from %2: %3)",
+                                    key, stdc::path::to_utf8(path), exp.error().what()));
+                            }
                         }
                     }
                 }

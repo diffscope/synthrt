@@ -553,15 +553,6 @@ namespace ds {
                 return srt::Error(srt::Error::SessionError, "no speakers found in acoustic input");
             }
 
-            std::map<std::string, Co::SpeakerEmbedding::Vector> speakerEmbeddingMapping;
-            for (const auto &[speaker, path] : std::as_const(config->speakers)) {
-                auto [it, _] =
-                    speakerEmbeddingMapping.emplace(speaker, Co::SpeakerEmbedding::Vector{});
-                if (auto exp = InterpreterCommon::loadSpeakerEmbedding(path, it->second); !exp) {
-                    setState(Failed);
-                    return exp.takeError();
-                }
-            }
             std::vector<int64_t> shape = {1, targetLength, Co::SpeakerEmbedding::Dimension};
             if (auto exp = Tensor::create(ITensor::Float, shape); exp) {
                 // get tensor buffer
@@ -575,8 +566,8 @@ namespace ds {
 
                 // mix speaker embedding
                 for (const auto &speaker : std::as_const(acousticInput->speakers)) {
-                    if (auto it_speaker = speakerEmbeddingMapping.find(speaker.name);
-                        it_speaker != speakerEmbeddingMapping.end()) {
+                    if (auto it_speaker = config->speakers.find(speaker.name);
+                        it_speaker != config->speakers.end()) {
                         const auto &embedding = it_speaker->second;
                         auto resampled = InterpreterCommon::resample(
                             speaker.proportions, speaker.interval, frameLength, targetLength, true);
