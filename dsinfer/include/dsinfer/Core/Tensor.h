@@ -1,6 +1,7 @@
 #ifndef DSINFER_TENSOR_H
 #define DSINFER_TENSOR_H
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdlib>
 #include <string>
@@ -265,8 +266,20 @@ namespace ds {
         ///
         /// \post On success, the tensor contains one element initialized to `value`.
         template <typename T>
-        static srt::Expected<srt::NO<Tensor>> createFromSingleValue(T value,
-                                                                    bool zeroDimensions = false);
+        static srt::Expected<srt::NO<Tensor>> createScalar(T value, bool zeroDimensions = false);
+
+        /// \brief Create a tensor filled with same value.
+        ///
+        /// \tparam T Data type of the value.
+        ///
+        /// \param shape Shape (dimensions) of the tensor.
+        /// \param value Scalar value to initialize the tensor with.
+        ///
+        /// \return On success: A new Tensor wrapped in a NamedObject.
+        ///         On failure: An error describing the cause of the failure.
+        template <typename T>
+        static srt::Expected<srt::NO<Tensor>> createFilled(const std::vector<int64_t> &shape,
+                                                           T value);
 
         /// \copydoc ITensor::backend
         std::string backend() const override;
@@ -338,8 +351,7 @@ namespace ds {
     }
 
     template <typename T>
-    inline srt::Expected<srt::NO<Tensor>> Tensor::createFromSingleValue(T value,
-                                                                        bool zeroDimensions) {
+    inline srt::Expected<srt::NO<Tensor>> Tensor::createScalar(T value, bool zeroDimensions) {
         static_assert(tensor_traits<T>::is_valid, "Unsupported tensor data type");
         static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
                       "sizeof(bool) == 1 does not satisfy");
@@ -350,6 +362,24 @@ namespace ds {
         return createFromRawData(tensor_traits<T>::data_type,
                                  zeroDimensions ? std::vector<int64_t>{} : std::vector<int64_t>{1},
                                  std::move(data));
+    }
+
+    template <typename T>
+    inline srt::Expected<srt::NO<Tensor>> Tensor::createFilled(const std::vector<int64_t> &shape,
+                                                               T value) {
+
+        static_assert(tensor_traits<T>::is_valid, "Unsupported tensor data type");
+        static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
+                      "sizeof(bool) == 1 does not satisfy");
+
+        auto exp = create(tensor_traits<T>::data_type, shape);
+        if (!exp) {
+            return exp.takeError();
+        }
+        auto tensor = exp.take();
+        auto dataPtr = tensor->template mutableData<T>();
+        std::fill(dataPtr, dataPtr + tensor->elementCount(), value);
+        return tensor;
     }
 }
 

@@ -18,8 +18,10 @@
 #include <dsinfer/Core/ParamTag.h>
 #include <dsinfer/Core/Tensor.h>
 
-#include "internal/Interpolator.h"
-#include "internal/TensorHelper.h"
+#include <InterpreterCommon/Driver.h>
+#include <InterpreterCommon/MathUtil.h>
+#include <InterpreterCommon/TensorHelper.h>
+#include <InterpreterCommon/SpeakerEmbedding.h>
 
 namespace ds {
 
@@ -27,84 +29,6 @@ namespace ds {
     namespace Ac = Api::Acoustic::L1;
     namespace Onnx = Api::Onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
-
-    template <class T>
-    std::vector<T> arange(T start, T stop, T step) {
-        if ((stop < start) && (step > 0)) {
-            return {};
-        }
-        auto size = static_cast<size_t>(std::ceil((stop - start) / step));
-        if (size == 0) {
-            return {};
-        }
-
-        std::vector<T> result;
-        result.reserve(size);
-
-        for (size_t i = 0; i < size; ++i) {
-            result.push_back(start + i * step);
-        }
-
-        return result;
-    }
-
-    static inline std::vector<double> resample(const std::vector<double> &samples, double timestep,
-                                               double targetTimestep, int64_t targetLength,
-                                               bool fillLast) {
-        if (samples.empty() || targetLength == 0) {
-            return {};
-        }
-        if (samples.size() == 1) {
-            std::vector<double> result(targetLength, samples[0]);
-            return result;
-        }
-        if (timestep == 0 || targetTimestep == 0) {
-            return {};
-        }
-        if (targetLength == 1) {
-            return {samples[0]};
-        }
-        // Find the time duration of input samples in seconds.
-        auto tMax = static_cast<double>(samples.size() - 1) * timestep;
-
-        // Construct target time axis for interpolation.
-        auto targetTimeAxis = arange(0.0, tMax, targetTimestep);
-
-        // Construct input time axis (for interpolation).
-        auto inputTimeAxis = arange(0.0, static_cast<double>(samples.size()), 1.0);
-        std::transform(inputTimeAxis.begin(), inputTimeAxis.end(), inputTimeAxis.begin(),
-                       [timestep](double value) { return value * timestep; });
-
-        // Interpolate sample curve to target time axis
-        auto targetSamples =
-            interpolate<InterpolateLinear, double>(targetTimeAxis, inputTimeAxis, samples);
-
-        // Resize the interpolated curve vector to target length
-        auto actualLength = static_cast<int64_t>(targetSamples.size());
-
-        if (actualLength > targetLength) {
-            // Truncate vector to target length
-            targetSamples.resize(targetLength);
-        } else if (actualLength < targetLength) {
-            // Expand vector to target length, filling last value
-            double tailFillValue = fillLast ? targetSamples.back() : 0;
-            targetSamples.resize(targetLength, tailFillValue);
-        }
-        return targetSamples;
-    }
-
-    template <typename T>
-    static inline srt::Expected<srt::NO<Tensor>>
-        createTensorFilled(const std::vector<int64_t> &shape, T value) {
-        auto exp = Tensor::create(tensor_traits<T>::data_type, shape);
-        if (!exp) {
-            return exp.takeError();
-        }
-        auto tensor = exp.take();
-        auto dataPtr = tensor->template mutableData<T>();
-        std::fill(dataPtr, dataPtr + tensor->elementCount(), value);
-        return tensor;
-    }
 
     static inline size_t getPhoneCount(const srt::NO<Ac::AcousticStartInput> &input) {
         assert(input != nullptr);
@@ -133,7 +57,7 @@ namespace ds {
 
         using TensorType = int64_t;
         auto phoneCount = getPhoneCount(input);
-        auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
+        auto exp = InterpreterCommon::TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
             return exp.takeError();
         }
@@ -172,7 +96,7 @@ namespace ds {
 
         auto phoneCount = getPhoneCount(input);
         using TensorType = int64_t;
-        auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
+        auto exp = InterpreterCommon::TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
             return exp.takeError();
         }
@@ -204,7 +128,7 @@ namespace ds {
 
         auto phoneCount = getPhoneCount(input);
         using TensorType = int64_t;
-        auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
+        auto exp = InterpreterCommon::TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
             return exp.takeError();
         }
@@ -255,65 +179,8 @@ namespace ds {
         return helper.take();
     }
 
-    inline srt::Expected<void> loadSpeakerEmbedding(const std::filesystem::path &path,
-                                                    Co::SpeakerEmbedding::Vector &outBuffer) {
-        std::ifstream file(path, std::ios::binary);
-        if (!file) {
-            return srt::Error(srt::Error::FileNotFound,
-                              "Failed to open file: " + stdc::path::to_utf8(path));
-        }
-
-        constexpr auto byteSize = Co::SpeakerEmbedding::Dimension * sizeof(float);
-        file.read(reinterpret_cast<char *>(outBuffer.data()), byteSize);
-
-        if (!file) {
-            return srt::Error(srt::Error::SessionError, "File read failed: " + path.string());
-        }
-
-        if (file.gcount() != byteSize) {
-            return srt::Error(srt::Error::SessionError, "File size is not exactly " +
-                                                            std::to_string(byteSize) +
-                                                            " bytes: " + path.string());
-        }
-
-        return srt::Expected<void>();
-    }
-
     class AcousticInference::Impl {
     public:
-        srt::Expected<void> getDriver(AcousticInference *obj) {
-            if (!driver) {
-                auto inferenceCate = obj->spec()->SU()->category("inference");
-                auto dsdriverObject = inferenceCate->getFirstObject("dsdriver");
-
-                if (!dsdriverObject) {
-                    return srt::Error(srt::Error::SessionError, "could not find dsdriver");
-                }
-
-                auto onnxDriver = dsdriverObject.as<InferenceDriver>();
-
-                const auto arch = onnxDriver->arch();
-                constexpr auto expectedArch = DiffSinger::API_NAME;
-                const bool isArchMatch = arch == expectedArch;
-
-                const auto backend = onnxDriver->backend();
-                constexpr auto expectedBackend = Onnx::API_NAME;
-                const bool isBackendMatch = backend == expectedBackend;
-
-                if (!isArchMatch || !isBackendMatch) {
-                    return srt::Error(
-                        srt::Error::SessionError,
-                        stdc::formatN(
-                            R"(invalid driver: expected arch "%1", got "%2" (%3); expected backend "%4", got "%5" (%6))",
-                            expectedArch, arch, (isArchMatch ? "match" : "MISMATCH"),
-                            expectedBackend, backend, (isBackendMatch ? "match" : "MISMATCH")));
-                }
-
-                driver = std::move(onnxDriver);
-            }
-            return srt::Expected<void>();
-        }
-
         srt::NO<Ac::AcousticResult> result;
         srt::NO<InferenceDriver> driver;
         srt::NO<InferenceSession> session;
@@ -347,9 +214,11 @@ namespace ds {
             impl.result.reset();
         }
 
-        if (auto res = impl.getDriver(this); !res) {
+        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
+            impl.driver = res.take();
+        } else {
             setState(Failed);
-            return res;
+            return res.takeError();
         }
 
         // Initialize inference state
@@ -361,13 +230,15 @@ namespace ds {
 
     srt::Expected<void> AcousticInference::start(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
-        // TODO:
-        if (auto res = impl.getDriver(this); !res) {
+
+        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
+            impl.driver = res.take();
+        } else {
             setState(Failed);
-            return res;
+            return res.takeError();
         }
 
-        setState(Running); // 设置状态
+        setState(Running);
 
         auto genericConfig = spec()->configuration();
         if (!genericConfig) {
@@ -431,7 +302,7 @@ namespace ds {
 
         // input param: steps
         {
-            auto exp = Tensor::createFromSingleValue(acousticInput->steps);
+            auto exp = Tensor::createScalar(acousticInput->steps);
             if (!exp) {
                 setState(Failed);
                 return exp.takeError();
@@ -441,7 +312,7 @@ namespace ds {
 
         // input param: depth
         {
-            auto exp = Tensor::createFromSingleValue(acousticInput->depth);
+            auto exp = Tensor::createScalar(acousticInput->depth);
             if (!exp) {
                 setState(Failed);
                 return exp.takeError();
@@ -494,14 +365,14 @@ namespace ds {
 
             // Resample the parameters to target time step,
             // and resize to target frame length (fill with last value)
-            auto resampled =
-                resample(param.values, param.interval, frameLength, targetLength, true);
+            auto resampled = InterpreterCommon::resample(param.values, param.interval, frameLength,
+                                                         targetLength, true);
             if (resampled.empty()) {
                 // These parameters are optional
                 if (param.tag == Co::Tags::Gender) {
                     // Fill gender with 0
                     auto exp =
-                        createTensorFilled<float>(std::vector<int64_t>{1, targetLength}, 0.0f);
+                        Tensor::createFilled<float>(std::vector<int64_t>{1, targetLength}, 0.0f);
                     if (!exp) {
                         setState(Failed);
                         return exp.takeError();
@@ -513,7 +384,7 @@ namespace ds {
                 if (param.tag == Co::Tags::Velocity) {
                     // Fill velocity with 0
                     auto exp =
-                        createTensorFilled<float>(std::vector<int64_t>{1, targetLength}, 1.0f);
+                        Tensor::createFilled<float>(std::vector<int64_t>{1, targetLength}, 1.0f);
                     if (!exp) {
                         setState(Failed);
                         return exp.takeError();
@@ -530,7 +401,7 @@ namespace ds {
                                                                 " resample failed");
             }
 
-            auto exp = TensorHelper<float>::createFor1DArray(targetLength);
+            auto exp = InterpreterCommon::TensorHelper<float>::createFor1DArray(targetLength);
             if (!exp) {
                 setState(Failed);
                 return exp.takeError();
@@ -582,8 +453,8 @@ namespace ds {
             // Has pitch parameter
             const auto &pitchParam = *pPitchParam;
             // Resample pitch
-            auto pitchSamples =
-                resample(pitchParam.values, pitchParam.interval, frameLength, targetLength, true);
+            auto pitchSamples = InterpreterCommon::resample(pitchParam.values, pitchParam.interval,
+                                                            frameLength, targetLength, true);
             if (pitchSamples.size() != targetLength) {
                 setState(Failed);
                 return srt::Error(srt::Error::SessionError, "parameter " +
@@ -595,8 +466,9 @@ namespace ds {
             if (pToneShiftParam) {
                 // Needs tone shift
                 const auto &toneShiftParam = *pToneShiftParam;
-                toneShiftSamples = resample(toneShiftParam.values, toneShiftParam.interval,
-                                            frameLength, targetLength, true);
+                toneShiftSamples =
+                    InterpreterCommon::resample(toneShiftParam.values, toneShiftParam.interval,
+                                                frameLength, targetLength, true);
                 if (!toneShiftSamples.empty()) {
                     if (toneShiftSamples.size() != targetLength) {
                         setState(Failed);
@@ -614,7 +486,7 @@ namespace ds {
             constexpr double midi_a4_note = 69.0;
 
             // Create f0 tensor for acoustic model
-            auto expForAcoustic = TensorHelper<float>::createFor1DArray(targetLength);
+            auto expForAcoustic = InterpreterCommon::TensorHelper<float>::createFor1DArray(targetLength);
             if (!expForAcoustic) {
                 setState(Failed);
                 return expForAcoustic.takeError();
@@ -637,7 +509,7 @@ namespace ds {
                 // Nothing to do here.
             } else {
                 // Needs to apply tone shift.
-                auto expForVocoder = TensorHelper<float>::createFor1DArray(targetLength);
+                auto expForVocoder = InterpreterCommon::TensorHelper<float>::createFor1DArray(targetLength);
                 if (!expForVocoder) {
                     setState(Failed);
                     return expForVocoder.takeError();
@@ -685,8 +557,9 @@ namespace ds {
 
             std::map<std::string, Co::SpeakerEmbedding::Vector> speakerEmbeddingMapping;
             for (const auto &[speaker, path] : std::as_const(config->speakers)) {
-                auto [it, _] = speakerEmbeddingMapping.emplace(speaker, Co::SpeakerEmbedding::Vector{});
-                if (auto exp = loadSpeakerEmbedding(path, it->second); !exp) {
+                auto [it, _] =
+                    speakerEmbeddingMapping.emplace(speaker, Co::SpeakerEmbedding::Vector{});
+                if (auto exp = InterpreterCommon::loadSpeakerEmbedding(path, it->second); !exp) {
                     setState(Failed);
                     return exp.takeError();
                 }
@@ -707,8 +580,8 @@ namespace ds {
                     if (auto it_speaker = speakerEmbeddingMapping.find(speaker.name);
                         it_speaker != speakerEmbeddingMapping.end()) {
                         const auto &embedding = it_speaker->second;
-                        auto resampled = resample(speaker.proportions, speaker.interval,
-                                                  frameLength, targetLength, true);
+                        auto resampled = InterpreterCommon::resample(
+                            speaker.proportions, speaker.interval, frameLength, targetLength, true);
                         for (size_t i = 0; i < resampled.size(); ++i) {
                             for (size_t j = 0; j < embedding.size(); ++j) {
                                 float &val = buffer[i * embedding.size() + j];
@@ -746,7 +619,7 @@ namespace ds {
             return sessionExp.takeError();
         }
 
-        impl.result = srt::NO<Ac::AcousticResult>::create(); // 创建结果
+        impl.result = srt::NO<Ac::AcousticResult>::create();
 
         // Get session results
         auto result = impl.session->result();
@@ -784,7 +657,7 @@ namespace ds {
         if (!impl.session->stop()) {
             return false;
         }
-        setState(Terminated); // 设置状态
+        setState(Terminated);
         return true;
     }
 

@@ -1,6 +1,8 @@
 #ifndef DSINFER_ONNXTENSOR_H
 #define DSINFER_ONNXTENSOR_H
 
+#include <algorithm>
+
 #include <dsinfer/Core/Tensor.h>
 
 #include <onnxruntime_cxx_api.h>
@@ -69,7 +71,10 @@ namespace ds {
             const stdc::array_view<T> &data);
 
         template <typename T>
-        static srt::Expected<srt::NO<OnnxTensor>> createFromSingleValue(T value, bool zeroDimensions = false);
+        static srt::Expected<srt::NO<OnnxTensor>> createScalar(T value, bool zeroDimensions = false);
+
+        template <typename T>
+        static srt::Expected<srt::NO<OnnxTensor>> createFilled(const std::vector<int64_t> &shape, T value);
         /**
          * @brief Constructs an OnnxTensor by taking ownership of an existing Ort::Value.
          *
@@ -172,7 +177,8 @@ namespace ds {
     }
 
     template <typename T>
-    inline srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::createFromSingleValue(T value, bool zeroDimensions) {
+    inline srt::Expected<srt::NO<OnnxTensor>>
+        OnnxTensor::createScalar(T value, bool zeroDimensions) {
         static_assert(tensor_traits<T>::is_valid, "Unsupported tensor data type");
         static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
                       "sizeof(bool) == 1 does not satisfy");
@@ -180,7 +186,27 @@ namespace ds {
         Tensor::Container data(sizeof(T));
         stdc::array_view<std::byte> rawView(data.data(), data.size());
 
-        return createFromRawView(tensor_traits<T>::data_type, zeroDimensions ? std::vector<int64_t>{} : std::vector<int64_t>{1},rawView);
+        return createFromRawView(tensor_traits<T>::data_type,
+                                 zeroDimensions ? std::vector<int64_t>{} : std::vector<int64_t>{1},
+                                 rawView);
+    }
+
+    template <typename T>
+    inline srt::Expected<srt::NO<OnnxTensor>>
+        OnnxTensor::createFilled(const std::vector<int64_t> &shape, T value) {
+
+        static_assert(tensor_traits<T>::is_valid, "Unsupported tensor data type");
+        static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
+                      "sizeof(bool) == 1 does not satisfy");
+
+        auto exp = create(tensor_traits<T>::data_type, shape);
+        if (!exp) {
+            return exp.takeError();
+        }
+        auto tensor = exp.take();
+        auto dataPtr = tensor->template mutableData<T>();
+        std::fill(dataPtr, dataPtr + tensor->elementCount(), value);
+        return tensor;
     }
 }
 

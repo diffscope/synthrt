@@ -12,6 +12,8 @@
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 
+#include <InterpreterCommon/Driver.h>
+
 namespace ds {
 
     namespace Co = Api::Common::L1;
@@ -21,39 +23,6 @@ namespace ds {
 
     class VocoderInference::Impl {
     public:
-        srt::Expected<void> getDriver(VocoderInference *obj) {
-            if (!driver) {
-                auto inferenceCate = obj->spec()->SU()->category("inference");
-                auto dsdriverObject = inferenceCate->getFirstObject("dsdriver");
-
-                if (!dsdriverObject) {
-                    return srt::Error(srt::Error::SessionError, "could not find dsdriver");
-                }
-
-                auto onnxDriver = dsdriverObject.as<InferenceDriver>();
-
-                const auto arch = onnxDriver->arch();
-                constexpr auto expectedArch = DiffSinger::API_NAME;
-                const bool isArchMatch = arch == expectedArch;
-
-                const auto backend = onnxDriver->backend();
-                constexpr auto expectedBackend = Onnx::API_NAME;
-                const bool isBackendMatch = backend == expectedBackend;
-
-                if (!isArchMatch || !isBackendMatch) {
-                    return srt::Error(
-                        srt::Error::SessionError,
-                        stdc::formatN(
-                            R"(invalid driver: expected arch "%1", got "%2" (%3); expected backend "%4", got "%5" (%6))",
-                            expectedArch, arch, (isArchMatch ? "match" : "MISMATCH"),
-                            expectedBackend, backend, (isBackendMatch ? "match" : "MISMATCH")));
-                }
-
-                driver = std::move(onnxDriver);
-            }
-            return srt::Expected<void>();
-        }
-
         srt::NO<Vo::VocoderResult> result;
         srt::NO<InferenceDriver> driver;
         srt::NO<InferenceSession> session;
@@ -67,18 +36,46 @@ namespace ds {
     VocoderInference::~VocoderInference() = default;
 
     srt::Expected<void> VocoderInference::initialize(const srt::NO<srt::TaskInitArgs> &args) {
-        // TODO: validate
+        __stdc_impl_t;
+        // Currently, no args to process. But we still need to enforce callers to pass the correct
+        // args type.
+        if (!args) {
+            return srt::Error(srt::Error::InvalidArgument, "vocoder task init args is nullptr");
+        }
+        if (auto name = args->objectName(); name != Vo::API_NAME) {
+            return srt::Error(
+                srt::Error::InvalidArgument,
+                stdc::formatN(R"(invalid vocoder task init args name: expected "%1", got "%2")",
+                              Vo::API_NAME, name));
+        }
+        auto acousticArgs = args.as<srt::TaskInitArgs>();
+
+        // If there are existing result, they will be cleared.
+        {
+            std::unique_lock<std::shared_mutex> lock(impl.mutex);
+            impl.result.reset();
+        }
+
+        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
+            impl.driver = res.take();
+        } else {
+            setState(Failed);
+            return res.takeError();
+        }
+
         return srt::Expected<void>();
     }
 
     srt::Expected<void> VocoderInference::start(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
-        if (auto res = impl.getDriver(this); !res) {
+        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
+            impl.driver = res.take();
+        } else {
             setState(Failed);
-            return res;
+            return res.takeError();
         }
 
-        setState(Running); // 设置状态
+        setState(Running);
 
         auto genericConfig = spec()->configuration();
         if (!genericConfig) {
@@ -129,7 +126,7 @@ namespace ds {
             return sessionExp.takeError();
         }
 
-        impl.result = srt::NO<Vo::VocoderResult>::create(); // 创建结果
+        impl.result = srt::NO<Vo::VocoderResult>::create();
 
         // Get session results
         auto result = impl.session->result();

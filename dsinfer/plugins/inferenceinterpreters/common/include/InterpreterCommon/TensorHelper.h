@@ -1,5 +1,5 @@
-#ifndef DSINFER_TENSORHELPER_H
-#define DSINFER_TENSORHELPER_H
+#ifndef DSINFER_INTERPRETER_COMMON_TENSORHELPER_H
+#define DSINFER_INTERPRETER_COMMON_TENSORHELPER_H
 
 #include <cstddef>
 #include <cstdint>
@@ -9,7 +9,7 @@
 #include <dsinfer/Core/Tensor.h>
 
 
-namespace ds {
+namespace ds::InterpreterCommon {
     template <typename T>
     class TensorHelper {
     public:
@@ -82,4 +82,4 @@ namespace ds {
         const T *_end;
     };
 }
-#endif // DSINFER_TENSORHELPER_H
+#endif // DSINFER_INTERPRETER_COMMON_TENSORHELPER_H
