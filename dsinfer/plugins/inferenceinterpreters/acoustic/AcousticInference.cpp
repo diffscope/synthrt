@@ -30,11 +30,9 @@ namespace ds {
     namespace Onnx = Api::Onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
-    static inline size_t getPhoneCount(const srt::NO<Ac::AcousticStartInput> &input) {
-        assert(input != nullptr);
-
+    static inline size_t getPhoneCount(const std::vector<Co::InputWordInfo> &words) {
         size_t phoneCount = 0;
-        for (const auto &word : input->words) {
+        for (const auto &word : words) {
             phoneCount += word.phones.size();
         }
         return phoneCount;
@@ -49,21 +47,21 @@ namespace ds {
     }
 
     srt::Expected<srt::NO<ITensor>> inline parsePhonemeTokens(
-        const srt::NO<Ac::AcousticStartInput> &input,
+        const std::vector<Co::InputWordInfo> &words,
         const std::map<std::string, int> &name2token) {
 
         constexpr const char *SP_TOKEN = "SP";
         constexpr const char *AP_TOKEN = "AP";
 
         using TensorType = int64_t;
-        auto phoneCount = getPhoneCount(input);
+        auto phoneCount = getPhoneCount(words);
         auto exp = InterpreterCommon::TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
             return exp.takeError();
         }
         auto &helper = exp.value();
 
-        for (const auto &word : input->words) {
+        for (const auto &word : words) {
             for (const auto &phone : word.phones) {
                 // tokens
                 std::string tokenWithLang =
@@ -92,9 +90,9 @@ namespace ds {
     }
 
     srt::Expected<srt::NO<ITensor>> inline parsePhonemeLanguages(
-        const srt::NO<Ac::AcousticStartInput> &input, const std::map<std::string, int> &languages) {
+        const std::vector<Co::InputWordInfo> &words, const std::map<std::string, int> &languages) {
 
-        auto phoneCount = getPhoneCount(input);
+        auto phoneCount = getPhoneCount(words);
         using TensorType = int64_t;
         auto exp = InterpreterCommon::TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
@@ -102,7 +100,7 @@ namespace ds {
         }
         auto &helper = exp.value();
 
-        for (const auto &word : input->words) {
+        for (const auto &word : words) {
             for (const auto &phone : word.phones) {
                 if (const auto it = languages.find(phone.language); it != languages.end()) {
                     helper.write(it->second);
@@ -123,10 +121,10 @@ namespace ds {
     }
 
     srt::Expected<srt::NO<ITensor>> inline parsePhonemeDurations(
-        const srt::NO<Ac::AcousticStartInput> &input, double frameLength,
+        const std::vector<Co::InputWordInfo> &words, double frameLength,
         int64_t *outTargetLength = nullptr) {
 
-        auto phoneCount = getPhoneCount(input);
+        auto phoneCount = getPhoneCount(words);
         using TensorType = int64_t;
         auto exp = InterpreterCommon::TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
@@ -137,8 +135,8 @@ namespace ds {
         double phoneDurSum = 0.0;
         int64_t targetLength = 0;
 
-        for (size_t currWordIndex = 0; currWordIndex < input->words.size(); ++currWordIndex) {
-            const auto &word = input->words[currWordIndex];
+        for (size_t currWordIndex = 0; currWordIndex < words.size(); ++currWordIndex) {
+            const auto &word = words[currWordIndex];
             auto wordDuration = getWordDuration(word);
 
             for (size_t i = 0; i < word.phones.size(); ++i) {
@@ -150,9 +148,9 @@ namespace ds {
                     auto nextPhoneStart =
                         phoneDurSum +
                         (currPhoneIsTheLastPhone ? wordDuration : word.phones[i + 1].start);
-                    if (currPhoneIsTheLastPhone && (currWordIndex + 1 < input->words.size())) {
+                    if (currPhoneIsTheLastPhone && (currWordIndex + 1 < words.size())) {
                         // If current word is not the last word
-                        const auto &nextWord = input->words[currWordIndex + 1];
+                        const auto &nextWord = words[currWordIndex + 1];
                         if (!nextWord.phones.empty()) {
                             nextPhoneStart += nextWord.phones[0].start;
                         }
@@ -273,7 +271,7 @@ namespace ds {
         double frameLength = 1.0 * config->hopSize / config->sampleRate;
 
         // input param: tokens
-        if (auto res = parsePhonemeTokens(acousticInput, config->phonemes); res) {
+        if (auto res = parsePhonemeTokens(acousticInput->words, config->phonemes); res) {
             sessionInput->inputs["tokens"] = res.take();
         } else {
             setState(Failed);
@@ -282,7 +280,7 @@ namespace ds {
 
         // input param: languages
         if (config->useLanguageId) {
-            if (auto res = parsePhonemeLanguages(acousticInput, config->languages); res) {
+            if (auto res = parsePhonemeLanguages(acousticInput->words, config->languages); res) {
                 sessionInput->inputs["languages"] = res.take();
             } else {
                 setState(Failed);
@@ -293,7 +291,7 @@ namespace ds {
         // input param: durations
         int64_t targetLength;
 
-        if (auto res = parsePhonemeDurations(acousticInput, frameLength, &targetLength); res) {
+        if (auto res = parsePhonemeDurations(acousticInput->words, frameLength, &targetLength); res) {
             sessionInput->inputs["durations"] = res.take();
         } else {
             setState(Failed);
