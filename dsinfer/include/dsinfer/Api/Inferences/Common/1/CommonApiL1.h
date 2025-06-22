@@ -44,6 +44,11 @@ namespace ds::Api::Common::L1 {
         GT_Down,
     };
 
+    enum LinguistMode {
+        LM_Word,
+        LM_Phoneme,
+    };
+
     struct InputPhonemeInfo {
         struct Speaker {
             std::string name;
