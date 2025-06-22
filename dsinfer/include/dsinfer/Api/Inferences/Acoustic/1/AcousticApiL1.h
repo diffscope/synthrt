@@ -53,7 +53,7 @@ namespace ds::Api::Acoustic::L1 {
         std::map<std::string, int> languages;
 
         /// 说话人（音色）与说话人嵌入向量对应表
-        std::map<std::string, Common::L1::SpeakerEmbedding::Vector> speakers;
+        std::map<std::string, std::vector<float>> speakers;
 
         /// 声学模型文件路径
         std::filesystem::path model;

@@ -10,19 +10,23 @@
 
 
 namespace ds::InterpreterCommon {
-    inline srt::Expected<void>
-        loadSpeakerEmbedding(const std::filesystem::path &path,
-                             Api::Common::L1::SpeakerEmbedding::Vector &outBuffer) {
+    inline srt::Expected<std::vector<float>>
+        loadSpeakerEmbedding(int hiddenSize, const std::filesystem::path &path) {
+
         namespace Co = Api::Common::L1;
 
+        if (hiddenSize <= 0) {
+            return srt::Error(srt::Error::InvalidArgument, "hiddenSize must be a positive integer");
+        }
         std::ifstream file(path, std::ios::binary);
         if (!file) {
             return srt::Error(srt::Error::FileNotFound,
                               "Failed to open file: " + stdc::path::to_utf8(path));
         }
 
-        constexpr auto byteSize = Co::SpeakerEmbedding::Dimension * sizeof(float);
-        file.read(reinterpret_cast<char *>(outBuffer.data()), byteSize);
+        const auto byteSize = hiddenSize * sizeof(float);
+        std::vector<float> outVec(hiddenSize);
+        file.read(reinterpret_cast<char *>(outVec.data()), byteSize);
 
         if (!file) {
             return srt::Error(srt::Error::SessionError, "File read failed: " + path.string());
@@ -34,7 +38,7 @@ namespace ds::InterpreterCommon {
                                                             " bytes: " + path.string());
         }
 
-        return srt::Expected<void>();
+        return outVec;
     }
 }
 

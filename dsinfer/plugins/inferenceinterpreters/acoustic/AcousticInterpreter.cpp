@@ -308,7 +308,20 @@ namespace ds {
             }
         } // phonemes
 
+        // useLanguageId, bool
+        {
+            static_assert(std::is_same_v<decltype(result->useLanguageId), bool>);
+            if (const auto it = config.find("useLanguageId"); it != config.end()) {
+                if (it->second.isBool()) {
+                    result->useLanguageId = it->second.toBool(result->useLanguageId);
+                } else {
+                    collectError(R"(boolean field "useLanguageId" type mismatch)");
+                }
+            }
+        } // useLanguageId
+
         // languages, load file (json value is string of file path)
+        // [REQUIRED when `useLanguageId` is true]
         {
             static_assert(std::is_same_v<decltype(result->languages), std::map<std::string, int>>);
             if (const auto it = config.find("languages"); it != config.end()) {
@@ -319,14 +332,59 @@ namespace ds {
                     plJsonLoadHelper(it->first, path, result->languages);
                 }
             } else {
-                collectError("string field languages is missing");
+                if (result->useLanguageId) {
+                    // Missing required `languages` field.
+                    collectError(R"(string field "languages" is missing)"
+                                 R"((required when "useLanguageId" is set to true))");
+                } else {
+                    // Nothing to do:
+                    // `languages` is an optional field when "useLanguageId" is set to false
+                }
             }
         } // languages
 
+        // useSpeakerEmbedding, bool
+        {
+            static_assert(std::is_same_v<decltype(result->useSpeakerEmbedding), bool>);
+            if (const auto it = config.find("useSpeakerEmbedding"); it != config.end()) {
+                if (it->second.isBool()) {
+                    result->useSpeakerEmbedding = it->second.toBool(result->useSpeakerEmbedding);
+                } else {
+                    collectError(R"(boolean field "useSpeakerEmbedding" type mismatch)");
+                }
+            }
+        } // useSpeakerEmbedding
+
+        // hiddenSize, int
+        // [REQUIRED when `useSpeakerEmbedding` is true]
+        {
+            static_assert(std::is_same_v<decltype(result->hiddenSize), int>);
+            if (const auto it = config.find("hiddenSize"); it != config.end()) {
+                if (it->second.isNumber()) {
+                    result->hiddenSize = static_cast<int>(it->second.toInt(result->hiddenSize));
+                    if (result->hiddenSize <= 0) {
+                        collectError(R"(integer field "hiddenSize" must be a positive integer)");
+                    }
+                } else {
+                    collectError(R"(integer field "hiddenSize" type mismatch)");
+                }
+            } else {
+                if (result->useSpeakerEmbedding) {
+                    // Missing required `hiddenSize` field.
+                    collectError(R"(integer field "hiddenSize" is missing )"
+                                 R"((required when "useSpeakerEmbedding" is set to true))");
+                } else {
+                    // Nothing to do:
+                    // `hiddenSize` is an optional field when "useSpeakerEmbedding" is set to false
+                }
+            }
+        } // hiddenSize
+
         // speakers, { string: array } (json value is { string: string } )
+        // [REQUIRED when `useSpeakerEmbedding` is true]
         {
             static_assert(std::is_same_v<decltype(result->speakers),
-                                         std::map<std::string, Co::SpeakerEmbedding::Vector>>);
+                                         std::map<std::string, std::vector<float>>>);
             if (const auto it = config.find("speakers"); it != config.end()) {
                 if (!it->second.isObject()) {
                     collectError(R"(object field "speakers" type mismatch)");
@@ -340,13 +398,13 @@ namespace ds {
                             // Get speaker embedding vector file (.emb) path
                             auto path = stdc::clean_path(
                                 spec->path() / stdc::path::from_utf8(value.toStringView()));
-                            // Insert the key with empty vector
-                            auto [it, _] =
-                                result->speakers.emplace(key, Co::SpeakerEmbedding::Vector{});
-                            // Try loading .emb file into the vector
-                            if (auto exp =
-                                    InterpreterCommon::loadSpeakerEmbedding(path, it->second);
-                                !exp) {
+                            // Try loading .emb file
+                            if (auto exp = InterpreterCommon::loadSpeakerEmbedding(
+                                    result->hiddenSize, path);
+                                exp) {
+                                // Successfully loaded .emb file
+                                result->speakers[key] = exp.take();
+                            } else {
                                 // Failed to load .emb file
                                 collectError(stdc::formatN(
                                     R"(could not load speaker ("%1") embedding vector from %2: %3)",
@@ -356,7 +414,14 @@ namespace ds {
                     }
                 }
             } else {
-                // nothing to do: `speakers` is an optional field
+                if (result->useSpeakerEmbedding) {
+                    // Missing required `speakers` field.
+                    collectError(R"(array field "speakers" is missing )"
+                                 R"((required when "useSpeakerEmbedding" is set to true))");
+                } else {
+                    // Nothing to do:
+                    // `speakers` is an optional field when "useSpeakerEmbedding" is set to false
+                }
             }
         } // speakers
 
@@ -374,42 +439,6 @@ namespace ds {
                 collectError(R"(string field "model" is missing)");
             }
         } // model
-
-        // useLanguageId, bool
-        {
-            static_assert(std::is_same_v<decltype(result->useLanguageId), bool>);
-            if (const auto it = config.find("useLanguageId"); it != config.end()) {
-                if (it->second.isBool()) {
-                    result->useLanguageId = it->second.toBool(result->useLanguageId);
-                } else {
-                    collectError(R"(boolean field "useLanguageId" type mismatch)");
-                }
-            }
-        } // useLanguageId
-
-        // useSpeakerEmbedding, bool
-        {
-            static_assert(std::is_same_v<decltype(result->useSpeakerEmbedding), bool>);
-            if (const auto it = config.find("useSpeakerEmbedding"); it != config.end()) {
-                if (it->second.isBool()) {
-                    result->useSpeakerEmbedding = it->second.toBool(result->useSpeakerEmbedding);
-                } else {
-                    collectError(R"(boolean field "useSpeakerEmbedding" type mismatch)");
-                }
-            }
-        } // useSpeakerEmbedding
-
-        // hiddenSize, int
-        {
-            static_assert(std::is_same_v<decltype(result->hiddenSize), int>);
-            if (const auto it = config.find("hiddenSize"); it != config.end()) {
-                if (it->second.isNumber()) {
-                    result->hiddenSize = static_cast<int>(it->second.toInt(result->hiddenSize));
-                } else {
-                    collectError(R"(integer field "hiddenSize" type mismatch)");
-                }
-            }
-        } // hiddenSize
 
         // parameters, set<ParamTag> (json value is string[])
         {

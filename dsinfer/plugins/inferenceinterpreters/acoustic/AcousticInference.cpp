@@ -553,7 +553,7 @@ namespace ds {
                 return srt::Error(srt::Error::SessionError, "no speakers found in acoustic input");
             }
 
-            std::vector<int64_t> shape = {1, targetLength, Co::SpeakerEmbedding::Dimension};
+            std::vector<int64_t> shape = {1, targetLength, config->hiddenSize};
             if (auto exp = Tensor::create(ITensor::Float, shape); exp) {
                 // get tensor buffer
                 auto tensor = exp.take();
@@ -569,6 +569,12 @@ namespace ds {
                     if (auto it_speaker = config->speakers.find(speaker.name);
                         it_speaker != config->speakers.end()) {
                         const auto &embedding = it_speaker->second;
+                        if (embedding.size() != config->hiddenSize) {
+                            setState(Failed);
+                            return srt::Error(
+                                srt::Error::SessionError,
+                                "speaker embedding vector length does not match hiddenSize");
+                        }
                         auto resampled = InterpreterCommon::resample(
                             speaker.proportions, speaker.interval, frameLength, targetLength, true);
                         for (size_t i = 0; i < resampled.size(); ++i) {

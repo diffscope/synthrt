@@ -88,11 +88,6 @@ namespace ds::Api::Common::L1 {
         std::vector<double> proportions;
     };
 
-    namespace SpeakerEmbedding {
-        inline constexpr size_t Dimension = 256;
-        using Vector = std::array<float, Dimension>;
-    }
-
 }
 
 #endif // DSINFER_API_COMMONAPIL1_H
