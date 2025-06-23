@@ -9,6 +9,7 @@
 
 #include <InterpreterCommon/SpeakerEmbedding.h>
 #include <InterpreterCommon/ErrorCollector.h>
+#include <InterpreterCommon/IdMappingLoader.h>
 
 #include "AcousticInference.h"
 
@@ -238,47 +239,6 @@ namespace ds {
         // Collect all the errors and return to user
         InterpreterCommon::ErrorCollector ec;
 
-        auto plJsonLoadHelper = [&](const std::string &fieldName, const std::filesystem::path &path,
-                                    std::map<std::string, int> &out) -> bool {
-            std::ifstream file(path);
-            if (!file.is_open()) {
-                ec.collectError(stdc::formatN(R"(error loading "%1": %2 file not found)", fieldName,
-                                              stdc::path::to_utf8(path)));
-                return false;
-            }
-            file.seekg(0, std::ios::end);
-            auto size = file.tellg();
-            std::string buffer(size, '\0');
-            file.seekg(0);
-            file.read(buffer.data(), size);
-
-            std::string errString;
-            auto j = srt::JsonValue::fromJson(buffer, true, &errString);
-            if (!errString.empty()) {
-                ec.collectError(std::move(errString));
-                return false;
-            }
-
-            if (!j.isObject()) {
-                ec.collectError(
-                    stdc::formatN(R"(error loading "%1": outer JSON is not an object)", fieldName));
-                return false;
-            }
-
-            const auto &obj = j.toObject();
-            bool flag = true;
-            for (const auto &[key, value] : obj) {
-                if (!value.isInt()) {
-                    flag = false;
-                    ec.collectError(stdc::formatN(
-                        R"(error loading "%1": value of key "%2" is not int)", fieldName, key));
-                } else {
-                    out[key] = static_cast<int>(value.toInt());
-                }
-            }
-            return flag;
-        };
-
         // phonemes, load file (json value is string of file path)
         {
             static_assert(std::is_same_v<decltype(result->phonemes), std::map<std::string, int>>);
@@ -287,7 +247,7 @@ namespace ds {
                     ec.collectError(R"(string field "phonemes" type mismatch)");
                 } else {
                     auto path = spec->path() / stdc::path::from_utf8(it->second.toStringView());
-                    plJsonLoadHelper(it->first, path, result->phonemes);
+                    InterpreterCommon::loadIdMapping(it->first, path, result->phonemes, &ec);
                 }
             } else {
                 ec.collectError("string field phonemes is missing");
@@ -315,7 +275,7 @@ namespace ds {
                     ec.collectError(R"(string field "languages" type mismatch)");
                 } else {
                     auto path = spec->path() / stdc::path::from_utf8(it->second.toStringView());
-                    plJsonLoadHelper(it->first, path, result->languages);
+                    InterpreterCommon::loadIdMapping(it->first, path, result->languages, &ec);
                 }
             } else {
                 if (result->useLanguageId) {
