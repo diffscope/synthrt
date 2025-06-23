@@ -8,6 +8,7 @@
 #include <stdcorelib/path.h>
 
 #include <InterpreterCommon/SpeakerEmbedding.h>
+#include <InterpreterCommon/ErrorCollector.h>
 
 #include "AcousticInference.h"
 
@@ -15,9 +16,6 @@ namespace ds {
 
     namespace Co = Api::Common::L1;
     namespace Ac = Api::Acoustic::L1;
-
-    static inline std::string formatErrorMessage(const std::string &msgPrefix,
-                                                 const std::vector<std::string> &errorList);
 
     static constexpr auto varianceTagMapping = std::array{
         std::pair{Co::Tags::Energy.name(),       Co::Tags::Energy      },
@@ -101,25 +99,19 @@ namespace ds {
         auto result = srt::NO<Ac::AcousticSchema>::create();
 
         // Collect all the errors and return to user
-        bool hasErrors = false;
-        std::vector<std::string> errorList;
-
-        auto collectError = [&](auto &&msg) {
-            hasErrors = true;
-            errorList.emplace_back(std::forward<decltype(msg)>(msg));
-        };
+        InterpreterCommon::ErrorCollector ec;
 
         // speakers, string[]
         {
             static_assert(std::is_same_v<decltype(result->speakers), std::vector<std::string>>);
             if (const auto it = schema.find("speakers"); it != schema.end()) {
                 if (!it->second.isArray()) {
-                    collectError(R"(array field "speakers" type mismatch)");
+                    ec.collectError(R"(array field "speakers" type mismatch)");
                 } else {
                     const auto &arr = it->second.toArray();
                     for (const auto &item : arr) {
                         if (!item.isString()) {
-                            collectError(
+                            ec.collectError(
                                 R"(array field "speakers" values type mismatch: string expected)");
                         } else {
                             result->speakers.emplace_back(item.toString());
@@ -156,7 +148,7 @@ namespace ds {
                     size_t index = 0;
                     for (const auto &item : std::as_const(arr)) {
                         if (!item.isString()) {
-                            collectError(stdc::formatN(
+                            ec.collectError(stdc::formatN(
                                 R"(array field "varianceControls" element at index %1 type mismatch: expected string)",
                                 index));
                             ++index;
@@ -166,7 +158,7 @@ namespace ds {
 
                         if (!tryFindAndInsert(paramStr, varianceTagMapping,
                                               result->varianceControls)) {
-                            collectError(stdc::formatN(
+                            ec.collectError(stdc::formatN(
                                 R"(array field "varianceControls" element at index %1 invalid: expected %2; got "%3")",
                                 index, getVarianceParamKeys(), paramStr));
                         }
@@ -175,7 +167,7 @@ namespace ds {
                     }
                 } else {
                     // not an array (error)
-                    collectError(R"(array field "varianceControls" type mismatch)");
+                    ec.collectError(R"(array field "varianceControls" type mismatch)");
                 }
             } else {
                 // nothing to do: `varianceControls` is an optional field
@@ -193,7 +185,7 @@ namespace ds {
                     size_t index = 0;
                     for (const auto &item : std::as_const(arr)) {
                         if (!item.isString()) {
-                            collectError(stdc::formatN(
+                            ec.collectError(stdc::formatN(
                                 R"(array field "transitionControls" element at index %1 type mismatch: expected string)",
                                 index));
                             ++index;
@@ -203,7 +195,7 @@ namespace ds {
 
                         if (!tryFindAndInsert(paramStr, transitionTagMapping,
                                               result->transitionControls)) {
-                            collectError(stdc::formatN(
+                            ec.collectError(stdc::formatN(
                                 R"(array field "transitionControls" element at index %1 invalid: expected %2; got "%3")",
                                 index, getTransitionParamKeys(), paramStr));
                         }
@@ -212,17 +204,17 @@ namespace ds {
                     }
                 } else {
                     // not an array (error)
-                    collectError(R"(array field "transitionControls" type mismatch)");
+                    ec.collectError(R"(array field "transitionControls" type mismatch)");
                 }
             } else {
                 // nothing to do: `transitionControls` is an optional field
             }
         } // transitionControls
 
-        if (hasErrors) {
+        if (ec.hasErrors()) {
             return srt::Error{
                 srt::Error::InvalidFormat,
-                formatErrorMessage("error parsing acoustic schema", errorList),
+                ec.getErrorMessage("error parsing acoustic schema"),
             };
         }
         return result;
@@ -244,20 +236,14 @@ namespace ds {
         auto result = srt::NO<Ac::AcousticConfiguration>::create();
 
         // Collect all the errors and return to user
-        bool hasErrors = false;
-        std::vector<std::string> errorList;
-
-        auto collectError = [&](auto &&msg) {
-            hasErrors = true;
-            errorList.emplace_back(std::forward<decltype(msg)>(msg));
-        };
+        InterpreterCommon::ErrorCollector ec;
 
         auto plJsonLoadHelper = [&](const std::string &fieldName, const std::filesystem::path &path,
                                     std::map<std::string, int> &out) -> bool {
             std::ifstream file(path);
             if (!file.is_open()) {
-                collectError(stdc::formatN(R"(error loading "%1": %2 file not found)", fieldName,
-                                           stdc::path::to_utf8(path)));
+                ec.collectError(stdc::formatN(R"(error loading "%1": %2 file not found)", fieldName,
+                                              stdc::path::to_utf8(path)));
                 return false;
             }
             file.seekg(0, std::ios::end);
@@ -269,12 +255,12 @@ namespace ds {
             std::string errString;
             auto j = srt::JsonValue::fromJson(buffer, true, &errString);
             if (!errString.empty()) {
-                collectError(std::move(errString));
+                ec.collectError(std::move(errString));
                 return false;
             }
 
             if (!j.isObject()) {
-                collectError(
+                ec.collectError(
                     stdc::formatN(R"(error loading "%1": outer JSON is not an object)", fieldName));
                 return false;
             }
@@ -284,7 +270,7 @@ namespace ds {
             for (const auto &[key, value] : obj) {
                 if (!value.isInt()) {
                     flag = false;
-                    collectError(stdc::formatN(
+                    ec.collectError(stdc::formatN(
                         R"(error loading "%1": value of key "%2" is not int)", fieldName, key));
                 } else {
                     out[key] = static_cast<int>(value.toInt());
@@ -298,13 +284,13 @@ namespace ds {
             static_assert(std::is_same_v<decltype(result->phonemes), std::map<std::string, int>>);
             if (const auto it = config.find("phonemes"); it != config.end()) {
                 if (!it->second.isString()) {
-                    collectError(R"(string field "phonemes" type mismatch)");
+                    ec.collectError(R"(string field "phonemes" type mismatch)");
                 } else {
                     auto path = spec->path() / stdc::path::from_utf8(it->second.toStringView());
                     plJsonLoadHelper(it->first, path, result->phonemes);
                 }
             } else {
-                collectError("string field phonemes is missing");
+                ec.collectError("string field phonemes is missing");
             }
         } // phonemes
 
@@ -315,7 +301,7 @@ namespace ds {
                 if (it->second.isBool()) {
                     result->useLanguageId = it->second.toBool(result->useLanguageId);
                 } else {
-                    collectError(R"(boolean field "useLanguageId" type mismatch)");
+                    ec.collectError(R"(boolean field "useLanguageId" type mismatch)");
                 }
             }
         } // useLanguageId
@@ -326,7 +312,7 @@ namespace ds {
             static_assert(std::is_same_v<decltype(result->languages), std::map<std::string, int>>);
             if (const auto it = config.find("languages"); it != config.end()) {
                 if (!it->second.isString()) {
-                    collectError(R"(string field "languages" type mismatch)");
+                    ec.collectError(R"(string field "languages" type mismatch)");
                 } else {
                     auto path = spec->path() / stdc::path::from_utf8(it->second.toStringView());
                     plJsonLoadHelper(it->first, path, result->languages);
@@ -334,8 +320,8 @@ namespace ds {
             } else {
                 if (result->useLanguageId) {
                     // Missing required `languages` field.
-                    collectError(R"(string field "languages" is missing)"
-                                 R"((required when "useLanguageId" is set to true))");
+                    ec.collectError(R"(string field "languages" is missing)"
+                                    R"((required when "useLanguageId" is set to true))");
                 } else {
                     // Nothing to do:
                     // `languages` is an optional field when "useLanguageId" is set to false
@@ -350,7 +336,7 @@ namespace ds {
                 if (it->second.isBool()) {
                     result->useSpeakerEmbedding = it->second.toBool(result->useSpeakerEmbedding);
                 } else {
-                    collectError(R"(boolean field "useSpeakerEmbedding" type mismatch)");
+                    ec.collectError(R"(boolean field "useSpeakerEmbedding" type mismatch)");
                 }
             }
         } // useSpeakerEmbedding
@@ -363,16 +349,16 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->hiddenSize = static_cast<int>(it->second.toInt(result->hiddenSize));
                     if (result->hiddenSize <= 0) {
-                        collectError(R"(integer field "hiddenSize" must be a positive integer)");
+                        ec.collectError(R"(integer field "hiddenSize" must be a positive integer)");
                     }
                 } else {
-                    collectError(R"(integer field "hiddenSize" type mismatch)");
+                    ec.collectError(R"(integer field "hiddenSize" type mismatch)");
                 }
             } else {
                 if (result->useSpeakerEmbedding) {
                     // Missing required `hiddenSize` field.
-                    collectError(R"(integer field "hiddenSize" is missing )"
-                                 R"((required when "useSpeakerEmbedding" is set to true))");
+                    ec.collectError(R"(integer field "hiddenSize" is missing )"
+                                    R"((required when "useSpeakerEmbedding" is set to true))");
                 } else {
                     // Nothing to do:
                     // `hiddenSize` is an optional field when "useSpeakerEmbedding" is set to false
@@ -387,12 +373,12 @@ namespace ds {
                                          std::map<std::string, std::vector<float>>>);
             if (const auto it = config.find("speakers"); it != config.end()) {
                 if (!it->second.isObject()) {
-                    collectError(R"(object field "speakers" type mismatch)");
+                    ec.collectError(R"(object field "speakers" type mismatch)");
                 } else {
                     const auto &obj = it->second.toObject();
                     for (const auto &[key, value] : obj) {
                         if (!value.isString()) {
-                            collectError(
+                            ec.collectError(
                                 R"(object field "speakers" values type mismatch: string expected)");
                         } else {
                             // Get speaker embedding vector file (.emb) path
@@ -406,7 +392,7 @@ namespace ds {
                                 result->speakers[key] = exp.take();
                             } else {
                                 // Failed to load .emb file
-                                collectError(stdc::formatN(
+                                ec.collectError(stdc::formatN(
                                     R"(could not load speaker ("%1") embedding vector from %2: %3)",
                                     key, stdc::path::to_utf8(path), exp.error().what()));
                             }
@@ -416,8 +402,8 @@ namespace ds {
             } else {
                 if (result->useSpeakerEmbedding) {
                     // Missing required `speakers` field.
-                    collectError(R"(array field "speakers" is missing )"
-                                 R"((required when "useSpeakerEmbedding" is set to true))");
+                    ec.collectError(R"(array field "speakers" is missing )"
+                                    R"((required when "useSpeakerEmbedding" is set to true))");
                 } else {
                     // Nothing to do:
                     // `speakers` is an optional field when "useSpeakerEmbedding" is set to false
@@ -430,13 +416,13 @@ namespace ds {
             static_assert(std::is_same_v<decltype(result->model), std::filesystem::path>);
             if (const auto it = config.find("model"); it != config.end()) {
                 if (!it->second.isString()) {
-                    collectError(R"(string field "model" type mismatch)");
+                    ec.collectError(R"(string field "model" type mismatch)");
                 } else {
                     result->model = stdc::path::clean_path(
                         spec->path() / stdc::path::from_utf8(it->second.toStringView()));
                 }
             } else {
-                collectError(R"(string field "model" is missing)");
+                ec.collectError(R"(string field "model" is missing)");
             }
         } // model
 
@@ -471,7 +457,7 @@ namespace ds {
                     size_t index = 0;
                     for (const auto &item : std::as_const(arr)) {
                         if (!item.isString()) {
-                            collectError(stdc::formatN(
+                            ec.collectError(stdc::formatN(
                                 R"(array field "parameter" element at index %1 type mismatch: expected string)",
                                 index));
                             ++index;
@@ -480,7 +466,7 @@ namespace ds {
                         const auto paramStr = item.toStringView();
 
                         if (!tryFindAndInsertParameters(paramStr)) {
-                            collectError(stdc::formatN(
+                            ec.collectError(stdc::formatN(
                                 R"(array field "parameter" element at index %1 invalid: expected %2; got "%3")",
                                 index, getParamKeys(), paramStr));
                         }
@@ -489,7 +475,7 @@ namespace ds {
                     }
                 } else {
                     // not an array (error)
-                    collectError(R"(array field "parameters" type mismatch)");
+                    ec.collectError(R"(array field "parameters" type mismatch)");
                 }
             } else {
                 // nothing to do: `parameters` is an optional field
@@ -504,7 +490,7 @@ namespace ds {
                     result->useContinuousAcceleration =
                         it->second.toBool(result->useContinuousAcceleration);
                 } else {
-                    collectError(R"(boolean field "useContinuousAcceleration" type mismatch)");
+                    ec.collectError(R"(boolean field "useContinuousAcceleration" type mismatch)");
                 }
             }
         } // useContinuousAcceleration
@@ -516,7 +502,7 @@ namespace ds {
                 if (it->second.isBool()) {
                     result->useVariableDepth = it->second.toBool(result->useVariableDepth);
                 } else {
-                    collectError(R"(boolean field "useVariableDepth" type mismatch)");
+                    ec.collectError(R"(boolean field "useVariableDepth" type mismatch)");
                 }
             }
         } // useVariableDepth
@@ -528,7 +514,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->maxDepth = it->second.toDouble(result->maxDepth);
                 } else {
-                    collectError(R"(float field "maxDepth" type mismatch)");
+                    ec.collectError(R"(float field "maxDepth" type mismatch)");
                 }
             }
         } // maxDepth
@@ -540,7 +526,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->sampleRate = static_cast<int>(it->second.toInt(result->sampleRate));
                 } else {
-                    collectError(R"(integer field "sampleRate" type mismatch)");
+                    ec.collectError(R"(integer field "sampleRate" type mismatch)");
                 }
             }
         } // sampleRate
@@ -552,7 +538,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->hopSize = static_cast<int>(it->second.toInt(result->hopSize));
                 } else {
-                    collectError(R"(integer field "hopSize" type mismatch)");
+                    ec.collectError(R"(integer field "hopSize" type mismatch)");
                 }
             }
         } // hopSize
@@ -564,7 +550,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->winSize = static_cast<int>(it->second.toInt(result->winSize));
                 } else {
-                    collectError(R"(integer field "winSize" type mismatch)");
+                    ec.collectError(R"(integer field "winSize" type mismatch)");
                 }
             }
         } // winSize
@@ -576,7 +562,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->fftSize = static_cast<int>(it->second.toInt(result->fftSize));
                 } else {
-                    collectError(R"(integer field "fftSize" type mismatch)");
+                    ec.collectError(R"(integer field "fftSize" type mismatch)");
                 }
             }
         } // fftSize
@@ -588,7 +574,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->melChannels = static_cast<int>(it->second.toInt(result->melChannels));
                 } else {
-                    collectError(R"(integer field "melChannels" type mismatch)");
+                    ec.collectError(R"(integer field "melChannels" type mismatch)");
                 }
             }
         } // melChannels
@@ -600,7 +586,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->melMinFreq = static_cast<int>(it->second.toInt(result->melMinFreq));
                 } else {
-                    collectError(R"(integer field "melMinFreq" type mismatch)");
+                    ec.collectError(R"(integer field "melMinFreq" type mismatch)");
                 }
             }
         } // melMinFreq
@@ -612,7 +598,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->melMaxFreq = static_cast<int>(it->second.toInt(result->melMaxFreq));
                 } else {
-                    collectError(R"(integer field "melMaxFreq" type mismatch)");
+                    ec.collectError(R"(integer field "melMaxFreq" type mismatch)");
                 }
             }
         } // melMaxFreq
@@ -628,7 +614,7 @@ namespace ds {
                 } else if (melBaseLower == "10") {
                     result->melBase = Co::MelBase_10;
                 } else {
-                    collectError(stdc::formatN(
+                    ec.collectError(stdc::formatN(
                         R"(enum string field "melBase" invalid: expect "e", "10"; got "%1")",
                         melBase));
                 }
@@ -646,17 +632,17 @@ namespace ds {
                 } else if (melScaleLower == "htk") {
                     result->melScale = Co::MelScale_HTK;
                 } else {
-                    collectError(stdc::format(
+                    ec.collectError(stdc::format(
                         R"(enum string field "melScale" invalid: expect "slaney", "htk"; got "%1")",
                         melScale));
                 }
             }
         } // melScale
 
-        if (hasErrors) {
+        if (ec.hasErrors()) {
             return srt::Error{
                 srt::Error::InvalidFormat,
-                formatErrorMessage("error parsing acoustic configuration", errorList),
+                ec.getErrorMessage("error parsing acoustic configuration"),
             };
         }
         return result;
@@ -711,42 +697,6 @@ namespace ds {
         const srt::NO<srt::InferenceRuntimeOptions> &runtimeOptions) {
         // TODO: importOptions 和 runtimeOptions 均可读取作为参考
         return srt::NO<AcousticInference>::create(spec);
-    }
-
-    static inline std::string formatErrorMessage(const std::string &msgPrefix,
-                                                 const std::vector<std::string> &errorList) {
-        const std::string middlePart = " (";
-        const std::string countSuffix = " errors found):\n";
-
-        size_t totalLength = msgPrefix.size() + middlePart.size() +
-                             std::to_string(errorList.size()).size() + countSuffix.size();
-
-        for (size_t i = 0; i < errorList.size(); ++i) {
-            totalLength += std::to_string(i + 1).size() + 2; // index + ". "
-            totalLength += errorList[i].size();
-            if (i != errorList.size() - 1) {
-                totalLength += 2; // "; "
-            }
-        }
-
-        std::string result;
-        result.reserve(totalLength);
-
-        result.append(msgPrefix);
-        result.append(middlePart);
-        result.append(std::to_string(errorList.size()));
-        result.append(countSuffix);
-
-        for (size_t i = 0; i < errorList.size(); ++i) {
-            result.append(std::to_string(i + 1));
-            result.append(". ");
-            result.append(errorList[i]);
-            if (i != errorList.size() - 1) {
-                result.append(";\n");
-            }
-        }
-
-        return result;
     }
 
 }

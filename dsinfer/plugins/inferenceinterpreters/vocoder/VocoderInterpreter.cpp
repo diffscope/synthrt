@@ -5,6 +5,8 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
+#include <InterpreterCommon/ErrorCollector.h>
+
 #include "VocoderInference.h"
 
 namespace ds {
@@ -13,7 +15,7 @@ namespace ds {
     namespace Vo = Api::Vocoder::L1;
 
     static inline std::string formatErrorMessage(const std::string &msgPrefix,
-                                             const std::vector<std::string> &errorList);
+                                                 const std::vector<std::string> &errorList);
 
     VocoderInterpreter::VocoderInterpreter() = default;
 
@@ -46,26 +48,20 @@ namespace ds {
         auto result = srt::NO<Vo::VocoderConfiguration>::create();
 
         // Collect all the errors and return to user
-        bool hasErrors = false;
-        std::vector<std::string> errorList;
-
-        auto collectError = [&](auto &&msg) {
-            hasErrors = true;
-            errorList.emplace_back(std::forward<decltype(msg)>(msg));
-        };
+        InterpreterCommon::ErrorCollector ec;
 
         // [REQUIRED] model, path (json value is string)
         {
             static_assert(std::is_same_v<decltype(result->model), std::filesystem::path>);
             if (const auto it = config.find("model"); it != config.end()) {
                 if (!it->second.isString()) {
-                    collectError(R"(string field "model" type mismatch)");
+                    ec.collectError(R"(string field "model" type mismatch)");
                 } else {
                     result->model = stdc::path::clean_path(
                         spec->path() / stdc::path::from_utf8(it->second.toStringView()));
                 }
             } else {
-                collectError(R"(string field "model" is missing)");
+                ec.collectError(R"(string field "model" is missing)");
             }
         } // model
 
@@ -76,7 +72,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->sampleRate = static_cast<int>(it->second.toInt(result->sampleRate));
                 } else {
-                    collectError(R"(integer field "sampleRate" type mismatch)");
+                    ec.collectError(R"(integer field "sampleRate" type mismatch)");
                 }
             }
         } // sampleRate
@@ -88,7 +84,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->hopSize = static_cast<int>(it->second.toInt(result->hopSize));
                 } else {
-                    collectError(R"(integer field "hopSize" type mismatch)");
+                    ec.collectError(R"(integer field "hopSize" type mismatch)");
                 }
             }
         } // hopSize
@@ -100,7 +96,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->winSize = static_cast<int>(it->second.toInt(result->winSize));
                 } else {
-                    collectError(R"(integer field "winSize" type mismatch)");
+                    ec.collectError(R"(integer field "winSize" type mismatch)");
                 }
             }
         } // winSize
@@ -112,7 +108,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->fftSize = static_cast<int>(it->second.toInt(result->fftSize));
                 } else {
-                    collectError(R"(integer field "fftSize" type mismatch)");
+                    ec.collectError(R"(integer field "fftSize" type mismatch)");
                 }
             }
         } // fftSize
@@ -124,7 +120,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->melChannels = static_cast<int>(it->second.toInt(result->melChannels));
                 } else {
-                    collectError(R"(integer field "melChannels" type mismatch)");
+                    ec.collectError(R"(integer field "melChannels" type mismatch)");
                 }
             }
         } // melChannels
@@ -136,7 +132,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->melMinFreq = static_cast<int>(it->second.toInt(result->melMinFreq));
                 } else {
-                    collectError(R"(integer field "melMinFreq" type mismatch)");
+                    ec.collectError(R"(integer field "melMinFreq" type mismatch)");
                 }
             }
         } // melMinFreq
@@ -148,7 +144,7 @@ namespace ds {
                 if (it->second.isNumber()) {
                     result->melMaxFreq = static_cast<int>(it->second.toInt(result->melMaxFreq));
                 } else {
-                    collectError(R"(integer field "melMaxFreq" type mismatch)");
+                    ec.collectError(R"(integer field "melMaxFreq" type mismatch)");
                 }
             }
         } // melMaxFreq
@@ -164,7 +160,7 @@ namespace ds {
                 } else if (melBaseLower == "10") {
                     result->melBase = Co::MelBase_10;
                 } else {
-                    collectError(stdc::formatN(
+                    ec.collectError(stdc::formatN(
                         R"(enum string field "melBase" invalid: expect "e", "10"; got "%1")",
                         melBase));
                 }
@@ -182,17 +178,17 @@ namespace ds {
                 } else if (melScaleLower == "htk") {
                     result->melScale = Co::MelScale_HTK;
                 } else {
-                    collectError(stdc::format(
+                    ec.collectError(stdc::format(
                         R"(enum string field "melScale" invalid: expect "slaney", "htk"; got "%1")",
                         melScale));
                 }
             }
         } // melScale
 
-        if (hasErrors) {
+        if (ec.hasErrors()) {
             return srt::Error{
                 srt::Error::InvalidFormat,
-                formatErrorMessage("error parsing vocoder configuration", errorList),
+                ec.getErrorMessage("error parsing vocoder configuration"),
             };
         }
         return result;
@@ -211,42 +207,6 @@ namespace ds {
         const srt::NO<srt::InferenceRuntimeOptions> &runtimeOptions) {
         // TODO: importOptions 和 runtimeOptions 均可读取作为参考
         return srt::NO<VocoderInference>::create(spec);
-    }
-
-    static inline std::string formatErrorMessage(const std::string &msgPrefix,
-                                                 const std::vector<std::string> &errorList) {
-        const std::string middlePart = " (";
-        const std::string countSuffix = " errors found):\n";
-
-        size_t totalLength = msgPrefix.size() + middlePart.size() +
-                             std::to_string(errorList.size()).size() + countSuffix.size();
-
-        for (size_t i = 0; i < errorList.size(); ++i) {
-            totalLength += std::to_string(i + 1).size() + 2; // index + ". "
-            totalLength += errorList[i].size();
-            if (i != errorList.size() - 1) {
-                totalLength += 2; // "; "
-            }
-        }
-
-        std::string result;
-        result.reserve(totalLength);
-
-        result.append(msgPrefix);
-        result.append(middlePart);
-        result.append(std::to_string(errorList.size()));
-        result.append(countSuffix);
-
-        for (size_t i = 0; i < errorList.size(); ++i) {
-            result.append(std::to_string(i + 1));
-            result.append(". ");
-            result.append(errorList[i]);
-            if (i != errorList.size() - 1) {
-                result.append(";\n");
-            }
-        }
-
-        return result;
     }
 
 }
