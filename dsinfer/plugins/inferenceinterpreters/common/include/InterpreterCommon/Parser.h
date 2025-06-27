@@ -93,6 +93,27 @@ namespace ds::InterpreterCommon {
         ErrorCollector *ec;
         const srt::JsonObject *pSchema;
     };
+
+    class ImportOptionsParser {
+    public:
+        ImportOptionsParser(const srt::InferenceSpec *spec_, ErrorCollector *ec_,
+                            const srt::JsonObject &options_)
+            : spec(spec_), ec(ec_), pOptions(&options_) {
+        }
+
+        inline void parse_speakerMapping(std::map<std::string, std::string> &out);
+
+        template <typename T>
+        inline void collectError(T &&msg) {
+            if (ec) {
+                ec->collectError(std::forward<T>(msg));
+            }
+        }
+    private:
+        const srt::InferenceSpec *spec;
+        ErrorCollector *ec;
+        const srt::JsonObject *pOptions;
+    };
 }
 
 #include "detail/Parser_impl.h"

@@ -1,11 +1,8 @@
 #include "AcousticInterpreter.h"
 
-#include <utility>
-
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 #include <stdcorelib/str.h>
 
-#include <InterpreterCommon/SpeakerEmbedding.h>
 #include <InterpreterCommon/ErrorCollector.h>
 #include <InterpreterCommon/Parser.h>
 
@@ -129,7 +126,8 @@ namespace ds {
         {
             static_assert(std::is_same_v<decltype(result->speakers),
                                          std::map<std::string, std::vector<float>>>);
-            parser.parse_speakers_and_load_emb(result->useSpeakerEmbedding, result->hiddenSize, result->speakers);
+            parser.parse_speakers_and_load_emb(result->useSpeakerEmbedding, result->hiddenSize,
+                                               result->speakers);
         } // speakers
 
         // [REQUIRED] model, path (json value is string)
@@ -148,7 +146,8 @@ namespace ds {
         // useContinuousAcceleration, bool
         {
             static_assert(std::is_same_v<decltype(result->useContinuousAcceleration), bool>);
-            parser.parse_bool_optional(result->useContinuousAcceleration, "useContinuousAcceleration");
+            parser.parse_bool_optional(result->useContinuousAcceleration,
+                                       "useContinuousAcceleration");
         } // useContinuousAcceleration
 
         // useVariableDepth, bool
@@ -234,39 +233,30 @@ namespace ds {
         if (!options.isObject()) {
             return srt::Error{
                 srt::Error::InvalidFormat,
-                "invalid acoustic import options format: import options JSON should be an object",
+                "error parsing acoustic import options: import options JSON should be an object",
             };
         }
         const auto &obj = options.toObject();
         auto result = srt::NO<Ac::AcousticImportOptions>::create();
 
+        // Collect all the errors and return to user
+        InterpreterCommon::ErrorCollector ec;
+
+        InterpreterCommon::ImportOptionsParser parser(spec, &ec, obj);
+
         // speakerMapping
         {
             static_assert(std::is_same_v<decltype(result->speakerMapping),
                                          std::map<std::string, std::string>>);
-            if (auto it = obj.find("speakerMapping"); it != obj.end()) {
-                auto val = it->second;
-                if (!val.isObject()) {
-                    return srt::Error{
-                        srt::Error::InvalidFormat,
-                        "invalid acoustic import options format: "
-                        R"(object field "speakerMapping" type mismatch)",
-                    };
-                }
-                const auto &speakerMappingObj = val.toObject();
-                for (const auto &[speakerKey, speakerValue] : std::as_const(speakerMappingObj)) {
-                    if (!speakerValue.isString()) {
-                        return srt::Error{
-                            srt::Error::InvalidFormat,
-                            "invalid acoustic import options format: "
-                            R"(object field "speakerMapping" values type mismatch: string expected)",
-                        };
-                    }
-                    result->speakerMapping[speakerKey] = speakerValue.toString();
-                }
-            }
+            parser.parse_speakerMapping(result->speakerMapping);
         } // speakerMapping
 
+        if (ec.hasErrors()) {
+            return srt::Error{
+                srt::Error::InvalidFormat,
+                ec.getErrorMessage("error parsing acoustic import options"),
+            };
+        }
         return result;
     }
 

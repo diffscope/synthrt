@@ -490,6 +490,29 @@ namespace ds::InterpreterCommon {
             // nothing to do: optional field
         }
     }
+
+    inline void ImportOptionsParser::parse_speakerMapping(std::map<std::string, std::string> &out) {
+        const auto &options = *pOptions;
+
+        if (auto it = options.find("speakerMapping"); it != options.end()) {
+            auto val = it->second;
+            if (!val.isObject()) {
+                collectError(R"(object field "speakerMapping" type mismatch)");
+                return;
+            }
+
+            const auto &speakerMappingObj = val.toObject();
+            for (const auto &[speakerKey, speakerValue] : std::as_const(speakerMappingObj)) {
+                if (!speakerValue.isString()) {
+                    collectError(
+                        R"(object field "speakerMapping" values type mismatch: string expected)");
+                    continue;
+                }
+
+                out[speakerKey] = speakerValue.toString();
+            }
+        }
+    }
 }
 
 #endif // DSINFER_INTERPRETER_COMMON_PARSER_IMPL_H
