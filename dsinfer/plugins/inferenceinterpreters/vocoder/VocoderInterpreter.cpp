@@ -3,9 +3,9 @@
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 #include <stdcorelib/str.h>
-#include <stdcorelib/path.h>
 
 #include <InterpreterCommon/ErrorCollector.h>
+#include <InterpreterCommon/Parser.h>
 
 #include "VocoderInference.h"
 
@@ -13,9 +13,6 @@ namespace ds {
 
     namespace Co = Api::Common::L1;
     namespace Vo = Api::Vocoder::L1;
-
-    static inline std::string formatErrorMessage(const std::string &msgPrefix,
-                                                 const std::vector<std::string> &errorList);
 
     VocoderInterpreter::VocoderInterpreter() = default;
 
@@ -50,139 +47,66 @@ namespace ds {
         // Collect all the errors and return to user
         InterpreterCommon::ErrorCollector ec;
 
+        InterpreterCommon::ConfigurationParser parser(spec, &ec);
+
         // [REQUIRED] model, path (json value is string)
         {
             static_assert(std::is_same_v<decltype(result->model), std::filesystem::path>);
-            if (const auto it = config.find("model"); it != config.end()) {
-                if (!it->second.isString()) {
-                    ec.collectError(R"(string field "model" type mismatch)");
-                } else {
-                    result->model = stdc::path::clean_path(
-                        spec->path() / stdc::path::from_utf8(it->second.toStringView()));
-                }
-            } else {
-                ec.collectError(R"(string field "model" is missing)");
-            }
+            parser.parse_path_required(result->model, "model");
         } // model
 
         // sampleRate, int
         {
             static_assert(std::is_same_v<decltype(result->sampleRate), int>);
-            if (const auto it = config.find("sampleRate"); it != config.end()) {
-                if (it->second.isNumber()) {
-                    result->sampleRate = static_cast<int>(it->second.toInt(result->sampleRate));
-                } else {
-                    ec.collectError(R"(integer field "sampleRate" type mismatch)");
-                }
-            }
+            parser.parse_positive_int_optional(result->sampleRate, "sampleRate");
         } // sampleRate
 
         // hopSize, int
         {
             static_assert(std::is_same_v<decltype(result->hopSize), int>);
-            if (const auto it = config.find("hopSize"); it != config.end()) {
-                if (it->second.isNumber()) {
-                    result->hopSize = static_cast<int>(it->second.toInt(result->hopSize));
-                } else {
-                    ec.collectError(R"(integer field "hopSize" type mismatch)");
-                }
-            }
+            parser.parse_positive_int_optional(result->hopSize, "hopSize");
         } // hopSize
 
         // winSize, int
         {
             static_assert(std::is_same_v<decltype(result->winSize), int>);
-            if (const auto it = config.find("winSize"); it != config.end()) {
-                if (it->second.isNumber()) {
-                    result->winSize = static_cast<int>(it->second.toInt(result->winSize));
-                } else {
-                    ec.collectError(R"(integer field "winSize" type mismatch)");
-                }
-            }
+            parser.parse_positive_int_optional(result->winSize, "winSize");
         } // winSize
 
         // fftSize, int
         {
             static_assert(std::is_same_v<decltype(result->fftSize), int>);
-            if (const auto it = config.find("fftSize"); it != config.end()) {
-                if (it->second.isNumber()) {
-                    result->fftSize = static_cast<int>(it->second.toInt(result->fftSize));
-                } else {
-                    ec.collectError(R"(integer field "fftSize" type mismatch)");
-                }
-            }
+            parser.parse_positive_int_optional(result->fftSize, "fftSize");
         } // fftSize
 
         // melChannels, int
         {
             static_assert(std::is_same_v<decltype(result->melChannels), int>);
-            if (const auto it = config.find("melChannels"); it != config.end()) {
-                if (it->second.isNumber()) {
-                    result->melChannels = static_cast<int>(it->second.toInt(result->melChannels));
-                } else {
-                    ec.collectError(R"(integer field "melChannels" type mismatch)");
-                }
-            }
+            parser.parse_positive_int_optional(result->melChannels, "melChannels");
         } // melChannels
 
         // melMinFreq, int
         {
             static_assert(std::is_same_v<decltype(result->melMinFreq), int>);
-            if (const auto it = config.find("melMinFreq"); it != config.end()) {
-                if (it->second.isNumber()) {
-                    result->melMinFreq = static_cast<int>(it->second.toInt(result->melMinFreq));
-                } else {
-                    ec.collectError(R"(integer field "melMinFreq" type mismatch)");
-                }
-            }
+            parser.parse_positive_int_optional(result->melMinFreq, "melMinFreq");
         } // melMinFreq
 
         // melMaxFreq, int
         {
             static_assert(std::is_same_v<decltype(result->melMaxFreq), int>);
-            if (const auto it = config.find("melMaxFreq"); it != config.end()) {
-                if (it->second.isNumber()) {
-                    result->melMaxFreq = static_cast<int>(it->second.toInt(result->melMaxFreq));
-                } else {
-                    ec.collectError(R"(integer field "melMaxFreq" type mismatch)");
-                }
-            }
+            parser.parse_positive_int_optional(result->melMaxFreq, "melMaxFreq");
         } // melMaxFreq
 
         // melBase, enum (json values are strings, case-insensitive)
         {
             static_assert(std::is_same_v<decltype(result->melBase), Co::MelBase>);
-            if (const auto it = config.find("melBase"); it != config.end()) {
-                const auto melBase = it->second.toString();
-                const auto melBaseLower = stdc::to_lower(melBase);
-                if (melBaseLower == "e") {
-                    result->melBase = Co::MelBase_E;
-                } else if (melBaseLower == "10") {
-                    result->melBase = Co::MelBase_10;
-                } else {
-                    ec.collectError(stdc::formatN(
-                        R"(enum string field "melBase" invalid: expect "e", "10"; got "%1")",
-                        melBase));
-                }
-            }
+            parser.parse_melBase_optional(result->melBase);
         } // melBase
 
         // melScale, enum (json value is string, case-insensitive)
         {
             static_assert(std::is_same_v<decltype(result->melScale), Co::MelScale>);
-            if (const auto it = config.find("melScale"); it != config.end()) {
-                const auto melScale = it->second.toString();
-                const auto melScaleLower = stdc::to_lower(melScale);
-                if (melScaleLower == "slaney") {
-                    result->melScale = Co::MelScale_Slaney;
-                } else if (melScaleLower == "htk") {
-                    result->melScale = Co::MelScale_HTK;
-                } else {
-                    ec.collectError(stdc::format(
-                        R"(enum string field "melScale" invalid: expect "slaney", "htk"; got "%1")",
-                        melScale));
-                }
-            }
+            parser.parse_melScale_optional(result->melScale);
         } // melScale
 
         if (ec.hasErrors()) {
