@@ -21,6 +21,20 @@ namespace ds {
     namespace Onnx = Api::Onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
+    static inline srt::Expected<srt::NO<Vo::VocoderConfiguration>>
+        getConfig(const srt::InferenceSpec *spec) {
+
+        const auto genericConfig = spec->configuration();
+        if (!genericConfig) {
+            return srt::Error(srt::Error::InvalidArgument, "vocoder configuration is nullptr");
+        }
+        if (!(genericConfig->className() == Vo::API_CLASS &&
+              genericConfig->objectName() == Vo::API_NAME)) {
+            return srt::Error(srt::Error::InvalidArgument, "invalid vocoder configuration");
+        }
+        return genericConfig.as<Vo::VocoderConfiguration>();
+    }
+
     class VocoderInference::Impl {
     public:
         srt::NO<Vo::VocoderResult> result;
@@ -50,17 +64,31 @@ namespace ds {
         }
         auto acousticArgs = args.as<srt::TaskInitArgs>();
 
+        std::unique_lock<std::shared_mutex> lock(impl.mutex);
+
         // If there are existing result, they will be cleared.
-        {
-            std::unique_lock<std::shared_mutex> lock(impl.mutex);
-            impl.result.reset();
-        }
+        impl.result.reset();
 
         if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
             impl.driver = res.take();
         } else {
             setState(Failed);
             return res.takeError();
+        }
+
+        auto expConfig = getConfig(spec());
+        if (!expConfig) {
+            setState(Failed);
+            return expConfig.takeError();
+        }
+        const auto config = expConfig.take();
+
+        impl.session = impl.driver->createSession();
+        auto sessionOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
+        sessionOpenArgs->useCpu = false;
+        if (auto res = impl.session->open(config->model, sessionOpenArgs); !res) {
+            setState(Failed);
+            return res;
         }
 
         return srt::Expected<void>();
@@ -77,17 +105,12 @@ namespace ds {
 
         setState(Running);
 
-        auto genericConfig = spec()->configuration();
-        if (!genericConfig) {
+        auto expConfig = getConfig(spec());
+        if (!expConfig) {
             setState(Failed);
-            return srt::Error(srt::Error::InvalidArgument, "vocoder configuration is nullptr");
+            return expConfig.takeError();
         }
-        if (!(genericConfig->className() == Vo::API_CLASS &&
-              genericConfig->objectName() == Vo::API_NAME)) {
-            setState(Failed);
-            return srt::Error(srt::Error::InvalidArgument, "invalid vocoder configuration");
-              }
-        auto config = genericConfig.as<Vo::VocoderConfiguration>();
+        const auto config = expConfig.take();
 
         if (!input) {
             setState(Failed);
@@ -102,7 +125,7 @@ namespace ds {
                               Vo::API_NAME, name));
         }
 
-        auto vocoderInput = input.as<Vo::VocoderStartInput>();
+        const auto vocoderInput = input.as<Vo::VocoderStartInput>();
         // ...
 
         auto sessionInput = srt::NO<Onnx::SessionStartInput>::create();
@@ -113,13 +136,11 @@ namespace ds {
         sessionInput->outputs.emplace(outParamWaveform);
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
-        impl.session = impl.driver->createSession();
-        auto sessionOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
-        sessionOpenArgs->useCpu = false;
-        if (auto res = impl.session->open(config->model, sessionOpenArgs); !res) {
+        if (!impl.session || !impl.session->isOpen()) {
             setState(Failed);
-            return res;
+            return srt::Error(srt::Error::SessionError, "vocoder session is not initialized");
         }
+
         auto sessionExp = impl.session->start(sessionInput);
         if (!sessionExp) {
             setState(Failed);
@@ -135,7 +156,8 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
         auto sessionResult = result.as<Onnx::SessionResult>();
-        if (auto it_waveform = sessionResult->outputs.find(outParamWaveform); it_waveform != sessionResult->outputs.end()) {
+        if (auto it_waveform = sessionResult->outputs.find(outParamWaveform);
+            it_waveform != sessionResult->outputs.end()) {
             const auto &waveformTensor = it_waveform->second;
             const auto size = waveformTensor->byteSize();
             impl.result->audioData.resize(size);

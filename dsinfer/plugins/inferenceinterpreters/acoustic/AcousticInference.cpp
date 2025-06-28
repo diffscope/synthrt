@@ -30,6 +30,20 @@ namespace ds {
     namespace Onnx = Api::Onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
+    static inline srt::Expected<srt::NO<Ac::AcousticConfiguration>>
+        getConfig(const srt::InferenceSpec *spec) {
+
+        const auto genericConfig = spec->configuration();
+        if (!genericConfig) {
+            return srt::Error(srt::Error::InvalidArgument, "acoustic configuration is nullptr");
+        }
+        if (!(genericConfig->className() == Ac::API_CLASS &&
+              genericConfig->objectName() == Ac::API_NAME)) {
+            return srt::Error(srt::Error::InvalidArgument, "invalid acoustic configuration");
+        }
+        return genericConfig.as<Ac::AcousticConfiguration>();
+    }
+
     class AcousticInference::Impl {
     public:
         srt::NO<Ac::AcousticResult> result;
@@ -59,17 +73,30 @@ namespace ds {
         }
         auto acousticArgs = args.as<srt::TaskInitArgs>();
 
+        std::unique_lock<std::shared_mutex> lock(impl.mutex);
         // If there are existing result, they will be cleared.
-        {
-            std::unique_lock<std::shared_mutex> lock(impl.mutex);
-            impl.result.reset();
-        }
+        impl.result.reset();
 
         if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
             impl.driver = res.take();
         } else {
             setState(Failed);
             return res.takeError();
+        }
+
+        auto expConfig = getConfig(spec());
+        if (!expConfig) {
+            setState(Failed);
+            return expConfig.takeError();
+        }
+        const auto config = expConfig.take();
+
+        impl.session = impl.driver->createSession();
+        auto sessionOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
+        sessionOpenArgs->useCpu = false;
+        if (auto res = impl.session->open(config->model, sessionOpenArgs); !res) {
+            setState(Failed);
+            return res;
         }
 
         // Initialize inference state
@@ -91,17 +118,12 @@ namespace ds {
 
         setState(Running);
 
-        auto genericConfig = spec()->configuration();
-        if (!genericConfig) {
+        auto expConfig = getConfig(spec());
+        if (!expConfig) {
             setState(Failed);
-            return srt::Error(srt::Error::InvalidArgument, "acoustic configuration is nullptr");
+            return expConfig.takeError();
         }
-        if (!(genericConfig->className() == Ac::API_CLASS &&
-              genericConfig->objectName() == Ac::API_NAME)) {
-            setState(Failed);
-            return srt::Error(srt::Error::InvalidArgument, "invalid acoustic configuration");
-        }
-        auto config = genericConfig.as<Ac::AcousticConfiguration>();
+        const auto config = expConfig.take();
 
         if (!input) {
             setState(Failed);
@@ -116,16 +138,16 @@ namespace ds {
                               Ac::API_NAME, name));
         }
 
-        auto acousticInput = input.as<Ac::AcousticStartInput>();
+        const auto acousticInput = input.as<Ac::AcousticStartInput>();
         // ...
 
         auto sessionInput = srt::NO<Onnx::SessionStartInput>::create();
 
-        double frameLength = 1.0 * config->hopSize / config->sampleRate;
+        double frameWidth = 1.0 * config->hopSize / config->sampleRate;
 
         // input param: tokens
         if (auto res =
-                InterpreterCommon::parsePhonemeTokens(acousticInput->words, config->phonemes);
+                InterpreterCommon::preprocessPhonemeTokens(acousticInput->words, config->phonemes);
             res) {
             sessionInput->inputs["tokens"] = res.take();
         } else {
@@ -135,8 +157,8 @@ namespace ds {
 
         // input param: languages
         if (config->useLanguageId) {
-            if (auto res = InterpreterCommon::parsePhonemeLanguages(acousticInput->words,
-                                                                    config->languages);
+            if (auto res = InterpreterCommon::preprocessPhonemeLanguages(acousticInput->words,
+                                                                         config->languages);
                 res) {
                 sessionInput->inputs["languages"] = res.take();
             } else {
@@ -148,8 +170,8 @@ namespace ds {
         // input param: durations
         int64_t targetLength;
 
-        if (auto res = InterpreterCommon::parsePhonemeDurations(acousticInput->words, frameLength,
-                                                                &targetLength);
+        if (auto res = InterpreterCommon::preprocessPhonemeDurations(acousticInput->words,
+                                                                     frameWidth, &targetLength);
             res) {
             sessionInput->inputs["durations"] = res.take();
         } else {
@@ -222,7 +244,7 @@ namespace ds {
 
             // Resample the parameters to target time step,
             // and resize to target frame length (fill with last value)
-            auto resampled = InterpreterCommon::resample(param.values, param.interval, frameLength,
+            auto resampled = InterpreterCommon::resample(param.values, param.interval, frameWidth,
                                                          targetLength, true);
             if (resampled.empty()) {
                 // These parameters are optional
@@ -311,7 +333,7 @@ namespace ds {
             const auto &pitchParam = *pPitchParam;
             // Resample pitch
             auto pitchSamples = InterpreterCommon::resample(pitchParam.values, pitchParam.interval,
-                                                            frameLength, targetLength, true);
+                                                            frameWidth, targetLength, true);
             if (pitchSamples.size() != targetLength) {
                 setState(Failed);
                 return srt::Error(srt::Error::SessionError, "parameter " +
@@ -323,9 +345,8 @@ namespace ds {
             if (pToneShiftParam) {
                 // Needs tone shift
                 const auto &toneShiftParam = *pToneShiftParam;
-                toneShiftSamples =
-                    InterpreterCommon::resample(toneShiftParam.values, toneShiftParam.interval,
-                                                frameLength, targetLength, true);
+                toneShiftSamples = InterpreterCommon::resample(
+                    toneShiftParam.values, toneShiftParam.interval, frameWidth, targetLength, true);
                 if (!toneShiftSamples.empty()) {
                     if (toneShiftSamples.size() != targetLength) {
                         setState(Failed);
@@ -437,7 +458,7 @@ namespace ds {
                                 "speaker embedding vector length does not match hiddenSize");
                         }
                         auto resampled = InterpreterCommon::resample(
-                            speaker.proportions, speaker.interval, frameLength, targetLength, true);
+                            speaker.proportions, speaker.interval, frameWidth, targetLength, true);
                         for (size_t i = 0; i < resampled.size(); ++i) {
                             for (size_t j = 0; j < embedding.size(); ++j) {
                                 float &val = buffer[i * embedding.size() + j];
@@ -462,13 +483,11 @@ namespace ds {
         sessionInput->outputs.emplace(outParamMel);
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
-        impl.session = impl.driver->createSession();
-        auto sessionOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
-        sessionOpenArgs->useCpu = false;
-        if (auto res = impl.session->open(config->model, sessionOpenArgs); !res) {
+        if (!impl.session || !impl.session->isOpen()) {
             setState(Failed);
-            return res;
+            return srt::Error(srt::Error::SessionError, "acoustic session is not initialized");
         }
+
         auto sessionExp = impl.session->start(sessionInput);
         if (!sessionExp) {
             setState(Failed);

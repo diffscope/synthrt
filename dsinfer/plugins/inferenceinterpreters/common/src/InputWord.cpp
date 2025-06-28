@@ -27,15 +27,15 @@ namespace ds::InterpreterCommon {
     }
 
     srt::Expected<srt::NO<ITensor>>
-        parsePhonemeTokens(const std::vector<Co::InputWordInfo> &words,
-                           const std::map<std::string, int> &name2token) {
+        preprocessPhonemeTokens(const std::vector<Co::InputWordInfo> &words,
+                                const std::map<std::string, int> &tokens) {
 
         constexpr const char *SP_TOKEN = "SP";
         constexpr const char *AP_TOKEN = "AP";
 
         using TensorType = int64_t;
         auto phoneCount = getPhoneCount(words);
-        auto exp = InterpreterCommon::TensorHelper<TensorType>::createFor1DArray(phoneCount);
+        auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
             return exp.takeError();
         }
@@ -49,10 +49,10 @@ namespace ds::InterpreterCommon {
                         ? phone.token
                         : (phone.language + '/' + phone.token);
 
-                if (const auto it1 = name2token.find(tokenWithLang); it1 != name2token.end()) {
+                if (const auto it1 = tokens.find(tokenWithLang); it1 != tokens.end()) {
                     // first try finding the phoneme with the language tag (lang/phoneme)
                     helper.write(it1->second);
-                } else if (const auto it2 = name2token.find(phone.token); it2 != name2token.end()) {
+                } else if (const auto it2 = tokens.find(phone.token); it2 != tokens.end()) {
                     // then try finding the phoneme without the language tag (phoneme)
                     helper.write(it2->second);
                 } else {
@@ -69,12 +69,13 @@ namespace ds::InterpreterCommon {
         return helper.take();
     }
 
-    srt::Expected<srt::NO<ITensor>> parsePhonemeLanguages(
-        const std::vector<Co::InputWordInfo> &words, const std::map<std::string, int> &languages) {
+    srt::Expected<srt::NO<ITensor>>
+        preprocessPhonemeLanguages(const std::vector<Co::InputWordInfo> &words,
+                                   const std::map<std::string, int> &languages) {
 
         auto phoneCount = getPhoneCount(words);
         using TensorType = int64_t;
-        auto exp = InterpreterCommon::TensorHelper<TensorType>::createFor1DArray(phoneCount);
+        auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
             return exp.takeError();
         }
@@ -100,13 +101,13 @@ namespace ds::InterpreterCommon {
         return helper.take();
     }
 
-    srt::Expected<srt::NO<ITensor>> parsePhonemeDurations(
-        const std::vector<Co::InputWordInfo> &words, double frameLength,
-        int64_t *outTargetLength) {
+    srt::Expected<srt::NO<ITensor>>
+        preprocessPhonemeDurations(const std::vector<Co::InputWordInfo> &words, double frameWidth,
+                                   int64_t *outTargetLength) {
 
         auto phoneCount = getPhoneCount(words);
         using TensorType = int64_t;
-        auto exp = InterpreterCommon::TensorHelper<TensorType>::createFor1DArray(phoneCount);
+        auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
             return exp.takeError();
         }
@@ -135,8 +136,8 @@ namespace ds::InterpreterCommon {
                             nextPhoneStart += nextWord.phones[0].start;
                         }
                     }
-                    int64_t currPhoneStartFrames = std::llround(currPhoneStart / frameLength);
-                    int64_t nextPhoneStartFrames = std::llround(nextPhoneStart / frameLength);
+                    int64_t currPhoneStartFrames = std::llround(currPhoneStart / frameWidth);
+                    int64_t nextPhoneStartFrames = std::llround(nextPhoneStart / frameWidth);
                     int64_t currPhoneFrames = nextPhoneStartFrames - currPhoneStartFrames;
                     helper.write(currPhoneFrames);
                     targetLength += currPhoneFrames;
