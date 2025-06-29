@@ -76,6 +76,7 @@ namespace ds {
             return res.takeError();
         }
 
+        // Get vocoder config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             setState(Failed);
@@ -83,6 +84,7 @@ namespace ds {
         }
         const auto config = expConfig.take();
 
+        // Open vocoder session
         impl.session = impl.driver->createSession();
         auto sessionOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
         sessionOpenArgs->useCpu = false;
@@ -105,6 +107,7 @@ namespace ds {
 
         setState(Running);
 
+        // Get vocoder config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             setState(Failed);

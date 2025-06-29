@@ -1,6 +1,5 @@
 #include "AcousticInference.h"
 
-#include <fstream>
 #include <mutex>
 #include <shared_mutex>
 #include <utility>
@@ -22,6 +21,7 @@
 #include <InterpreterCommon/MathUtil.h>
 #include <InterpreterCommon/TensorHelper.h>
 #include <InterpreterCommon/InputWord.h>
+#include <InterpreterCommon/SpeakerEmbedding.h>
 
 namespace ds {
 
@@ -74,6 +74,7 @@ namespace ds {
         auto acousticArgs = args.as<srt::TaskInitArgs>();
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
+
         // If there are existing result, they will be cleared.
         impl.result.reset();
 
@@ -84,6 +85,7 @@ namespace ds {
             return res.takeError();
         }
 
+        // Get acoustic config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             setState(Failed);
@@ -91,6 +93,7 @@ namespace ds {
         }
         const auto config = expConfig.take();
 
+        // Open acoustic session
         impl.session = impl.driver->createSession();
         auto sessionOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
         sessionOpenArgs->useCpu = false;
@@ -118,6 +121,7 @@ namespace ds {
 
         setState(Running);
 
+        // Get acoustic config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             setState(Failed);
@@ -435,48 +439,17 @@ namespace ds {
                 return srt::Error(srt::Error::SessionError, "no speakers found in acoustic input");
             }
 
-            std::vector<int64_t> shape = {1, targetLength, config->hiddenSize};
-            if (auto exp = Tensor::create(ITensor::Float, shape); exp) {
-                // get tensor buffer
-                auto tensor = exp.take();
-                auto buffer = tensor->mutableData<float>();
-                if (!buffer) {
-                    setState(Failed);
-                    return srt::Error(srt::Error::SessionError,
-                                      "failed to create spk_embed tensor");
-                }
-
-                // mix speaker embedding
-                for (const auto &speaker : std::as_const(acousticInput->speakers)) {
-                    if (auto it_speaker = config->speakers.find(speaker.name);
-                        it_speaker != config->speakers.end()) {
-                        const auto &embedding = it_speaker->second;
-                        if (embedding.size() != config->hiddenSize) {
-                            setState(Failed);
-                            return srt::Error(
-                                srt::Error::SessionError,
-                                "speaker embedding vector length does not match hiddenSize");
-                        }
-                        auto resampled = InterpreterCommon::resample(
-                            speaker.proportions, speaker.interval, frameWidth, targetLength, true);
-                        for (size_t i = 0; i < resampled.size(); ++i) {
-                            for (size_t j = 0; j < embedding.size(); ++j) {
-                                float &val = buffer[i * embedding.size() + j];
-                                val =
-                                    std::fmaf(static_cast<float>(resampled[i]), embedding[j], val);
-                            }
-                        }
-                    } else {
-                        setState(Failed);
-                        return srt::Error(srt::Error::InvalidArgument,
-                                          "invalid speaker name: " + speaker.name);
-                    }
-                }
-                sessionInput->inputs["spk_embed"] = tensor;
+            auto exp = InterpreterCommon::preprocessSpeakerEmbeddingFrames(
+                acousticInput->speakers, config->speakers, config->hiddenSize, frameWidth,
+                targetLength);
+            if (exp) {
+                sessionInput->inputs["spk_embed"] = exp.take();
             } else {
                 setState(Failed);
                 return exp.takeError();
             }
+        } else {
+            // Nothing to do: speaker embedding is not supported
         }
 
         constexpr const char *outParamMel = "mel";
