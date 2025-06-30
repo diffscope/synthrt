@@ -22,6 +22,7 @@
 #include <InterpreterCommon/TensorHelper.h>
 #include <InterpreterCommon/InputWord.h>
 #include <InterpreterCommon/SpeakerEmbedding.h>
+#include <InterpreterCommon/Speedup.h>
 
 namespace ds {
 
@@ -183,19 +184,39 @@ namespace ds {
             return res.takeError();
         }
 
-        // input param: steps
+        // input param: steps / speedup
+        int64_t acceleration = acousticInput->steps;
+        if (!config->useContinuousAcceleration) {
+            acceleration = InterpreterCommon::getSpeedupFromSteps(acceleration);
+        }
         {
-            auto exp = Tensor::createScalar(acousticInput->steps);
+            auto exp = Tensor::createScalar<int64_t>(acceleration);
             if (!exp) {
                 setState(Failed);
                 return exp.takeError();
             }
-            sessionInput->inputs["steps"] = exp.take();
+            if (config->useContinuousAcceleration) {
+                sessionInput->inputs["steps"] = exp.take();
+            } else {
+                sessionInput->inputs["speedup"] = exp.take();
+            }
         }
 
         // input param: depth
-        {
-            auto exp = Tensor::createScalar(acousticInput->depth);
+        if (config->useVariableDepth) {
+            auto exp = Tensor::createScalar<float>(acousticInput->depth);
+            if (!exp) {
+                setState(Failed);
+                return exp.takeError();
+            }
+            sessionInput->inputs["depth"] = exp.take();
+        } else {
+            int64_t intDepth = std::llround(acousticInput->depth * 1000);
+            intDepth = (std::min) (intDepth, static_cast<int64_t>(config->maxDepth));
+            // make sure depth can be divided by speedup
+            intDepth = intDepth / acceleration * acceleration;
+
+            auto exp = Tensor::createScalar<int64_t>(intDepth);
             if (!exp) {
                 setState(Failed);
                 return exp.takeError();
