@@ -8,7 +8,8 @@
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 
 namespace ds {
-    srt::Expected<srt::NO<Api::Acoustic::L1::AcousticStartInput>> parseAcousticStartInput(const srt::JsonObject &obj);
+    srt::Expected<srt::NO<Api::Acoustic::L1::AcousticStartInput>>
+        parseAcousticStartInput(const srt::JsonObject &obj);
 }
 
 #endif // DSINFER_ACOUSTICINPUTPARSER_H

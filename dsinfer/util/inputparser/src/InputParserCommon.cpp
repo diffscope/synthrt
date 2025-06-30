@@ -1,4 +1,4 @@
-#include "AcousticInputParser.h"
+#include "InputParserCommon_p.h"
 
 #include <cctype>
 #include <optional>
@@ -7,22 +7,22 @@
 #include <vector>
 
 #include <stdcorelib/str.h>
-#include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
 namespace ds {
-    namespace Co = Api::Common::L1;
-    namespace Ac = Api::Acoustic::L1;
 
-    static inline std::optional<std::tuple<int, int, bool>>
-        parseLibrosaPitch(const std::string &s) {
+    namespace Co = Api::Common::L1;
+
+    static inline std::optional<std::tuple<int, int, bool>> parseLibrosaPitch(const std::string &s) {
         int n = (int) s.size();
         int i = 0, j = n - 1;
 
         // 0. skip leading and trailing spaces
-        while (i < n && std::isspace(static_cast<unsigned char>(s[i])))
+        while (i < n && std::isspace(static_cast<unsigned char>(s[i]))) {
             ++i;
-        while (j >= 0 && std::isspace(static_cast<unsigned char>(s[j])))
+        }
+        while (j >= 0 && std::isspace(static_cast<unsigned char>(s[j]))) {
             --j;
+        }
         if (i > j) {
             // spaces only
             return std::nullopt;
@@ -95,10 +95,9 @@ namespace ds {
         return std::make_optional(std::make_tuple(key, cents, false));
     }
 
-    static inline srt::Expected<void> parseValueCurve(const srt::JsonObject &parameter,
-                                                      const std::string &paramName,
-                                                      double &outInterval,
-                                                      std::vector<double> &outValues) {
+    srt::Expected<void> parseValueCurve(const srt::JsonObject &parameter,
+                                        const std::string &paramName, double &outInterval,
+                                        std::vector<double> &outValues) {
         // parameters[].dynamic optional field, default to false
         bool isDynamic = false;
         if (auto it_dynamic = parameter.find("dynamic"); it_dynamic != parameter.end()) {
@@ -190,8 +189,8 @@ namespace ds {
         return cents;
     }
 
-    static inline srt::Expected<void> parseWords(const srt::JsonObject &obj,
-                                                 std::vector<Co::InputWordInfo> &outWords) {
+    srt::Expected<void> parseWords(const srt::JsonObject &obj,
+                                   std::vector<Co::InputWordInfo> &outWords) {
         if (auto it_words = obj.find("words"); it_words != obj.end()) {
             if (!it_words->second.isArray()) {
                 return srt::Error(srt::Error::InvalidFormat, "words must be an array");
@@ -383,9 +382,8 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    static inline srt::Expected<void>
-        parseParameters(const srt::JsonObject &obj,
-                        std::vector<Co::InputParameterInfo> &outParameters) {
+    srt::Expected<void> parseParameters(const srt::JsonObject &obj,
+                                        std::vector<Co::InputParameterInfo> &outParameters) {
         if (auto it_parameters = obj.find("parameters"); it_parameters != obj.end()) {
             if (!it_parameters->second.isArray()) {
                 return srt::Error(srt::Error::InvalidFormat, "parameters must be an array");
@@ -471,8 +469,8 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    static inline srt::Expected<void>
-        parseSpeakers(const srt::JsonObject &obj, std::vector<Co::InputSpeakerInfo> &outSpeakers) {
+    srt::Expected<void> parseSpeakers(const srt::JsonObject &obj,
+                                      std::vector<Co::InputSpeakerInfo> &outSpeakers) {
         if (auto it_speakers = obj.find("speakers"); it_speakers != obj.end()) {
             if (!it_speakers->second.isArray()) {
                 return srt::Error(srt::Error::InvalidFormat, "speakers must be an array");
@@ -507,40 +505,4 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<srt::NO<Ac::AcousticStartInput>>
-        parseAcousticStartInput(const srt::JsonObject &obj) {
-        auto input = srt::NO<Ac::AcousticStartInput>::create();
-
-        if (auto it_duration = obj.find("duration"); it_duration != obj.end()) {
-            input->duration = it_duration->second.toDouble();
-        }
-
-        if (auto it_steps = obj.find("steps"); it_steps != obj.end()) {
-            if (!it_steps->second.isNumber()) {
-                return srt::Error(srt::Error::InvalidFormat, "steps must be a number");
-            }
-            input->steps = it_steps->second.toInt();
-        }
-
-        if (auto it_depth = obj.find("depth"); it_depth != obj.end()) {
-            if (!it_depth->second.isNumber()) {
-                return srt::Error(srt::Error::InvalidFormat, "depth must be a number");
-            }
-            input->depth = static_cast<float>(it_depth->second.toDouble());
-        }
-
-        if (auto exp = parseWords(obj, input->words); !exp) {
-            return exp.takeError();
-        }
-
-        if (auto exp = parseParameters(obj, input->parameters); !exp) {
-            return exp.takeError();
-        }
-
-        if (auto exp = parseSpeakers(obj, input->speakers); !exp) {
-            return exp.takeError();
-        }
-
-        return input;
-    }
 }
