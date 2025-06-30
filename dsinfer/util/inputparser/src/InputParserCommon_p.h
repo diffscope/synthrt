@@ -15,7 +15,7 @@ namespace ds {
     srt::Expected<void> parseWords(const srt::JsonObject &obj,
                                    std::vector<Api::Common::L1::InputWordInfo> &outWords);
     srt::Expected<void>
-        parseParameters(const srt::JsonObject &obj,
+        parseParameters(const srt::JsonObject &obj, bool pitchOnly,
                         std::vector<Api::Common::L1::InputParameterInfo> &outParameters);
 
     srt::Expected<void> parseSpeakers(const srt::JsonObject &obj,

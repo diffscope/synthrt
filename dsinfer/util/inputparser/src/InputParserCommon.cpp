@@ -382,7 +382,7 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<void> parseParameters(const srt::JsonObject &obj,
+    srt::Expected<void> parseParameters(const srt::JsonObject &obj, bool pitchOnly,
                                         std::vector<Co::InputParameterInfo> &outParameters) {
         if (auto it_parameters = obj.find("parameters"); it_parameters != obj.end()) {
             if (!it_parameters->second.isArray()) {
@@ -431,6 +431,9 @@ namespace ds {
                     }
                     return Co::InputParameterInfo{};
                 }();
+                if (pitchOnly && parameterInfo.tag != Co::Tags::Pitch) {
+                    continue;
+                }
                 if (parameterInfo.tag.name().empty()) {
                     return srt::Error(srt::Error::InvalidFormat,
                                       "parameters[].tag string unknown: " + tag);

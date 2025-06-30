@@ -1,14 +1,14 @@
-#include "AcousticInputParser.h"
+#include "VarianceInputParser.h"
 
 #include "InputParserCommon_p.h"
 
 namespace ds {
-    namespace Ac = Api::Acoustic::L1;
+    namespace Var = Api::Variance::L1;
 
-    srt::Expected<srt::NO<Ac::AcousticStartInput>>
-        parseAcousticStartInput(const srt::JsonObject &obj) {
+    srt::Expected<srt::NO<Var::VarianceStartInput>>
+        parseVarianceStartInput(const srt::JsonObject &obj) {
 
-        auto input = srt::NO<Ac::AcousticStartInput>::create();
+        auto input = srt::NO<Var::VarianceStartInput>::create();
 
         if (auto it_duration = obj.find("duration"); it_duration != obj.end()) {
             input->duration = it_duration->second.toDouble();
@@ -19,13 +19,6 @@ namespace ds {
                 return srt::Error(srt::Error::InvalidFormat, "steps must be a number");
             }
             input->steps = it_steps->second.toInt();
-        }
-
-        if (auto it_depth = obj.find("depth"); it_depth != obj.end()) {
-            if (!it_depth->second.isNumber()) {
-                return srt::Error(srt::Error::InvalidFormat, "depth must be a number");
-            }
-            input->depth = static_cast<float>(it_depth->second.toDouble());
         }
 
         if (auto exp = parseWords(obj, input->words); !exp) {
