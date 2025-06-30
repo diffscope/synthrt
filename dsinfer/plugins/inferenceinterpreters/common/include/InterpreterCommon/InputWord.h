@@ -18,14 +18,17 @@ namespace ds::InterpreterCommon {
 
     srt::Expected<srt::NO<ITensor>>
         preprocessPhonemeTokens(const std::vector<Api::Common::L1::InputWordInfo> &words,
-                           const std::map<std::string, int> &tokens);
+                                const std::map<std::string, int> &tokens);
 
     srt::Expected<srt::NO<ITensor>>
         preprocessPhonemeLanguages(const std::vector<Api::Common::L1::InputWordInfo> &words,
-                              const std::map<std::string, int> &languages);
+                                   const std::map<std::string, int> &languages);
 
     srt::Expected<srt::NO<ITensor>>
         preprocessPhonemeDurations(const std::vector<Api::Common::L1::InputWordInfo> &words,
-                              double frameWidth, int64_t *outTargetLength = nullptr);
+                                   double frameWidth, int64_t *outTargetLength = nullptr);
+
+    srt::Expected<srt::NO<ITensor>>
+        preprocessPhonemeMidi(const std::vector<Api::Common::L1::InputWordInfo> &words);
 }
 #endif // DSINFER_INTERPRETER_COMMON_INPUTWORD_H

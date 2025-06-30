@@ -393,6 +393,44 @@ namespace ds::InterpreterCommon {
         }
     }
 
+    inline void ConfigurationParser::parse_frameWidth(double &out) {
+        const auto &config = *pConfig;
+
+        if (const auto it = config.find("frameWidth"); it != config.end()) {
+            // `frameWidth` found
+            if (it->second.isNumber()) {
+                out = it->second.toDouble();
+            } else {
+                collectError(R"(float field "frameWidth" type mismatch)");
+            }
+        } else {
+            // `frameWidth` not found, fall back to `sampleRate` and `hopSize`
+            auto it_sampleRate = config.find("sampleRate");
+            auto it_hopSize = config.find("hopSize");
+            if (it_sampleRate != config.end() && it_hopSize != config.end()) {
+                // OK: Fields exist
+                if (it_sampleRate->second.isNumber() && it_hopSize->second.isNumber()) {
+                    // OK: Is a number
+                    auto sampleRate = it_sampleRate->second.toDouble();
+                    auto hopSize = it_hopSize->second.toDouble();
+                    if (sampleRate > 0 && hopSize > 0) {
+                        // OK: Is positive
+                        out = 1.0 * hopSize / sampleRate;
+                    } else {
+                        // Error: Not positive
+                        collectError(R"(integer fields "hopSize" and "hopSize" must be positive)");
+                    }
+                } else {
+                    // Error: Not a number
+                    collectError(R"(integer fields "hopSize" or "hopSize" type mismatch)");
+                }
+            } else {
+                // Error: `frameWidth` not found, and `sampleRate` `hopSize` also not found
+                collectError(R"(must specify either "frameWidth" or ("sampleRate and "hopSize")");
+            }
+        }
+    }
+
     template <ParameterType PT>
     inline void ConfigurationParser::parse_parameters(std::set<ParamTag> &out,
                                                       const std::string &fieldName) {

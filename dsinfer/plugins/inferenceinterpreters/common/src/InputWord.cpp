@@ -10,6 +10,65 @@
 namespace ds::InterpreterCommon {
     namespace Co = Api::Common::L1;
 
+    static inline bool fillRestMidiWithNearestInPlace(std::vector<int64_t> &midi,
+                                                      const std::vector<uint8_t> &isRest) {
+
+        if (midi.size() != isRest.size()) {
+            return false;
+        }
+
+        const size_t n = midi.size();
+
+        size_t start = 0;
+        while (start < n) {
+            // Skip non-rest elements
+            while (start < n && !isRest[start]) {
+                ++start;
+            }
+
+            if (start >= n)
+                break;
+
+            size_t end = start;
+            // Find contiguous rest region
+            while (end < n && isRest[end]) {
+                ++end;
+            }
+
+            // Handle [start, end)
+            if (start > 0 && end < n) {
+                // Middle segment
+                int64_t left_val = midi[start - 1];
+                int64_t right_val = midi[end];
+
+                size_t mid = start + (end - start + 1) / 2; // split evenly
+
+                for (size_t i = start; i < mid; ++i) {
+                    midi[i] = left_val;
+                }
+                for (size_t i = mid; i < end; ++i) {
+                    midi[i] = right_val;
+                }
+            } else if (start > 0) {
+                // End segment
+                int64_t fill_val = midi[start - 1];
+                for (size_t i = start; i < end; ++i) {
+                    midi[i] = fill_val;
+                }
+            } else if (end < n) {
+                // Start segment
+                int64_t fill_val = midi[end];
+                for (size_t i = start; i < end; ++i) {
+                    midi[i] = fill_val;
+                }
+            }
+
+            start = end;
+        }
+
+        return true;
+    }
+
     size_t getPhoneCount(const std::vector<Co::InputWordInfo> &words) {
         size_t phoneCount = 0;
         for (const auto &word : words) {
@@ -156,5 +215,54 @@ namespace ds::InterpreterCommon {
             *outTargetLength = targetLength;
         }
         return helper.take();
+    }
+
+    srt::Expected<srt::NO<ITensor>>
+        preprocessPhonemeMidi(const std::vector<Api::Common::L1::InputWordInfo> &words) {
+
+        auto phoneCount = getPhoneCount(words);
+
+        std::vector<uint8_t> isRest;
+        std::vector<int64_t> phMidi;
+        isRest.reserve(phoneCount);
+        phMidi.reserve(phoneCount);
+
+        for (const auto &word : words) {
+            if (word.notes.empty())
+                continue;
+
+            std::vector<double> cumDur;
+            double s = 0;
+            for (const auto &note : word.notes) {
+                s += note.duration;
+                cumDur.push_back(s);
+            }
+
+            for (const auto &phone : word.phones) {
+                size_t idx = 0;
+                while (idx < cumDur.size() && phone.start > cumDur[idx]) {
+                    ++idx;
+                }
+                if (idx >= word.notes.size())
+                    idx = word.notes.size() - 1;
+
+                const auto &note = word.notes[idx];
+                const auto rest = static_cast<uint8_t>(note.is_rest);
+                isRest.push_back(rest);
+                phMidi.push_back(rest ? 0 : note.key);
+            }
+
+            if (!fillRestMidiWithNearestInPlace(phMidi, isRest)) {
+                return srt::Error(srt::Error::SessionError, "failed to fill rest notes");
+            }
+        }
+
+        std::vector<int64_t> shape{1, static_cast<int64_t>(phMidi.size())};
+        if (auto exp = Tensor::createFromView<int64_t>(shape, stdc::array_view<int64_t>{phMidi});
+            exp) {
+            return exp.take();
+        } else {
+            return exp.takeError();
+        }
     }
 }

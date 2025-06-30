@@ -3,6 +3,8 @@ set(CURRENT_PLUGIN_CATEGORY ${_dir_name})
 
 add_subdirectory(common)
 
+add_subdirectory(duration)
+
 add_subdirectory(acoustic)
 
 add_subdirectory(vocoder)
