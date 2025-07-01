@@ -271,7 +271,6 @@ namespace ds {
                 setState(Failed);
                 return srt::Error(srt::Error::SessionError, "model output is empty");
             }
-            impl.result->interval = frameWidth;
             auto &finalResult = impl.result->durations;
             finalResult.assign(view.begin(), view.end());
             // Scale the results to adapt to original word sizes

@@ -106,7 +106,6 @@ namespace ds::Api::Duration::L1 {
         }
 
         std::vector<double> durations;
-        double interval = 0;
     };
 
 }
