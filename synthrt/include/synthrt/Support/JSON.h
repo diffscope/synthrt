@@ -1,9 +1,9 @@
 #ifndef SYNTHRT_JSON_H
 #define SYNTHRT_JSON_H
 
+#include <cstdint>
 #include <string>
 #include <string_view>
-#include <cstring>
 #include <map>
 #include <vector>
 #include <memory>

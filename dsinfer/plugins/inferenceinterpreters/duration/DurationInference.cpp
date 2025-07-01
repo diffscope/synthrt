@@ -1,5 +1,6 @@
 #include "DurationInference.h"
 
+#include <cmath>
 #include <fstream>
 #include <mutex>
 #include <numeric>

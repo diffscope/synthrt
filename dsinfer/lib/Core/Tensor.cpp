@@ -1,5 +1,6 @@
 #include "Tensor.h"
 
+#include <cstdint>
 #include <limits>
 
 namespace ds {

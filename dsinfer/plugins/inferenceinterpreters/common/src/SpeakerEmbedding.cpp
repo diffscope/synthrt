@@ -1,6 +1,7 @@
 #include <InterpreterCommon/SpeakerEmbedding.h>
 
 #include <fstream>
+#include <utility>
 
 #include <stdcorelib/path.h>
 

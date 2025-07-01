@@ -1,6 +1,7 @@
 #include "InputParserCommon_p.h"
 
 #include <cctype>
+#include <cmath>
 #include <optional>
 #include <string>
 #include <tuple>

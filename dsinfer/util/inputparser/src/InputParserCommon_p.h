@@ -2,7 +2,7 @@
 #define DSINFER_INPUTPARSERCOMMON_P_H
 
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/Json.h>
+#include <synthrt/Support/JSON.h>
 
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 

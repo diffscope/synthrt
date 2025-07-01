@@ -1,5 +1,6 @@
 #include "VocoderInference.h"
 
+#include <cstring>
 #include <mutex>
 #include <shared_mutex>
 #include <utility>

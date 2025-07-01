@@ -6,7 +6,7 @@
 #include <mutex>
 
 #include <stdcorelib/pimpl.h>
-#include <stdcorelib/3rdparty/llvm/SmallVector.h>
+#include <stdcorelib/3rdparty/llvm/smallvector.h>
 
 namespace fs = std::filesystem;
 
