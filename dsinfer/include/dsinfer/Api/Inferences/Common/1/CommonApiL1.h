@@ -12,7 +12,9 @@ namespace ds::Api::Common::L1 {
 
     namespace Tags {
 
+        /// Pitch controls
         inline constexpr ParamTag Pitch("pitch");
+        inline constexpr ParamTag Expr("expr");
 
         /// Variance controls
         inline constexpr ParamTag Energy("energy");

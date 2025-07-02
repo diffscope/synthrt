@@ -429,11 +429,16 @@ namespace ds {
                         return Co::InputParameterInfo{Co::Tags::MouthOpening};
                     } else if (tag == Co::Tags::ToneShift.name()) {
                         return Co::InputParameterInfo{Co::Tags::ToneShift};
+                    } else if (tag == Co::Tags::Expr.name()) {
+                        return Co::InputParameterInfo{Co::Tags::Expr};
                     }
                     return Co::InputParameterInfo{};
                 }();
-                if (pitchOnly && parameterInfo.tag != Co::Tags::Pitch) {
-                    continue;
+                if (pitchOnly) {
+                    if (parameterInfo.tag != Co::Tags::Pitch &&
+                        parameterInfo.tag != Co::Tags::Expr) {
+                        continue;
+                    }
                 }
                 if (parameterInfo.tag.name().empty()) {
                     return srt::Error(srt::Error::InvalidFormat,
