@@ -72,7 +72,7 @@ namespace ds {
                 stdc::formatN(R"(invalid acoustic task init args name: expected "%1", got "%2")",
                               Ac::API_NAME, name));
         }
-        auto acousticArgs = args.as<srt::TaskInitArgs>();
+        auto acousticArgs = args.as<Ac::AcousticInitArgs>();
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
 

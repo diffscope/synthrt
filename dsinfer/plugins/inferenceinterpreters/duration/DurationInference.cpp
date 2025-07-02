@@ -72,7 +72,7 @@ namespace ds {
                 stdc::formatN(R"(invalid duration task init args name: expected "%1", got "%2")",
                               Dur::API_NAME, name));
         }
-        auto durationArgs = args.as<srt::TaskInitArgs>();
+        auto durationArgs = args.as<Dur::DurationInitArgs>();
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
 

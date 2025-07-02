@@ -63,7 +63,7 @@ namespace ds {
                 stdc::formatN(R"(invalid vocoder task init args name: expected "%1", got "%2")",
                               Vo::API_NAME, name));
         }
-        auto acousticArgs = args.as<srt::TaskInitArgs>();
+        auto vocoderArgs = args.as<Vo::VocoderInitArgs>();
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
 
