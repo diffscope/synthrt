@@ -6,7 +6,6 @@
 #include <stdcorelib/stdc_global.h>
 
 #include <InterpreterCommon/TensorHelper.h>
-#include <InterpreterCommon/Algorithm.h>
 
 namespace ds::InterpreterCommon {
     namespace Co = Api::Common::L1;
@@ -159,52 +158,4 @@ namespace ds::InterpreterCommon {
         return helper.take();
     }
 
-    srt::Expected<srt::NO<ITensor>>
-        preprocessPhonemeMidi(const std::vector<Api::Common::L1::InputWordInfo> &words) {
-
-        auto phoneCount = getPhoneCount(words);
-
-        std::vector<uint8_t> isRest;
-        std::vector<int64_t> phMidi;
-        isRest.reserve(phoneCount);
-        phMidi.reserve(phoneCount);
-
-        for (const auto &word : words) {
-            if (word.notes.empty())
-                continue;
-
-            std::vector<double> cumDur;
-            double s = 0;
-            for (const auto &note : word.notes) {
-                s += note.duration;
-                cumDur.push_back(s);
-            }
-
-            for (const auto &phone : word.phones) {
-                size_t idx = 0;
-                while (idx < cumDur.size() && phone.start > cumDur[idx]) {
-                    ++idx;
-                }
-                if (idx >= word.notes.size())
-                    idx = word.notes.size() - 1;
-
-                const auto &note = word.notes[idx];
-                const auto rest = static_cast<uint8_t>(note.is_rest);
-                isRest.push_back(rest);
-                phMidi.push_back(rest ? 0 : note.key);
-            }
-
-            if (!fillRestMidiWithNearestInPlace<int64_t>(phMidi, isRest)) {
-                return srt::Error(srt::Error::SessionError, "failed to fill rest notes");
-            }
-        }
-
-        std::vector<int64_t> shape{1, static_cast<int64_t>(phMidi.size())};
-        if (auto exp = Tensor::createFromView<int64_t>(shape, stdc::array_view<int64_t>{phMidi});
-            exp) {
-            return exp.take();
-        } else {
-            return exp.takeError();
-        }
-    }
 }

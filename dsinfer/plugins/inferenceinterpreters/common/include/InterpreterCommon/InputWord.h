@@ -27,8 +27,5 @@ namespace ds::InterpreterCommon {
     srt::Expected<srt::NO<ITensor>>
         preprocessPhonemeDurations(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                    double frameWidth, int64_t *outTargetLength = nullptr);
-
-    srt::Expected<srt::NO<ITensor>>
-        preprocessPhonemeMidi(const std::vector<Api::Common::L1::InputWordInfo> &words);
 }
 #endif // DSINFER_INTERPRETER_COMMON_INPUTWORD_H
