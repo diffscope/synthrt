@@ -18,7 +18,7 @@
 #include <dsinfer/Core/Tensor.h>
 
 #include <InterpreterCommon/Driver.h>
-#include <InterpreterCommon/MathUtil.h>
+#include <InterpreterCommon/Algorithm.h>
 #include <InterpreterCommon/TensorHelper.h>
 #include <InterpreterCommon/InputWord.h>
 #include <InterpreterCommon/SpeakerEmbedding.h>

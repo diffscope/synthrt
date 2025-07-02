@@ -1,7 +1,8 @@
-#ifndef DSINFER_INTERPRETER_COMMON_MATHUTIL_H
-#define DSINFER_INTERPRETER_COMMON_MATHUTIL_H
+#ifndef DSINFER_INTERPRETER_COMMON_ALGORITHM_H
+#define DSINFER_INTERPRETER_COMMON_ALGORITHM_H
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <vector>
 #include <stdcorelib/adt/array_view.h>
@@ -143,6 +144,70 @@ namespace ds::InterpreterCommon {
         }
         return targetSamples;
     }
+
+    template <typename T>
+    inline bool fillRestMidiWithNearestInPlace(std::vector<T> &midi,
+                                               const std::vector<uint8_t> &isRest) {
+
+        static_assert(std::is_floating_point_v<T> ||
+            (std::is_integral_v<T> && !std::is_same_v<T, bool>));
+
+        if (midi.size() != isRest.size()) {
+            return false;
+        }
+
+        const size_t n = midi.size();
+
+        size_t start = 0;
+        while (start < n) {
+            // Skip non-rest elements
+            while (start < n && !isRest[start]) {
+                ++start;
+            }
+
+            if (start >= n)
+                break;
+
+            size_t end = start;
+            // Find contiguous rest region
+            while (end < n && isRest[end]) {
+                ++end;
+            }
+
+            // Handle [start, end)
+            if (start > 0 && end < n) {
+                // Middle segment
+                auto left_val = midi[start - 1];
+                auto right_val = midi[end];
+
+                size_t mid = start + (end - start + 1) / 2; // split evenly
+
+                for (size_t i = start; i < mid; ++i) {
+                    midi[i] = left_val;
+                }
+                for (size_t i = mid; i < end; ++i) {
+                    midi[i] = right_val;
+                }
+            } else if (start > 0) {
+                // End segment
+                auto fill_val = midi[start - 1];
+                for (size_t i = start; i < end; ++i) {
+                    midi[i] = fill_val;
+                }
+            } else if (end < n) {
+                // Start segment
+                auto fill_val = midi[end];
+                for (size_t i = start; i < end; ++i) {
+                    midi[i] = fill_val;
+                }
+            }
+
+            start = end;
+        }
+
+        return true;
+    }
+
 }
 
-#endif // DSINFER_INTERPRETER_COMMON_MATHUTIL_H
+#endif // DSINFER_INTERPRETER_COMMON_ALGORITHM_H

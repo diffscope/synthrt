@@ -6,68 +6,10 @@
 #include <stdcorelib/stdc_global.h>
 
 #include <InterpreterCommon/TensorHelper.h>
+#include <InterpreterCommon/Algorithm.h>
 
 namespace ds::InterpreterCommon {
     namespace Co = Api::Common::L1;
-
-    static inline bool fillRestMidiWithNearestInPlace(std::vector<int64_t> &midi,
-                                                      const std::vector<uint8_t> &isRest) {
-
-        if (midi.size() != isRest.size()) {
-            return false;
-        }
-
-        const size_t n = midi.size();
-
-        size_t start = 0;
-        while (start < n) {
-            // Skip non-rest elements
-            while (start < n && !isRest[start]) {
-                ++start;
-            }
-
-            if (start >= n)
-                break;
-
-            size_t end = start;
-            // Find contiguous rest region
-            while (end < n && isRest[end]) {
-                ++end;
-            }
-
-            // Handle [start, end)
-            if (start > 0 && end < n) {
-                // Middle segment
-                int64_t left_val = midi[start - 1];
-                int64_t right_val = midi[end];
-
-                size_t mid = start + (end - start + 1) / 2; // split evenly
-
-                for (size_t i = start; i < mid; ++i) {
-                    midi[i] = left_val;
-                }
-                for (size_t i = mid; i < end; ++i) {
-                    midi[i] = right_val;
-                }
-            } else if (start > 0) {
-                // End segment
-                int64_t fill_val = midi[start - 1];
-                for (size_t i = start; i < end; ++i) {
-                    midi[i] = fill_val;
-                }
-            } else if (end < n) {
-                // Start segment
-                int64_t fill_val = midi[end];
-                for (size_t i = start; i < end; ++i) {
-                    midi[i] = fill_val;
-                }
-            }
-
-            start = end;
-        }
-
-        return true;
-    }
 
     size_t getPhoneCount(const std::vector<Co::InputWordInfo> &words) {
         size_t phoneCount = 0;
@@ -252,7 +194,7 @@ namespace ds::InterpreterCommon {
                 phMidi.push_back(rest ? 0 : note.key);
             }
 
-            if (!fillRestMidiWithNearestInPlace(phMidi, isRest)) {
+            if (!fillRestMidiWithNearestInPlace<int64_t>(phMidi, isRest)) {
                 return srt::Error(srt::Error::SessionError, "failed to fill rest notes");
             }
         }

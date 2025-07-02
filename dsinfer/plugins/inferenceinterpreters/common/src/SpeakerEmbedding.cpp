@@ -5,7 +5,7 @@
 
 #include <stdcorelib/path.h>
 
-#include <InterpreterCommon/MathUtil.h>
+#include <InterpreterCommon/Algorithm.h>
 
 namespace ds::InterpreterCommon {
     namespace Co = Api::Common::L1;
@@ -62,8 +62,8 @@ namespace ds::InterpreterCommon {
                             srt::Error::SessionError,
                             "speaker embedding vector length does not match hiddenSize");
                     }
-                    auto resampled = InterpreterCommon::resample(
-                        speaker.proportions, speaker.interval, frameWidth, targetLength, true);
+                    auto resampled = resample(speaker.proportions, speaker.interval, frameWidth,
+                                              targetLength, true);
                     for (size_t i = 0; i < resampled.size(); ++i) {
                         for (size_t j = 0; j < embedding.size(); ++j) {
                             float &val = buffer[i * embedding.size() + j];
