@@ -8,23 +8,8 @@
 #include <InterpreterCommon/TensorHelper.h>
 
 namespace ds::InterpreterCommon {
+
     namespace Co = Api::Common::L1;
-
-    size_t getPhoneCount(const std::vector<Co::InputWordInfo> &words) {
-        size_t phoneCount = 0;
-        for (const auto &word : words) {
-            phoneCount += word.phones.size();
-        }
-        return phoneCount;
-    }
-
-    double getWordDuration(const Co::InputWordInfo &word) {
-        double wordDuration = 0;
-        for (const auto &note : word.notes) {
-            wordDuration += note.duration;
-        }
-        return wordDuration;
-    }
 
     srt::Expected<srt::NO<ITensor>>
         preprocessPhonemeTokens(const std::vector<Co::InputWordInfo> &words,

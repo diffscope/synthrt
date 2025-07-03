@@ -24,6 +24,7 @@ namespace ds::InterpreterCommon {
     private:
         using MelBase = Api::Common::L1::MelBase;
         using MelScale = Api::Common::L1::MelScale;
+        using LinguisticMode = Api::Common::L1::LinguistMode;
 
     public:
         ConfigurationParser(const srt::InferenceSpec *spec_, ErrorCollector *ec_)
@@ -41,6 +42,7 @@ namespace ds::InterpreterCommon {
         inline void parse_phonemes(std::map<std::string, int> &out);
         inline void parse_melBase_optional(MelBase &out);
         inline void parse_melScale_optional(MelScale &out);
+        inline void parse_linguisticMode_optional(LinguisticMode &out);
         inline void parse_languages(bool useLanguageId, std::map<std::string, int> &out);
         inline void parse_hiddenSize(bool useSpeakerEmbedding, int &out);
         inline void parse_speakers_and_load_emb(bool useSpeakerEmbedding, int hiddenSize,

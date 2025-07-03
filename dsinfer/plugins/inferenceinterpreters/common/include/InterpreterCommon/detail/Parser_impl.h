@@ -305,6 +305,27 @@ namespace ds::InterpreterCommon {
         }
     }
 
+    inline void ConfigurationParser::parse_linguisticMode_optional(LinguisticMode &out) {
+        const auto &config = *pConfig;
+
+        if (const auto it = config.find("linguisticMode"); it != config.end()) {
+            const auto linguisticMode = it->second.toString();
+            const auto linguisticModeLower = stdc::to_lower(linguisticMode);
+            if (linguisticModeLower == "word") {
+                out = LinguisticMode::LM_Word;
+            } else if (linguisticModeLower == "phoneme") {
+                out = LinguisticMode::LM_Phoneme;
+            } else {
+                collectError(stdc::format(
+                    R"(enum string field "linguisticMode" invalid: )"
+                    R"(expect "word", "phoneme"; got "%1")",
+                    linguisticMode));
+            }
+        } else {
+            // Nothing to do
+        }
+    }
+
     inline void ConfigurationParser::parse_languages(bool useLanguageId,
                                                      std::map<std::string, int> &out) {
         const auto &config = *pConfig;

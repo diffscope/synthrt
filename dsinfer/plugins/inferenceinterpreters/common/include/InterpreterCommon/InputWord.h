@@ -12,9 +12,30 @@
 
 
 namespace ds::InterpreterCommon {
-    size_t getPhoneCount(const std::vector<Api::Common::L1::InputWordInfo> &words);
 
-    double getWordDuration(const Api::Common::L1::InputWordInfo &word);
+    inline size_t getPhoneCount(const std::vector<Api::Common::L1::InputWordInfo> &words) {
+        size_t phoneCount = 0;
+        for (const auto &word : words) {
+            phoneCount += word.phones.size();
+        }
+        return phoneCount;
+    }
+
+    inline size_t getNoteCount(const std::vector<Api::Common::L1::InputWordInfo> &words) {
+        size_t noteCount = 0;
+        for (const auto &word : words) {
+            noteCount += word.notes.size();
+        }
+        return noteCount;
+    }
+
+    inline double getWordDuration(const Api::Common::L1::InputWordInfo &word) {
+        double wordDuration = 0;
+        for (const auto &note : word.notes) {
+            wordDuration += note.duration;
+        }
+        return wordDuration;
+    }
 
     srt::Expected<srt::NO<ITensor>>
         preprocessPhonemeTokens(const std::vector<Api::Common::L1::InputWordInfo> &words,

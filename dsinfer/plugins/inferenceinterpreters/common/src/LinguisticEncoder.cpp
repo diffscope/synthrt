@@ -103,7 +103,8 @@ namespace ds::InterpreterCommon {
     }
     srt::Expected<void> runEncoder(const srt::NO<InferenceSession> &encoderSession,
                                    const srt::NO<srt::TaskStartInput> &linguisticInput,
-                                   srt::NO<Api::Onnx::SessionStartInput> &out) {
+                                   srt::NO<Api::Onnx::SessionStartInput> &out,
+                                   bool useXMasks) {
         // Assuming encoderSession is already opened
         auto sessionExp = encoderSession->start(linguisticInput);
         if (!sessionExp) {
@@ -119,7 +120,7 @@ namespace ds::InterpreterCommon {
         for (auto &&[name, value] : encoderResult->outputs) {
             if (name == "encoder_out") {
                 out->inputs.emplace("encoder_out", std::move(value));
-            } else if (name == "x_masks") {
+            } else if (useXMasks && name == "x_masks") {
                 out->inputs.emplace("x_masks", std::move(value));
             }
         }

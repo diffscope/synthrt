@@ -24,6 +24,7 @@ namespace ds::InterpreterCommon {
 
     srt::Expected<void> runEncoder(const srt::NO<InferenceSession> &encoderSession,
                                    const srt::NO<srt::TaskStartInput> &linguisticInput,
-                                   srt::NO<Api::Onnx::SessionStartInput> &out);
+                                   srt::NO<Api::Onnx::SessionStartInput> &out,
+                                   bool useXMasks = true);
 }
 #endif // DSINFER_INTERPRETER_COMMON_LINGUISTICENCODER_H
