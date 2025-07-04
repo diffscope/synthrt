@@ -59,6 +59,9 @@ namespace ds::InterpreterCommon {
         template <ParameterType PT>
         inline void parse_parameters(std::set<ParamTag> &out, const std::string &fieldName);
 
+        template <ParameterType PT>
+        inline void parse_parameters(std::vector<ParamTag> &out, const std::string &fieldName);
+
         template <typename T>
         inline void collectError(T &&msg) {
             if (ec) {
@@ -88,6 +91,9 @@ namespace ds::InterpreterCommon {
         template <ParameterType PT>
         inline void parse_parameters(std::set<ParamTag> &out, const std::string &fieldName);
 
+        template <ParameterType PT>
+        inline void parse_parameters(std::vector<ParamTag> &out, const std::string &fieldName);
+
         template <typename T>
         inline void collectError(T &&msg) {
             if (ec) {
@@ -112,6 +118,12 @@ namespace ds::InterpreterCommon {
         }
 
         inline void parse_speakerMapping(std::map<std::string, std::string> &out);
+
+        template <ParameterType PT>
+        inline void parse_parameters(std::set<ParamTag> &out, const std::string &fieldName);
+
+        template <ParameterType PT>
+        inline void parse_parameters(std::vector<ParamTag> &out, const std::string &fieldName);
 
         template <typename T>
         inline void collectError(T &&msg) {

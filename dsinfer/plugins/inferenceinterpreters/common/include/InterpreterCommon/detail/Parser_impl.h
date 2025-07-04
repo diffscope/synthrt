@@ -54,39 +54,55 @@ namespace ds::InterpreterCommon {
                                                                        "tone_shift");
         };
 
+        template <typename Container>
+        void insertParamHelper(Container &container, const ParamTag &param) {
+            if constexpr (std::is_same_v<Container, std::set<ParamTag>>) {
+                container.insert(param);
+            } else if constexpr (std::is_same_v<Container, std::vector<ParamTag>>) {
+                container.push_back(param);
+            } else {
+                static_assert(std::is_same_v<Container, void>,
+                              "insert_param only supports std::set<ParamTag> "
+                              "and std::vector<ParamTag>");
+            }
+        }
+
+        template <typename Container>
         inline bool tryFindAndInsertVarianceParameters(std::string_view key,
-                                                       std::set<ParamTag> &out) {
+                                                       Container &out) {
             const auto pred = [&](const auto &pair) { return pair.first == key; };
 
             constexpr auto &vmap = ParamTagMappings::varianceMapping;
             if (const auto it = std::find_if(vmap.begin(), vmap.end(), pred); it != vmap.end()) {
-                out.insert(it->second);
+                insertParamHelper(out, it->second);
                 return true;
             }
 
             return false;
         }
 
+        template <typename Container>
         inline bool tryFindAndInsertTransitionParameters(std::string_view key,
-                                                         std::set<ParamTag> &out) {
+                                                         Container &out) {
             const auto pred = [&](const auto &pair) { return pair.first == key; };
 
             constexpr auto &tmap = ParamTagMappings::transitionMapping;
             if (const auto it = std::find_if(tmap.begin(), tmap.end(), pred); it != tmap.end()) {
-                out.insert(it->second);
+                insertParamHelper(out, it->second);
                 return true;
             }
 
             return false;
         }
 
-        inline bool tryFindAndInsertParameters(std::string_view key, std::set<ParamTag> &out) {
+        template <typename Container>
+        inline bool tryFindAndInsertParameters(std::string_view key, Container &out) {
             return tryFindAndInsertVarianceParameters(key, out) ||
                    tryFindAndInsertTransitionParameters(key, out);
         }
 
-        template <ParameterType PT>
-        inline void parse_parameters_common(std::set<ParamTag> &out, const std::string &fieldName,
+        template <ParameterType PT, typename Container>
+        inline void parse_parameters_common(Container &out, const std::string &fieldName,
                                             const srt::JsonObject &obj, ErrorCollector *ec) {
             if (const auto it = obj.find(fieldName); it != obj.end()) {
                 if (it->second.isArray()) {
@@ -107,7 +123,7 @@ namespace ds::InterpreterCommon {
                         const auto paramStr = item.toStringView();
 
                         if constexpr (PT == ParameterType::All) {
-                            if (!detail::tryFindAndInsertParameters(paramStr, out)) {
+                            if (!tryFindAndInsertParameters(paramStr, out)) {
                                 if (ec) {
                                     ec->collectError(stdc::formatN(
                                         R"(array field "%1" element at index %2 invalid: )"
@@ -117,7 +133,7 @@ namespace ds::InterpreterCommon {
                                 }
                             }
                         } else if constexpr (PT == ParameterType::Variance) {
-                            if (!detail::tryFindAndInsertVarianceParameters(paramStr, out)) {
+                            if (!tryFindAndInsertVarianceParameters(paramStr, out)) {
                                 if (ec) {
                                     ec->collectError(stdc::formatN(
                                         R"(array field "%1" element at index %2 invalid: )"
@@ -127,7 +143,7 @@ namespace ds::InterpreterCommon {
                                 }
                             }
                         } else if constexpr (PT == ParameterType::Transition) {
-                            if (!detail::tryFindAndInsertTransitionParameters(paramStr, out)) {
+                            if (!tryFindAndInsertTransitionParameters(paramStr, out)) {
                                 if (ec) {
                                     ec->collectError(stdc::formatN(
                                         R"(array field "%1" element at index %2 invalid: )"
@@ -458,7 +474,15 @@ namespace ds::InterpreterCommon {
                                                       const std::string &fieldName) {
         const auto &obj = *pConfig;
 
-        detail::parse_parameters_common<PT>(out, fieldName, obj, ec);
+        detail::parse_parameters_common<PT, std::set<ParamTag>>(out, fieldName, obj, ec);
+    }
+
+    template <ParameterType PT>
+    inline void ConfigurationParser::parse_parameters(std::vector<ParamTag> &out,
+                                                      const std::string &fieldName) {
+        const auto &obj = *pConfig;
+
+        detail::parse_parameters_common<PT, std::vector<ParamTag>>(out, fieldName, obj, ec);
     }
 
     inline bool ConfigurationParser::loadIdMapping(const std::string &fieldName,
@@ -524,7 +548,15 @@ namespace ds::InterpreterCommon {
                                                const std::string &fieldName) {
         const auto &schema = *pSchema;
 
-        detail::parse_parameters_common<PT>(out, fieldName, schema, ec);
+        detail::parse_parameters_common<PT, std::set<ParamTag>>(out, fieldName, schema, ec);
+    }
+
+    template <ParameterType PT>
+    inline void SchemaParser::parse_parameters(std::vector<ParamTag> &out,
+                                               const std::string &fieldName) {
+        const auto &schema = *pSchema;
+
+        detail::parse_parameters_common<PT, std::vector<ParamTag>>(out, fieldName, schema, ec);
     }
 
     inline void SchemaParser::parse_string_array_optional(std::vector<std::string> &out,
@@ -572,6 +604,22 @@ namespace ds::InterpreterCommon {
                 out[speakerKey] = speakerValue.toString();
             }
         }
+    }
+
+    template <ParameterType PT>
+    inline void ImportOptionsParser::parse_parameters(std::set<ParamTag> &out,
+                                                      const std::string &fieldName) {
+        const auto &options = *pOptions;
+
+        detail::parse_parameters_common<PT, std::set<ParamTag>>(out, fieldName, options, ec);
+    }
+
+    template <ParameterType PT>
+    inline void ImportOptionsParser::parse_parameters(std::vector<ParamTag> &out,
+                                                      const std::string &fieldName) {
+        const auto &options = *pOptions;
+
+        detail::parse_parameters_common<PT, std::vector<ParamTag>>(out, fieldName, options, ec);
     }
 }
 
