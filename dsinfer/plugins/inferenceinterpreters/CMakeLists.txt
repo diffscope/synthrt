@@ -7,6 +7,8 @@ add_subdirectory(duration)
 
 add_subdirectory(pitch)
 
+add_subdirectory(variance)
+
 add_subdirectory(acoustic)
 
 add_subdirectory(vocoder)

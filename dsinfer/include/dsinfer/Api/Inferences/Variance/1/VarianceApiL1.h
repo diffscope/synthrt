@@ -29,8 +29,8 @@ namespace ds::Api::Variance::L1 {
         /// 说话人（音色）名称列表
         std::vector<std::string> speakers;
 
-        /// 预测输出参数列表
-        std::set<ParamTag> predictions;
+        /// 预测输出参数列表（顺序需和 ONNX 模型参数顺序一致）
+        std::vector<ParamTag> predictions;
     };
 
     class VarianceConfiguration : public srt::InferenceConfiguration {
