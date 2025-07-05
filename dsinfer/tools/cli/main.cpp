@@ -146,44 +146,42 @@ struct InputObject {
     std::string singer;
     NO<Ac::AcousticStartInput> input;
 
-    static InputObject load(const fs::path &path, std::string *err) {
+    static srt::Expected<InputObject> load(const fs::path &path) {
         // read all from path to string
         std::ifstream ifs(path);
         if (!ifs) {
-            *err = stdc::formatN(R"(failed to open input file "%1")", path);
+            return srt::Error(srt::Error::FileNotFound,
+                              stdc::formatN(R"(failed to open input file "%1")", path));
         }
         std::string jsonStr((std::istreambuf_iterator<char>(ifs)),
                             (std::istreambuf_iterator<char>()));
 
         // parse JSON
-        srt::JsonValue jsonDoc = srt::JsonValue::fromJson(jsonStr, true, err);
-        if (!err->empty()) {
-            return {};
+        std::string jsonErrorMessage;
+        srt::JsonValue jsonDoc = srt::JsonValue::fromJson(jsonStr, true, &jsonErrorMessage);
+        if (!jsonErrorMessage.empty()) {
+            return srt::Error(srt::Error::InvalidFormat, std::move(jsonErrorMessage));
         }
         if (!jsonDoc.isObject()) {
-            *err = stdc::formatN("not an object");
-            return {};
+            return srt::Error(srt::Error::InvalidFormat, "not an object");
         }
         const auto &docObj = jsonDoc.toObject();
         InputObject res;
         {
             auto it = docObj.find("singer");
             if (it == docObj.end()) {
-                *err = stdc::formatN("missing singer field");
-                return {};
+                return srt::Error(srt::Error::InvalidFormat, "missing singer field");
             }
             res.singer = it->second.toString();
             if (res.singer.empty()) {
-                *err = stdc::formatN("empty singer field");
-                return {};
+                return srt::Error(srt::Error::InvalidFormat, "empty singer field");
             }
 
             // parse acoustic input
             if (auto exp = ds::parseAcousticStartInput(docObj); exp) {
                 res.input = exp.take();
             } else {
-                *err = exp.takeError().message();
-                return {};
+                return exp.takeError();
             }
         }
         return res;
@@ -194,9 +192,12 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
                 const fs::path &outputWavPath) {
     // Read input
     InputObject input;
-    if (std::string err; input = InputObject::load(inputPath, &err), !err.empty()) {
+    if (auto exp = InputObject::load(inputPath); !exp) {
+        const auto &err = exp.error();
         throw std::runtime_error(
-            stdc::formatN(R"(failed to read input file "%1": %2)", inputPath, err));
+            stdc::formatN(R"(failed to read input file "%1": %2)", inputPath, err.message()));
+    } else {
+        input = exp.take();
     }
 
     srt::SynthUnit su;
