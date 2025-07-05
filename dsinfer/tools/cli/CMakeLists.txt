@@ -51,4 +51,4 @@ if(DSINFER_INSTALL AND SYNTHRT_INSTALL_DEPLOY)
     )
 endif()
 
-add_dependencies(${PROJECT_NAME} onnxdriver acoustic vocoder)
+add_dependencies(${PROJECT_NAME} onnxdriver duration pitch variance acoustic vocoder)

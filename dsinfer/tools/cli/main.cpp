@@ -16,6 +16,9 @@
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
+#include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
+#include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
+#include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
@@ -24,7 +27,11 @@
 
 namespace fs = std::filesystem;
 
+namespace Co = ds::Api::Common::L1;
 namespace Ac = ds::Api::Acoustic::L1;
+namespace Dur = ds::Api::Duration::L1;
+namespace Pit = ds::Api::Pitch::L1;
+namespace Var = ds::Api::Variance::L1;
 namespace Vo = ds::Api::Vocoder::L1;
 
 using srt::NO;
@@ -228,36 +235,243 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         NO<srt::InferenceImportOptions> options;
         srt::InferenceSpec *inference = nullptr;
     };
-    ImportData importAcoustic, importVocoder;
 
-    for (const auto &import : singerSpec->imports()) {
-        if (import.inference()->className() == Ac::API_CLASS) {
-            importAcoustic = {
-                import.options(),
-                import.inference(),
-            };
-            if (importVocoder.inference) {
-                break;
-            }
-            continue;
-        }
-        if (import.inference()->className() == Vo::API_CLASS) {
-            importVocoder = {
-                import.options(),
-                import.inference(),
-            };
-            if (importAcoustic.inference) {
+    ImportData importDuration, importPitch, importVariance, importAcoustic, importVocoder;
+
+    struct ImportEntry {
+        std::string_view className;
+        std::string_view apiName;
+        ImportData *data;
+    };
+
+    ImportEntry imports[] = {
+        {Dur::API_CLASS, Dur::API_NAME, &importDuration},
+        {Pit::API_CLASS, Pit::API_NAME, &importPitch   },
+        {Var::API_CLASS, Var::API_NAME, &importVariance},
+        {Ac::API_CLASS,  Ac::API_NAME,  &importAcoustic},
+        {Vo::API_CLASS,  Vo::API_NAME,  &importVocoder },
+    };
+
+    // Assign imports
+    for (const auto &imp : singerSpec->imports()) {
+        const auto &cls = imp.inference()->className();
+        for (auto &entry : imports) {
+            if (cls == entry.className) {
+                *entry.data = {imp.options(), imp.inference()};
                 break;
             }
         }
     }
-    if (!importAcoustic.inference) {
-        throw std::runtime_error(
-            stdc::formatN(R"(acoustic inference not found for singer "%1")", input.singer));
+
+    // Check for missing inferences
+    for (const auto &entry : imports) {
+        if (!entry.data->inference) {
+            throw std::runtime_error(stdc::formatN(R"(%1 inference not found for singer "%2")",
+                                                   entry.apiName, input.singer));
+        }
     }
-    if (!importVocoder.inference) {
-        throw std::runtime_error(
-            stdc::formatN(R"(vocoder inference not found for singer "%1")", input.singer));
+
+    // Run duration
+    {
+        NO<srt::Inference> inference;
+        if (auto exp = importDuration.inference->createInference(
+                importDuration.options, NO<Dur::DurationRuntimeOptions>::create());
+            !exp) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to create duration inference for singer "%1": %2)",
+                              input.singer, exp.error().message()));
+        } else {
+            inference = exp.take();
+        }
+        if (auto exp = inference->initialize(NO<Dur::DurationInitArgs>::create()); !exp) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to initialize duration inference for singer "%1": %2)",
+                              input.singer, exp.error().message()));
+        }
+
+        auto durationInput = NO<Dur::DurationStartInput>::create();
+        // Copy user inputs into duration model inputs
+        durationInput->duration = input.input->duration;
+        durationInput->words = input.input->words;
+
+        // Start inference
+        if (auto exp = inference->start(durationInput); !exp) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to start duration inference for singer "%1": %2)",
+                              input.singer, exp.error().message()));
+        }
+        auto result = inference->result().as<Dur::DurationResult>();
+        if (inference->state() == srt::ITask::Failed) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to run duration inference for singer "%1": %2)",
+                              input.singer, result->error.message()));
+        }
+
+        // Update user inputs in-place with duration model outputs
+        auto updatePhonemeStarts = [](std::vector<Co::InputWordInfo> &words,
+                                      const std::vector<double> &phonemeDurations) {
+            size_t i = 0;
+            for (auto &word : words) {
+                double timeCursor = 0.0;
+                for (auto &phoneme : word.phones) {
+                    if (i >= phonemeDurations.size()) {
+                        return;
+                    }
+                    phoneme.start = timeCursor;
+                    timeCursor += phonemeDurations[i];
+                    ++i;
+                }
+            }
+        };
+
+        updatePhonemeStarts(input.input->words, result->durations);
+    }
+
+    // Run pitch
+    {
+        NO<srt::Inference> inference;
+        if (auto exp = importPitch.inference->createInference(
+                importPitch.options, NO<Pit::PitchRuntimeOptions>::create());
+            !exp) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to create pitch inference for singer "%1": %2)",
+                              input.singer, exp.error().message()));
+        } else {
+            inference = exp.take();
+        }
+        if (auto exp = inference->initialize(NO<Pit::PitchInitArgs>::create()); !exp) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to initialize pitch inference for singer "%1": %2)",
+                              input.singer, exp.error().message()));
+        }
+
+        auto pitchInput = NO<Pit::PitchStartInput>::create();
+        // Copy user inputs into pitch model inputs
+        pitchInput->duration = input.input->duration;
+        pitchInput->words = input.input->words;
+        for (const auto &param : input.input->parameters) {
+            if (param.tag == Co::Tags::Pitch) {
+                pitchInput->parameters.push_back(
+                    {Co::Tags::Pitch, param.values, param.interval, param.retake});
+            } else if (param.tag == Co::Tags::Expr) {
+                pitchInput->parameters.push_back(
+                    {Co::Tags::Expr, param.values, param.interval, param.retake});
+            }
+        }
+        pitchInput->speakers = input.input->speakers;
+        pitchInput->steps = input.input->steps;
+
+        // Start inference
+        if (auto exp = inference->start(pitchInput); !exp) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to start pitch inference for singer "%1": %2)",
+                              input.singer, exp.error().message()));
+        }
+        auto result = inference->result().as<Pit::PitchResult>();
+        if (inference->state() == srt::ITask::Failed) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to run pitch inference for singer "%1": %2)", input.singer,
+                              result->error.message()));
+        }
+
+        // Update user inputs in-place with pitch model outputs
+        auto res = result->pitch;
+        auto interval = result->interval;
+        bool hasPitch = false;
+        for (auto &param : input.input->parameters) {
+            if (param.tag == Co::Tags::Pitch) {
+                param.interval = interval;
+                param.values = res;
+                hasPitch = true;
+            }
+        }
+        if (!hasPitch) {
+            input.input->parameters.emplace_back(
+                Co::InputParameterInfo{Co::Tags::Pitch, res, interval});
+        }
+    }
+
+    // Run variance
+    {
+        NO<srt::Inference> inference;
+        const auto schema = importVariance.inference->schema().as<Var::VarianceSchema>();
+        if (auto exp = importVariance.inference->createInference(
+                importVariance.options, NO<Var::VarianceRuntimeOptions>::create());
+            !exp) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to create variance inference for singer "%1": %2)",
+                              input.singer, exp.error().message()));
+        } else {
+            inference = exp.take();
+        }
+        if (auto exp = inference->initialize(NO<Var::VarianceInitArgs>::create()); !exp) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to initialize variance inference for singer "%1": %2)",
+                              input.singer, exp.error().message()));
+        }
+
+        auto varianceInput = NO<Var::VarianceStartInput>::create();
+        // Copy user inputs into variance model inputs
+        varianceInput->duration = input.input->duration;
+        varianceInput->words = input.input->words;
+        for (const auto &param : input.input->parameters) {
+            if (param.tag == Co::Tags::Pitch) {
+                varianceInput->parameters.push_back(
+                    {Co::Tags::Pitch, param.values, param.interval, param.retake});
+                continue;
+            }
+
+            for (const auto &prediction : schema->predictions) {
+                if (prediction == param.tag) {
+                    varianceInput->parameters.push_back(
+                        {prediction, param.values, param.interval, param.retake});
+                }
+            }
+        }
+        varianceInput->speakers = input.input->speakers;
+        varianceInput->steps = input.input->steps;
+
+        // Start inference
+        if (auto exp = inference->start(varianceInput); !exp) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to start variance inference for singer "%1": %2)",
+                              input.singer, exp.error().message()));
+        }
+        auto result = inference->result().as<Var::VarianceResult>();
+        if (inference->state() == srt::ITask::Failed) {
+            throw std::runtime_error(
+                stdc::formatN(R"(failed to run variance inference for singer "%1": %2)",
+                              input.singer, result->error.message()));
+        }
+
+        // Update user inputs in-place with variance model outputs
+        const auto nParams = schema->predictions.size();
+        std::vector<bool> satisfyParams(nParams, false);
+        // schema->predictions.size() == result->predictions.size()
+        // guaranteed if inference is successful
+        for (size_t i = 0; i < nParams; i++) {
+            auto &originalParam = input.input->parameters[i];
+            for (auto &predicted : result->predictions) {
+                if (originalParam.tag == predicted.tag) {
+                    originalParam.interval = predicted.interval;
+                    originalParam.values = std::move(predicted.values);
+                    originalParam.retake = std::nullopt;
+                    satisfyParams[i] = true;
+                    break;
+                }
+            }
+        }
+        for (size_t i = 0; i < nParams; i++) {
+            if (satisfyParams[i]) {
+                continue;
+            }
+            for (auto &predictedParam : result->predictions) {
+                if (predictedParam.tag == schema->predictions[i]) {
+                    input.input->parameters.emplace_back(std::move(predictedParam));
+                    break;
+                }
+            }
+        }
     }
 
     // Run acoustic
