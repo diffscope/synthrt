@@ -113,6 +113,10 @@ namespace ds::InterpreterCommon {
 
         // Get encoder session results
         auto result = encoderSession->result();
+        if (!result) {
+            return srt::Error(srt::Error::SessionError,
+                              "linguistic encoder session result is nullptr");
+        }
         if (result->objectName() != Api::Onnx::API_NAME) {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }

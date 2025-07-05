@@ -124,11 +124,12 @@ namespace ds {
     srt::Expected<void> PitchInference::start(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
 
-        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
-            impl.driver = res.take();
-        } else {
-            setState(Failed);
-            return res.takeError();
+        {
+            std::shared_lock<std::shared_mutex> lock(impl.mutex);
+            if (!impl.driver) {
+                setState(Failed);
+                return srt::Error(srt::Error::SessionError, "inference driver not initialized");
+            }
         }
 
         setState(Running);
@@ -464,6 +465,11 @@ namespace ds {
 
         // Get session results
         auto result = impl.predictorSession->result();
+        if (!result) {
+            setState(Failed);
+            return srt::Error(srt::Error::SessionError,
+                              "pitch predictor session result is nullptr");
+        }
         if (result->objectName() != Onnx::API_NAME) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
@@ -490,7 +496,6 @@ namespace ds {
             return srt::Error(srt::Error::SessionError, "invalid result output");
         }
 
-        lock.unlock();
         setState(Idle);
         return srt::Expected<void>();
     }
@@ -506,7 +511,9 @@ namespace ds {
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         bool flag = true;
         for (auto &session : {impl.encoderSession, impl.predictorSession}) {
-            flag = session->stop();
+            if (session) {
+                flag &= session->stop();
+            }
         }
         setState(Terminated);
         return flag;
