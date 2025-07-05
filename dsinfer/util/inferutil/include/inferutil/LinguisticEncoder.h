@@ -1,5 +1,5 @@
-#ifndef DSINFER_INTERPRETER_COMMON_LINGUISTICENCODER_H
-#define DSINFER_INTERPRETER_COMMON_LINGUISTICENCODER_H
+#ifndef DSINFER_INFERUTIL_LINGUISTICENCODER_H
+#define DSINFER_INFERUTIL_LINGUISTICENCODER_H
 
 #include <map>
 #include <vector>
@@ -9,7 +9,7 @@
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
     srt::Expected<srt::NO<Api::Onnx::SessionStartInput>>
         preprocessLinguisticPhoneme(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                     const std::map<std::string, int> &tokens,
@@ -27,4 +27,4 @@ namespace ds::InterpreterCommon {
                                    srt::NO<Api::Onnx::SessionStartInput> &out,
                                    bool useXMasks = true);
 }
-#endif // DSINFER_INTERPRETER_COMMON_LINGUISTICENCODER_H
+#endif // DSINFER_INFERUTIL_LINGUISTICENCODER_H

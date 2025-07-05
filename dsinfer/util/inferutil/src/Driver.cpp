@@ -1,10 +1,10 @@
-#include "InterpreterCommon/Driver.h"
+#include "inferutil/Driver.h"
 
 #include <stdcorelib/str.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
     srt::Expected<srt::NO<InferenceDriver>> getInferenceDriver(const srt::Inference *obj) {
         namespace Onnx = Api::Onnx;
         namespace DiffSinger = Api::DiffSinger::L1;

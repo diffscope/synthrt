@@ -1,11 +1,11 @@
-#ifndef DSINFER_INTERPRETER_COMMON_ERRORCOLLECTOR_H
-#define DSINFER_INTERPRETER_COMMON_ERRORCOLLECTOR_H
+#ifndef DSINFER_INFERUTIL_ERRORCOLLECTOR_H
+#define DSINFER_INFERUTIL_ERRORCOLLECTOR_H
 
 #include <cstddef>
 #include <string>
 #include <vector>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
     class ErrorCollector {
     public:
         ErrorCollector() = default;
@@ -80,4 +80,4 @@ namespace ds::InterpreterCommon {
     }
 }
 
-#endif // DSINFER_INTERPRETER_COMMON_ERRORCOLLECTOR_H
+#endif // DSINFER_INFERUTIL_ERRORCOLLECTOR_H

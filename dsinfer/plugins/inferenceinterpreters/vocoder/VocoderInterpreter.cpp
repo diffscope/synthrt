@@ -4,8 +4,8 @@
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 #include <stdcorelib/str.h>
 
-#include <InterpreterCommon/ErrorCollector.h>
-#include <InterpreterCommon/Parser.h>
+#include <inferutil/ErrorCollector.h>
+#include <inferutil/Parser.h>
 
 #include "VocoderInference.h"
 
@@ -45,9 +45,9 @@ namespace ds {
         auto result = srt::NO<Vo::VocoderConfiguration>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::ConfigurationParser parser(spec, &ec);
+        inferutil::ConfigurationParser parser(spec, &ec);
 
         // [REQUIRED] model, path (json value is string)
         {

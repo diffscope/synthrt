@@ -1,9 +1,9 @@
-#ifndef DSINFER_INTERPRETER_COMMON_SPEEDUP_H
-#define DSINFER_INTERPRETER_COMMON_SPEEDUP_H
+#ifndef DSINFER_INFERUTIL_SPEEDUP_H
+#define DSINFER_INFERUTIL_SPEEDUP_H
 
 #include <cstdint>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
     inline constexpr int64_t getSpeedupFromSteps(int64_t steps, int64_t fallback = 10) {
         int64_t speedup = fallback;
         if (steps > 0) {
@@ -20,4 +20,4 @@ namespace ds::InterpreterCommon {
         return speedup;
     }
 }
-#endif // DSINFER_INTERPRETER_COMMON_SPEEDUP_H
+#endif // DSINFER_INFERUTIL_SPEEDUP_H

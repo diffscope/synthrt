@@ -1,5 +1,5 @@
-#ifndef DSINFER_INTERPRETER_COMMON_ALGORITHM_H
-#define DSINFER_INTERPRETER_COMMON_ALGORITHM_H
+#ifndef DSINFER_INFERUTIL_ALGORITHM_H
+#define DSINFER_INFERUTIL_ALGORITHM_H
 
 #include <algorithm>
 #include <cstdint>
@@ -7,7 +7,7 @@
 #include <vector>
 #include <stdcorelib/adt/array_view.h>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
     enum InterpolationMethod {
         InterpolateLinear,
         InterpolateCubicSpline,
@@ -210,4 +210,4 @@ namespace ds::InterpreterCommon {
 
 }
 
-#endif // DSINFER_INTERPRETER_COMMON_ALGORITHM_H
+#endif // DSINFER_INFERUTIL_ALGORITHM_H

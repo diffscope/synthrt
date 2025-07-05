@@ -1,5 +1,5 @@
-#ifndef DSINFER_INTERPRETER_COMMON_PARSER_H
-#define DSINFER_INTERPRETER_COMMON_PARSER_H
+#ifndef DSINFER_INFERUTIL_PARSER_H
+#define DSINFER_INFERUTIL_PARSER_H
 
 #include <set>
 #include <string>
@@ -10,9 +10,9 @@
 #include <dsinfer/Core/ParamTag.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
-#include <InterpreterCommon/ErrorCollector.h>
+#include <inferutil/ErrorCollector.h>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
 
     enum class ParameterType {
         Variance,
@@ -140,4 +140,4 @@ namespace ds::InterpreterCommon {
 
 #include "detail/Parser_impl.h"
 
-#endif // DSINFER_INTERPRETER_COMMON_PARSER_H
+#endif // DSINFER_INFERUTIL_PARSER_H

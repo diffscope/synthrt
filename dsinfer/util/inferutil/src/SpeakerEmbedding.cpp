@@ -1,13 +1,13 @@
-#include <InterpreterCommon/SpeakerEmbedding.h>
+#include <inferutil/SpeakerEmbedding.h>
 
 #include <fstream>
 #include <utility>
 
 #include <stdcorelib/path.h>
 
-#include <InterpreterCommon/Algorithm.h>
+#include <inferutil/Algorithm.h>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
     namespace Co = Api::Common::L1;
 
     srt::Expected<std::vector<float>> loadSpeakerEmbedding(int hiddenSize,

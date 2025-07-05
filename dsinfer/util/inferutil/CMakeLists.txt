@@ -1,4 +1,4 @@
-project(InterpreterCommon
+project(inferutil
     VERSION ${DSINFER_VERSION}
     LANGUAGES CXX
 )

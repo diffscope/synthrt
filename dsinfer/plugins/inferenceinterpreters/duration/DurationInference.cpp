@@ -19,10 +19,10 @@
 #include <dsinfer/Inference/InferenceSession.h>
 #include <dsinfer/Core/Tensor.h>
 
-#include <InterpreterCommon/Driver.h>
-#include <InterpreterCommon/InputWord.h>
-#include <InterpreterCommon/LinguisticEncoder.h>
-#include <InterpreterCommon/Algorithm.h>
+#include <inferutil/Driver.h>
+#include <inferutil/InputWord.h>
+#include <inferutil/LinguisticEncoder.h>
+#include <inferutil/Algorithm.h>
 
 namespace ds {
 
@@ -48,7 +48,7 @@ namespace ds {
     static inline srt::Expected<srt::NO<ITensor>>
         preprocessPhonemeMidi(const std::vector<Api::Common::L1::InputWordInfo> &words) {
 
-        auto phoneCount = InterpreterCommon::getPhoneCount(words);
+        auto phoneCount = inferutil::getPhoneCount(words);
 
         std::vector<uint8_t> isRest;
         std::vector<int64_t> phMidi;
@@ -80,7 +80,7 @@ namespace ds {
                 phMidi.push_back(rest ? 0 : note.key);
             }
 
-            if (!InterpreterCommon::fillRestMidiWithNearestInPlace<int64_t>(phMidi, isRest)) {
+            if (!inferutil::fillRestMidiWithNearestInPlace<int64_t>(phMidi, isRest)) {
                 return srt::Error(srt::Error::SessionError, "failed to fill rest notes");
             }
         }
@@ -129,7 +129,7 @@ namespace ds {
         // If there are existing result, they will be cleared.
         impl.result.reset();
 
-        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
+        if (auto res = inferutil::getInferenceDriver(this); res) {
             impl.driver = res.take();
         } else {
             setState(Failed);
@@ -215,7 +215,7 @@ namespace ds {
         }
 
         // Part 1: Linguistic Encoder Inference
-        if (auto exp = InterpreterCommon::preprocessLinguisticWord(
+        if (auto exp = inferutil::preprocessLinguisticWord(
                 durationInput->words, config->phonemes, config->languages, config->useLanguageId,
                 frameWidth);
             exp) {
@@ -227,7 +227,7 @@ namespace ds {
                                   "duration linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
-                    InterpreterCommon::runEncoder(impl.encoderSession, exp.take(),
+                    inferutil::runEncoder(impl.encoderSession, exp.take(),
                                                   /* out */ sessionInput);
                 !encoderSessionExp) {
                 setState(Failed);
@@ -246,7 +246,7 @@ namespace ds {
             return exp.takeError();
         }
 
-        auto phoneCount = InterpreterCommon::getPhoneCount(durationInput->words);
+        auto phoneCount = inferutil::getPhoneCount(durationInput->words);
         if (config->useSpeakerEmbedding) {
             std::vector<int64_t> shape = {1, static_cast<int64_t>(phoneCount), config->hiddenSize};
             if (auto exp = Tensor::create(ITensor::Float, shape); exp) {
@@ -351,7 +351,7 @@ namespace ds {
                                       "error scaling duration results: index out of bounds");
                 }
                 auto phNum = word.phones.size();
-                auto wordDur = InterpreterCommon::getWordDuration(word);
+                auto wordDur = inferutil::getWordDuration(word);
                 end = begin + phNum;
                 if (begin >= finalResult.size() || end > finalResult.size()) {
                     break;

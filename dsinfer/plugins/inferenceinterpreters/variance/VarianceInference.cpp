@@ -19,12 +19,12 @@
 #include <dsinfer/Inference/InferenceSession.h>
 #include <dsinfer/Core/Tensor.h>
 
-#include <InterpreterCommon/Driver.h>
-#include <InterpreterCommon/Algorithm.h>
-#include <InterpreterCommon/InputWord.h>
-#include <InterpreterCommon/LinguisticEncoder.h>
-#include <InterpreterCommon/SpeakerEmbedding.h>
-#include <InterpreterCommon/Speedup.h>
+#include <inferutil/Driver.h>
+#include <inferutil/Algorithm.h>
+#include <inferutil/InputWord.h>
+#include <inferutil/LinguisticEncoder.h>
+#include <inferutil/SpeakerEmbedding.h>
+#include <inferutil/Speedup.h>
 
 namespace ds {
 
@@ -96,7 +96,7 @@ namespace ds {
         // If there are existing result, they will be cleared.
         impl.result.reset();
 
-        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
+        if (auto res = inferutil::getInferenceDriver(this); res) {
             impl.driver = res.take();
         } else {
             setState(Failed);
@@ -194,7 +194,7 @@ namespace ds {
             srt::NO<Onnx::SessionStartInput> linguisticInput;
             switch (config->linguisticMode) {
                 case Co::LinguistMode::LM_Word:
-                    if (auto exp = InterpreterCommon::preprocessLinguisticWord(
+                    if (auto exp = inferutil::preprocessLinguisticWord(
                             varianceInput->words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
                         exp) {
@@ -205,7 +205,7 @@ namespace ds {
                     }
                     break;
                 case Co::LinguistMode::LM_Phoneme:
-                    if (auto exp = InterpreterCommon::preprocessLinguisticPhoneme(
+                    if (auto exp = inferutil::preprocessLinguisticPhoneme(
                             varianceInput->words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
                         exp) {
@@ -228,7 +228,7 @@ namespace ds {
                                   "variance linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
-                    InterpreterCommon::runEncoder(impl.encoderSession, linguisticInput,
+                    inferutil::runEncoder(impl.encoderSession, linguisticInput,
                                                   /* out */ sessionInput, false);
                 !encoderSessionExp) {
                 setState(Failed);
@@ -240,12 +240,12 @@ namespace ds {
 
         double totalDuration = 0.0;
         for (const auto &word : varianceInput->words) {
-            totalDuration += InterpreterCommon::getWordDuration(word);
+            totalDuration += inferutil::getWordDuration(word);
         }
         const auto targetLength = static_cast<int64_t>(std::llround(totalDuration / frameWidth));
 
         // ph_dur
-        if (auto exp = InterpreterCommon::preprocessPhonemeDurations(varianceInput->words,
+        if (auto exp = inferutil::preprocessPhonemeDurations(varianceInput->words,
                                                                      config->frameWidth);
             exp) {
             sessionInput->inputs.emplace("ph_dur", exp.take());
@@ -270,7 +270,7 @@ namespace ds {
             const auto isPitch = param.tag == Co::Tags::Pitch;
 
             // Resample
-            auto samples = InterpreterCommon::resample(param.values, param.interval, frameWidth,
+            auto samples = inferutil::resample(param.values, param.interval, frameWidth,
                                                        targetLength, true);
             if (samples.size() != targetLength) {
                 setState(Failed);
@@ -426,7 +426,7 @@ namespace ds {
                 return srt::Error(srt::Error::SessionError, "no speakers found in variance input");
             }
 
-            auto exp = InterpreterCommon::preprocessSpeakerEmbeddingFrames(
+            auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
                 varianceInput->speakers, config->speakers, config->hiddenSize, frameWidth,
                 targetLength);
             if (exp) {
@@ -442,7 +442,7 @@ namespace ds {
         // input param: steps / speedup
         int64_t acceleration = varianceInput->steps;
         if (!config->useContinuousAcceleration) {
-            acceleration = InterpreterCommon::getSpeedupFromSteps(acceleration);
+            acceleration = inferutil::getSpeedupFromSteps(acceleration);
         }
         {
             auto exp = Tensor::createScalar<int64_t>(acceleration);

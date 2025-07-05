@@ -5,7 +5,7 @@
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
 #include <stdcorelib/str.h>
 
-#include <InterpreterCommon/Parser.h>
+#include <inferutil/Parser.h>
 
 #include "VarianceInference.h"
 
@@ -37,9 +37,9 @@ namespace ds {
         auto result = srt::NO<Var::VarianceSchema>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::SchemaParser parser(spec, &ec);
+        inferutil::SchemaParser parser(spec, &ec);
 
         // speakers, string[]
         {
@@ -50,7 +50,7 @@ namespace ds {
         // predictions, ParamTag[] (json value is string[])
         {
             static_assert(std::is_same_v<decltype(result->predictions), std::vector<ParamTag>>);
-            constexpr auto paramType = InterpreterCommon::ParameterType::Variance;
+            constexpr auto paramType = inferutil::ParameterType::Variance;
             parser.parse_parameters<paramType>(result->predictions, "predictions");
             if (result->predictions.empty()) {
                 ec.collectError("predictions should not be empty");
@@ -82,9 +82,9 @@ namespace ds {
         auto result = srt::NO<Var::VarianceConfiguration>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::ConfigurationParser parser(spec, &ec);
+        inferutil::ConfigurationParser parser(spec, &ec);
         // phonemes, load file (json value is string of file path)
         {
             static_assert(std::is_same_v<decltype(result->phonemes), std::map<std::string, int>>);
@@ -183,9 +183,9 @@ namespace ds {
         auto result = srt::NO<Var::VarianceImportOptions>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::ImportOptionsParser parser(spec, &ec, obj);
+        inferutil::ImportOptionsParser parser(spec, &ec, obj);
 
         // speakerMapping, { string: string }
         {
@@ -197,7 +197,7 @@ namespace ds {
         // predictions, set<ParamTag> (json value is string[])
         {
             static_assert(std::is_same_v<decltype(result->predictions), std::set<ParamTag>>);
-            constexpr auto paramType = InterpreterCommon::ParameterType::Variance;
+            constexpr auto paramType = inferutil::ParameterType::Variance;
             parser.parse_parameters<paramType>(result->predictions, "predictions");
             if (result->predictions.empty()) {
                 ec.collectError("predictions should not be empty");

@@ -1,5 +1,5 @@
-#ifndef DSINFER_INTERPRETER_COMMON_INPUTWORD_H
-#define DSINFER_INTERPRETER_COMMON_INPUTWORD_H
+#ifndef DSINFER_INFERUTIL_INPUTWORD_H
+#define DSINFER_INFERUTIL_INPUTWORD_H
 
 #include <cstddef>
 #include <map>
@@ -11,7 +11,7 @@
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
 
     inline size_t getPhoneCount(const std::vector<Api::Common::L1::InputWordInfo> &words) {
         size_t phoneCount = 0;
@@ -49,4 +49,4 @@ namespace ds::InterpreterCommon {
         preprocessPhonemeDurations(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                    double frameWidth, int64_t *outTargetLength = nullptr);
 }
-#endif // DSINFER_INTERPRETER_COMMON_INPUTWORD_H
+#endif // DSINFER_INFERUTIL_INPUTWORD_H

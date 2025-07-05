@@ -1,10 +1,10 @@
 // DO NOT include this file directly.
-// Include <InterpreterCommon/Parser.h> instead.
+// Include <inferutil/Parser.h> instead.
 
-#ifndef DSINFER_INTERPRETER_COMMON_PARSER_IMPL_H
-#define DSINFER_INTERPRETER_COMMON_PARSER_IMPL_H
+#ifndef DSINFER_INFERUTIL_PARSER_IMPL_H
+#define DSINFER_INFERUTIL_PARSER_IMPL_H
 
-#ifndef DSINFER_INTERPRETER_COMMON_PARSER_H
+#ifndef DSINFER_INFERUTIL_PARSER_H
 #  error "Parser_impl.h should only be included by Parser.h"
 #endif
 
@@ -16,9 +16,9 @@
 #include <stdcorelib/path.h>
 #include <synthrt/Support/JSON.h>
 
-#include <InterpreterCommon/SpeakerEmbedding.h>
+#include <inferutil/SpeakerEmbedding.h>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
 
     namespace detail {
 
@@ -623,4 +623,4 @@ namespace ds::InterpreterCommon {
     }
 }
 
-#endif // DSINFER_INTERPRETER_COMMON_PARSER_IMPL_H
+#endif // DSINFER_INFERUTIL_PARSER_IMPL_H

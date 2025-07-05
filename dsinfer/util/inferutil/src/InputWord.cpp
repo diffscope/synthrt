@@ -1,13 +1,13 @@
-#include <InterpreterCommon/InputWord.h>
+#include <inferutil/InputWord.h>
 
 #include <cmath>
 #include <cstdint>
 
 #include <stdcorelib/stdc_global.h>
 
-#include <InterpreterCommon/TensorHelper.h>
+#include <inferutil/TensorHelper.h>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
 
     namespace Co = Api::Common::L1;
 

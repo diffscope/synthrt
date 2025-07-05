@@ -13,7 +13,7 @@
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 
-#include <InterpreterCommon/Driver.h>
+#include <inferutil/Driver.h>
 
 namespace ds {
 
@@ -70,7 +70,7 @@ namespace ds {
         // If there are existing result, they will be cleared.
         impl.result.reset();
 
-        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
+        if (auto res = inferutil::getInferenceDriver(this); res) {
             impl.driver = res.take();
         } else {
             setState(Failed);

@@ -17,12 +17,12 @@
 #include <dsinfer/Core/ParamTag.h>
 #include <dsinfer/Core/Tensor.h>
 
-#include <InterpreterCommon/Driver.h>
-#include <InterpreterCommon/Algorithm.h>
-#include <InterpreterCommon/TensorHelper.h>
-#include <InterpreterCommon/InputWord.h>
-#include <InterpreterCommon/SpeakerEmbedding.h>
-#include <InterpreterCommon/Speedup.h>
+#include <inferutil/Driver.h>
+#include <inferutil/Algorithm.h>
+#include <inferutil/TensorHelper.h>
+#include <inferutil/InputWord.h>
+#include <inferutil/SpeakerEmbedding.h>
+#include <inferutil/Speedup.h>
 
 namespace ds {
 
@@ -79,7 +79,7 @@ namespace ds {
         // If there are existing result, they will be cleared.
         impl.result.reset();
 
-        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
+        if (auto res = inferutil::getInferenceDriver(this); res) {
             impl.driver = res.take();
         } else {
             setState(Failed);
@@ -153,7 +153,7 @@ namespace ds {
 
         // input param: tokens
         if (auto res =
-                InterpreterCommon::preprocessPhonemeTokens(acousticInput->words, config->phonemes);
+                inferutil::preprocessPhonemeTokens(acousticInput->words, config->phonemes);
             res) {
             sessionInput->inputs["tokens"] = res.take();
         } else {
@@ -163,7 +163,7 @@ namespace ds {
 
         // input param: languages
         if (config->useLanguageId) {
-            if (auto res = InterpreterCommon::preprocessPhonemeLanguages(acousticInput->words,
+            if (auto res = inferutil::preprocessPhonemeLanguages(acousticInput->words,
                                                                          config->languages);
                 res) {
                 sessionInput->inputs["languages"] = res.take();
@@ -176,7 +176,7 @@ namespace ds {
         // input param: durations
         int64_t targetLength;
 
-        if (auto res = InterpreterCommon::preprocessPhonemeDurations(acousticInput->words,
+        if (auto res = inferutil::preprocessPhonemeDurations(acousticInput->words,
                                                                      frameWidth, &targetLength);
             res) {
             sessionInput->inputs["durations"] = res.take();
@@ -188,7 +188,7 @@ namespace ds {
         // input param: steps / speedup
         int64_t acceleration = acousticInput->steps;
         if (!config->useContinuousAcceleration) {
-            acceleration = InterpreterCommon::getSpeedupFromSteps(acceleration);
+            acceleration = inferutil::getSpeedupFromSteps(acceleration);
         }
         {
             auto exp = Tensor::createScalar<int64_t>(acceleration);
@@ -270,7 +270,7 @@ namespace ds {
 
             // Resample the parameters to target time step,
             // and resize to target frame length (fill with last value)
-            auto resampled = InterpreterCommon::resample(param.values, param.interval, frameWidth,
+            auto resampled = inferutil::resample(param.values, param.interval, frameWidth,
                                                          targetLength, true);
             if (resampled.empty()) {
                 // These parameters are optional
@@ -306,7 +306,7 @@ namespace ds {
                                                                 " resample failed");
             }
 
-            auto exp = InterpreterCommon::TensorHelper<float>::createFor1DArray(targetLength);
+            auto exp = inferutil::TensorHelper<float>::createFor1DArray(targetLength);
             if (!exp) {
                 setState(Failed);
                 return exp.takeError();
@@ -358,8 +358,8 @@ namespace ds {
             // Has pitch parameter
             const auto &pitchParam = *pPitchParam;
             // Resample pitch
-            auto pitchSamples = InterpreterCommon::resample(pitchParam.values, pitchParam.interval,
-                                                            frameWidth, targetLength, true);
+            auto pitchSamples = inferutil::resample(pitchParam.values, pitchParam.interval,
+                                                    frameWidth, targetLength, true);
             if (pitchSamples.size() != targetLength) {
                 setState(Failed);
                 return srt::Error(srt::Error::SessionError, "parameter " +
@@ -371,7 +371,7 @@ namespace ds {
             if (pToneShiftParam) {
                 // Needs tone shift
                 const auto &toneShiftParam = *pToneShiftParam;
-                toneShiftSamples = InterpreterCommon::resample(
+                toneShiftSamples = inferutil::resample(
                     toneShiftParam.values, toneShiftParam.interval, frameWidth, targetLength, true);
                 if (!toneShiftSamples.empty()) {
                     if (toneShiftSamples.size() != targetLength) {
@@ -391,7 +391,7 @@ namespace ds {
 
             // Create f0 tensor for acoustic model
             auto expForAcoustic =
-                InterpreterCommon::TensorHelper<float>::createFor1DArray(targetLength);
+                inferutil::TensorHelper<float>::createFor1DArray(targetLength);
             if (!expForAcoustic) {
                 setState(Failed);
                 return expForAcoustic.takeError();
@@ -415,7 +415,7 @@ namespace ds {
             } else {
                 // Needs to apply tone shift.
                 auto expForVocoder =
-                    InterpreterCommon::TensorHelper<float>::createFor1DArray(targetLength);
+                    inferutil::TensorHelper<float>::createFor1DArray(targetLength);
                 if (!expForVocoder) {
                     setState(Failed);
                     return expForVocoder.takeError();
@@ -461,7 +461,7 @@ namespace ds {
                 return srt::Error(srt::Error::SessionError, "no speakers found in acoustic input");
             }
 
-            auto exp = InterpreterCommon::preprocessSpeakerEmbeddingFrames(
+            auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
                 acousticInput->speakers, config->speakers, config->hiddenSize, frameWidth,
                 targetLength);
             if (exp) {

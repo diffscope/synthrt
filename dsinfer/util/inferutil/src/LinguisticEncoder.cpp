@@ -1,4 +1,4 @@
-#include <InterpreterCommon/LinguisticEncoder.h>
+#include <inferutil/LinguisticEncoder.h>
 
 #include <cmath>
 #include <cstddef>
@@ -6,10 +6,10 @@
 
 #include <stdcorelib/stdc_global.h>
 
-#include <InterpreterCommon/TensorHelper.h>
-#include <InterpreterCommon/InputWord.h>
+#include <inferutil/TensorHelper.h>
+#include <inferutil/InputWord.h>
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
 
     namespace Co = Api::Common::L1;
 

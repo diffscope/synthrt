@@ -5,7 +5,7 @@
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
 #include <stdcorelib/str.h>
 
-#include <InterpreterCommon/Parser.h>
+#include <inferutil/Parser.h>
 
 #include "PitchInference.h"
 
@@ -37,9 +37,9 @@ namespace ds {
         auto result = srt::NO<Pit::PitchSchema>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::SchemaParser parser(spec, &ec);
+        inferutil::SchemaParser parser(spec, &ec);
 
         // speakers, string[]
         {
@@ -78,9 +78,9 @@ namespace ds {
         auto result = srt::NO<Pit::PitchConfiguration>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::ConfigurationParser parser(spec, &ec);
+        inferutil::ConfigurationParser parser(spec, &ec);
         // phonemes, load file (json value is string of file path)
         {
             static_assert(std::is_same_v<decltype(result->phonemes), std::map<std::string, int>>);
@@ -191,9 +191,9 @@ namespace ds {
         auto result = srt::NO<Pit::PitchImportOptions>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::ImportOptionsParser parser(spec, &ec, obj);
+        inferutil::ImportOptionsParser parser(spec, &ec, obj);
 
         // speakerMapping
         {

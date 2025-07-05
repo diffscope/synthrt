@@ -1,5 +1,5 @@
-#ifndef DSINFER_INTERPRETER_COMMON_SPEAKEREMBEDDING_H
-#define DSINFER_INTERPRETER_COMMON_SPEAKEREMBEDDING_H
+#ifndef DSINFER_INFERUTIL_SPEAKEREMBEDDING_H
+#define DSINFER_INFERUTIL_SPEAKEREMBEDDING_H
 
 #include <filesystem>
 #include <map>
@@ -10,7 +10,7 @@
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
 
-namespace ds::InterpreterCommon {
+namespace ds::inferutil {
     srt::Expected<std::vector<float>> loadSpeakerEmbedding(int hiddenSize,
                                                            const std::filesystem::path &path);
 
@@ -20,4 +20,4 @@ namespace ds::InterpreterCommon {
         double frameWidth, int64_t targetLength);
 }
 
-#endif // DSINFER_INTERPRETER_COMMON_SPEAKEREMBEDDING_H
+#endif // DSINFER_INFERUTIL_SPEAKEREMBEDDING_H

@@ -3,8 +3,8 @@
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 #include <stdcorelib/str.h>
 
-#include <InterpreterCommon/ErrorCollector.h>
-#include <InterpreterCommon/Parser.h>
+#include <inferutil/ErrorCollector.h>
+#include <inferutil/Parser.h>
 
 #include "AcousticInference.h"
 
@@ -37,9 +37,9 @@ namespace ds {
         auto result = srt::NO<Ac::AcousticSchema>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::SchemaParser parser(spec, &ec);
+        inferutil::SchemaParser parser(spec, &ec);
 
         // speakers, string[]
         {
@@ -50,14 +50,14 @@ namespace ds {
         // varianceControls, set<ParamTag> (json value is string[])
         {
             static_assert(std::is_same_v<decltype(result->varianceControls), std::set<ParamTag>>);
-            parser.parse_parameters<InterpreterCommon::ParameterType::Variance>(
+            parser.parse_parameters<inferutil::ParameterType::Variance>(
                 result->varianceControls, "varianceControls");
         } // varianceControls
 
         // transitionControls, set<ParamTag> (json value is string[])
         {
             static_assert(std::is_same_v<decltype(result->transitionControls), std::set<ParamTag>>);
-            parser.parse_parameters<InterpreterCommon::ParameterType::Transition>(
+            parser.parse_parameters<inferutil::ParameterType::Transition>(
                 result->transitionControls, "transitionControls");
         } // transitionControls
 
@@ -86,9 +86,9 @@ namespace ds {
         auto result = srt::NO<Ac::AcousticConfiguration>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::ConfigurationParser parser(spec, &ec);
+        inferutil::ConfigurationParser parser(spec, &ec);
         // phonemes, load file (json value is string of file path)
         {
             static_assert(std::is_same_v<decltype(result->phonemes), std::map<std::string, int>>);
@@ -139,7 +139,7 @@ namespace ds {
         // parameters, set<ParamTag> (json value is string[])
         {
             static_assert(std::is_same_v<decltype(result->parameters), std::set<ParamTag>>);
-            parser.parse_parameters<InterpreterCommon::ParameterType::All>(result->parameters,
+            parser.parse_parameters<inferutil::ParameterType::All>(result->parameters,
                                                                            "parameters");
         } // parameters
 
@@ -240,9 +240,9 @@ namespace ds {
         auto result = srt::NO<Ac::AcousticImportOptions>::create();
 
         // Collect all the errors and return to user
-        InterpreterCommon::ErrorCollector ec;
+        inferutil::ErrorCollector ec;
 
-        InterpreterCommon::ImportOptionsParser parser(spec, &ec, obj);
+        inferutil::ImportOptionsParser parser(spec, &ec, obj);
 
         // speakerMapping
         {

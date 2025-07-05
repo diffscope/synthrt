@@ -18,12 +18,12 @@
 #include <dsinfer/Inference/InferenceSession.h>
 #include <dsinfer/Core/Tensor.h>
 
-#include <InterpreterCommon/Driver.h>
-#include <InterpreterCommon/Algorithm.h>
-#include <InterpreterCommon/InputWord.h>
-#include <InterpreterCommon/LinguisticEncoder.h>
-#include <InterpreterCommon/SpeakerEmbedding.h>
-#include <InterpreterCommon/Speedup.h>
+#include <inferutil/Driver.h>
+#include <inferutil/Algorithm.h>
+#include <inferutil/InputWord.h>
+#include <inferutil/LinguisticEncoder.h>
+#include <inferutil/SpeakerEmbedding.h>
+#include <inferutil/Speedup.h>
 
 namespace ds {
 
@@ -81,7 +81,7 @@ namespace ds {
         // If there are existing result, they will be cleared.
         impl.result.reset();
 
-        if (auto res = InterpreterCommon::getInferenceDriver(this); res) {
+        if (auto res = inferutil::getInferenceDriver(this); res) {
             impl.driver = res.take();
         } else {
             setState(Failed);
@@ -171,7 +171,7 @@ namespace ds {
             srt::NO<Onnx::SessionStartInput> linguisticInput;
             switch (config->linguisticMode) {
                 case Co::LinguistMode::LM_Word:
-                    if (auto exp = InterpreterCommon::preprocessLinguisticWord(
+                    if (auto exp = inferutil::preprocessLinguisticWord(
                             pitchInput->words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
                         exp) {
@@ -182,7 +182,7 @@ namespace ds {
                     }
                     break;
                 case Co::LinguistMode::LM_Phoneme:
-                    if (auto exp = InterpreterCommon::preprocessLinguisticPhoneme(
+                    if (auto exp = inferutil::preprocessLinguisticPhoneme(
                             pitchInput->words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
                         exp) {
@@ -205,7 +205,7 @@ namespace ds {
                                   "pitch linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
-                    InterpreterCommon::runEncoder(impl.encoderSession, linguisticInput,
+                    inferutil::runEncoder(impl.encoderSession, linguisticInput,
                                                   /* out */ sessionInput, false);
                 !encoderSessionExp) {
                 setState(Failed);
@@ -215,7 +215,7 @@ namespace ds {
 
         // Part 2: Pitch Inference
 
-        auto noteCount = InterpreterCommon::getNoteCount(pitchInput->words);
+        auto noteCount = inferutil::getNoteCount(pitchInput->words);
 
         std::vector<uint8_t> noteRest;
         std::vector<float> noteMidi;
@@ -241,7 +241,7 @@ namespace ds {
         int64_t targetLength =
             std::accumulate(noteDur.begin(), noteDur.end(), int64_t{0}, std::plus<>());
 
-        if (!InterpreterCommon::fillRestMidiWithNearestInPlace<float>(noteMidi, noteRest)) {
+        if (!inferutil::fillRestMidiWithNearestInPlace<float>(noteMidi, noteRest)) {
             return srt::Error(srt::Error::SessionError, "failed to fill rest notes");
         }
 
@@ -279,7 +279,7 @@ namespace ds {
             return exp.takeError();
         }
 
-        if (auto exp = InterpreterCommon::preprocessPhonemeDurations(pitchInput->words,
+        if (auto exp = inferutil::preprocessPhonemeDurations(pitchInput->words,
                                                                      config->frameWidth);
             exp) {
             sessionInput->inputs.emplace("ph_dur", exp.take());
@@ -297,7 +297,7 @@ namespace ds {
                 continue;
             }
             // Resample
-            auto samples = InterpreterCommon::resample(param.values, param.interval, frameWidth,
+            auto samples = inferutil::resample(param.values, param.interval, frameWidth,
                                                        targetLength, true);
             if (samples.size() != targetLength) {
                 setState(Failed);
@@ -419,7 +419,7 @@ namespace ds {
                 return srt::Error(srt::Error::SessionError, "no speakers found in pitch input");
             }
 
-            auto exp = InterpreterCommon::preprocessSpeakerEmbeddingFrames(
+            auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
                 pitchInput->speakers, config->speakers, config->hiddenSize, frameWidth,
                 targetLength);
             if (exp) {
@@ -435,7 +435,7 @@ namespace ds {
         // input param: steps / speedup
         int64_t acceleration = pitchInput->steps;
         if (!config->useContinuousAcceleration) {
-            acceleration = InterpreterCommon::getSpeedupFromSteps(acceleration);
+            acceleration = inferutil::getSpeedupFromSteps(acceleration);
         }
         {
             auto exp = Tensor::createScalar<int64_t>(acceleration);
