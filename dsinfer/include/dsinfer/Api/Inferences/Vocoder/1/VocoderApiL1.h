@@ -15,6 +15,10 @@ namespace ds::Api::Vocoder::L1 {
 
     inline constexpr int API_LEVEL = 1;
 
+    using MelBase = Common::L1::MelBase;
+
+    using MelScale = Common::L1::MelScale;
+
     class VocoderImportOptions : public srt::InferenceImportOptions {
     public:
         inline VocoderImportOptions()
@@ -43,9 +47,6 @@ namespace ds::Api::Vocoder::L1 {
 
     class VocoderConfiguration : public srt::InferenceConfiguration {
     public:
-        using MelBase = Common::L1::MelBase;
-        using MelScale = Common::L1::MelScale;
-
         inline VocoderConfiguration()
             : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
         }

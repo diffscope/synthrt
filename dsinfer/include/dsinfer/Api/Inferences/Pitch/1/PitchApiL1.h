@@ -19,6 +19,11 @@ namespace ds::Api::Pitch::L1 {
 
     inline constexpr int API_LEVEL = 1;
 
+    using LinguisticMode = Common::L1::LinguistMode;
+    using InputWordInfo = Common::L1::InputWordInfo;
+    using InputParameterInfo = Common::L1::InputParameterInfo;
+    using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
+
     class PitchSchema : public srt::InferenceSchema {
     public:
         inline PitchSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
@@ -33,10 +38,7 @@ namespace ds::Api::Pitch::L1 {
 
     class PitchConfiguration : public srt::InferenceConfiguration {
     public:
-        using LinguisticMode = Common::L1::LinguistMode;
-
-        inline PitchConfiguration()
-            : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
+        inline PitchConfiguration() : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// 音素名称与音素 ID 对应表或存储对应信息
@@ -81,8 +83,7 @@ namespace ds::Api::Pitch::L1 {
 
     class PitchImportOptions : public srt::InferenceImportOptions {
     public:
-        inline PitchImportOptions()
-            : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
+        inline PitchImportOptions() : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
         }
 
         /// 歌手全局音色名称 => 模块内部嵌入名称映射
@@ -108,10 +109,6 @@ namespace ds::Api::Pitch::L1 {
 
     class PitchStartInput : public srt::TaskStartInput {
     public:
-        using InputWordInfo = Common::L1::InputWordInfo;
-        using InputParameterInfo = Common::L1::InputParameterInfo;
-        using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
-
         inline PitchStartInput() : srt::TaskStartInput(API_NAME) {
         }
 

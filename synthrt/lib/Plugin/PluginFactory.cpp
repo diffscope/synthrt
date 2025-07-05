@@ -12,7 +12,7 @@ namespace fs = std::filesystem;
 
 namespace srt {
 
-    using StaticPluginMap = std::map<std::string, llvm::SmallVector<StaticPlugin, 20>>;
+    using StaticPluginMap = std::map<std::string, llvm::SmallVector<StaticPlugin, 10>>;
 
     static StaticPluginMap &getStaticPluginMap() {
         static StaticPluginMap staticPluginMap;

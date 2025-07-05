@@ -15,6 +15,11 @@
 
 namespace ds::Api::Variance::L1 {
 
+    using InputWordInfo = Common::L1::InputWordInfo;
+    using InputParameterInfo = Common::L1::InputParameterInfo;
+    using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
+    using LinguisticMode = Common::L1::LinguistMode;
+
     inline constexpr char API_NAME[] = "variance";
 
     inline constexpr char API_CLASS[] = "ai.svs.VarianceInference";
@@ -35,8 +40,6 @@ namespace ds::Api::Variance::L1 {
 
     class VarianceConfiguration : public srt::InferenceConfiguration {
     public:
-        using LinguisticMode = Common::L1::LinguistMode;
-
         inline VarianceConfiguration()
             : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
         }
@@ -107,10 +110,6 @@ namespace ds::Api::Variance::L1 {
 
     class VarianceStartInput : public srt::TaskStartInput {
     public:
-        using InputWordInfo = Common::L1::InputWordInfo;
-        using InputParameterInfo = Common::L1::InputParameterInfo;
-        using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
-
         inline VarianceStartInput() : srt::TaskStartInput(API_NAME) {
         }
 

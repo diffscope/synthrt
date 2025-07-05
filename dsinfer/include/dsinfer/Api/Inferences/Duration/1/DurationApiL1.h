@@ -19,6 +19,8 @@ namespace ds::Api::Duration::L1 {
 
     inline constexpr int API_LEVEL = 1;
 
+    using InputWordInfo = Common::L1::InputWordInfo;
+
     class DurationSchema : public srt::InferenceSchema {
     public:
         inline DurationSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
@@ -91,8 +93,6 @@ namespace ds::Api::Duration::L1 {
 
     class DurationStartInput : public srt::TaskStartInput {
     public:
-        using InputWordInfo = Common::L1::InputWordInfo;
-
         inline DurationStartInput() : srt::TaskStartInput(API_NAME) {
         }
 

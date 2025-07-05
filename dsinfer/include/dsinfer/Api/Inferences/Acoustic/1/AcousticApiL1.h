@@ -22,6 +22,13 @@ namespace ds::Api::Acoustic::L1 {
 
     inline constexpr int API_LEVEL = 1;
 
+    using MelBase = Common::L1::MelBase;
+    using MelScale = Common::L1::MelScale;
+    using InputWordInfo = Common::L1::InputWordInfo;
+    using InputParameterInfo = Common::L1::InputParameterInfo;
+    using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
+
+
     class AcousticSchema : public srt::InferenceSchema {
     public:
         inline AcousticSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
@@ -39,9 +46,6 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticConfiguration : public srt::InferenceConfiguration {
     public:
-        using MelBase = Common::L1::MelBase;
-        using MelScale = Common::L1::MelScale;
-
         inline AcousticConfiguration()
             : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
         }
@@ -136,10 +140,6 @@ namespace ds::Api::Acoustic::L1 {
 
     class AcousticStartInput : public srt::TaskStartInput {
     public:
-        using InputWordInfo = Common::L1::InputWordInfo;
-        using InputParameterInfo = Common::L1::InputParameterInfo;
-        using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
-
         inline AcousticStartInput() : srt::TaskStartInput(API_NAME) {
         }
 

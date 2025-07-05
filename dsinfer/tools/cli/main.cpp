@@ -156,9 +156,8 @@ struct InputObject {
                             (std::istreambuf_iterator<char>()));
 
         // parse JSON
-        srt::JsonValue jsonDoc;
-        if (std::string err1;
-            jsonDoc = srt::JsonValue::fromJson(jsonStr, true, err), !err->empty()) {
+        srt::JsonValue jsonDoc = srt::JsonValue::fromJson(jsonStr, true, err);
+        if (!err->empty()) {
             return {};
         }
         if (!jsonDoc.isObject()) {
