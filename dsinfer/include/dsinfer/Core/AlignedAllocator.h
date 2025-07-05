@@ -78,13 +78,16 @@ namespace ds {
 #elif defined(__MINGW32__) || defined(__MINGW64__)
             return ::__mingw_aligned_malloc(size, alignment);
 
-#elif defined(__APPLE__) || defined(_POSIX_VERSION)
+#elif defined(__APPLE__) || defined(__unix__) || defined(__linux__) || defined(_POSIX_VERSION)
             void *ptr = nullptr;
             if (::posix_memalign(&ptr, alignment, size) != 0)
                 return nullptr;
             return ptr;
 
 #elif defined(__cpp_aligned_new)
+            if ((size % alignment) != 0) {
+                size = ((size + alignment - 1) / alignment) * alignment;
+            }
             return std::aligned_alloc(alignment, size);
 
 #else
@@ -99,8 +102,8 @@ namespace ds {
 #elif defined(__MINGW32__) || defined(__MINGW64__)
             ::__mingw_aligned_free(p);
 
-#elif defined(__APPLE__) || defined(_POSIX_VERSION)
-            std::free(p);
+#elif defined(__APPLE__) || defined(__unix__) || defined(__linux__) || defined(_POSIX_VERSION)
+            ::free(p);
 
 #elif defined(__cpp_aligned_new)
             std::free(p);
