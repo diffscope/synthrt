@@ -254,6 +254,7 @@ namespace ds {
                 auto tensor = exp.take();
                 auto buffer = tensor->mutableData<float>();
                 if (!buffer) {
+                    setState(Failed);
                     return srt::Error(srt::Error::SessionError,
                                       "failed to create spk_embed tensor");
                 }
@@ -262,11 +263,18 @@ namespace ds {
                 int currPhoneIndex = 0;
                 for (const auto &word : durationInput->words) {
                     for (const auto &phone : word.phones) {
+                        if (phone.speakers.empty()) {
+                            setState(Failed);
+                            return srt::Error(
+                                srt::Error::SessionError,
+                                stdc::formatN("phoneme %1 missing speakers", phone.token));
+                        }
                         for (const auto &speaker : phone.speakers) {
                             if (auto it_speaker = config->speakers.find(speaker.name);
                                 it_speaker != config->speakers.end()) {
                                 const auto &embedding = it_speaker->second;
                                 if (embedding.size() != config->hiddenSize) {
+                                    setState(Failed);
                                     return srt::Error(srt::Error::SessionError,
                                                       "speaker embedding vector length does not "
                                                       "match hiddenSize");
