@@ -5,7 +5,7 @@
         "nlohmann-json",
         "stduuid",
         "stdcorelib",
-        "hash-library",
+        "blake3",
         "sparsepp",
         "bit7z"
     ],

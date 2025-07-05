@@ -5,7 +5,7 @@ endif()
 
 project(onnxdriver
     VERSION ${DSINFER_VERSION}
-    LANGUAGES CXX
+    LANGUAGES C CXX
 )
 
 file(GLOB_RECURSE _src *.h *.cpp)
@@ -23,13 +23,13 @@ endif()
 set(_onnxdriver_ep_macros ${_onnxdriver_ep_macro_dml} ${_onnxdriver_ep_macro_cuda})
 
 find_package(stduuid CONFIG REQUIRED)
-find_package(unofficial-hash-library CONFIG REQUIRED)
+find_package(blake3 CONFIG REQUIRED)
 
 dsinfer_add_plugin(${PROJECT_NAME} ${CURRENT_PLUGIN_CATEGORY} NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_17
     LINKS dsinfer
-    LINKS_PRIVATE stduuid unofficial::hash-library $<BUILD_INTERFACE:onnxutil>
+    LINKS_PRIVATE stduuid BLAKE3::blake3 $<BUILD_INTERFACE:onnxutil>
     INCLUDE_PRIVATE *
     DEFINES ORT_API_MANUAL_INIT ${_onnxdriver_ep_macros}
 )

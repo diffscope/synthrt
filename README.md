@@ -4,7 +4,7 @@
 
 + [nlohmann_json](https://github.com/nlohmann/json)
 + [stduuid](https://github.com/mariusbancila/stduuid)
-+ [hash-library](https://github.com/stbrumme/hash-library)
++ [BLAKE3](https://github.com/BLAKE3-team/BLAKE3)
 + [sparsepp](https://github.com/greg7mdp/sparsepp)
 + [qmsetup](https://github.com/stdware/qmsetup)
 + [syscmdline](https://github.com/SineStriker/syscmdline)

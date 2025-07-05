@@ -17,7 +17,7 @@
 #include <synthrt/synthrt_global.h>
 #include <synthrt/Support/Expected.h>
 
-#include <hash-library/sha256.h>
+#include <blake3.h>
 
 #include "OnnxDriver_Logger.h"
 #include "SessionImage.h"
@@ -39,18 +39,18 @@ namespace ds::onnxdriver {
         struct ImageGroup {
             std::filesystem::path path;
             std::streamsize size = 0;
-            std::vector<uint8_t> sha256;
+            std::vector<uint8_t> hash;
             std::map<int, ImageData> images; // hint -> [ image, count ]
         };
 
-        struct Sha256SizeKey {
+        struct HashSizeKey {
             std::streamsize size;
-            std::vector<uint8_t> sha256;
+            std::vector<uint8_t> hash;
 
-            bool operator<(const Sha256SizeKey &other) const {
+            bool operator<(const HashSizeKey &other) const {
                 if (size == other.size) {
-                    return std::lexicographical_compare(sha256.begin(), sha256.end(),
-                                                        other.sha256.begin(), other.sha256.end());
+                    return std::lexicographical_compare(hash.begin(), hash.end(),
+                                                        other.hash.begin(), other.hash.end());
                 }
                 return size < other.size;
             }
@@ -61,7 +61,7 @@ namespace ds::onnxdriver {
         using ListIterator = decltype(image_list)::iterator;
 
         std::map<std::filesystem::path::string_type, ListIterator> path_map;
-        std::map<Sha256SizeKey, ListIterator> sha256_size_map;
+        std::map<HashSizeKey, ListIterator> hash_size_map;
 
         std::shared_mutex mtx;
 
@@ -615,17 +615,27 @@ namespace ds::onnxdriver {
         static constexpr const size_t buffer_size = 4096; // Process 4KB each time
         char buffer[buffer_size];
 
-        SHA256 sha256_ctx;
+        blake3_hasher hasher;
+        blake3_hasher_init(&hasher);
+
         while (file.read(buffer, buffer_size) || file.gcount() > 0) {
-            sha256_ctx.add(buffer, file.gcount());
+            blake3_hasher_update(&hasher, buffer, file.gcount());
         }
 
-        // get str
-        stringResult = sha256_ctx.getHash();
+        constexpr size_t hashByteSize = 32;
 
         // get binary
-        binaryResult.resize(32);
-        sha256_ctx.getHash(binaryResult.data());
+        binaryResult.resize(hashByteSize);
+        blake3_hasher_finalize(&hasher, binaryResult.data(), binaryResult.size());
+
+        // get string
+        static constexpr char hexDigits[] = "0123456789abcdef";
+        stringResult.resize(hashByteSize * 2);
+        for (size_t i = 0; i < hashByteSize; ++i) {
+            stringResult[2 * i] = hexDigits[binaryResult[i] >> 4];
+            stringResult[2 * i + 1] = hexDigits[binaryResult[i] & 0x0f];
+        }
+
         return true;
     }
 
@@ -651,7 +661,7 @@ namespace ds::onnxdriver {
         auto &session_system = SessionSystem::global();
         std::unique_lock<std::shared_mutex> lock(session_system.mtx);
         SessionImage *image = nullptr;
-        std::vector<uint8_t> sha256;
+        std::vector<uint8_t> hash;
         std::streamsize size;
 
         int hints = SH_NoHint;
@@ -670,25 +680,25 @@ namespace ds::onnxdriver {
                 data.count++;
                 goto out_exists;
             }
-            sha256 = it->second->sha256;
+            hash = it->second->hash;
             size = it->second->size;
 
             Log.srtDebug("Session - No same hint in opened sessions");
-            goto out_search_sha256;
+            goto out_search_hash;
         }
 
-        // Calculate SHA256
+        // Calculate hash
         {
-            std::string sha256_str;
-            if (!getFileInfo(canonical_path, sha256, sha256_str, size)) {
+            std::string hash_str;
+            if (!getFileInfo(canonical_path, hash, hash_str, size)) {
                 return srt::Error(srt::Error::FileNotFound, "failed to read file");
             }
-            Log.srtDebug("Session - SHA256 is %1", sha256_str);
+            Log.srtDebug("Session - BLAKE3 hash is %1", hash_str);
         }
 
-        // Search SHA256
-        if (auto it = session_system.sha256_size_map.find({size, sha256});
-            it != session_system.sha256_size_map.end()) {
+        // Search hash
+        if (auto it = session_system.hash_size_map.find({size, hash});
+            it != session_system.hash_size_map.end()) {
             image_group = &(*it->second);
             auto &image_map = image_group->images;
             if (auto it2 = image_map.find(hints); it2 != image_map.end()) {
@@ -699,7 +709,7 @@ namespace ds::onnxdriver {
             }
         }
 
-    out_search_sha256:
+    out_search_hash:
 
         Log.srtDebug("Session - The session image does not exist. Creating a new one...");
 
@@ -720,12 +730,12 @@ namespace ds::onnxdriver {
             SessionSystem::ImageGroup group;
             group.path = canonical_path;
             group.size = size;
-            group.sha256 = std::move(sha256);
+            group.hash = std::move(hash);
 
             auto it = session_system.image_list.emplace(session_system.image_list.end(),
                                                         std::move(group));
             session_system.path_map[it->path] = it;
-            session_system.sha256_size_map[{size, it->sha256}] = it;
+            session_system.hash_size_map[{size, it->hash}] = it;
             image_group = &(*it);
         }
         image_group->images[hints] = {image, 1};
@@ -772,12 +782,12 @@ namespace ds::onnxdriver {
         }
         if (images.empty()) {
             Log.srtDebug("Session - The session image group is empty. Destroying.");
-            auto it = session_system.sha256_size_map.find({group.size, group.sha256});
-            assert(it != session_system.sha256_size_map.end());
+            auto it = session_system.hash_size_map.find({group.size, group.hash});
+            assert(it != session_system.hash_size_map.end());
 
             auto list_it = it->second;
 
-            session_system.sha256_size_map.erase(it);
+            session_system.hash_size_map.erase(it);
             session_system.path_map.erase(group.path);
             session_system.image_list.erase(list_it);
         }
