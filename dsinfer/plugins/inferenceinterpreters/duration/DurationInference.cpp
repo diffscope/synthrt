@@ -209,6 +209,10 @@ namespace ds {
         auto sessionInput = srt::NO<Onnx::SessionStartInput>::create();
 
         double frameWidth = config->frameWidth;
+        if (!std::isfinite(frameWidth) || frameWidth <= 0) {
+            setState(Failed);
+            return srt::Error(srt::Error::InvalidArgument, "frame width must be positive");
+        }
 
         // Part 1: Linguistic Encoder Inference
         if (auto exp = InterpreterCommon::preprocessLinguisticWord(
@@ -242,8 +246,8 @@ namespace ds {
             return exp.takeError();
         }
 
+        auto phoneCount = InterpreterCommon::getPhoneCount(durationInput->words);
         if (config->useSpeakerEmbedding) {
-            auto phoneCount = InterpreterCommon::getPhoneCount(durationInput->words);
             std::vector<int64_t> shape = {1, static_cast<int64_t>(phoneCount), config->hiddenSize};
             if (auto exp = Tensor::create(ITensor::Float, shape); exp) {
                 // get tensor buffer
@@ -364,6 +368,14 @@ namespace ds {
         } else {
             setState(Failed);
             return srt::Error(srt::Error::SessionError, "invalid result output");
+        }
+
+        const auto predictedPhoneCount = impl.result->durations.size();
+        if (predictedPhoneCount != phoneCount) {
+            setState(Failed);
+            return srt::Error(srt::Error::SessionError,
+                              stdc::formatN("predicted phoneme count mismatch: expected %1, got %2",
+                                            phoneCount, predictedPhoneCount));
         }
 
         setState(Idle);

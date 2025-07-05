@@ -161,6 +161,10 @@ namespace ds {
         auto sessionInput = srt::NO<Onnx::SessionStartInput>::create();
 
         double frameWidth = config->frameWidth;
+        if (!std::isfinite(frameWidth) || frameWidth <= 0) {
+            setState(Failed);
+            return srt::Error(srt::Error::InvalidArgument, "frame width must be positive");
+        }
 
         // Part 1: Linguistic Encoder Inference
         {
