@@ -22,8 +22,8 @@
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
-#include "AcousticInputParser.h"
-#include "WavFile.h"
+#include <AcousticInputParser.h>
+#include <WavFile.h>
 
 namespace fs = std::filesystem;
 
@@ -138,8 +138,8 @@ static void initializeSU(srt::SynthUnit &su) {
     }
 
     // Add driver
-    auto &inferenceCate = *su.category("inference");
-    inferenceCate.addObject("dsdriver", onnxDriver);
+    auto &ic = *su.category("inference");
+    ic.addObject("dsdriver", onnxDriver);
 }
 
 struct InputObject {
@@ -217,8 +217,8 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
     }
 
     // Find singer
-    auto &singerCate = *su.category("singer")->as<srt::SingerCategory>();
-    const auto &singers = singerCate.singers();
+    auto &sc = *su.category("singer")->as<srt::SingerCategory>();
+    const auto &singers = sc.singers();
     const srt::SingerSpec *singerSpec = nullptr;
     for (const auto &singer : singers) {
         if (singer->id() == input.singer) {
@@ -446,7 +446,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
 
         // Update user inputs in-place with variance model outputs
         const auto nParams = schema->predictions.size();
-        std::vector<bool> satisfyParams(nParams, false);
+        std::vector<char> satisfyParams(nParams, false);
         // schema->predictions.size() == result->predictions.size()
         // guaranteed if inference is successful
         for (size_t i = 0; i < nParams; i++) {

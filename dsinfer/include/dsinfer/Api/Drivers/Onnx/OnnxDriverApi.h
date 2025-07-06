@@ -4,7 +4,6 @@
 #include <filesystem>
 #include <map>
 #include <set>
-#include <variant>
 
 #include <dsinfer/Core/Tensor.h>
 #include <dsinfer/Inference/InferenceDriver.h>
