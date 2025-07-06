@@ -24,7 +24,7 @@ namespace ds::inferutil {
     private:
         using MelBase = Api::Common::L1::MelBase;
         using MelScale = Api::Common::L1::MelScale;
-        using LinguisticMode = Api::Common::L1::LinguistMode;
+        using LinguisticMode = Api::Common::L1::LinguisticMode;
 
     public:
         ConfigurationParser(const srt::InferenceSpec *spec_, ErrorCollector *ec_)

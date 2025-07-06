@@ -145,7 +145,7 @@ namespace ds {
 
         // linguisticMode, enum (json value is string)
         {
-            static_assert(std::is_same_v<decltype(result->linguisticMode), Co::LinguistMode>);
+            static_assert(std::is_same_v<decltype(result->linguisticMode), Co::LinguisticMode>);
             parser.parse_linguisticMode_optional(result->linguisticMode);
         }
 

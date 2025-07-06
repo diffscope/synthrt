@@ -46,7 +46,7 @@ namespace ds::Api::Common::L1 {
         GT_Down,
     };
 
-    enum LinguistMode {
+    enum LinguisticMode {
         LM_Word,
         LM_Phoneme,
     };

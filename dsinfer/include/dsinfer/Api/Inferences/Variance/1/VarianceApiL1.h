@@ -18,7 +18,7 @@ namespace ds::Api::Variance::L1 {
     using InputWordInfo = Common::L1::InputWordInfo;
     using InputParameterInfo = Common::L1::InputParameterInfo;
     using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
-    using LinguisticMode = Common::L1::LinguistMode;
+    using LinguisticMode = Common::L1::LinguisticMode;
 
     inline constexpr char API_NAME[] = "variance";
 

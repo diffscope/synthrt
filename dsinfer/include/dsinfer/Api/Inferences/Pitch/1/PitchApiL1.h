@@ -19,7 +19,7 @@ namespace ds::Api::Pitch::L1 {
 
     inline constexpr int API_LEVEL = 1;
 
-    using LinguisticMode = Common::L1::LinguistMode;
+    using LinguisticMode = Common::L1::LinguisticMode;
     using InputWordInfo = Common::L1::InputWordInfo;
     using InputParameterInfo = Common::L1::InputParameterInfo;
     using InputSpeakerInfo = Common::L1::InputSpeakerInfo;

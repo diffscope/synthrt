@@ -170,7 +170,7 @@ namespace ds {
         {
             srt::NO<Onnx::SessionStartInput> linguisticInput;
             switch (config->linguisticMode) {
-                case Co::LinguistMode::LM_Word:
+                case Co::LinguisticMode::LM_Word:
                     if (auto exp = inferutil::preprocessLinguisticWord(
                             pitchInput->words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
@@ -181,7 +181,7 @@ namespace ds {
                         return exp.takeError();
                     }
                     break;
-                case Co::LinguistMode::LM_Phoneme:
+                case Co::LinguisticMode::LM_Phoneme:
                     if (auto exp = inferutil::preprocessLinguisticPhoneme(
                             pitchInput->words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
@@ -194,7 +194,7 @@ namespace ds {
                     break;
                 default:
                     setState(Failed);
-                    return srt::Error(srt::Error::SessionError, "invalid LinguistMode");
+                    return srt::Error(srt::Error::SessionError, "invalid LinguisticMode");
             }
 
             // Run Linguistic Encoder Inference

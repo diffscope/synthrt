@@ -3,7 +3,6 @@
 
 #include <filesystem>
 #include <vector>
-#include <map>
 
 #include <stdcorelib/adt/array_view.h>
 
