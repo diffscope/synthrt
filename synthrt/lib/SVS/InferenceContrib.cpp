@@ -145,18 +145,16 @@ namespace srt {
         {
             auto it = configObj.find("$version");
             if (it == configObj.end()) {
-                return Error{
-                    Error::InvalidFormat,
-                    stdc::formatN(R"(%1: missing "$version" field)", configPath),
-                };
-            }
-            fmtVersion_ = stdc::VersionNumber::fromString(it->second.toString());
-            if (fmtVersion_ > stdc::VersionNumber(1)) {
-                return Error{
-                    Error::FeatureNotSupported,
-                    stdc::formatN(R"(%1: format version "%2" is not supported)", configPath,
-                                  fmtVersion_.toString()),
-                };
+                fmtVersion_ = stdc::VersionNumber(1);
+            } else {
+                fmtVersion_ = stdc::VersionNumber::fromString(it->second.toString());
+                if (fmtVersion_ > stdc::VersionNumber(1)) {
+                    return Error{
+                        Error::FeatureNotSupported,
+                        stdc::formatN(R"(%1: format version "%2" is not supported)", configPath,
+                                      fmtVersion_.toString()),
+                    };
+                }
             }
         }
         // name
@@ -377,7 +375,8 @@ namespace srt {
                         Error::FeatureNotSupported,
                         stdc::formatN(
                             R"(required interpreter "%1" of api level %2 doesn't support inference "%3" of api level %4)",
-                            infSpec->className(), interp->apiLevel(), infSpec->id(), infSpec->apiLevel()),
+                            infSpec->className(), interp->apiLevel(), infSpec->id(),
+                            infSpec->apiLevel()),
                     };
                 }
 

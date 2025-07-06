@@ -198,18 +198,16 @@ namespace srt {
         {
             auto it = configObj.find("$version");
             if (it == configObj.end()) {
-                return Error{
-                    Error::InvalidFormat,
-                    stdc::formatN(R"(%1: missing "$version" field)", configPath),
-                };
-            }
-            fmtVersion_ = stdc::VersionNumber::fromString(it->second.toString());
-            if (fmtVersion_ > stdc::VersionNumber(1)) {
-                return Error{
-                    Error::FeatureNotSupported,
-                    stdc::formatN(R"(%1: format version "%1" is not supported)",
-                                  fmtVersion_.toString()),
-                };
+                fmtVersion_ = stdc::VersionNumber(1);
+            } else {
+                fmtVersion_ = stdc::VersionNumber::fromString(it->second.toString());
+                if (fmtVersion_ > stdc::VersionNumber(1)) {
+                    return Error{
+                        Error::FeatureNotSupported,
+                        stdc::formatN(R"(%1: format version "%1" is not supported)",
+                                      fmtVersion_.toString()),
+                    };
+                }
             }
         }
         // name
