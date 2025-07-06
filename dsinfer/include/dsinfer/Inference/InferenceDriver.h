@@ -18,8 +18,18 @@ namespace ds {
 
     class InferenceSession;
 
+    /// InferenceDriver - DiffSinger inference driver interface.
+    ///
     /// \note An instance of \a InferenceDriver needs to be added to the \a InferenceCategory with
     /// the ID "dsdriver" before it can be called by the inference interpreters.
+    ///
+    /// It is used like the following.
+    /// \code
+    ///     void init(srt::SynthUnit &su, InferenceDriver *driver) {
+    ///         ContribCategory &ic = *su.category("inference");
+    ///         ic.addObject("dsdriver", driver);
+    ///     }
+    /// \endcode
     class InferenceDriver : public srt::NamedObject {
     public:
         virtual ~InferenceDriver() = default;

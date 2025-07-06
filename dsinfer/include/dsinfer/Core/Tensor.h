@@ -12,11 +12,12 @@
 #include <synthrt/Core/NamedObject.h>
 #include <synthrt/Support/Expected.h>
 
+#include <dsinfer/Support/AlignedAllocator.h>
 #include <dsinfer/dsinfer_global.h>
-#include <dsinfer/Core/AlignedAllocator.h>
 
 namespace ds {
 
+    /// ITensor - Tensor-like object interface.
     class ITensor : public srt::NamedObject {
     public:
         /// Supported element data types
@@ -139,6 +140,10 @@ namespace ds {
     }
 
 
+    /// Tensor - CPU-based tensor implementation.
+    ///
+    /// This implementation uses a \c std::vector<std::byte> to store the tensor data,
+    /// with alignment requirements to ensure proper memory access.
     class DSINFER_EXPORT Tensor : public ITensor {
     public:
         static constexpr size_t ALIGNMENT = sizeof(int64_t);
@@ -381,6 +386,7 @@ namespace ds {
         std::fill(dataPtr, dataPtr + tensor->elementCount(), value);
         return tensor;
     }
+
 }
 
 #endif // DSINFER_TENSOR_H

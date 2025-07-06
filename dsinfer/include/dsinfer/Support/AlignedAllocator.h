@@ -11,12 +11,9 @@ namespace ds {
     template <typename T, std::size_t Alignment>
     class AlignedAllocator {
     public:
-        static_assert(
-            Alignment >= alignof(void*) &&
-            (Alignment % alignof(void*) == 0) &&
-            (Alignment & (Alignment - 1)) == 0,
-            "Alignment must be a power of two and a multiple of alignof(void*)"
-        );
+        static_assert(Alignment >= alignof(void *) && (Alignment % alignof(void *) == 0) &&
+                          (Alignment & (Alignment - 1)) == 0,
+                      "Alignment must be a power of two and a multiple of alignof(void *)");
 
         using value_type = T;
         using pointer = T *;

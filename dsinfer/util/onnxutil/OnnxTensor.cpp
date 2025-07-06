@@ -31,7 +31,8 @@ namespace ds {
         }
     }
 
-    static inline std::optional<uint64_t> getElementCountFromShape(ITensor::DataType dataType, const std::vector<int64_t> &shape) {
+    static inline std::optional<uint64_t>
+        getElementCountFromShape(ITensor::DataType dataType, const std::vector<int64_t> &shape) {
         if (shape.empty()) {
             return 1;
         }
@@ -59,7 +60,8 @@ namespace ds {
         return totalElements;
     }
 
-    static inline bool verifyShape(ITensor::DataType dataType, const std::vector<int64_t> &shape, size_t dataSize) {
+    static inline bool verifyShape(ITensor::DataType dataType, const std::vector<int64_t> &shape,
+                                   size_t dataSize) {
         if (shape.empty()) {
             return dataSize == getElementSize(dataType);
         }
@@ -81,7 +83,8 @@ namespace ds {
         return totalBytes == static_cast<uint64_t>(dataSize);
     }
 
-    srt::Expected<void> verify(ITensor::DataType dataType, const std::vector<int64_t> &shape, size_t dataSize) {
+    srt::Expected<void> verify(ITensor::DataType dataType, const std::vector<int64_t> &shape,
+                               size_t dataSize) {
         if (dataType == ITensor::Undefined) {
             return srt::Error(srt::Error::InvalidArgument, "data type can not be Undefined");
         }
@@ -91,7 +94,8 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    OnnxTensor::OnnxTensor() : _value(nullptr), _dataType(Undefined), _elementSize(0), _bytesSize(0) {
+    OnnxTensor::OnnxTensor()
+        : _value(nullptr), _dataType(Undefined), _elementSize(0), _bytesSize(0) {
     }
 
     OnnxTensor::OnnxTensor(OnnxTensor &&other) noexcept
@@ -121,7 +125,7 @@ namespace ds {
     OnnxTensor::~OnnxTensor() = default;
 
     srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::create(DataType dataType,
-            const std::vector<int64_t> &shape) {
+                                                          const std::vector<int64_t> &shape) {
         // Check if shape is valid
         auto maybeTotalElements = getElementCountFromShape(dataType, shape);
         if (!maybeTotalElements.has_value()) {
@@ -169,9 +173,10 @@ namespace ds {
 
         return tensor;
     }
-    srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::createFromRawView(DataType dataType,
-            const std::vector<int64_t> &shape,
-            const stdc::array_view<std::byte> &data) {
+
+    srt::Expected<srt::NO<OnnxTensor>>
+        OnnxTensor::createFromRawView(DataType dataType, const std::vector<int64_t> &shape,
+                                      const stdc::array_view<std::byte> &data) {
 
         auto exp = create(dataType, shape);
         if (!exp) {
@@ -219,7 +224,8 @@ namespace ds {
         return tensor;
     }
 
-    srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::createFromTensor(const srt::NO<ITensor> &tensor) {
+    srt::Expected<srt::NO<OnnxTensor>>
+        OnnxTensor::createFromTensor(const srt::NO<ITensor> &tensor) {
         if (!tensor) {
             return srt::Error(srt::Error::InvalidArgument, "tensor must not be nullptr");
         }
@@ -299,4 +305,5 @@ namespace ds {
     bool OnnxTensor::isValid() const {
         return _value && _value.IsTensor() && _dataType != Undefined;
     }
+
 }
