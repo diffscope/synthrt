@@ -28,7 +28,6 @@ namespace ds::Api::Acoustic::L1 {
     using InputParameterInfo = Common::L1::InputParameterInfo;
     using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
 
-
     class AcousticSchema : public srt::InferenceSchema {
     public:
         inline AcousticSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {

@@ -578,12 +578,6 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         cliLog.srtSuccess("WAV file written successfully.");
     }
 
-    cliLog.srtDebug("Debug: %1", stdc::system::application_name());
-    cliLog.srtSuccess("Success: %1", stdc::system::application_name());
-    cliLog.srtInfo("Info: %1", stdc::system::application_name());
-    cliLog.srtWarning("Warning: %1", stdc::system::application_name());
-    cliLog.srtCritical("Critical: %1", stdc::system::application_name());
-
     return 0;
 }
 

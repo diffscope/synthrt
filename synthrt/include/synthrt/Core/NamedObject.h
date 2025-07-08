@@ -33,7 +33,7 @@ namespace srt {
         explicit NamedObject(Impl &impl);
     };
 
-    /// A shared wrapper for \a NamedObject.
+    /// NO - A shared pointer wrapper for \c NamedObject instance.
     template <class T>
     class NO : public std::shared_ptr<T> {
         static_assert(std::is_base_of<NamedObject, T>::value,
