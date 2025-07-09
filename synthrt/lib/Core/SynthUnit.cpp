@@ -54,35 +54,35 @@ namespace srt {
         }
 
         // Parse spec
-        auto spec = new PackageData(&decl);
+        auto pd = new PackageData(&decl);
         llvm::SmallVector<ContribSpec *> contributes;
 
-        if (auto exp = spec->parse(canonicalPath, cateKeyMap, &contributes); !exp) {
-            delete spec;
+        if (auto exp = pd->parse(canonicalPath, cateKeyMap, &contributes); !exp) {
+            delete pd;
             stdc::delete_all(contributes); // Maybe redundant
             return exp.error();
         }
 
         // Set parent
         for (const auto &contribute : std::as_const(contributes)) {
-            contribute->_impl->package = spec;
+            contribute->_impl->package = pd;
         }
 
         // Add to package's data space
         for (const auto &contribute : std::as_const(contributes)) {
-            spec->contributes[contribute->_impl->category][contribute->_impl->id] = contribute;
+            pd->contributes[contribute->_impl->category][contribute->_impl->id] = contribute;
         }
 
         if (noLoad) {
             std::unique_lock<std::shared_mutex> lock(su_mtx);
-            resourcePackages.insert(spec);
-            return spec;
+            resourcePackages.insert(pd);
+            return pd;
         }
 
-        const auto &removePending = [this, spec] {
-            auto it = pendingPackages.find(spec->id);
+        const auto &removePending = [this, pd] {
+            auto it = pendingPackages.find(pd->id);
             auto &versionSet = it->second;
-            versionSet.erase(spec->version);
+            versionSet.erase(pd->version);
             if (versionSet.empty()) {
                 pendingPackages.erase(it);
             }
@@ -96,16 +96,16 @@ namespace srt {
 
             // Check if a package with same id and version but different path is loaded
             {
-                auto it = pkgMap.idIndexes.find(spec->id);
+                auto it = pkgMap.idIndexes.find(pd->id);
                 if (it != pkgMap.idIndexes.end()) {
                     const auto &versionMap = it->second;
-                    auto it2 = versionMap.find(spec->version);
+                    auto it2 = versionMap.find(pd->version);
                     if (it2 != versionMap.end()) {
                         auto pkg = *it2->second;
                         error1 = {
                             Error::FileDuplicated,
                             stdc::formatN(R"(duplicated package "%1[%2]" in "%3" is loaded)",
-                                          spec->id, spec->version.toString(), pkg.spec->path),
+                                          pd->id, pd->version.toString(), pkg.spec->path),
                         };
                         goto out_dup;
                     }
@@ -114,29 +114,29 @@ namespace srt {
 
             // Check pending list
             {
-                auto it = pendingPackages.find(spec->id);
+                auto it = pendingPackages.find(pd->id);
                 if (it != pendingPackages.end()) {
                     const auto &versionMap = it->second;
-                    auto it2 = versionMap.find(spec->version);
+                    auto it2 = versionMap.find(pd->version);
                     if (it2 != versionMap.end()) {
                         error1 = {
                             Error::RecursiveDependency,
                             stdc::formatN(
                                 R"(recursive dependency chain detected: package "%1[%2]" in %3 is being loaded)",
-                                spec->id, spec->version.toString(), it2->second),
+                                pd->id, pd->version.toString(), it2->second),
                         };
                         goto out_dup;
                     }
                 }
             }
 
-            pendingPackages[spec->id][spec->version] = spec->path;
+            pendingPackages[pd->id][pd->version] = pd->path;
             break;
 
         out_dup:
-            spec->err = error1;
-            resourcePackages.insert(spec);
-            return spec;
+            pd->err = error1;
+            resourcePackages.insert(pd);
+            return pd;
         } while (false);
 
         // Refresh dependency cache if needed
@@ -184,7 +184,7 @@ namespace srt {
         };
         do {
             Error error1;
-            for (const auto &dep : std::as_const(spec->dependencies)) {
+            for (const auto &dep : std::as_const(pd->dependencies)) {
                 stdc::VersionNumber depVersion;
 
                 // Try to load all matched packages
@@ -246,12 +246,12 @@ namespace srt {
 
         out_deps:
             closeDependencies();
-            spec->err = error1;
+            pd->err = error1;
 
             std::unique_lock<std::shared_mutex> lock(su_mtx);
             removePending();
-            resourcePackages.insert(spec);
-            return spec;
+            resourcePackages.insert(pd);
+            return pd;
         } while (false);
 
         // Initialize
@@ -271,8 +271,8 @@ namespace srt {
                     failed = true;
                     break;
                 }
-                const auto &cate = it->second;
-                if (auto exp = cate->loadSpec(contribute, ContribSpec::Initialized); !exp) {
+                const auto &cc = it->second;
+                if (auto exp = cc->loadSpec(contribute, ContribSpec::Initialized); !exp) {
                     error1 = exp.error();
                     i--;
                     failed = true;
@@ -285,18 +285,18 @@ namespace srt {
                 // Delete
                 for (; i >= 0; --i) {
                     const auto &contribute = contributes[i];
-                    const auto &cate = categories.at(contribute->_impl->category);
-                    std::ignore = cate->loadSpec(contribute, ContribSpec::Deleted);
+                    const auto &cc = categories.at(contribute->_impl->category);
+                    std::ignore = cc->loadSpec(contribute, ContribSpec::Deleted);
                     contribute->_impl->state = ContribSpec::Deleted;
                 }
 
                 closeDependencies();
-                spec->err = error1;
+                pd->err = error1;
 
                 std::unique_lock<std::shared_mutex> lock(su_mtx);
                 removePending();
-                resourcePackages.insert(spec);
-                return spec;
+                resourcePackages.insert(pd);
+                return pd;
             }
         }
 
@@ -307,8 +307,8 @@ namespace srt {
             int i = 0;
             for (; i < contributes.size(); ++i) {
                 const auto &contribute = contributes[i];
-                const auto &cate = categories.at(contribute->_impl->category);
-                if (auto exp = cate->loadSpec(contribute, ContribSpec::Ready); !exp) {
+                const auto &cc = categories.at(contribute->_impl->category);
+                if (auto exp = cc->loadSpec(contribute, ContribSpec::Ready); !exp) {
                     error1 = exp.error();
                     i--;
                     failed = true;
@@ -321,35 +321,35 @@ namespace srt {
                 // Finish
                 for (; i >= 0; --i) {
                     const auto &contribute = contributes[i];
-                    const auto &cate = categories.at(contribute->_impl->category);
-                    std::ignore = cate->loadSpec(contribute, ContribSpec::Finished);
+                    const auto &cc = categories.at(contribute->_impl->category);
+                    std::ignore = cc->loadSpec(contribute, ContribSpec::Finished);
                     contribute->_impl->state = ContribSpec::Finished;
                 }
 
                 // Delete
                 for (i = int(contributes.size()) - 1; i >= 0; i--) {
                     const auto &contribute = contributes[i];
-                    const auto &cate = categories.at(contribute->_impl->category);
-                    std::ignore = cate->loadSpec(contribute, ContribSpec::Deleted);
+                    const auto &cc = categories.at(contribute->_impl->category);
+                    std::ignore = cc->loadSpec(contribute, ContribSpec::Deleted);
                     contribute->_impl->state = ContribSpec::Deleted;
                 }
 
                 closeDependencies();
-                spec->err = error1;
+                pd->err = error1;
 
                 std::unique_lock<std::shared_mutex> lock(su_mtx);
                 removePending();
-                resourcePackages.insert(spec);
-                return spec;
+                resourcePackages.insert(pd);
+                return pd;
             }
         }
 
-        spec->loaded = true;
+        pd->loaded = true;
 
         // Add to link map
         {
             Impl::LoadedPackageBlock pkg;
-            pkg.spec = spec;
+            pkg.spec = pd;
             pkg.ref = 1;
             pkg.contributes = std::move(contributes);
             pkg.linked = std::move(dependencies);
@@ -358,11 +358,11 @@ namespace srt {
             removePending();
             auto &pkgMap = loadedPackageMap;
             auto it = pkgMap.packages.insert(pkgMap.packages.end(), pkg);
-            pkgMap.pathIndexes[spec->path] = it;
-            pkgMap.idIndexes[spec->id][spec->version] = it;
-            pkgMap.pointerIndexes[spec] = it;
+            pkgMap.pathIndexes[pd->path] = it;
+            pkgMap.idIndexes[pd->id][pd->version] = it;
+            pkgMap.pointerIndexes[pd] = it;
         }
-        return spec;
+        return pd;
     }
 
     bool SynthUnit::Impl::close(PackageData *spec) {
@@ -414,8 +414,8 @@ namespace srt {
             for (auto it = pkgToClose.contributes.rbegin(); it != pkgToClose.contributes.rend();
                  ++it) {
                 const auto &contribute = *it;
-                const auto &cate = categories.at(contribute->_impl->category);
-                std::ignore = cate->loadSpec(contribute, ContribSpec::Finished);
+                const auto &cc = categories.at(contribute->_impl->category);
+                std::ignore = cc->loadSpec(contribute, ContribSpec::Finished);
                 contribute->_impl->state = ContribSpec::Finished;
             }
 
@@ -423,8 +423,8 @@ namespace srt {
             for (auto it = pkgToClose.contributes.rbegin(); it != pkgToClose.contributes.rend();
                  ++it) {
                 const auto &contribute = *it;
-                const auto &cate = categories.at(contribute->_impl->category);
-                std::ignore = cate->loadSpec(contribute, ContribSpec::Deleted);
+                const auto &cc = categories.at(contribute->_impl->category);
+                std::ignore = cc->loadSpec(contribute, ContribSpec::Deleted);
                 contribute->_impl->state = ContribSpec::Deleted;
             }
         }

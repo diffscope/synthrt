@@ -173,11 +173,11 @@ static inline const srt::LogCategory &_srtGetLogCategory() {
     \brief Logs a debug message to a log category.
     \code
         // User category
-        srt::LogCategory cate("test");
-        cate.setLevelEnabled(srt::Logger::Debug, true);
-        cate.srtDebug("This is a debug message");
-        cate.srtDebug("This is a debug message with arg: %1", 42);
-        cate.srtDebugF("This is a debug message with arg: %d", 42);
+        srt::LogCategory lc("test");
+        lc.setLevelEnabled(srt::Logger::Debug, true);
+        lc.srtDebug("This is a debug message");
+        lc.srtDebug("This is a debug message with arg: %1", 42);
+        lc.srtDebugF("This is a debug message with arg: %d", 42);
 
         // Default category
         srtDebug("This is a debug message");

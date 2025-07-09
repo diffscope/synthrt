@@ -16,16 +16,14 @@ namespace srt {
     class SYNTHRT_EXPORT NamedObject {
     public:
         NamedObject();
-        explicit NamedObject(const std::string &name);
+        explicit NamedObject(std::string name);
         virtual ~NamedObject();
 
         const std::string &objectName() const;
-        void setObjectName(const std::string &name);
-        void setObjectName(std::string &&name);
+        void setObjectName(std::string name);
 
         const std::any &property(std::string_view name) const;
-        void setProperty(std::string_view name, const std::any &value);
-        void setProperty(std::string_view name, std::any &&value);
+        void setProperty(std::string_view name, std::any value);
 
     protected:
         class Impl;

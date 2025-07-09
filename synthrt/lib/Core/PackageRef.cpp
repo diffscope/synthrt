@@ -236,7 +236,7 @@ namespace srt {
                         goto out_failed;
                     }
 
-                    const auto &cate = it2->second;
+                    const auto &cc = it2->second;
                     if (!pair.second.isArray()) {
                         error1 = {
                             Error::InvalidFormat,
@@ -249,7 +249,7 @@ namespace srt {
 
                     std::set<std::string_view> idSet;
                     for (const auto &item : pair.second.toArray()) {
-                        auto contribute = cate->parseSpec(canonicalDir, item);
+                        auto contribute = cc->parseSpec(canonicalDir, item);
                         if (!contribute) {
                             error1 = contribute.error();
                             goto out_failed;

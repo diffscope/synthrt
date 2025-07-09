@@ -157,6 +157,10 @@ namespace srt {
             }
 
             configPath = stdc::path::from_utf8(configPathString);
+            if (auto configPathExtension = stdc::to_lower(configPath.extension().string());
+                configPathExtension != ".json") {
+                configPath += ".json";
+            }
             if (configPath.is_relative()) {
                 configPath = basePath / configPath;
             }

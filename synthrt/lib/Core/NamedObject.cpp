@@ -8,8 +8,8 @@ namespace srt {
     NamedObject::NamedObject() : NamedObject(*new Impl(this)) {
     }
 
-    NamedObject::NamedObject(const std::string &name) : NamedObject() {
-        setObjectName(name);
+    NamedObject::NamedObject(std::string name) : NamedObject() {
+        setObjectName(std::move(name));
     }
 
     NamedObject::~NamedObject() = default;
@@ -19,12 +19,7 @@ namespace srt {
         return impl.name;
     }
 
-    void NamedObject::setObjectName(const std::string &name) {
-        __stdc_impl_t;
-        impl.name = name;
-    }
-
-    void NamedObject::setObjectName(std::string &&name) {
+    void NamedObject::setObjectName(std::string name) {
         __stdc_impl_t;
         impl.name = std::move(name);
     }
@@ -43,17 +38,7 @@ namespace srt {
         return it->second;
     }
 
-    void NamedObject::setProperty(std::string_view name, const std::any &value) {
-        __stdc_impl_t;
-        auto it = impl.properties.find(name);
-        if (it == impl.properties.end()) {
-            impl.properties[std::string(name)] = value;
-        } else {
-            it->second = value;
-        }
-    }
-
-    void NamedObject::setProperty(std::string_view name, std::any &&value) {
+    void NamedObject::setProperty(std::string_view name, std::any value) {
         __stdc_impl_t;
         auto it = impl.properties.find(name);
         if (it == impl.properties.end()) {
