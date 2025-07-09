@@ -13,7 +13,7 @@ namespace srt {
         enum Type {
             NoError = 0,
             InvalidFormat,
-            FileNotFound,
+            FileNotOpen,
             FileDuplicated,
             RecursiveDependency,
             FeatureNotSupported,

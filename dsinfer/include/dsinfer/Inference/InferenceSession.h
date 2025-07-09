@@ -12,8 +12,8 @@ namespace ds {
 
     class InferenceSessionOpenArgs : public srt::NamedObject {
     public:
-        inline InferenceSessionOpenArgs(const std::string &name, int version)
-            : srt::NamedObject(name), version(version) {
+        inline InferenceSessionOpenArgs(std::string name, int version)
+            : srt::NamedObject(std::move(name)), version(version) {
         }
 
         int version;
@@ -21,8 +21,8 @@ namespace ds {
 
     class InferenceSessionInitArgs : public srt::TaskInitArgs {
     public:
-        inline InferenceSessionInitArgs(const std::string &name, int version)
-            : srt::TaskInitArgs(name), version(version) {
+        inline InferenceSessionInitArgs(std::string name, int version)
+            : srt::TaskInitArgs(std::move(name)), version(version) {
         }
 
         int version;
@@ -31,8 +31,8 @@ namespace ds {
 
     class InferenceSessionStartInput : public srt::TaskStartInput {
     public:
-        inline InferenceSessionStartInput(const std::string &name, int version)
-            : srt::TaskStartInput(name), version(version) {
+        inline InferenceSessionStartInput(std::string name, int version)
+            : srt::TaskStartInput(std::move(name)), version(version) {
         }
 
         int version;
@@ -40,8 +40,8 @@ namespace ds {
 
     class InferenceSessionResult : public srt::TaskResult {
     public:
-        inline InferenceSessionResult(const std::string &name, int version)
-            : srt::TaskResult(name), version(version) {
+        inline InferenceSessionResult(std::string name, int version)
+            : srt::TaskResult(std::move(name)), version(version) {
         }
 
         int version;

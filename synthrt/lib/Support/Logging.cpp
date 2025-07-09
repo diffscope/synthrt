@@ -130,10 +130,10 @@ namespace srt {
         return reg.filterRules;
     }
 
-    void LogCategory::setFilterRules(const std::string &rules) {
+    void LogCategory::setFilterRules(std::string rules) {
         auto &reg = *LogRegistry::instance();
         std::unique_lock lock(reg.mutex);
-        reg.filterRules = rules;
+        reg.filterRules = std::move(rules);
         reg.updateFilterRules();
     }
 

@@ -119,7 +119,7 @@ namespace srt {
         static void setLogFilter(LogCategoryFilter filter);
 
         static std::string filterRules();
-        void setFilterRules(const std::string &rules);
+        void setFilterRules(std::string rules);
 
         static LogCategory &defaultCategory();
 

@@ -16,8 +16,8 @@ namespace srt {
     /// SingerInfoBase - The base class storing singer information.
     class SingerInfoBase : public NamedObject {
     public:
-        inline SingerInfoBase(const std::string &name, int apiLevel)
-            : NamedObject(name), _apiLevel(apiLevel) {
+        inline SingerInfoBase(std::string name, int apiLevel)
+            : NamedObject(std::move(name)), _apiLevel(apiLevel) {
         }
         virtual ~SingerInfoBase() = default;
 
@@ -31,8 +31,8 @@ namespace srt {
 
     class SingerConfiguration : public SingerInfoBase {
     public:
-        inline SingerConfiguration(const std::string &model, int apiLevel)
-            : SingerInfoBase(model, apiLevel) {
+        inline SingerConfiguration(std::string model, int apiLevel)
+            : SingerInfoBase(std::move(model), apiLevel) {
         }
     };
 

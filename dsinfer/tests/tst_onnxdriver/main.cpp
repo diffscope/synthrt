@@ -76,7 +76,7 @@ struct InferenceFixture {
         auto plugin = su.plugin<ds::InferenceDriverPlugin>(pluginKey);
         if (!plugin) {
             return srt::Error{
-                srt::Error::FileNotFound,
+                srt::Error::FileNotOpen,
                 stdc::formatN("Could not load plugin \"%1\", path: %2", pluginKey, pluginPath),
             };
         }

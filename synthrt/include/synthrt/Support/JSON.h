@@ -51,9 +51,9 @@ namespace srt {
         }
         JsonValue(int64_t i);
         JsonValue(uint64_t u);
-        JsonValue(std::string_view s);
+        JsonValue(std::string s);
         inline JsonValue(const char *s, int size = -1)
-            : JsonValue(size < 0 ? std::string_view(s) : std::string_view(s, size)) {
+            : JsonValue(size < 0 ? std::string(s) : std::string(s, size)) {
         }
         JsonValue(stdc::array_view<uint8_t> bytes);
         inline JsonValue(const uint8_t *data, int size)

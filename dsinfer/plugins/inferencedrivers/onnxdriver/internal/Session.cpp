@@ -651,7 +651,7 @@ namespace ds::onnxdriver {
         // Open
         Log.srtDebug("Session - Try open " + path.string());
         if (!fs::is_regular_file(path)) {
-            return srt::Error(srt::Error::FileNotFound, "not a regular file");
+            return srt::Error(srt::Error::FileNotOpen, "not a regular file");
         }
 
         fs::path canonical_path = fs::canonical(path);
@@ -691,7 +691,7 @@ namespace ds::onnxdriver {
         {
             std::string hash_str;
             if (!getFileInfo(canonical_path, hash, hash_str, size)) {
-                return srt::Error(srt::Error::FileNotFound, "failed to read file");
+                return srt::Error(srt::Error::FileNotOpen, "failed to read file");
             }
             Log.srtDebug("Session - BLAKE3 hash is %1", hash_str);
         }
@@ -718,7 +718,7 @@ namespace ds::onnxdriver {
         if (std::string error1; !image->open(canonical_path, hints, &error1)) {
             delete image;
             return srt::Error{
-                srt::Error::FileNotFound,
+                srt::Error::FileNotOpen,
                 "failed to read file: " + error1,
             };
         }

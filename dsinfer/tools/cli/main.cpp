@@ -150,7 +150,7 @@ struct InputObject {
         // read all from path to string
         std::ifstream ifs(path);
         if (!ifs) {
-            return srt::Error(srt::Error::FileNotFound,
+            return srt::Error(srt::Error::FileNotOpen,
                               stdc::formatN(R"(failed to open input file "%1")", path));
         }
         std::string jsonStr((std::istreambuf_iterator<char>(ifs)),

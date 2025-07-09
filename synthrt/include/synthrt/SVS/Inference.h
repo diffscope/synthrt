@@ -11,7 +11,7 @@ namespace srt {
 
     class InferenceInitArgs : public TaskInitArgs {
     public:
-        InferenceInitArgs(const std::string &name) : TaskInitArgs(name) {
+        InferenceInitArgs(std::string name) : TaskInitArgs(std::move(name)) {
         }
 
         /// The intermediate output can be stored here in the form of an \a Object for later use.

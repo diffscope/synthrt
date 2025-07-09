@@ -53,14 +53,14 @@ namespace srt {
     DisplayText::DisplayText() : _impl(std::make_shared<Impl>()) {
     }
 
-    DisplayText::DisplayText(std::string_view text) : _impl(std::make_shared<Impl>()) {
+    DisplayText::DisplayText(std::string text) : _impl(std::make_shared<Impl>()) {
         __stdc_impl_t;
-        impl.defaultText = text;
+        impl.defaultText = std::move(text);
     }
 
-    DisplayText::DisplayText(std::string_view defaultText,
+    DisplayText::DisplayText(std::string defaultText,
                              const std::map<std::string, std::string> &texts)
-        : DisplayText(defaultText) {
+        : DisplayText(std::move(defaultText)) {
         __stdc_impl_t;
         impl.texts = {texts.begin(), texts.end()};
     }
@@ -72,9 +72,9 @@ namespace srt {
 
     DisplayText::~DisplayText() = default;
 
-    DisplayText &DisplayText::operator=(std::string_view text) {
+    DisplayText &DisplayText::operator=(std::string text) {
         __stdc_impl_t;
-        impl.defaultText = text;
+        impl.defaultText = std::move(text);
         return *this;
     }
 

@@ -9,8 +9,8 @@ namespace ds {
 
     class InferenceDriverInitArgs : public srt::NamedObject {
     public:
-        inline InferenceDriverInitArgs(const std::string &name, int version)
-            : srt::NamedObject(name), version(version) {
+        inline InferenceDriverInitArgs(std::string name, int version)
+            : srt::NamedObject(std::move(name)), version(version) {
         }
 
         int version;

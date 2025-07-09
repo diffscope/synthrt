@@ -297,7 +297,7 @@ namespace srt {
         std::ifstream file(descPath);
         if (!file.is_open()) {
             return Error{
-                Error::FileNotFound,
+                Error::FileNotOpen,
                 stdc::formatN(R"("%1": failed to open package manifest)", descPath),
             };
         }
@@ -371,7 +371,7 @@ namespace srt {
         return _data->readme;
     }
 
-    std::string_view PackageRef::url() const {
+    const std::string &PackageRef::url() const {
         return _data->url;
     }
 

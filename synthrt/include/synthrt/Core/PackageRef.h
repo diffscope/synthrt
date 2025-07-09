@@ -65,7 +65,7 @@ namespace srt {
         DisplayText vendor() const;
         DisplayText copyright() const;
         const std::filesystem::path &readme() const;
-        std::string_view url() const;
+        const std::string &url() const;
 
         /// Supported contribute categories:
         /// - \c singer:     Singer declaration

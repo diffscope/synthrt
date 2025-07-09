@@ -172,7 +172,7 @@ namespace srt {
             std::ifstream file(configPath);
             if (!file.is_open()) {
                 return Error{
-                    Error::FileNotFound,
+                    Error::FileNotOpen,
                     stdc::formatN(R"(%1: failed to open singer manifest)", configPath),
                 };
             }

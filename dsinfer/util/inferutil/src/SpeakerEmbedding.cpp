@@ -18,7 +18,7 @@ namespace ds::inferutil {
         }
         std::ifstream file(path, std::ios::binary);
         if (!file) {
-            return srt::Error(srt::Error::FileNotFound,
+            return srt::Error(srt::Error::FileNotOpen,
                               "Failed to open file: " + stdc::path::to_utf8(path));
         }
 

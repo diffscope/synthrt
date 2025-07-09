@@ -12,7 +12,7 @@ namespace srt {
                 static auto message = std::make_shared<std::string>("invalid format");
                 return message;
             }
-            case FileNotFound: {
+            case FileNotOpen: {
                 static auto message = std::make_shared<std::string>("file not found");
                 return message;
             }

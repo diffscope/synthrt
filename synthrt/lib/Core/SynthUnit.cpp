@@ -36,7 +36,7 @@ namespace srt {
         auto canonicalPath = stdc::path::canonical(path);
         if (canonicalPath.empty() || !fs::is_directory(canonicalPath)) {
             return Error{
-                Error::FileNotFound,
+                Error::FileNotOpen,
                 stdc::formatN(R"(invalid package path "%1")", path),
             };
         }
@@ -210,7 +210,7 @@ namespace srt {
 
                     // Not found
                     error1 = {
-                        Error::FileNotFound,
+                        Error::FileNotOpen,
                         stdc::formatN(R"(required package "%1[%2]" not found)", dep.id,
                                       dep.version.toString()),
                     };
@@ -222,7 +222,7 @@ namespace srt {
                     auto depPkg = open(foundPath, false);
                     if (!depPkg) {
                         error1 = {
-                            Error::FileNotFound,
+                            Error::FileNotOpen,
                             stdc::formatN(R"(required package "%1[%2]" not valid: %3)", dep.id,
                                           dep.version.toString(), depPkg.error().message()),
                         };
@@ -232,7 +232,7 @@ namespace srt {
                     auto depSpec = depPkg.get();
                     if (!depSpec->loaded) {
                         error1 = {
-                            Error::FileNotFound,
+                            Error::FileNotOpen,
                             stdc::formatN(R"(required package "%1[%2]" not loaded: %3)", dep.id,
                                           dep.version.toString(), depSpec->err.message()),
                         };

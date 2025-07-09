@@ -10,9 +10,8 @@ namespace srt {
     /// by a specific inference interpreter.
     class InferenceInfoBase : public NamedObject {
     public:
-        inline InferenceInfoBase(const std::string &name, const std::string &className,
-                                 int apiLevel)
-            : NamedObject(name), _className(className), _apiLevel(apiLevel) {
+        inline InferenceInfoBase(std::string name, std::string className, int apiLevel)
+            : NamedObject(std::move(name)), _className(std::move(className)), _apiLevel(apiLevel) {
         }
         virtual ~InferenceInfoBase() = default;
 
@@ -31,30 +30,29 @@ namespace srt {
 
     class InferenceSchema : public InferenceInfoBase {
     public:
-        inline InferenceSchema(const std::string &name, const std::string &iid, int apiLevel)
-            : InferenceInfoBase(name, iid, apiLevel) {
+        inline InferenceSchema(std::string name, std::string iid, int apiLevel)
+            : InferenceInfoBase(std::move(name), std::move(iid), apiLevel) {
         }
     };
 
     class InferenceConfiguration : public InferenceInfoBase {
     public:
-        inline InferenceConfiguration(const std::string &name, const std::string &iid, int apiLevel)
-            : InferenceInfoBase(name, iid, apiLevel) {
+        inline InferenceConfiguration(std::string name, std::string iid, int apiLevel)
+            : InferenceInfoBase(std::move(name), std::move(iid), apiLevel) {
         }
     };
 
     class InferenceImportOptions : public InferenceInfoBase {
     public:
-        inline InferenceImportOptions(const std::string &name, const std::string &iid, int apiLevel)
-            : InferenceInfoBase(name, iid, apiLevel) {
+        inline InferenceImportOptions(std::string name, std::string iid, int apiLevel)
+            : InferenceInfoBase(std::move(name), std::move(iid), apiLevel) {
         }
     };
 
     class InferenceRuntimeOptions : public InferenceInfoBase {
     public:
-        inline InferenceRuntimeOptions(const std::string &name, const std::string &iid,
-                                       int apiLevel)
-            : InferenceInfoBase(name, iid, apiLevel) {
+        inline InferenceRuntimeOptions(std::string name, std::string iid, int apiLevel)
+            : InferenceInfoBase(std::move(name), std::move(iid), apiLevel) {
         }
     };
 

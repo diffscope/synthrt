@@ -746,10 +746,10 @@ namespace srt {
         json = u;
     }
 
-    JsonValue::JsonValue(std::string_view s) {
+    JsonValue::JsonValue(std::string s) {
         JV::construct(*this);
         auto &json = JV::unpack(*this);
-        json = s;
+        json = std::move(s);
     }
 
     JsonValue::JsonValue(stdc::array_view<uint8_t> bytes) {
