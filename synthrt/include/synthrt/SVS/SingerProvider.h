@@ -11,7 +11,7 @@ namespace srt {
         /// The highest singer API version currently supported by this model.
         virtual int apiLevel() const = 0;
 
-        /// Called when \a SingerSpec loads.
+        /// Called when \c SingerSpec loads.
         virtual Expected<NO<SingerConfiguration>>
             createConfiguration(const SingerSpec *spec) const = 0;
     };

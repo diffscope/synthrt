@@ -11,14 +11,14 @@ namespace srt {
         /// The highest inference API version currently supported by this interpreter.
         virtual int apiLevel() const = 0;
 
-        /// Called when \a InferenceSpec loads.
+        /// Called when \c InferenceSpec loads.
         virtual Expected<NO<InferenceSchema>> createSchema(const InferenceSpec *spec) const = 0;
 
-        /// Called when \a InferenceSpec loads.
+        /// Called when \c InferenceSpec loads.
         virtual Expected<NO<InferenceConfiguration>>
             createConfiguration(const InferenceSpec *spec) const = 0;
 
-        /// Called when \a SingerSpec loads.
+        /// Called when \c SingerSpec loads.
         virtual Expected<NO<InferenceImportOptions>>
             createImportOptions(const InferenceSpec *spec, const JsonValue &options) const = 0;
 

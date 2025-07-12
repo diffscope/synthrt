@@ -38,7 +38,7 @@ namespace srt {
 
     class ScopedPackageRef;
 
-    /// PackageRef - Represents a reference to a package opened by \a SynthUnit, does not own the
+    /// PackageRef - Represents a reference to a package opened by \c SynthUnit, does not own the
     /// package resources.
     class SYNTHRT_EXPORT PackageRef {
     public:
@@ -84,11 +84,11 @@ namespace srt {
         /// Returns true if and only if the \c noLoad option is not specified when opening the
         /// package and the loading is successful.
         ///
-        /// If the package is successfully loaded, its resources are managed by \a SynthUnit, which
+        /// If the package is successfully loaded, its resources are managed by \c SynthUnit, which
         /// maintains its reference count.
         bool isLoaded() const;
 
-        /// Returns the \a SynthUnit instance that loaded this package.
+        /// Returns the \c SynthUnit instance that loaded this package.
         SynthUnit *SU() const;
 
     private:
@@ -102,7 +102,7 @@ namespace srt {
         friend class ScopedPackageRef;
     };
 
-    /// ScopedPackageRef - Represents a unique reference to a package opened by \a SynthUnit, and
+    /// ScopedPackageRef - Represents a unique reference to a package opened by \c SynthUnit, and
     /// closes it upon destruction.
     class ScopedPackageRef : public PackageRef {
     public:

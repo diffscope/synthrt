@@ -14,7 +14,8 @@ namespace srt {
         InferenceInitArgs(std::string name) : TaskInitArgs(std::move(name)) {
         }
 
-        /// The intermediate output can be stored here in the form of an \a Object for later use.
+        /// The intermediate output can be stored here in the form of an \c NamedObject for later
+        /// use.
         NO<ObjectPool> intermediateObjects;
     };
 

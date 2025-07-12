@@ -46,13 +46,13 @@ namespace srt {
         /// The locator of the imported inference.
         const ContribLocator &inferenceLocator() const;
 
-        /// The related \a InferenceSpec instance.
+        /// The related \c InferenceSpec instance.
         InferenceSpec *inference() const;
 
         /// The format of options is determined by the singer model and inference kind.
         JsonValue manifestOptions() const;
 
-        /// The \a SingerImportOptions instance created by the related interpreter.
+        /// The options of the related inference module.
         NO<InferenceImportOptions> options() const;
 
     protected:
@@ -69,7 +69,7 @@ namespace srt {
         ~SingerSpec();
 
     public:
-        /// The \a arch attribute indicates the engine to which the singer's voice library belongs
+        /// Indicates the engine to which the singer's voice library belongs
         const std::string &arch() const;
         DisplayText name() const;
         int apiLevel() const;

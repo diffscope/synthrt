@@ -20,7 +20,7 @@ namespace ds {
 
     /// InferenceDriver - DiffSinger inference driver interface.
     ///
-    /// \note An instance of \a InferenceDriver needs to be added to the \a InferenceCategory with
+    /// \note An instance of \c InferenceDriver needs to be added to the \c InferenceCategory with
     /// the ID "dsdriver" before it can be called by the inference interpreters.
     ///
     /// It is used like the following.

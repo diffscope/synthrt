@@ -78,7 +78,7 @@ namespace srt {
         const std::filesystem::path &path() const;
 
     public:
-        /// Mainly called by \a SingerSpec at loading state.
+        /// Mainly called by \c SingerSpec at loading state.
         Expected<NO<InferenceImportOptions>> createImportOptions(const JsonValue &options) const;
 
         /// Creates an inference interface with the given options.

@@ -92,7 +92,7 @@ namespace srt {
         State state() const;
         /// Related package.
         PackageRef parent() const;
-        /// Related \a SynthUnit.
+        /// Related \c SynthUnit instance.
         SynthUnit *SU() const;
 
     public:
@@ -133,7 +133,7 @@ namespace srt {
     public:
         const std::string &name() const;
 
-        /// Returns the related \a SynthUnit.
+        /// Returns the related \c SynthUnit instance.
         SynthUnit *SU() const;
 
     public:
@@ -150,11 +150,11 @@ namespace srt {
 
         /// Parses the contribution specification from the given JSON configuration.
         /// \param basePath The path of the configuration directory.
-        /// \return The uninitialized \a ContribSpec instance.
+        /// \return The uninitialized \c ContribSpec instance.
         virtual Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
                                                   const JsonValue &config) const = 0;
 
-        /// Initializes the \a ContribSpec instance in the given state.
+        /// Initializes the \c ContribSpec instance in the given state.
         virtual Expected<void> loadSpec(ContribSpec *spec, ContribSpec::State state);
 
         std::vector<ContribSpec *> find(const ContribLocator &loc) const;

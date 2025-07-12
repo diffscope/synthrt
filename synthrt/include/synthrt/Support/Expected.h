@@ -8,7 +8,7 @@
 
 namespace srt {
 
-    /// Expected - A simple re-implementation of \a llvm::Expected. Tagged union holding either
+    /// Expected - A simple re-implementation of \c llvm::Expected. Tagged union holding either
     /// a T or an Error.
     template <class T>
     class Expected {
