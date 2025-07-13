@@ -11,25 +11,25 @@ BOOST_AUTO_TEST_CASE(test_Expected) {
     // Construct from error
     {
         Expected<std::string> e((Error(Error::InvalidArgument)));
-        BOOST_VERIFY(!e.hasValue());
-        BOOST_VERIFY(e.error().type() == Error::InvalidArgument);
-        BOOST_VERIFY(e.error().message() == Error(Error::InvalidArgument).message());
+        BOOST_CHECK(!e.hasValue());
+        BOOST_CHECK(e.error().type() == Error::InvalidArgument);
+        BOOST_CHECK(e.error().message() == Error(Error::InvalidArgument).message());
     }
     // Construct from value
     {
         Expected<std::string> e("hello");
-        BOOST_VERIFY(e.hasValue());
-        BOOST_VERIFY(e.get() == "hello");
+        BOOST_CHECK(e.hasValue());
+        BOOST_CHECK(e.get() == "hello");
     }
     // Construct from convertible Expected
     {
         Expected<std::string> e1 = Expected<const char *>(Error(Error::InvalidArgument));
-        BOOST_VERIFY(!e1.hasValue());
-        BOOST_VERIFY(e1.error().type() == Error::InvalidArgument);
+        BOOST_CHECK(!e1.hasValue());
+        BOOST_CHECK(e1.error().type() == Error::InvalidArgument);
 
         Expected<std::string> e2 = Expected<const char *>("hello");
-        BOOST_VERIFY(e2.hasValue());
-        BOOST_VERIFY(e2.get() == "hello");
+        BOOST_CHECK(e2.hasValue());
+        BOOST_CHECK(e2.get() == "hello");
     }
 }
 
@@ -37,18 +37,18 @@ BOOST_AUTO_TEST_CASE(test_Expected_Void) {
     // Construct from error
     {
         Expected<void> e((Error(Error::InvalidArgument)));
-        BOOST_VERIFY(!e.hasValue());
-        BOOST_VERIFY(e.error().type() == Error::InvalidArgument);
-        BOOST_VERIFY(e.error().message() == Error(Error::InvalidArgument).message());
+        BOOST_CHECK(!e.hasValue());
+        BOOST_CHECK(e.error().type() == Error::InvalidArgument);
+        BOOST_CHECK(e.error().message() == Error(Error::InvalidArgument).message());
     }
     // Construct from convertible Expected
     {
         Expected<void> e1 = Expected<const char *>(Error(Error::InvalidArgument));
-        BOOST_VERIFY(!e1.hasValue());
-        BOOST_VERIFY(e1.error().type() == Error::InvalidArgument);
+        BOOST_CHECK(!e1.hasValue());
+        BOOST_CHECK(e1.error().type() == Error::InvalidArgument);
 
         Expected<void> e2 = Expected<const char *>("hello");
-        BOOST_VERIFY(e2.hasValue());
+        BOOST_CHECK(e2.hasValue());
     }
 }
 

@@ -210,7 +210,7 @@ namespace srt {
 
                     // Not found
                     error1 = {
-                        Error::FileNotOpen,
+                        Error::FileNotFound,
                         stdc::formatN(R"(required package "%1[%2]" not found)", dep.id,
                                       dep.version.toString()),
                     };
@@ -448,59 +448,59 @@ namespace srt {
     void SynthUnit::Impl::refreshPackageIndexes() {
         cachedPackageIndexesMap.clear();
         for (const auto &path : std::as_const(packagePaths)) {
-            try {
-                for (const auto &entry : fs::directory_iterator(path)) {
-                    const auto filename = entry.path().filename();
-                    if (!entry.is_directory()) {
-                        continue;
-                    }
-
-                    JsonObject obj;
-                    if (auto exp = PackageData::readDesc(entry.path()); !exp) {
-                        continue;
-                    } else {
-                        obj = exp.take();
-                    }
-
-                    // Search id, version, compatVersion
-                    std::string id_;
-                    stdc::VersionNumber version_;
-                    stdc::VersionNumber compatVersion_;
-
-                    // id
-                    {
-                        auto it = obj.find("id");
-                        if (it == obj.end()) {
-                            continue;
-                        }
-                        id_ = it->second.toString();
-                        if (!ContribLocator::isValidLocator(id_)) {
-                            continue;
-                        }
-                    }
-                    // version
-                    {
-                        auto it = obj.find("version");
-                        if (it == obj.end()) {
-                            continue;
-                        }
-                        version_ = stdc::VersionNumber::fromString(it->second.toString());
-                    }
-                    // compatVersion
-                    {
-                        auto it = obj.find("compatVersion");
-                        if (it != obj.end()) {
-                            compatVersion_ = stdc::VersionNumber::fromString(it->second.toString());
-                        } else {
-                            compatVersion_ = version_;
-                        }
-                    }
-
-                    // Store
-                    cachedPackageIndexesMap[id_][version_] = {fs::canonical(entry.path()),
-                                                              compatVersion_};
+            if (!fs::is_directory(path)) {
+                continue;
+            }
+            for (const auto &entry : fs::directory_iterator(path)) {
+                const auto filename = entry.path().filename();
+                if (!entry.is_directory()) {
+                    continue;
                 }
-            } catch (...) {
+
+                JsonObject obj;
+                if (auto exp = PackageData::readDesc(entry.path()); !exp) {
+                    continue;
+                } else {
+                    obj = exp.take();
+                }
+
+                // Search id, version, compatVersion
+                std::string id_;
+                stdc::VersionNumber version_;
+                stdc::VersionNumber compatVersion_;
+
+                // id
+                {
+                    auto it = obj.find("id");
+                    if (it == obj.end()) {
+                        continue;
+                    }
+                    id_ = it->second.toString();
+                    if (!ContribLocator::isValidLocator(id_)) {
+                        continue;
+                    }
+                }
+                // version
+                {
+                    auto it = obj.find("version");
+                    if (it == obj.end()) {
+                        continue;
+                    }
+                    version_ = stdc::VersionNumber::fromString(it->second.toString());
+                }
+                // compatVersion
+                {
+                    auto it = obj.find("compatVersion");
+                    if (it != obj.end()) {
+                        compatVersion_ = stdc::VersionNumber::fromString(it->second.toString());
+                    } else {
+                        compatVersion_ = version_;
+                    }
+                }
+
+                // Store
+                cachedPackageIndexesMap[id_][version_] = {fs::canonical(entry.path()),
+                                                          compatVersion_};
             }
         }
 
@@ -529,9 +529,7 @@ namespace srt {
                 continue;
             }
             impl.packagePaths.push_back(fs::canonical(path));
-            if (!impl.packagePathsDirty) {
-                impl.packagePathsDirty = true;
-            }
+            impl.packagePathsDirty = true;
         }
     }
 

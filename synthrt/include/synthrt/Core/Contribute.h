@@ -20,11 +20,14 @@ namespace srt {
     ///  - <contrib>:                       e.g. \c bar
     class SYNTHRT_EXPORT ContribLocator {
     public:
-        inline ContribLocator(std::string parent, stdc::VersionNumber version, std::string id)
-            : _package(std::move(parent)), _version(std::move(version)), _id(std::move(id)) {
+        inline ContribLocator(std::string package, stdc::VersionNumber version, std::string id)
+            : _package(std::move(package)), _version(std::move(version)), _id(std::move(id)) {
         }
-        inline ContribLocator(std::string parent, std::string id)
-            : _package(std::move(parent)), _id(std::move(id)) {
+        inline ContribLocator(std::string package, stdc::VersionNumber version)
+            : _package(std::move(package)), _version(std::move(version)) {
+        }
+        inline ContribLocator(std::string package, std::string id)
+            : _package(std::move(package)), _id(std::move(id)) {
         }
         inline ContribLocator(std::string id) : _id(std::move(id)) {
         }
@@ -56,6 +59,14 @@ namespace srt {
         static ContribLocator fromString(const std::string_view &token);
 
         static bool isValidLocator(const std::string_view &token);
+
+        inline bool operator==(const ContribLocator &other) const {
+            return _package == other._package && _version == other._version && _id == other._id;
+        }
+
+        inline bool operator!=(const ContribLocator &other) const {
+            return !(*this == other);
+        }
 
     protected:
         std::string _package;

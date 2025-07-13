@@ -22,7 +22,7 @@ namespace srt {
             std::map<std::string, std::string, std::less<>> texts_;
             for (const auto &item : obj) {
                 if (item.first == "_") {
-                    defaultText = item.second.toString();
+                    defaultText_ = item.second.toString();
                     continue;
                 }
                 texts_[item.first] = item.second.toString();
@@ -42,7 +42,7 @@ namespace srt {
                     }
                 }
                 if (defaultText_.empty()) {
-                    return;
+                    defaultText_ = texts_.begin()->second;
                 }
                 texts = std::move(texts_);
             }

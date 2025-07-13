@@ -61,6 +61,7 @@ namespace srt {
             auto inference = ContribLocator::fromString(val.toString());
             if (inference.id().empty()) {
                 *errorMessage = R"(invalid id)";
+                return false;
             }
             SingerImportData res;
             res.inferenceLocator = inference;
@@ -69,11 +70,13 @@ namespace srt {
         }
         if (!val.isObject()) {
             *errorMessage = R"(invalid data type)";
+            return false;
         }
         auto obj = val.toObject();
         auto it = obj.find("id");
         if (it == obj.end()) {
             *errorMessage = R"(missing "id" field)";
+            return false;
         }
         auto inference = ContribLocator::fromString(it->second.toString());
         SingerImportData res;

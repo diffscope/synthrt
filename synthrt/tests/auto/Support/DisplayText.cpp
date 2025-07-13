@@ -18,9 +18,9 @@ BOOST_AUTO_TEST_CASE(test_DisplayText) {
         auto jsonObj = srt::JsonValue::fromJson(json, false);
         auto text = srt::DisplayText(jsonObj);
 
-        BOOST_VERIFY(text.text() == "DEF");
-        BOOST_VERIFY(text.text("zh_CN") == "CN");
-        BOOST_VERIFY(text.text("zh_TW") == "TW");
+        BOOST_CHECK(text.text() == "DEF");
+        BOOST_CHECK(text.text("zh_CN") == "CN");
+        BOOST_CHECK(text.text("zh_TW") == "TW");
     }
 
     {
@@ -30,9 +30,9 @@ BOOST_AUTO_TEST_CASE(test_DisplayText) {
 
         auto text = srt::DisplayText("DEF", map);
 
-        BOOST_VERIFY(text.text() == "DEF");
-        BOOST_VERIFY(text.text("zh_CN") == "CN");
-        BOOST_VERIFY(text.text("zh_TW") == "TW");
+        BOOST_CHECK(text.text() == "DEF");
+        BOOST_CHECK(text.text("zh_CN") == "CN");
+        BOOST_CHECK(text.text("zh_TW") == "TW");
     }
 }
 
@@ -48,9 +48,9 @@ BOOST_AUTO_TEST_CASE(test_DisplayText_fallback) {
         auto jsonObj = srt::JsonValue::fromJson(json, false);
         auto text = srt::DisplayText(jsonObj);
 
-        BOOST_VERIFY(text.text() == "DEF");
-        BOOST_VERIFY(text.text("zh_CN") == "CN");
-        BOOST_VERIFY(text.text("zh_TW") == "TW");
+        BOOST_CHECK(text.text() == "DEF");
+        BOOST_CHECK(text.text("zh_CN") == "CN");
+        BOOST_CHECK(text.text("zh_TW") == "TW");
     }
 }
 

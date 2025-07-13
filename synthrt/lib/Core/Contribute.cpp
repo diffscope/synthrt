@@ -30,27 +30,51 @@ namespace srt {
         return stdc::formatN("%1[%2]/%3", _package, _version.toString(), _id);
     }
 
+    // Format: id/sid, id[version]/sid, and sid
     ContribLocator ContribLocator::fromString(const std::string_view &token) {
         if (token.empty()) {
             return {};
         }
 
-        // A single regex to handle all cases: id/sid, id[version]/sid, and sid
-        static std::regex pattern(R"((\w+)(\[(\d+(\.\d+){0,3})\])?(\/(\w+))?)");
-        std::match_results<std::string_view::const_iterator> matches;
-        if (std::regex_match(token.begin(), token.end(), matches, pattern)) {
-            std::string id = matches[1].str();
-            std::string ver = matches[3].matched ? matches[3].str() : std::string();
-            std::string sid = matches[6].matched ? matches[6].str() : std::string();
-            if (!ver.empty()) {
-                return {id, stdc::VersionNumber::fromString(ver), sid};
+        ContribLocator result;
+        size_t slashPos = token.find('/');
+        if (slashPos != std::string::npos) {
+            // Case: id/sid or id[version]/sid
+            auto leftPart = token.substr(0, slashPos);
+            auto rightPart = token.substr(slashPos + 1);
+            if (!isValidLocator(rightPart)) {
+                return {};
             }
-            if (!sid.empty()) {
-                return {id, sid};
+            result._id = rightPart;
+
+            size_t openBracket = leftPart.find('[');
+            if (openBracket != std::string::npos) {
+                if (leftPart.back() != ']') {
+                    return {};
+                }
+                auto package = leftPart.substr(0, openBracket);
+                if (!isValidLocator(package)) {
+                    return {};
+                }
+                // id[version]
+                result._package = package;
+                result._version = stdc::VersionNumber::fromString(
+                    leftPart.substr(openBracket + 1, leftPart.size() - openBracket - 1));
+            } else {
+                if (!isValidLocator(leftPart)) {
+                    return {};
+                }
+                // just id
+                result._package = leftPart;
             }
-            return {id};
+        } else {
+            // Case: sid only
+            if (!isValidLocator(token)) {
+                return {};
+            }
+            result._id = token;
         }
-        return {};
+        return result;
     }
 
     bool ContribLocator::isValidLocator(const std::string_view &token) {

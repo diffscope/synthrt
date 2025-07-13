@@ -21,60 +21,6 @@ namespace srt {
         }
     }
 
-    static bool readDependency(const JsonValue &val, PackageDependency *out,
-                               std::string *errorMessage) {
-        if (val.isString()) {
-            auto identifier = ContribLocator::fromString(val.toString());
-            if (!identifier.package().empty() && !identifier.version().isEmpty() &&
-                identifier.id().empty()) {
-                PackageDependency res;
-                res.id = identifier.package();
-                res.version = identifier.version();
-                *out = std::move(res);
-                return true;
-            }
-            *errorMessage = R"(invalid id)";
-            return false;
-        }
-
-        if (!val.isObject()) {
-            *errorMessage = R"(invalid data type)";
-            return false;
-        }
-
-        std::string id;
-        stdc::VersionNumber version;
-        bool required = true;
-
-        auto obj = val.toObject();
-        auto it = obj.find("id");
-        if (it == obj.end()) {
-            *errorMessage = R"(missing "id" field)";
-            return false;
-        }
-        id = it->second.toString();
-        if (id.empty()) {
-            *errorMessage = R"(invalid id)";
-            return false;
-        }
-
-        it = obj.find("version");
-        if (it != obj.end()) {
-            version = stdc::VersionNumber::fromString(it->second.toString());
-        }
-
-        it = obj.find("required");
-        if (it != obj.end() && !it->second.toBool()) {
-            required = false;
-        }
-
-        PackageDependency res(required);
-        res.id = std::move(id);
-        res.version = version;
-        *out = std::move(res);
-        return true;
-    }
-
     Expected<void>
         PackageData::parse(const std::filesystem::path &dir,
                            const std::map<std::string, ContribCategory *, std::less<>> &categories,
@@ -198,14 +144,16 @@ namespace srt {
                 }
 
                 for (const auto &item : it->second.toArray()) {
-                    std::string errorMessage;
                     PackageDependency dep;
-                    if (!readDependency(item, &dep, &errorMessage)) {
+                    if (auto exp = PackageDependency::fromJsonValue(item); !exp) {
                         return Error{
                             Error::InvalidFormat,
                             stdc::formatN(R"(%1: invalid "dependencies" field entry %2: %3)",
-                                          descPath, dependencies_.size() + 1, errorMessage),
+                                          descPath, dependencies_.size() + 1,
+                                          exp.error().message()),
                         };
+                    } else {
+                        dep = exp.take();
                     }
                     dependencies_.push_back(dep);
                 }
@@ -325,6 +273,78 @@ namespace srt {
     static PackageData &staticEmptyPackageData() {
         static PackageData empty(nullptr);
         return empty;
+    }
+
+    static bool parseDependencyId(std::string_view token, std::string *outId,
+                                  stdc::VersionNumber *outVersion) {
+        size_t openBracket = token.find('[');
+        if (openBracket != std::string::npos) {
+            if (token.back() != ']') {
+                return false;
+            }
+            auto package = token.substr(0, openBracket);
+            if (!ContribLocator::isValidLocator(package)) {
+                return false;
+            }
+            *outId = package;
+            *outVersion = stdc::VersionNumber::fromString(
+                token.substr(openBracket + 1, token.size() - openBracket - 1));
+            return true;
+        }
+        return false;
+    }
+
+    Expected<PackageDependency> PackageDependency::fromJsonValue(const JsonValue &val) {
+        if (val.isString()) {
+            PackageDependency res;
+            if (!parseDependencyId(val.toStringView(), &res.id, &res.version)) {
+                return Error{
+                    Error::InvalidFormat,
+                    R"(invalid id)",
+                };
+            }
+            return res;
+        }
+
+        if (!val.isObject()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(invalid data type)",
+            };
+        }
+
+        auto obj = val.toObject();
+        auto it = obj.find("id");
+        if (it == obj.end()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(missing "id" field)",
+            };
+        }
+        std::string_view id = it->second.toStringView();
+        if (id.empty()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(invalid id)",
+            };
+        }
+
+        bool required = true;
+        it = obj.find("required");
+        if (it != obj.end() && it->second.isBool() && !it->second.toBool()) {
+            required = false;
+        }
+
+        PackageDependency res(required);
+        if (!parseDependencyId(id, &res.id, &res.version)) {
+            res.id = id;
+            res.version = {};
+        }
+        it = obj.find("version");
+        if (it != obj.end()) {
+            res.version = stdc::VersionNumber::fromString(it->second.toStringView());
+        }
+        return res;
     }
 
     PackageRef::PackageRef() : _data(&staticEmptyPackageData()) {

@@ -32,6 +32,8 @@ namespace srt {
         inline bool operator==(const PackageDependency &other) const {
             return id == other.id && version == other.version;
         }
+
+        SYNTHRT_EXPORT static Expected<PackageDependency> fromJsonValue(const JsonValue &val);
     };
 
     class PackageData;

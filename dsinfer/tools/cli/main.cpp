@@ -203,6 +203,9 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
     srt::SynthUnit su;
     initializeSU(su);
 
+    // Add package directory to search path
+    su.addPackagePath(packagePath.parent_path());
+
     // Load package
     srt::ScopedPackageRef pkg;
     if (auto exp = su.open(packagePath, false); !exp) {
