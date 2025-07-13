@@ -19,7 +19,8 @@ namespace ds {
         }
     }
 
-    static inline std::optional<uint64_t> getElementCountFromShape(ITensor::DataType dataType, const std::vector<int64_t> &shape) {
+    static inline std::optional<uint64_t>
+        getElementCountFromShape(ITensor::DataType dataType, const std::vector<int64_t> &shape) {
         if (shape.empty()) {
             return 1;
         }
@@ -47,7 +48,8 @@ namespace ds {
         return totalElements;
     }
 
-    static inline bool verifyShape(ITensor::DataType dataType, const std::vector<int64_t> &shape, size_t dataSize) {
+    static inline bool verifyShape(ITensor::DataType dataType, const std::vector<int64_t> &shape,
+                                   size_t dataSize) {
         if (shape.empty()) {
             return dataSize == getElementSize(dataType);
         }
@@ -69,7 +71,8 @@ namespace ds {
         return totalBytes == static_cast<uint64_t>(dataSize);
     }
 
-    srt::Expected<void> verify(ITensor::DataType dataType, const std::vector<int64_t> &shape, size_t dataSize) {
+    srt::Expected<void> verify(ITensor::DataType dataType, const std::vector<int64_t> &shape,
+                               size_t dataSize) {
         if (dataType == ITensor::Undefined) {
             return srt::Error(srt::Error::InvalidArgument, "data type can not be Undefined");
         }
@@ -79,7 +82,8 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<srt::NO<Tensor>> Tensor::create(DataType dataType, const std::vector<int64_t> &shape) {
+    srt::Expected<srt::NO<Tensor>> Tensor::create(DataType dataType,
+                                                  const std::vector<int64_t> &shape) {
         auto maybeTotalElements = getElementCountFromShape(dataType, shape);
         if (!maybeTotalElements.has_value()) {
             return srt::Error(srt::Error::InvalidArgument, "invalid shape");
@@ -97,7 +101,9 @@ namespace ds {
         return tensor;
     }
 
-    srt::Expected<srt::NO<Tensor>> Tensor::createFromRawData(DataType dataType, const std::vector<int64_t> &shape, const Container &data) {
+    srt::Expected<srt::NO<Tensor>> Tensor::createFromRawData(DataType dataType,
+                                                             const std::vector<int64_t> &shape,
+                                                             const Container &data) {
         auto tensor = srt::NO<Tensor>::create();
         if (auto exp = verify(dataType, shape, data.size()); !exp) {
             return exp.takeError();
@@ -108,8 +114,9 @@ namespace ds {
         return tensor;
     }
 
-    srt::Expected<srt::NO<Tensor>> Tensor::createFromRawView(DataType dataType, const std::vector<int64_t> &shape,
-                              const stdc::array_view<std::byte> &data) {
+    srt::Expected<srt::NO<Tensor>>
+        Tensor::createFromRawView(DataType dataType, const std::vector<int64_t> &shape,
+                                  const stdc::array_view<std::byte> &data) {
         auto tensor = srt::NO<Tensor>::create();
         if (auto exp = verify(dataType, shape, data.size()); !exp) {
             return exp.takeError();
@@ -120,7 +127,9 @@ namespace ds {
         return tensor;
     }
 
-    srt::Expected<srt::NO<Tensor>> Tensor::createFromRawData(DataType dataType, const std::vector<int64_t> &shape, Container &&data) {
+    srt::Expected<srt::NO<Tensor>> Tensor::createFromRawData(DataType dataType,
+                                                             const std::vector<int64_t> &shape,
+                                                             Container &&data) {
         auto tensor = srt::NO<Tensor>::create();
         if (auto exp = verify(dataType, shape, data.size()); !exp) {
             return exp.takeError();
@@ -177,4 +186,5 @@ namespace ds {
         tensor->_data = _data;
         return tensor;
     }
+
 }

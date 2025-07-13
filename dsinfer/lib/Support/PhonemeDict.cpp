@@ -4,8 +4,17 @@
 
 #include <sparsepp/spp.h>
 #include <stdcorelib/pimpl.h>
+#include <stdcorelib/str.h>
 
 namespace ds {
+
+    static std::error_code make_last_error() {
+#ifdef _WIN32
+        return std::error_code(errno, stdc::windows_utf8_category());
+#else
+        return std::error_code(errno, std::system_category());
+#endif
+    }
 
     struct const_char_hash {
     public:
@@ -33,7 +42,7 @@ namespace ds {
         std::ifstream file(path, std::ios::in | std::ios::binary);
         if (!file.is_open()) {
             if (ec)
-                *ec = std::error_code(errno, std::system_category());
+                *ec = make_last_error();
             return false;
         }
 
