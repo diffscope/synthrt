@@ -105,6 +105,12 @@ namespace ds {
             parser.parse_melScale_optional(result->melScale);
         } // melScale
 
+        // pitchControllable, bool
+        {
+            static_assert(std::is_same_v<decltype(result->pitchControllable), bool>);
+            parser.parse_bool_optional(result->pitchControllable, "pitchControllable");
+        }
+
         if (ec.hasErrors()) {
             return srt::Error{
                 srt::Error::InvalidFormat,

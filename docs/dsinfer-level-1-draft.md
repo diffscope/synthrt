@@ -258,18 +258,19 @@
 
 ### Configurations
 
-|    name     |  type   |      description       |         example          |
-| :---------: | :-----: | :--------------------: | :----------------------: |
-|    model    |  path   |   声码器模型文件路径   | "./weights/vocoder.onnx" |
-| sampleRate  | integer |       音频采样率       |          44100           |
-|   hopSize   | integer |     梅尔频谱帧跨度     |           512            |
-|   winSize   | integer |     梅尔频谱窗大小     |           2048           |
-|   fftSize   | integer |    梅尔频谱FFT维度     |           2048           |
-| melChannels | integer |     梅尔频谱通道数     |           128            |
-| melMinFreq  | integer | 梅尔频谱最小频率（Hz） |            40            |
-| melMaxFreq  | integer | 梅尔频谱最大频率（Hz） |          16000           |
-|   melBase   |  enum   |  梅尔频谱底数（e/10）  |           "e"            |
-|  melScale   |  enum   | melScale（slaney/htk） |         "slaney"         |
+|       name        |  type   |     description      |         example          |
+|:-----------------:|:-------:|:--------------------:|:------------------------:|
+|       model       |  path   |      声码器模型文件路径       | "./weights/vocoder.onnx" |
+|    sampleRate     | integer |        音频采样率         |          44100           |
+|      hopSize      | integer |       梅尔频谱帧跨度        |           512            |
+|      winSize      | integer |       梅尔频谱窗大小        |           2048           |
+|      fftSize      | integer |      梅尔频谱FFT维度       |           2048           |
+|    melChannels    | integer |       梅尔频谱通道数        |           128            |
+|    melMinFreq     | integer |     梅尔频谱最小频率（Hz）     |            40            |
+|    melMaxFreq     | integer |     梅尔频谱最大频率（Hz）     |          16000           |
+|      melBase      |  enum   |     梅尔频谱底数（e/10）     |           "e"            |
+|     melScale      |  enum   | melScale（slaney/htk） |         "slaney"         |
+| pitchControllable | boolean |   是否支持和声学模型不同的音高输入   |           true           |
 
 ### Variables
 

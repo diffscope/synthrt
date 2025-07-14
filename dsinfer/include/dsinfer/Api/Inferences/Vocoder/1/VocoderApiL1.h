@@ -80,6 +80,9 @@ namespace ds::Api::Vocoder::L1 {
 
         /// melScale
         MelScale melScale = MelScale::MelScale_Slaney;
+
+        /// 是否支持与声学模型不同的音高输入
+        bool pitchControllable = false;
     };
 
     class VocoderInitArgs : public srt::InferenceInitArgs {

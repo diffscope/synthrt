@@ -238,7 +238,6 @@ namespace ds {
 
         bool satisfyGender = !hasParam(Co::Tags::Gender);
         bool satisfyVelocity = !hasParam(Co::Tags::Velocity);
-        bool satisfyToneShift = !hasParam(Co::Tags::ToneShift);
 
         bool satisfyEnergy = !hasParam(Co::Tags::Energy);
         bool satisfyBreathiness = !hasParam(Co::Tags::Breathiness);
@@ -248,23 +247,23 @@ namespace ds {
 
         srt::NO<ITensor> f0TensorForVocoder;
 
-        // Because of tone shifting, the pitch parameter should be last processed,
-        // so we use a pointer to store it first.
         const Co::InputParameterInfo *pPitchParam = nullptr;
+        const Co::InputParameterInfo *pF0Param = nullptr;
         const Co::InputParameterInfo *pToneShiftParam = nullptr;
 
         for (const auto &param : acousticInput->parameters) {
+            if (param.tag == Co::Tags::F0) {
+                pF0Param = &param;
+                continue;
+            }
+
             if (param.tag == Co::Tags::Pitch) {
-                // Pitch will be processed later,
-                // since it needs to be adjusted according to tone shift.
                 pPitchParam = &param;
                 continue;
             }
+
             if (param.tag == Co::Tags::ToneShift) {
-                // Tone shift will be processed later.
-                if (!satisfyToneShift) {
-                    pToneShiftParam = &param;
-                }
+                pToneShiftParam = &param;
                 continue;
             }
 
@@ -354,89 +353,85 @@ namespace ds {
             }
         }
 
-        if (pPitchParam) {
-            // Has pitch parameter
-            const auto &pitchParam = *pPitchParam;
-            // Resample pitch
-            auto pitchSamples = inferutil::resample(pitchParam.values, pitchParam.interval,
-                                                    frameWidth, targetLength, true);
-            if (pitchSamples.size() != targetLength) {
-                setState(Failed);
+        // First check for f0.
+        // If f0 missing, then check for pitch (midi pitch, will be converted to f0)
+        const auto processF0Param = [&](const Co::InputParameterInfo &param,
+                                        bool convertToF0) -> srt::Expected<void> {
+            // Resample parameter
+            auto samples =
+                inferutil::resample(param.values, param.interval, frameWidth, targetLength, true);
+            if (samples.size() != targetLength) {
                 return srt::Error(srt::Error::SessionError, "parameter " +
-                                                                std::string(pitchParam.tag.name()) +
+                                                                std::string(param.tag.name()) +
                                                                 " resample failed");
             }
-            // tone shift samples are in cents (1 semitone == 100 cents)
-            std::vector<double> toneShiftSamples;
-            if (pToneShiftParam) {
-                // Needs tone shift
-                const auto &toneShiftParam = *pToneShiftParam;
-                toneShiftSamples = inferutil::resample(
-                    toneShiftParam.values, toneShiftParam.interval, frameWidth, targetLength, true);
-                if (!toneShiftSamples.empty()) {
-                    if (toneShiftSamples.size() != targetLength) {
-                        setState(Failed);
-                        return srt::Error(srt::Error::SessionError,
-                                          "parameter " + std::string(toneShiftParam.tag.name()) +
-                                              " resample failed");
-                    }
-                } else {
-                    // Tone shift resampled is empty, ignore and do not modify pitch.
-                    // Nothing to do here.
-                }
-            }
-
-            constexpr double a4_freq_hz = 440.0;
-            constexpr double midi_a4_note = 69.0;
-
             // Create f0 tensor for acoustic model
-            auto expForAcoustic =
-                inferutil::TensorHelper<float>::createFor1DArray(targetLength);
+            auto expForAcoustic = inferutil::TensorHelper<float>::createFor1DArray(targetLength);
             if (!expForAcoustic) {
-                setState(Failed);
                 return expForAcoustic.takeError();
             }
             auto &acousticHelper = expForAcoustic.value();
-            // Convert midi note to hz
-            for (const auto midi_note : std::as_const(pitchSamples)) {
-                auto f0Acoustic = a4_freq_hz * std::exp2((midi_note - midi_a4_note) / 12.0);
-                // Buffer guaranteed not to overflow,
-                // given (resampled.size() == targetLength), which has been checked before
-                acousticHelper.writeUnchecked(static_cast<float>(f0Acoustic));
+
+            if (pToneShiftParam) {
+                const auto &toneShift = *pToneShiftParam;
+                if (!toneShift.values.empty()) {
+                    auto toneShiftSamples = inferutil::resample(
+                        toneShift.values, toneShift.interval, frameWidth, targetLength, false);
+                    if (toneShiftSamples.size() != targetLength) {
+                        return srt::Error(srt::Error::SessionError,
+                                          "parameter " + std::string(toneShift.tag.name()) +
+                                              " resample failed");
+                    }
+                    if (convertToF0) {
+                        for (size_t i = 0; i < targetLength; ++i) {
+                            samples[i] += toneShiftSamples[i] / 100.0;
+                        }
+                    } else {
+                        for (size_t i = 0; i < targetLength; ++i) {
+                            samples[i] *= std::exp2(toneShiftSamples[i] / 1200.0);
+                        }
+                    }
+                }
+            }
+            if (convertToF0) {
+                // Convert midi note to hz
+                for (const auto midi_note : std::as_const(samples)) {
+                    constexpr double a4_freq_hz = 440.0;
+                    constexpr double midi_a4_note = 69.0;
+                    const auto f0Acoustic =
+                        a4_freq_hz * std::exp2((midi_note - midi_a4_note) / 12.0);
+                    // Buffer guaranteed not to overflow,
+                    // given (resampled.size() == targetLength), which has been checked before
+                    acousticHelper.writeUnchecked(static_cast<float>(f0Acoustic));
+                }
+            } else {
+                for (const auto sample : std::as_const(samples)) {
+                    // Buffer guaranteed not to overflow,
+                    // given (resampled.size() == targetLength), which has been checked before
+                    acousticHelper.writeUnchecked(static_cast<float>(sample));
+                }
             }
             f0TensorForVocoder = acousticHelper.take();
             sessionInput->inputs["f0"] = f0TensorForVocoder; // ref count +1
+            return srt::Expected<void>();
+        };
 
-            // Create f0 tensor for vocoder model
-            if (toneShiftSamples.empty()) {
-                // No tone shift happened.
-                // F0 tensor for vocoder is exactly the same as that for acoustic.
-                // Nothing to do here.
-            } else {
-                // Needs to apply tone shift.
-                auto expForVocoder =
-                    inferutil::TensorHelper<float>::createFor1DArray(targetLength);
-                if (!expForVocoder) {
-                    setState(Failed);
-                    return expForVocoder.takeError();
-                }
-                auto &vocoderHelper = expForVocoder.value();
-                // Convert midi note to hz
-                for (size_t i = 0; i < targetLength; ++i) {
-                    // toneShiftSamples and pitchSamples are both of same size: targetLength.
-                    // This has been checked in previous steps.
-                    // Therefore, the buffer is guaranteed not to overflow.
-                    auto midi_note = pitchSamples[i] + toneShiftSamples[i] / 100.0;
-                    auto f0Vocoder = a4_freq_hz * std::exp2((midi_note - midi_a4_note) / 12.0);
-                    vocoderHelper.writeUnchecked(static_cast<float>(f0Vocoder));
-                }
-                f0TensorForVocoder = vocoderHelper.take();
+        if (pF0Param) {
+            // Has f0 parameter
+            if (auto exp = processF0Param(*pF0Param, false); !exp) {
+                setState(Failed);
+                return exp.takeError();
             }
-            satisfyToneShift = true;
+        } else if (pPitchParam) {
+            // Has pitch parameter
+            if (auto exp = processF0Param(*pPitchParam, true); !exp) {
+                setState(Failed);
+                return exp.takeError();
+            }
         } else {
-            // No pitch found
+            // No pitch or f0 found
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "parameter pitch missing");
+            return srt::Error(srt::Error::SessionError, "parameter f0 or pitch missing");
         }
 
         // Some parameter requirements are not satisfied

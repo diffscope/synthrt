@@ -37,21 +37,19 @@ namespace ds::inferutil {
             // Add new transition parameters here. Remember to update `transitionKeys`
             inline static constexpr std::array<std::pair<std::string_view, ParamTag>, 3>
                 transitionMapping = {
-                    std::pair{"gender",     Api::Common::L1::Tags::Gender   },
-                    std::pair{"velocity",   Api::Common::L1::Tags::Velocity },
-                    std::pair{"tone_shift", Api::Common::L1::Tags::ToneShift},
+                    std::pair{"gender",   Api::Common::L1::Tags::Gender  },
+                    std::pair{"velocity", Api::Common::L1::Tags::Velocity},
             };
 
             // Better if these xxxKeys can be automatically generated during compile-time.
             // Tried, but this is not easy in C++17.
-            inline static constexpr std::string_view varianceKeys = ("energy, "
-                                                                     "breathiness, "
-                                                                     "voicing, "
-                                                                     "tension, "
-                                                                     "mouth_opening");
-            inline static constexpr std::string_view transitionKeys = ("gender, "
-                                                                       "velocity, "
-                                                                       "tone_shift");
+            inline static constexpr std::string_view varianceKeys = (R"("energy", )"
+                                                                     R"("breathiness", )"
+                                                                     R"("voicing", )"
+                                                                     R"("tension", )"
+                                                                     R"("mouth_opening")");
+            inline static constexpr std::string_view transitionKeys = (R"("gender", )"
+                                                                       R"("velocity")");
         };
 
         template <typename Container>
@@ -68,8 +66,7 @@ namespace ds::inferutil {
         }
 
         template <typename Container>
-        inline bool tryFindAndInsertVarianceParameters(std::string_view key,
-                                                       Container &out) {
+        inline bool tryFindAndInsertVarianceParameters(std::string_view key, Container &out) {
             const auto pred = [&](const auto &pair) { return pair.first == key; };
 
             constexpr auto &vmap = ParamTagMappings::varianceMapping;
@@ -82,8 +79,7 @@ namespace ds::inferutil {
         }
 
         template <typename Container>
-        inline bool tryFindAndInsertTransitionParameters(std::string_view key,
-                                                         Container &out) {
+        inline bool tryFindAndInsertTransitionParameters(std::string_view key, Container &out) {
             const auto pred = [&](const auto &pair) { return pair.first == key; };
 
             constexpr auto &tmap = ParamTagMappings::transitionMapping;
@@ -127,7 +123,7 @@ namespace ds::inferutil {
                                 if (ec) {
                                     ec->collectError(stdc::formatN(
                                         R"(array field "%1" element at index %2 invalid: )"
-                                        R"(expected %3, %4; got "%5")",
+                                        R"(expected one of [%3, %4]; got "%5")",
                                         fieldName, index, ParamTagMappings::varianceKeys,
                                         ParamTagMappings::transitionKeys, paramStr));
                                 }
@@ -137,7 +133,7 @@ namespace ds::inferutil {
                                 if (ec) {
                                     ec->collectError(stdc::formatN(
                                         R"(array field "%1" element at index %2 invalid: )"
-                                        R"(expected %3; got "%4")",
+                                        R"(expected one of [%3]; got "%4")",
                                         fieldName, index, ParamTagMappings::varianceKeys,
                                         paramStr));
                                 }
@@ -147,7 +143,7 @@ namespace ds::inferutil {
                                 if (ec) {
                                     ec->collectError(stdc::formatN(
                                         R"(array field "%1" element at index %2 invalid: )"
-                                        R"(expected %3; got "%4")",
+                                        R"(expected one of [%3]; got "%4")",
                                         fieldName, index, ParamTagMappings::transitionKeys,
                                         paramStr));
                                 }
@@ -332,10 +328,9 @@ namespace ds::inferutil {
             } else if (linguisticModeLower == "phoneme") {
                 out = LinguisticMode::LM_Phoneme;
             } else {
-                collectError(stdc::format(
-                    R"(enum string field "linguisticMode" invalid: )"
-                    R"(expect "word", "phoneme"; got "%1")",
-                    linguisticMode));
+                collectError(stdc::format(R"(enum string field "linguisticMode" invalid: )"
+                                          R"(expect "word", "phoneme"; got "%1")",
+                                          linguisticMode));
             }
         } else {
             // Nothing to do

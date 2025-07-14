@@ -46,7 +46,8 @@ namespace ds::inferutil {
             return {};
         }
         const std::string middlePart = " (";
-        const std::string countSuffix = " errors found):\n";
+        const std::string countSuffix =
+            (_errors.size() == 1) ? " error found):\n" : " errors found):\n";
 
         size_t totalLength = msgPrefix.size() + middlePart.size() +
                              std::to_string(_errors.size()).size() + countSuffix.size();

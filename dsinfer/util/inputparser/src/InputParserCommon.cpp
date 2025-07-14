@@ -429,6 +429,8 @@ namespace ds {
                         return Co::InputParameterInfo{Co::Tags::MouthOpening};
                     } else if (tag == Co::Tags::ToneShift.name()) {
                         return Co::InputParameterInfo{Co::Tags::ToneShift};
+                    } else if (tag == Co::Tags::F0.name()) {
+                        return Co::InputParameterInfo{Co::Tags::F0};
                     } else if (tag == Co::Tags::Expr.name()) {
                         return Co::InputParameterInfo{Co::Tags::Expr};
                     }
@@ -441,8 +443,9 @@ namespace ds {
                     }
                 }
                 if (parameterInfo.tag.name().empty()) {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "parameters[].tag string unknown: " + tag);
+                    // return srt::Error(srt::Error::InvalidFormat,
+                    //                   "parameters[].tag string unknown: " + tag);
+                    continue;
                 }
                 // <END> parsing parameters[].tag
 

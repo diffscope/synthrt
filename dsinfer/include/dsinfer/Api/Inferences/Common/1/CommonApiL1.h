@@ -15,6 +15,8 @@ namespace ds::Api::Common::L1 {
         /// Pitch controls
         inline constexpr ParamTag Pitch("pitch");
         inline constexpr ParamTag Expr("expr");
+        inline constexpr ParamTag F0("f0");
+        inline constexpr ParamTag ToneShift("tone_shift");
 
         /// Variance controls
         inline constexpr ParamTag Energy("energy");
@@ -26,7 +28,6 @@ namespace ds::Api::Common::L1 {
         /// Transition controls
         inline constexpr ParamTag Gender("gender");
         inline constexpr ParamTag Velocity("velocity");
-        inline constexpr ParamTag ToneShift("tone_shift");
 
     };
 
