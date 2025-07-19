@@ -121,7 +121,7 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<void> PitchInference::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<srt::NO<srt::TaskResult>> PitchInference::start(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
 
         {
@@ -459,26 +459,29 @@ namespace ds {
             return srt::Error(srt::Error::SessionError,
                               "pitch predictor session is not initialized");
         }
+
+        srt::NO<srt::TaskResult> sessionTaskResult;
         auto sessionExp = impl.predictorSession->start(sessionInput);
         if (!sessionExp) {
             setState(Failed);
             return sessionExp.takeError();
+        } else {
+            sessionTaskResult = sessionExp.take();
         }
 
-        impl.result = srt::NO<Pit::PitchResult>::create();
+        auto pitchResult = srt::NO<Pit::PitchResult>::create();
 
         // Get session results
-        auto result = impl.predictorSession->result();
-        if (!result) {
+        if (!sessionTaskResult) {
             setState(Failed);
             return srt::Error(srt::Error::SessionError,
                               "pitch predictor session result is nullptr");
         }
-        if (result->objectName() != Onnx::API_NAME) {
+        if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto sessionResult = result.as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
         if (auto it_pred = sessionResult->outputs.find(outParamPitchPred);
             it_pred != sessionResult->outputs.end()) {
             // Extract onnx model result and copy to pitch final result vector (float -> double)
@@ -492,16 +495,16 @@ namespace ds {
                 setState(Failed);
                 return srt::Error(srt::Error::SessionError, "model output is empty");
             }
-            impl.result->interval = frameWidth;
-            auto &finalResult = impl.result->pitch;
-            finalResult.assign(view.begin(), view.end());
+            pitchResult->interval = frameWidth;
+            pitchResult->pitch.assign(view.begin(), view.end());
         } else {
             setState(Failed);
             return srt::Error(srt::Error::SessionError, "invalid result output");
         }
+        impl.result = pitchResult;
 
         setState(Idle);
-        return srt::Expected<void>();
+        return pitchResult;
     }
 
     srt::Expected<void> PitchInference::startAsync(const srt::NO<srt::TaskStartInput> &input,

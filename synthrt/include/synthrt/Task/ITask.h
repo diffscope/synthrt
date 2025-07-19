@@ -45,7 +45,7 @@ namespace srt {
     public:
         virtual Expected<void> initialize(const NO<TaskInitArgs> &args);
 
-        virtual Expected<void> start(const NO<TaskStartInput> &input) = 0;
+        virtual Expected<NO<TaskResult>> start(const NO<TaskStartInput> &input) = 0;
         virtual Expected<void> startAsync(const NO<TaskStartInput> &input,
                                           const StartAsyncCallback &callback);
         virtual bool stop() = 0;

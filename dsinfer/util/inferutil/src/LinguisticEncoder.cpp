@@ -106,21 +106,23 @@ namespace ds::inferutil {
                                    srt::NO<Api::Onnx::SessionStartInput> &out,
                                    bool useXMasks) {
         // Assuming encoderSession is already opened
+        srt::NO<srt::TaskResult> sessionTaskResult;
         auto sessionExp = encoderSession->start(linguisticInput);
         if (!sessionExp) {
             return sessionExp.takeError();
+        } else {
+            sessionTaskResult = sessionExp.take();
         }
 
         // Get encoder session results
-        auto result = encoderSession->result();
-        if (!result) {
+        if (!sessionTaskResult) {
             return srt::Error(srt::Error::SessionError,
                               "linguistic encoder session result is nullptr");
         }
-        if (result->objectName() != Api::Onnx::API_NAME) {
+        if (sessionTaskResult->objectName() != Api::Onnx::API_NAME) {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto encoderResult = result.as<Api::Onnx::SessionResult>();
+        auto encoderResult = sessionTaskResult.as<Api::Onnx::SessionResult>();
         for (auto &&[name, value] : encoderResult->outputs) {
             if (name == "encoder_out") {
                 out->inputs.emplace("encoder_out", std::move(value));

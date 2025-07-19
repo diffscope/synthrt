@@ -13,9 +13,10 @@ namespace ds {
     public:
         srt::Expected<void> initialize(const srt::NO<srt::TaskInitArgs> &args) override;
 
-        srt::Expected<void> start(const srt::NO<srt::TaskStartInput> &input) override;
+        srt::Expected<srt::NO<srt::TaskResult>>
+            start(const srt::NO<srt::TaskStartInput> &input) override;
         srt::Expected<void> startAsync(const srt::NO<srt::TaskStartInput> &input,
-                        const StartAsyncCallback &callback) override;
+                                       const StartAsyncCallback &callback) override;
         bool stop() override;
 
         srt::NO<srt::TaskResult> result() const override;

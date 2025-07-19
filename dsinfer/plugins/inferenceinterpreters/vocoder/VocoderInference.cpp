@@ -97,7 +97,7 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<void> VocoderInference::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<srt::NO<srt::TaskResult>> VocoderInference::start(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
 
         {
@@ -147,40 +147,43 @@ namespace ds {
             return srt::Error(srt::Error::SessionError, "vocoder session is not initialized");
         }
 
+        srt::NO<srt::TaskResult> sessionTaskResult;
         auto sessionExp = impl.session->start(sessionInput);
         if (!sessionExp) {
             setState(Failed);
             return sessionExp.takeError();
+        } else {
+            sessionTaskResult = sessionExp.take();
         }
 
-        impl.result = srt::NO<Vo::VocoderResult>::create();
+        auto vocoderResult = srt::NO<Vo::VocoderResult>::create();
 
         // Get session results
-        auto result = impl.session->result();
-        if (!result) {
+        if (!sessionTaskResult) {
             setState(Failed);
             return srt::Error(srt::Error::SessionError, "vocoder session result is nullptr");
         }
-        if (result->objectName() != Onnx::API_NAME) {
+        if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto sessionResult = result.as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
         if (auto it_waveform = sessionResult->outputs.find(outParamWaveform);
             it_waveform != sessionResult->outputs.end()) {
             const auto &waveformTensor = it_waveform->second;
             const auto size = waveformTensor->byteSize();
-            impl.result->audioData.resize(size);
+            vocoderResult->audioData.resize(size);
             if (auto waveformBuffer = waveformTensor->rawData()) {
-                std::memcpy(impl.result->audioData.data(), waveformBuffer, size);
+                std::memcpy(vocoderResult->audioData.data(), waveformBuffer, size);
             }
         } else {
             setState(Failed);
             return srt::Error(srt::Error::SessionError, "invalid result output");
         }
+        impl.result = vocoderResult;
 
         setState(Idle);
-        return srt::Expected<void>();
+        return vocoderResult;
     }
 
     srt::Expected<void> VocoderInference::startAsync(const srt::NO<srt::TaskStartInput> &input,

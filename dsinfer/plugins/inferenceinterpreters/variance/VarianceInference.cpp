@@ -136,7 +136,7 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<void> VarianceInference::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<srt::NO<srt::TaskResult>> VarianceInference::start(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
 
         {
@@ -463,26 +463,30 @@ namespace ds {
             return srt::Error(srt::Error::SessionError,
                               "variance predictor session is not initialized");
         }
+
+        srt::NO<srt::TaskResult> sessionTaskResult;
         auto sessionExp = impl.predictorSession->start(sessionInput);
         if (!sessionExp) {
             setState(Failed);
             return sessionExp.takeError();
+        } else {
+            sessionTaskResult = sessionExp.take();
         }
 
-        impl.result = srt::NO<Var::VarianceResult>::create();
+        auto varianceResult = srt::NO<Var::VarianceResult>::create();
 
         // Get session results
-        auto result = impl.predictorSession->result();
-        if (!result) {
+        if (!sessionTaskResult) {
             setState(Failed);
             return srt::Error(srt::Error::SessionError,
                               "variance predictor session result is nullptr");
         }
-        if (result->objectName() != Onnx::API_NAME) {
+        if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto sessionResult = result.as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
+        varianceResult->predictions.reserve(sessionResult->outputs.size());
         for (const auto &[outputName, output] : sessionResult->outputs) {
             for (const auto &prediction : schema->predictions) {
                 if (outputName != std::string(prediction.name()) + "_pred") {
@@ -492,12 +496,12 @@ namespace ds {
                 Co::InputParameterInfo inputParam{prediction};
                 inputParam.interval = frameWidth;
                 inputParam.values.assign(view.begin(), view.end());
-                impl.result->predictions.emplace_back(std::move(inputParam));
+                varianceResult->predictions.emplace_back(std::move(inputParam));
             }
         }
 
         const auto expectedCount = schema->predictions.size();
-        const auto actualCount = impl.result->predictions.size();
+        const auto actualCount = varianceResult->predictions.size();
         if (expectedCount != actualCount) {
             setState(Failed);
             return srt::Error(
@@ -505,9 +509,10 @@ namespace ds {
                 stdc::formatN("predicted parameter count mismatch: expected %1, got %2",
                               expectedCount, actualCount));
         }
+        impl.result = varianceResult;
 
         setState(Idle);
-        return srt::Expected<void>();
+        return varianceResult;
     }
 
     srt::Expected<void> VarianceInference::startAsync(const srt::NO<srt::TaskStartInput> &input,

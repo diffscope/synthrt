@@ -298,12 +298,14 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         durationInput->words = input.input->words;
 
         // Start inference
+        NO<Dur::DurationResult> result;
         if (auto exp = inference->start(durationInput); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start duration inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
+        } else {
+            result = exp.take().as<Dur::DurationResult>();
         }
-        auto result = inference->result().as<Dur::DurationResult>();
         if (inference->state() == srt::ITask::Failed) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to run duration inference for singer "%1": %2)",
@@ -365,12 +367,14 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         pitchInput->steps = input.input->steps;
 
         // Start inference
+        NO<Pit::PitchResult> result;
         if (auto exp = inference->start(pitchInput); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start pitch inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
+        } else {
+            result = exp.take().as<Pit::PitchResult>();
         }
-        auto result = inference->result().as<Pit::PitchResult>();
         if (inference->state() == srt::ITask::Failed) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to run pitch inference for singer "%1": %2)", input.singer,
@@ -435,12 +439,14 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         varianceInput->steps = input.input->steps;
 
         // Start inference
+        NO<Var::VarianceResult> result;
         if (auto exp = inference->start(varianceInput); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start variance inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
+        } else {
+            result = exp.take().as<Var::VarianceResult>();
         }
-        auto result = inference->result().as<Var::VarianceResult>();
         if (inference->state() == srt::ITask::Failed) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to run variance inference for singer "%1": %2)",
@@ -499,12 +505,14 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         }
 
         // Start inference
+        NO<Ac::AcousticResult> result;
         if (auto exp = inference->start(input.input); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start acoustic inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
+        } else {
+            result = exp.take().as<Ac::AcousticResult>();
         }
-        auto result = inference->result().as<Ac::AcousticResult>();
         if (inference->state() == srt::ITask::Failed) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to run acoustic inference for singer "%1": %2)",
@@ -539,12 +547,14 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         vocoderInput->f0 = f0;
 
         // Start inference
+        NO<Vo::VocoderResult> result;
         if (auto exp = inference->start(vocoderInput); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start vocoder inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
+        } else {
+            result = exp.take().as<Vo::VocoderResult>();
         }
-        auto result = inference->result().as<Vo::VocoderResult>();
         if (inference->state() == srt::ITask::Failed) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to run vocoder inference for singer "%1": %2)",

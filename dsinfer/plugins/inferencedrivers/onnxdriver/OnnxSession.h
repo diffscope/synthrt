@@ -19,7 +19,7 @@ namespace ds {
         int64_t id() const override;
 
     public:
-        srt::Expected<void> start(const srt::NO<srt::TaskStartInput> &input) override;
+        srt::Expected<srt::NO<srt::TaskResult>> start(const srt::NO<srt::TaskStartInput> &input) override;
         srt::Expected<void> startAsync(const srt::NO<srt::TaskStartInput> &input,
                                        const StartAsyncCallback &callback) override;
         srt::NO<srt::TaskResult> result() const override;

@@ -53,7 +53,7 @@ namespace ds {
         return impl.sessionId;
     }
 
-    srt::Expected<void> OnnxSession::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<srt::NO<srt::TaskResult>> OnnxSession::start(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
         return impl.session.run(input);
     }

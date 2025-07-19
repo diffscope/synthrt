@@ -36,7 +36,7 @@ namespace ds::onnxdriver {
         const std::vector<std::string> &inputNames() const;
         const std::vector<std::string> &outputNames() const;
 
-        srt::Expected<void> run(const srt::NO<srt::TaskStartInput> &input);
+        srt::Expected<srt::NO<srt::TaskResult>> run(const srt::NO<srt::TaskStartInput> &input);
         srt::Expected<void> runAsync(const srt::NO<srt::TaskStartInput> &input, const srt::ITask::StartAsyncCallback &callback);
 
         void terminate();

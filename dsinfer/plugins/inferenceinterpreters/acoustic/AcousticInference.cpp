@@ -110,7 +110,9 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<void> AcousticInference::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<srt::NO<srt::TaskResult>>
+        AcousticInference::start(const srt::NO<srt::TaskStartInput> &input) {
+
         __stdc_impl_t;
 
         {
@@ -478,36 +480,39 @@ namespace ds {
             return srt::Error(srt::Error::SessionError, "acoustic session is not initialized");
         }
 
+        srt::NO<srt::TaskResult> sessionTaskResult;
         auto sessionExp = impl.session->start(sessionInput);
         if (!sessionExp) {
             setState(Failed);
             return sessionExp.takeError();
+        } else {
+            sessionTaskResult = sessionExp.take();
         }
 
-        impl.result = srt::NO<Ac::AcousticResult>::create();
+        auto acousticResult = srt::NO<Ac::AcousticResult>::create();
 
         // Get session results
-        auto result = impl.session->result();
-        if (!result) {
+        if (!sessionTaskResult) {
             setState(Failed);
             return srt::Error(srt::Error::SessionError, "acoustic session result is nullptr");
         }
-        if (result->objectName() != Onnx::API_NAME) {
+        if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto sessionResult = result.as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
         if (auto it_mel = sessionResult->outputs.find(outParamMel);
             it_mel != sessionResult->outputs.end()) {
-            impl.result->mel = it_mel->second;
+            acousticResult->mel = it_mel->second;
         } else {
             setState(Failed);
             return srt::Error(srt::Error::SessionError, "invalid result output");
         }
-        impl.result->f0 = f0TensorForVocoder;
+        acousticResult->f0 = f0TensorForVocoder;
+        impl.result = acousticResult;
 
         setState(Idle);
-        return srt::Expected<void>();
+        return acousticResult;
     }
 
     srt::Expected<void> AcousticInference::startAsync(const srt::NO<srt::TaskStartInput> &input,

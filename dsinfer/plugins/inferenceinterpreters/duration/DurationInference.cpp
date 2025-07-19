@@ -169,7 +169,9 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<void> DurationInference::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<srt::NO<srt::TaskResult>>
+        DurationInference::start(const srt::NO<srt::TaskStartInput> &input) {
+
         __stdc_impl_t;
 
         {
@@ -306,26 +308,29 @@ namespace ds {
             return srt::Error(srt::Error::SessionError,
                               "duration predictor session is not initialized");
         }
+
+        srt::NO<srt::TaskResult> sessionTaskResult;
         auto sessionExp = impl.predictorSession->start(sessionInput);
         if (!sessionExp) {
             setState(Failed);
             return sessionExp.takeError();
+        } else {
+            sessionTaskResult = sessionExp.take();
         }
 
-        impl.result = srt::NO<Dur::DurationResult>::create();
+        auto durationResult = srt::NO<Dur::DurationResult>::create();
 
         // Get session results
-        auto result = impl.predictorSession->result();
-        if (!result) {
+        if (!sessionTaskResult) {
             setState(Failed);
             return srt::Error(srt::Error::SessionError,
                               "duration predictor session result is nullptr");
         }
-        if (result->objectName() != Onnx::API_NAME) {
+        if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto sessionResult = result.as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
         if (auto it_pred = sessionResult->outputs.find(outParamPhDurPred);
             it_pred != sessionResult->outputs.end()) {
             // Extract onnx model result and copy to duration final result vector (float -> double)
@@ -339,8 +344,8 @@ namespace ds {
                 setState(Failed);
                 return srt::Error(srt::Error::SessionError, "model output is empty");
             }
-            auto &finalResult = impl.result->durations;
-            finalResult.assign(view.begin(), view.end());
+            auto &durationVector = durationResult->durations;
+            durationVector.assign(view.begin(), view.end());
             // Scale the results to adapt to original word sizes
             size_t begin = 0;
             size_t end = 0;
@@ -353,12 +358,12 @@ namespace ds {
                 auto phNum = word.phones.size();
                 auto wordDur = inferutil::getWordDuration(word);
                 end = begin + phNum;
-                if (begin >= finalResult.size() || end > finalResult.size()) {
+                if (begin >= durationVector.size() || end > durationVector.size()) {
                     break;
                 }
                 double predWordDur = 0.0;
                 for (size_t i = begin; i < end; ++i) {
-                    predWordDur += finalResult[i];
+                    predWordDur += durationVector[i];
                 }
                 if (predWordDur == 0 || std::isnan(predWordDur) || std::isinf(predWordDur)) {
                     setState(Failed);
@@ -369,7 +374,7 @@ namespace ds {
                 }
                 const double scaleFactor = wordDur / predWordDur;
                 for (size_t i = begin; i < end; ++i) {
-                    finalResult[i] *= scaleFactor;
+                    durationVector[i] *= scaleFactor;
                 }
                 begin = end;
             }
@@ -378,16 +383,17 @@ namespace ds {
             return srt::Error(srt::Error::SessionError, "invalid result output");
         }
 
-        const auto predictedPhoneCount = impl.result->durations.size();
+        const auto predictedPhoneCount = durationResult->durations.size();
         if (predictedPhoneCount != phoneCount) {
             setState(Failed);
             return srt::Error(srt::Error::SessionError,
                               stdc::formatN("predicted phoneme count mismatch: expected %1, got %2",
                                             phoneCount, predictedPhoneCount));
         }
+        impl.result = durationResult;
 
         setState(Idle);
-        return srt::Expected<void>();
+        return durationResult;
     }
 
     srt::Expected<void> DurationInference::startAsync(const srt::NO<srt::TaskStartInput> &input,
