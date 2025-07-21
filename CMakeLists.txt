@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.19)
 
 project(synthrt
-    VERSION 0.0.1.1
+    VERSION 0.0.2.0
     LANGUAGES CXX
     DESCRIPTION "SVS Synthesis Runtime Library"
     HOMEPAGE_URL "https://github.com/diffscope/synthrt"

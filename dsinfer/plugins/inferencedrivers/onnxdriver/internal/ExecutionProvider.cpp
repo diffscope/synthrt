@@ -1,10 +1,15 @@
 #include "ExecutionProvider.h"
 
 #include <memory>
+#include <filesystem>
 
 #ifdef ONNXDRIVER_ENABLE_DML
 #  include <dml_provider_factory.h>
 #endif
+
+#include <onnxruntime_cxx_api.h>
+
+#include <stdcorelib/support/SharedLibrary.h>
 
 namespace ds::onnxdriver {
 
@@ -78,6 +83,26 @@ namespace ds::onnxdriver {
 #endif
     }
 
+    struct DmlLoadGuard {
+        DmlLoadGuard() {
+            static bool dmlLoaded = false;
+            if (!dmlLoaded) {
+                auto ortPath = stdc::SharedLibrary::locateLibraryPath(&Ort::GetApi());
+                if (!ortPath.empty()) {
+                    orgDllPath = stdc::SharedLibrary::setLibraryPath(ortPath.parent_path());
+                }
+            }
+        }
+
+        ~DmlLoadGuard() {
+            if (orgDllPath) {
+                stdc::SharedLibrary::setLibraryPath(orgDllPath.value());
+            }
+        }
+
+        std::optional<std::filesystem::path> orgDllPath;
+    };
+
     bool initDirectML(Ort::SessionOptions &options, int deviceIndex, std::string *errorMessage) {
 #ifdef ONNXDRIVER_ENABLE_DML
         if (!options) {
@@ -110,6 +135,7 @@ namespace ds::onnxdriver {
         options.DisableMemPattern();
         options.SetExecutionMode(ORT_SEQUENTIAL);
 
+        DmlLoadGuard dmlLoadGuard;
         Ort::Status appendStatus(
             ortDmlApi->SessionOptionsAppendExecutionProvider_DML(options, deviceIndex));
         if (!appendStatus.IsOK()) {

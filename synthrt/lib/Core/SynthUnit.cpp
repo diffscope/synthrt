@@ -499,8 +499,10 @@ namespace srt {
                 }
 
                 // Store
-                cachedPackageIndexesMap[id_][version_] = {fs::canonical(entry.path()),
-                                                          compatVersion_};
+                cachedPackageIndexesMap[id_][version_] = {
+                    fs::canonical(entry.path()),
+                    compatVersion_,
+                };
             }
         }
 
