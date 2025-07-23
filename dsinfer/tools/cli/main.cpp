@@ -34,6 +34,8 @@ namespace Pit = ds::Api::Pitch::L1;
 namespace Var = ds::Api::Variance::L1;
 namespace Vo = ds::Api::Vocoder::L1;
 
+using EP = ds::Api::Onnx::ExecutionProvider;
+
 using srt::NO;
 
 static srt::LogCategory cliLog("cli");
@@ -106,7 +108,7 @@ static void log_report_callback(int level, const srt::LogContext &ctx,
     console::println(console::nostyle, foreground, console::nocolor, msg);
 }
 
-static void initializeSU(srt::SynthUnit &su) {
+static void initializeSU(srt::SynthUnit &su, EP ep, int deviceIndex) {
     // Get basic directories
     auto appDir = stdc::system::application_directory();
     auto defaultPluginDir =
@@ -128,9 +130,14 @@ static void initializeSU(srt::SynthUnit &su) {
     auto onnxArgs = NO<ds::Api::Onnx::DriverInitArgs>::create();
 
     // TODO: users should be able to configure these args
-    onnxArgs->ep = ds::Api::Onnx::CPUExecutionProvider;
-    onnxArgs->runtimePath = plugin->path().parent_path() / _TSTR("runtimes");
-    onnxArgs->deviceIndex = 0;
+    onnxArgs->ep = ep;
+    auto ortParentPath = plugin->path().parent_path() / _TSTR("runtimes") / _TSTR("onnx");
+    if (ep == EP::CUDAExecutionProvider) {
+        onnxArgs->runtimePath = ortParentPath / _TSTR("cuda");
+    } else {
+        onnxArgs->runtimePath = ortParentPath / _TSTR("default");
+    }
+    onnxArgs->deviceIndex = deviceIndex;
 
     if (auto exp = onnxDriver->initialize(onnxArgs); !exp) {
         throw std::runtime_error(
@@ -189,7 +196,7 @@ struct InputObject {
 };
 
 static int exec(const fs::path &packagePath, const fs::path &inputPath,
-                const fs::path &outputWavPath) {
+                const fs::path &outputWavPath, EP ep, int deviceIndex) {
     // Read input
     InputObject input;
     if (auto exp = InputObject::load(inputPath); !exp) {
@@ -201,7 +208,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
     }
 
     srt::SynthUnit su;
-    initializeSU(su);
+    initializeSU(su, ep, deviceIndex);
 
     // Add package directory to search path
     su.addPackagePath(packagePath.parent_path());
@@ -588,7 +595,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         }
         wav.close();
 
-        cliLog.srtSuccess("WAV file written successfully.");
+        cliLog.srtSuccess("Saved audio to " + stdc::path::to_utf8(outputWavPath));
     }
 
     return 0;
@@ -608,7 +615,7 @@ static inline std::string exception_message(const std::exception &e) {
 int main(int /*argc*/, char * /*argv*/[]) {
     auto cmdline = stdc::system::command_line_arguments();
     if (cmdline.size() < 4) {
-        stdc::u8println("Usage: %1 <package> <input> <output_wav>",
+        stdc::u8println("Usage: %1 <package> <input> <output_wav> <ep> <device_index>",
                         stdc::system::application_name());
         return 1;
     }
@@ -618,10 +625,31 @@ int main(int /*argc*/, char * /*argv*/[]) {
     const auto &packagePath = stdc::path::from_utf8(cmdline[1]);
     const auto &inputPath = stdc::path::from_utf8(cmdline[2]);
     const auto &outputWavPath = stdc::path::from_utf8(cmdline[3]);
+    auto ep = EP::CPUExecutionProvider;
+    if (cmdline.size() >= 5) {
+        const auto epString = stdc::to_lower(cmdline[4]);
+        if (epString == "dml" || epString == "directml") {
+            ep = EP::DMLExecutionProvider;
+        } else if (epString == "cuda") {
+            ep = EP::CUDAExecutionProvider;
+        } else if (epString == "coreml") {
+            ep = EP::CoreMLExecutionProvider;
+        }
+    }
+    int deviceIndex = 0;
+    if (cmdline.size() >= 6) {
+        try {
+            deviceIndex = std::stoi(cmdline[5]);
+        } catch (const std::invalid_argument &e) {
+            deviceIndex = 0;
+        } catch (const std::out_of_range &e) {
+            deviceIndex = 0;
+        }
+    }
 
     int ret;
     try {
-        ret = exec(packagePath, inputPath, outputWavPath);
+        ret = exec(packagePath, inputPath, outputWavPath, ep, deviceIndex);
     } catch (const std::exception &e) {
         std::string msg = exception_message(e);
         stdc::console::critical("Error: %1", msg);

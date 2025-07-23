@@ -36,8 +36,22 @@ cd vcpkg
 
 ### Install OnnxRuntime
 
+Default configuration (no CUDA support):
+
 ```cmake
-cd third-party && cmake [-Dep=gpu] -P ../scripts/setup-onnxruntime.cmake
+cd third-party && cmake -P ../scripts/setup-onnxruntime.cmake
+```
+
+With CUDA 11.x support:
+
+```cmake
+cd third-party && cmake -Dep=cuda11 -P ../scripts/setup-onnxruntime.cmake
+```
+
+With CUDA 12.x support:
+
+```cmake
+cd third-party && cmake -Dep=cuda12 -P ../scripts/setup-onnxruntime.cmake
 ```
 
 ### Build & Install

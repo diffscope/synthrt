@@ -11,6 +11,8 @@ project(onnxdriver
 file(GLOB_RECURSE _src *.h *.cpp)
 
 set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
+set(_onnxruntime_default_dir ${_onnxruntime_dir}/default)
+set(_onnxruntime_cuda_dir ${_onnxruntime_dir}/cuda)
 
 if(WIN32 AND DSINFER_ENABLE_DIRECTML)
     set(_onnxdriver_ep_macro_dml "ONNXDRIVER_ENABLE_DML")
@@ -35,16 +37,32 @@ dsinfer_add_plugin(${PROJECT_NAME} ${CURRENT_PLUGIN_CATEGORY} NO_EXPORT
 )
 
 if(WIN32)
-    set(_ort_lib_files ${_onnxruntime_dir}/lib/*.dll)
+    set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dll)
 elseif(APPLE)
-    set(_ort_lib_files ${_onnxruntime_dir}/lib/*.dylib)
+    set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dylib)
 else()
-    set(_ort_lib_files ${_onnxruntime_dir}/lib/*.so ${_onnxruntime_dir}/lib/*.so.*)
+    set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.so ${_onnxruntime_default_dir}/lib/*.so.*)
 endif()
 
 # Copy onnxruntime shared libraries
 qm_add_copy_command(${PROJECT_NAME} # SKIP_INSTALL
-    SOURCES ${_ort_lib_files}
-    DESTINATION runtimes
+    SOURCES ${_ort_default_lib_files}
+    DESTINATION runtimes/onnx/default
     INSTALL_DIR ${CMAKE_INSTALL_PREFIX}
 )
+
+if(EXISTS ${_onnxruntime_cuda_dir} AND IS_DIRECTORY ${_onnxruntime_cuda_dir})
+    if(WIN32)
+        set(_ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.dll)
+    else()
+        set(_ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.so ${_onnxruntime_cuda_dir}/lib/*.so.*)
+    endif()
+
+    if(NOT APPLE)
+        qm_add_copy_command(${PROJECT_NAME} # SKIP_INSTALL
+            SOURCES ${_ort_cuda_lib_files}
+            DESTINATION runtimes/onnx/cuda
+            INSTALL_DIR ${CMAKE_INSTALL_PREFIX}
+        )
+    endif()
+endif()
