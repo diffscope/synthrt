@@ -12,7 +12,7 @@ file(GLOB_RECURSE _src *.h *.cpp)
 
 set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
 
-if(DSINFER_ENABLE_DIRECTML)
+if(WIN32 AND DSINFER_ENABLE_DIRECTML)
     set(_onnxdriver_ep_macro_dml "ONNXDRIVER_ENABLE_DML")
 endif()
 
