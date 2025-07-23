@@ -3,18 +3,19 @@
 #include <memory>
 #include <filesystem>
 
-#ifdef ONNXDRIVER_ENABLE_DML
+#if __has_include(<dml_provider_factory.h>)
+#  define ONNXDRIVER_FOUND_DML
 #  include <dml_provider_factory.h>
+#elif defined(ONNXDRIVER_ENABLE_DML)
+#  pragma message("dml_provider_factory.h missing, DML support disabled.")
 #endif
-
-#include <onnxruntime_cxx_api.h>
 
 #include <stdcorelib/support/SharedLibrary.h>
 
 namespace ds::onnxdriver {
 
     bool initCUDA(Ort::SessionOptions &options, int deviceIndex, std::string *errorMessage) {
-#ifdef ONNXDRIVER_ENABLE_CUDA
+#if defined(ONNXDRIVER_ENABLE_CUDA)
         if (!options) {
             if (errorMessage) {
                 *errorMessage = "SessionOptions must not be nullptr!";
@@ -104,7 +105,7 @@ namespace ds::onnxdriver {
     };
 
     bool initDirectML(Ort::SessionOptions &options, int deviceIndex, std::string *errorMessage) {
-#ifdef ONNXDRIVER_ENABLE_DML
+#if defined(ONNXDRIVER_ENABLE_DML) && defined(ONNXDRIVER_FOUND_DML)
         if (!options) {
             if (errorMessage) {
                 *errorMessage = "SessionOptions must not be nullptr!";
