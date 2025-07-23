@@ -88,44 +88,118 @@ endif()
 
 set(_arch ${_detected_arch})
 
-set(_version "1.17.3")
-set(_base_url "https://github.com/microsoft/onnxruntime/releases/download/v${_version}")
+set(_version_ort "1.17.3")
+set(_version_dml "1.15.4")
 
-if(DEFINED ep AND "${ep}" STREQUAL gpu)
-    set(_full_version      gpu-${_version})
-    set(_full_version_zip  gpu-${_version})
-elseif(DEFINED ep AND "${ep}" STREQUAL gpu-cuda12)
-    set(_full_version      gpu-cuda12-${_version})
-    set(_full_version_zip  gpu-${_version})
-else()
-    set(_full_version      ${_version})
-    set(_full_version_zip  ${_version})
+macro(download_onnxruntime_from_github)
+    set(_base_url "https://github.com/microsoft/onnxruntime/releases/download/v${_version_ort}")
+    set(_name      "onnxruntime-${_os}-${_arch}-${_full_version}")
+    set(_name_zip  "onnxruntime-${_os}-${_arch}-${_full_version_zip}")
+    set(_url       "${_base_url}/${_name}.${_ext}")
+    set(_file_path "${CMAKE_BINARY_DIR}/${_name}.${_ext}")
+
+    message(STATUS "Downloading ONNX Runtime from ${_url}")
+
+    file(DOWNLOAD ${_url} ${_file_path}
+            SHOW_PROGRESS
+    )
+
+    set(_extract_dir ${CMAKE_BINARY_DIR}/onnxruntime)
+
+    file(ARCHIVE_EXTRACT INPUT ${_file_path}
+            DESTINATION ${_extract_dir}
+    )
+    file(REMOVE ${_file_path})
+    file(MAKE_DIRECTORY ${_extract_dir}/${_name_zip}/include)
+    file(MAKE_DIRECTORY ${_extract_dir}/${_name_zip}/lib)
+    file(COPY ${_extract_dir}/${_name_zip}/include DESTINATION ${_extract_dir})
+    file(COPY ${_extract_dir}/${_name_zip}/lib DESTINATION ${_extract_dir})
+    file(REMOVE_RECURSE ${_extract_dir}/${_name_zip})
+endmacro()
+
+function(copy_contents _src _dst)
+    file(GLOB SOURCE_FILES "${_src}/*")
+    file(MAKE_DIRECTORY ${_dst})
+    foreach(FILE ${SOURCE_FILES})
+        file(COPY ${FILE} DESTINATION ${_dst})
+    endforeach()
+endfunction()
+
+macro(download_onnxruntime_from_nuget)
+    set(_url_ort "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime.DirectML/${_version_ort}")
+    set(_name_zip_ort "Microsoft.ML.OnnxRuntime.DirectML.${_version_ort}.zip")
+    set(_file_path_ort "${CMAKE_BINARY_DIR}/${_name_zip_ort}")
+    message(STATUS "Downloading ONNX Runtime from ${_url_ort}")
+
+    file(DOWNLOAD ${_url_ort} ${_file_path_ort}
+            SHOW_PROGRESS
+    )
+
+    set(_extract_dir ${CMAKE_BINARY_DIR}/onnxruntime)
+    set(_extract_dir_ort ${CMAKE_BINARY_DIR}/nuget_onnxruntime)
+
+    file(MAKE_DIRECTORY ${_extract_dir_ort})
+
+    file(ARCHIVE_EXTRACT INPUT ${_file_path_ort}
+            DESTINATION ${_extract_dir_ort}
+    )
+    file(REMOVE ${_file_path_ort})
+
+    file(COPY ${_extract_dir_ort}/build/native/include DESTINATION ${_extract_dir})
+    file(MAKE_DIRECTORY "${extract_dir}/lib")
+    copy_contents("${_extract_dir_ort}/runtimes/win-x64/native" "${_extract_dir}/lib")
+
+    file(REMOVE_RECURSE ${_extract_dir_ort})
+endmacro()
+
+macro(download_dml_from_nuget)
+    set(_url_dml "https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/${_version_dml}")
+    set(_name_zip_dml "Microsoft.AI.DirectML.${_version_dml}.zip")
+    set(_file_path_dml "${CMAKE_BINARY_DIR}/${_name_zip_dml}")
+    message(STATUS "Downloading DirectML from ${_url_dml}")
+
+    file(DOWNLOAD ${_url_dml} ${_file_path_dml}
+            SHOW_PROGRESS
+    )
+
+    set(_extract_dir ${CMAKE_BINARY_DIR}/onnxruntime)
+    set(_extract_dir_dml ${CMAKE_BINARY_DIR}/nuget_directml)
+
+    file(MAKE_DIRECTORY ${_extract_dir_dml})
+
+    file(ARCHIVE_EXTRACT INPUT ${_file_path_dml}
+            DESTINATION ${_extract_dir_dml}
+    )
+    file(REMOVE ${_file_path_dml})
+
+    file(COPY ${_extract_dir_dml}/include DESTINATION ${_extract_dir})
+    file(MAKE_DIRECTORY "${extract_dir}/lib")
+    copy_contents("${_extract_dir_dml}/bin/x64-win" "${_extract_dir}/lib")
+
+    file(REMOVE_RECURSE ${_extract_dir_dml})
+endmacro()
+
+if(DEFINED ep)
+    string(TOLOWER "${ep}" ep)
 endif()
 
-# TODO: DirectML version of ONNX Runtime
-
-set(_name      "onnxruntime-${_os}-${_arch}-${_full_version}")
-set(_name_zip  "onnxruntime-${_os}-${_arch}-${_full_version_zip}")
-set(_url       "${_base_url}/${_name}.${_ext}")
-set(_file_path "${CMAKE_BINARY_DIR}/${_name}.${_ext}")
-
-message(STATUS "Downloading ONNX Runtime from ${_url}")
-
-file(DOWNLOAD ${_url} ${_file_path}
-
-    # EXPECTED_HASH SHA256=14e0b7ed6cc504f8c4c1d8e57451ada6d8469394d08e10afa6db616f082fe035
-    # TIMEOUT 60
-    SHOW_PROGRESS
-)
-
-set(_extract_dir ${CMAKE_BINARY_DIR}/onnxruntime)
-
-file(ARCHIVE_EXTRACT INPUT ${_file_path}
-    DESTINATION ${_extract_dir}
-)
-file(REMOVE ${_file_path})
-file(MAKE_DIRECTORY ${_extract_dir}/${_name_zip}/include)
-file(MAKE_DIRECTORY ${_extract_dir}/${_name_zip}/lib)
-file(COPY ${_extract_dir}/${_name_zip}/include DESTINATION ${_extract_dir})
-file(COPY ${_extract_dir}/${_name_zip}/lib DESTINATION ${_extract_dir})
-file(REMOVE_RECURSE ${_extract_dir}/${_name_zip})
+if(DEFINED ep AND "${ep}" STREQUAL "gpu")
+    message("Selected Execution Provider: GPU (CUDA)")
+    set(_full_version      gpu-${_version_ort})
+    set(_full_version_zip  gpu-${_version_ort})
+    download_onnxruntime_from_github()
+elseif(DEFINED ep AND "${ep}" STREQUAL "gpu-cuda12")
+    message("Selected Execution Provider: GPU (CUDA12)")
+    set(_full_version      gpu-cuda12-${_version_ort})
+    set(_full_version_zip  gpu-${_version_ort})
+    download_onnxruntime_from_github()
+elseif(DEFINED ep AND ("${ep}" STREQUAL "dml" OR "${ep}" STREQUAL "directml"))
+    message("Selected Execution Provider: DirectML")
+    download_onnxruntime_from_nuget()
+    download_dml_from_nuget()
+else()
+    message("Selected Execution Provider: CPU")
+    set(_full_version      ${_version_ort})
+    set(_full_version_zip  ${_version_ort})
+    download_onnxruntime_from_github()
+endif()
