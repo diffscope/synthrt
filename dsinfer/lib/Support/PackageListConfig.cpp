@@ -156,8 +156,10 @@ namespace ds {
                     metadataObj["hasSinger"] = metadata._hasSinger;
 
                     // installedTimestamp
-                    if (metadata._installedTimestamp != 0) {
-                        metadataObj["installedTimestamp"] = metadata._installedTimestamp;
+                    const auto installedTimestamp =
+                        static_cast<int64_t>(metadata._installedTimestamp);
+                    if (installedTimestamp != 0) {
+                        metadataObj["installedTimestamp"] = installedTimestamp;
                     }
 
                     pkgObj["metadata"] = std::move(metadataObj);
