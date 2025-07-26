@@ -9,6 +9,14 @@
         "sparsepp",
         "bit7z"
     ],
+    "features": {
+        "tests": {
+            "description": "Enable test cases support",
+            "dependencies": [
+                "boost-test"
+            ]
+        }
+    },
     "vcpkg-configuration": {
         "overlay-ports": [
             "../vcpkg/ports"
