@@ -1,6 +1,7 @@
 #include "PackageListConfig.h"
 
 #include <fstream>
+#include <utility>
 
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>

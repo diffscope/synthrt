@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <filesystem>
+#include <optional>
 
 #if __has_include(<dml_provider_factory.h>)
 #  define ONNXDRIVER_FOUND_DML
@@ -10,7 +11,7 @@
 #  pragma message("dml_provider_factory.h missing, DML support disabled.")
 #endif
 
-#include <stdcorelib/support/SharedLibrary.h>
+#include <stdcorelib/support/sharedlibrary.h>
 
 namespace ds::onnxdriver {
 
