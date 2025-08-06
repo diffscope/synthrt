@@ -523,7 +523,6 @@ namespace ds {
 
     bool AcousticInference::stop() {
         __stdc_impl_t;
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.session->isOpen()) {
             return false;
         }

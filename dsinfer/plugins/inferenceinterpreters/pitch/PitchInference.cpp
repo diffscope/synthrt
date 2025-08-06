@@ -515,7 +515,6 @@ namespace ds {
 
     bool PitchInference::stop() {
         __stdc_impl_t;
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
         bool flag = true;
         for (auto &session : {impl.encoderSession, impl.predictorSession}) {
             if (session) {
