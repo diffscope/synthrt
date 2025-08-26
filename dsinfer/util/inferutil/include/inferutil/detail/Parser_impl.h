@@ -369,6 +369,7 @@ namespace ds::inferutil {
                 if (val <= 0) {
                     collectError(R"(integer field "hiddenSize" must be a positive integer)");
                 }
+                out = val;
             } else {
                 collectError(R"(integer field "hiddenSize" type mismatch)");
             }

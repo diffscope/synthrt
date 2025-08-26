@@ -1,6 +1,6 @@
 project(dsinfer
     LANGUAGES CXX
-    VERSION 0.0.1.0
+    VERSION 0.0.1.1
     DESCRIPTION "DiffSinger Inference Framework"
 )
 
