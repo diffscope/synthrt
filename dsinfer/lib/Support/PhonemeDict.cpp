@@ -107,6 +107,10 @@ namespace ds {
                 }
 
                 // Tab not found
+                while (start < buffer_end && (*start != '\r' && *start != '\n')) {
+                    *start = '\0';
+                    start++;
+                }
                 goto out_next_line;
 
             out_tab_find:

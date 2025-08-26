@@ -45,7 +45,7 @@ if(SYNTHRT_INSTALL)
 
         # Install vcruntime
         if(MSVC AND SYNTHRT_INSTALL_MSVC_RUNTIME)
-            set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION "${OUTPUT_DIR}")
+            set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION "")
             include(InstallRequiredSystemLibraries)
         endif()
     endif()
