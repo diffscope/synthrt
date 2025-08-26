@@ -281,6 +281,44 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         }
     }
 
+    // Check whether acoustic and vocoder config match
+    const auto acousticConfig =
+        importAcoustic.inference->configuration().as<Ac::AcousticConfiguration>();
+    const auto vocoderConfig =
+        importVocoder.inference->configuration().as<Vo::VocoderConfiguration>();
+    std::vector<std::string> unmatchedFields;
+    if (acousticConfig->sampleRate != vocoderConfig->sampleRate) {
+        unmatchedFields.emplace_back("sampleRate");
+    }
+    if (acousticConfig->hopSize != vocoderConfig->hopSize) {
+        unmatchedFields.emplace_back("hopSize");
+    }
+    if (acousticConfig->winSize != vocoderConfig->winSize) {
+        unmatchedFields.emplace_back("winSize");
+    }
+    if (acousticConfig->fftSize != vocoderConfig->fftSize) {
+        unmatchedFields.emplace_back("fftSize");
+    }
+    if (acousticConfig->melChannels != vocoderConfig->melChannels) {
+        unmatchedFields.emplace_back("melChannels");
+    }
+    if (acousticConfig->melMinFreq != vocoderConfig->melMinFreq) {
+        unmatchedFields.emplace_back("melMinFreq");
+    }
+    if (acousticConfig->melMaxFreq != vocoderConfig->melMaxFreq) {
+        unmatchedFields.emplace_back("melMaxFreq");
+    }
+    if (acousticConfig->melBase != vocoderConfig->melBase) {
+        unmatchedFields.emplace_back("melBase");
+    }
+    if (acousticConfig->melScale != vocoderConfig->melScale) {
+        unmatchedFields.emplace_back("melScale");
+    }
+    if (!unmatchedFields.empty()) {
+        throw std::runtime_error(stdc::formatN("acoustic and vocoder config mismatch: %1",
+                                               stdc::join(unmatchedFields, ", ")));
+    }
+
     // Run duration
     {
         NO<srt::Inference> inference;
