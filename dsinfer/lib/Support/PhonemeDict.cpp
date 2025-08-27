@@ -26,8 +26,8 @@ namespace ds {
     class PhonemeDict::Impl {
     public:
         struct Entry {
-            int offset;
-            int count;
+            uint32_t offset;
+            uint32_t count;
         };
         std::vector<char> filebuf;
         spp::sparse_hash_map<char *, Entry, const_char_hash> map;
@@ -85,7 +85,7 @@ namespace ds {
                 }
 
                 char *value_start = nullptr;
-                int value_cnt = 0;
+                uint32_t value_cnt = 0;
 
                 // Find tab
                 auto p = start + 1;
@@ -135,7 +135,7 @@ namespace ds {
                 }
 
             out_success: {
-                map[start] = Impl::Entry{int(value_start - buffer_begin), value_cnt};
+                map[start] = Impl::Entry{uint32_t(value_start - buffer_begin), value_cnt};
                 start = p + 1;
             }
             out_next_line:;

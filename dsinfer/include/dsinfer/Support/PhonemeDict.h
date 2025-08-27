@@ -68,18 +68,18 @@ namespace ds {
             return iterator(_data, 0);
         }
         iterator end() const noexcept {
-            return iterator(nullptr, _count);
+            return iterator(nullptr, static_cast<int>(_count));
         }
         std::vector<const char *> vec() {
             return std::vector<const char *>(begin(), end());
         }
 
     protected:
-        PhonemeList(const char *data, int count) : _data(data), _count(count) {
+        PhonemeList(const char *data, uint32_t count) : _data(data), _count(count) {
         }
 
         const char *_data;
-        int _count;
+        uint32_t _count;
 
         friend class PhonemeDict;
     };
