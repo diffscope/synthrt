@@ -17,9 +17,14 @@ namespace ds {
     }
 
     struct const_char_hash {
-    public:
         size_t operator()(const char *key) const noexcept {
-            return std::hash<std::string_view>()(std::string_view(key, std::strlen(key)));
+            return spp::spp_hash<std::string_view>()(std::string_view(key, std::strlen(key)));
+        }
+    };
+
+    struct const_char_equal {
+        bool operator()(const char *key1, const char *key2) const noexcept {
+            return std::strcmp(key1, key2) == 0;
         }
     };
 
@@ -30,7 +35,7 @@ namespace ds {
             uint32_t count;
         };
         std::vector<char> filebuf;
-        spp::sparse_hash_map<char *, Entry, const_char_hash> map;
+        spp::sparse_hash_map<char *, Entry, const_char_hash, const_char_equal> map;
     };
 
     PhonemeDict::PhonemeDict() : _impl(std::make_shared<Impl>()) {
@@ -39,6 +44,9 @@ namespace ds {
     PhonemeDict::~PhonemeDict() = default;
 
     bool PhonemeDict::load(const std::filesystem::path &path, std::error_code *ec) {
+        if (ec)
+            ec->clear();
+
         std::ifstream file(path, std::ios::in | std::ios::binary);
         if (!file.is_open()) {
             if (ec)

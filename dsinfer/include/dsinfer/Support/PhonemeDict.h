@@ -70,8 +70,10 @@ namespace ds {
         iterator end() const noexcept {
             return iterator(nullptr, static_cast<int>(_count));
         }
-        std::vector<const char *> vec() {
-            return std::vector<const char *>(begin(), end());
+
+        template <class T = std::string_view>
+        std::vector<T> vec() const {
+            return std::vector<T>(begin(), end());
         }
 
     protected:
@@ -200,6 +202,5 @@ namespace ds {
     };
 
 }
-
 
 #endif // DSINFER_PHONEMEDICT_H
