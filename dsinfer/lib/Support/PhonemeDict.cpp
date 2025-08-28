@@ -106,6 +106,7 @@ namespace ds {
 
                         case '\r':
                         case '\n':
+                            start = p + 1;
                             goto out_next_line;
 
                         default:
@@ -200,7 +201,9 @@ namespace ds {
         __stdc_impl_t;
         auto &filebuf = impl.filebuf;
         auto &map = impl.map;
-
+        if (!key) {
+            return end();
+        }
         auto it = map.find(const_cast<char *>(key));
         if (it == map.end()) {
             return end();
@@ -211,12 +214,18 @@ namespace ds {
     bool PhonemeDict::contains(const char *key) const {
         __stdc_impl_t;
         auto &map = impl.map;
+        if (!key) {
+            return false;
+        }
         return map.find(const_cast<char *>(key)) != map.end();
     }
 
     PhonemeList PhonemeDict::operator[](const char *key) const {
         __stdc_impl_t;
         auto &map = impl.map;
+        if (!key) {
+            return PhonemeList();
+        }
         auto it = map.find(const_cast<char *>(key));
         if (it == map.end()) {
             return PhonemeList();
