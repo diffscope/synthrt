@@ -21,7 +21,7 @@ namespace ds::inferutil {
                 return exp.takeError();
             }
             helper._tensor = exp.take();
-            auto dataPtr = helper._tensor->mutableData<T>();
+            auto dataPtr = helper._tensor->template mutableData<T>();
             if (STDCORELIB_UNLIKELY(dataPtr == nullptr)) {
                 return srt::Error(srt::Error::SessionError, "failed to create tensor");
             }
