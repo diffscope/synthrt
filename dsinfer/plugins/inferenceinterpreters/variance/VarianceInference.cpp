@@ -13,7 +13,7 @@
 
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
-#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
+#include <dsinfer/Api/Drivers/Common/CommonDriverApi.h>
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
@@ -30,7 +30,7 @@ namespace ds {
 
     namespace Co = Api::Common::L1;
     namespace Var = Api::Variance::L1;
-    namespace Onnx = Api::Onnx;
+    namespace Drv = Api::Common;
     namespace DiffSinger = Api::DiffSinger::L1;
 
     static inline srt::Expected<srt::NO<Var::VarianceConfiguration>>
@@ -113,7 +113,7 @@ namespace ds {
 
         // Open variance session (encoder)
         impl.encoderSession = impl.driver->createSession();
-        auto encoderOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
+        auto encoderOpenArgs = srt::NO<Drv::SessionOpenArgs>::create();
         encoderOpenArgs->useCpu = false;
         if (auto res = impl.encoderSession->open(config->encoder, encoderOpenArgs); !res) {
             setState(Failed);
@@ -122,7 +122,7 @@ namespace ds {
 
         // Open variance session (predictor)
         impl.predictorSession = impl.driver->createSession();
-        auto predictorOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
+        auto predictorOpenArgs = srt::NO<Drv::SessionOpenArgs>::create();
         predictorOpenArgs->useCpu = false;
         if (auto res = impl.predictorSession->open(config->predictor, predictorOpenArgs); !res) {
             setState(Failed);
@@ -181,7 +181,7 @@ namespace ds {
         const auto varianceInput = input.as<Var::VarianceStartInput>();
         // ...
 
-        auto sessionInput = srt::NO<Onnx::SessionStartInput>::create();
+        auto sessionInput = srt::NO<Drv::SessionStartInput>::create();
 
         double frameWidth = config->frameWidth;
         if (!std::isfinite(frameWidth) || frameWidth <= 0) {
@@ -191,7 +191,7 @@ namespace ds {
 
         // Part 1: Linguistic Encoder Inference
         {
-            srt::NO<Onnx::SessionStartInput> linguisticInput;
+            srt::NO<Drv::SessionStartInput> linguisticInput;
             switch (config->linguisticMode) {
                 case Co::LinguisticMode::LM_Word:
                     if (auto exp = inferutil::preprocessLinguisticWord(
@@ -481,11 +481,11 @@ namespace ds {
             return srt::Error(srt::Error::SessionError,
                               "variance predictor session result is nullptr");
         }
-        if (sessionTaskResult->objectName() != Onnx::API_NAME) {
+        if (sessionTaskResult->objectName() != Drv::API_NAME) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult.as<Drv::SessionResult>();
         varianceResult->predictions.reserve(sessionResult->outputs.size());
         for (const auto &[outputName, output] : sessionResult->outputs) {
             for (const auto &prediction : schema->predictions) {

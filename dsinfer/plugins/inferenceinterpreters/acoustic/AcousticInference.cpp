@@ -10,7 +10,7 @@
 
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
-#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
+#include <dsinfer/Api/Drivers/Common/CommonDriverApi.h>
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
@@ -28,7 +28,7 @@ namespace ds {
 
     namespace Co = Api::Common::L1;
     namespace Ac = Api::Acoustic::L1;
-    namespace Onnx = Api::Onnx;
+    namespace Drv = Api::Common;
     namespace DiffSinger = Api::DiffSinger::L1;
 
     static inline srt::Expected<srt::NO<Ac::AcousticConfiguration>>
@@ -96,7 +96,7 @@ namespace ds {
 
         // Open acoustic session
         impl.session = impl.driver->createSession();
-        auto sessionOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
+        auto sessionOpenArgs = srt::NO<Drv::SessionOpenArgs>::create();
         sessionOpenArgs->useCpu = false;
         if (auto res = impl.session->open(config->model, sessionOpenArgs); !res) {
             setState(Failed);
@@ -149,7 +149,7 @@ namespace ds {
         const auto acousticInput = input.as<Ac::AcousticStartInput>();
         // ...
 
-        auto sessionInput = srt::NO<Onnx::SessionStartInput>::create();
+        auto sessionInput = srt::NO<Drv::SessionStartInput>::create();
 
         double frameWidth = 1.0 * config->hopSize / config->sampleRate;
 
@@ -496,11 +496,11 @@ namespace ds {
             setState(Failed);
             return srt::Error(srt::Error::SessionError, "acoustic session result is nullptr");
         }
-        if (sessionTaskResult->objectName() != Onnx::API_NAME) {
+        if (sessionTaskResult->objectName() != Drv::API_NAME) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult.as<Drv::SessionResult>();
         if (auto it_mel = sessionResult->outputs.find(outParamMel);
             it_mel != sessionResult->outputs.end()) {
             acousticResult->mel = it_mel->second;
