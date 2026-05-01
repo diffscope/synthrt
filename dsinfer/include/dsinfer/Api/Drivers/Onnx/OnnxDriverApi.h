@@ -2,12 +2,8 @@
 #define DSINFER_API_ONNX_ONNXDRIVERAPI_H
 
 #include <filesystem>
-#include <map>
-#include <set>
 
-#include <dsinfer/Core/Tensor.h>
-#include <dsinfer/Inference/InferenceDriver.h>
-#include <dsinfer/Inference/InferenceSession.h>
+#include <dsinfer/Api/Drivers/Common/CommonDriverApi.h>
 
 namespace ds::Api::Onnx {
 
@@ -37,34 +33,16 @@ namespace ds::Api::Onnx {
         std::filesystem::path runtimePath;
     };
 
-    class SessionOpenArgs : public InferenceSessionOpenArgs {
+    class SessionOpenArgs : public Common::SessionOpenArgs {
     public:
-        inline SessionOpenArgs() : InferenceSessionOpenArgs(API_NAME, API_VERSION) {
+        inline SessionOpenArgs() : Common::SessionOpenArgs() {
+            setObjectName(API_NAME);
         }
-
-        /// Whether to force the use of the CPU for the session.
-        bool useCpu = false;
     };
 
-    class SessionStartInput : public InferenceSessionStartInput {
-    public:
-        inline SessionStartInput() : InferenceSessionStartInput(API_NAME, API_VERSION) {
-        }
+    using SessionStartInput = Common::SessionStartInput;
 
-        /// The input port names and the input tensors.
-        std::map<std::string, srt::NO<ITensor>> inputs;
-
-        /// The output port names.
-        std::set<std::string> outputs;
-    };
-
-    class SessionResult : public InferenceSessionResult {
-    public:
-        inline SessionResult() : InferenceSessionResult(API_NAME, API_VERSION) {
-        }
-
-        std::map<std::string, srt::NO<ITensor>> outputs;
-    };
+    using SessionResult = Common::SessionResult;
 
 }
 
