@@ -7,7 +7,7 @@
 #include <functional>
 
 #include <synthrt/Support/Expected.h>
-#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
+#include <dsinfer/Api/Drivers/Common/CommonDriverApi.h>
 #include <synthrt/Task/ITask.h>
 
 
@@ -30,7 +30,7 @@ namespace ds::onnxdriver {
         Session &operator=(Session &&other) noexcept;
 
     public:
-        srt::Expected<void> open(const std::filesystem::path &path, const srt::NO<Api::Onnx::SessionOpenArgs> &args);
+        srt::Expected<void> open(const std::filesystem::path &path, const srt::NO<Api::Common::SessionOpenArgs> &args);
         srt::Expected<void> close();
 
         const std::vector<std::string> &inputNames() const;

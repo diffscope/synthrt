@@ -2,6 +2,8 @@
 
 #include <stdcorelib/pimpl.h>
 
+#include <dsinfer/Api/Drivers/Common/CommonDriverApi.h>
+
 #include "internal/Env.h"
 #include "internal/Session.h"
 
@@ -28,7 +30,7 @@ namespace ds {
     srt::Expected<void> OnnxSession::open(const std::filesystem::path &path,
                                           const srt::NO<InferenceSessionOpenArgs> &args) {
         __stdc_impl_t;
-        auto openArgs = args.as<Api::Onnx::SessionOpenArgs>();
+        auto openArgs = args.as<Api::Common::SessionOpenArgs>();
         if (!openArgs) {
             return srt::Error{
                 srt::Error::InvalidArgument,

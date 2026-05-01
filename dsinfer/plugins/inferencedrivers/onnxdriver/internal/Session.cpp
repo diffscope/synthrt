@@ -147,9 +147,9 @@ namespace ds::onnxdriver {
 
         std::unique_ptr<SessionRunContext> context;
         std::unique_ptr<SessionAsyncRunContext> asyncContext;
-        srt::NO<Api::Onnx::SessionResult> sessionResult;
+        srt::NO<Api::Common::SessionResult> sessionResult;
 
-        Impl() : sessionResult(srt::NO<Api::Onnx::SessionResult>::create()) {
+        Impl() : sessionResult(srt::NO<Api::Common::SessionResult>::create()) {
         }
 
         static inline size_t getTensorDataTypeSize(ITensor::DataType type) {
@@ -277,7 +277,7 @@ namespace ds::onnxdriver {
         }
 
         inline srt::Error
-            validateInputValueMap(const srt::NO<Api::Onnx::SessionStartInput> &input) {
+            validateInputValueMap(const srt::NO<Api::Common::SessionStartInput> &input) {
             const auto &inputValueMap = input->inputs;
             if (inputValueMap.empty()) {
                 return {srt::Error::SessionError, "Input map is empty"};
@@ -369,7 +369,7 @@ namespace ds::onnxdriver {
             srtDebug("runAsyncCallback completed");
         }
 
-        inline srt::NO<Api::Onnx::SessionResult> sessionRun(const srt::NO<Api::Onnx::SessionStartInput> &sessionStartInput,
+        inline srt::NO<Api::Common::SessionResult> sessionRun(const srt::NO<Api::Common::SessionStartInput> &sessionStartInput,
                                srt::Error *error = nullptr) {
             const auto &filename = realPath.filename();
             Log.srtInfo("Session [%1] - Running inference", filename);
@@ -384,7 +384,7 @@ namespace ds::onnxdriver {
                             elapsedStr);
             });
 
-            if (!(sessionStartInput && sessionStartInput->objectName() == Api::Onnx::API_NAME)) {
+            if (!(sessionStartInput && sessionStartInput->objectName() == Api::Common::API_NAME)) {
                 if (error) {
                     *error = {srt::Error::InvalidArgument, "Session start input is not valid"};
                 }
@@ -407,7 +407,7 @@ namespace ds::onnxdriver {
             context = std::make_unique<SessionRunContext>(inputCount, outputCount);
             auto &ctx = *context;
 
-            auto result = srt::NO<Api::Onnx::SessionResult>::create();
+            auto result = srt::NO<Api::Common::SessionResult>::create();
             try {
                 auto memInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
@@ -486,7 +486,7 @@ namespace ds::onnxdriver {
             return {};
         }
 
-        inline bool sessionRunAsync(const srt::NO<Api::Onnx::SessionStartInput> &sessionStartInput,
+        inline bool sessionRunAsync(const srt::NO<Api::Common::SessionStartInput> &sessionStartInput,
                                     const srt::ITask::StartAsyncCallback &callback,
                                     srt::Error *error = nullptr) {
             const auto &filename = realPath.filename();
@@ -502,7 +502,7 @@ namespace ds::onnxdriver {
                             elapsedStr);
             });
 
-            if (!(sessionStartInput && sessionStartInput->objectName() == Api::Onnx::API_NAME)) {
+            if (!(sessionStartInput && sessionStartInput->objectName() == Api::Common::API_NAME)) {
                 if (error) {
                     *error = {srt::Error::InvalidArgument, "Session start input is not valid"};
                 }
@@ -642,7 +642,7 @@ namespace ds::onnxdriver {
     }
 
     srt::Expected<void> Session::open(const fs::path &path,
-                                      const srt::NO<Api::Onnx::SessionOpenArgs> &args) {
+                                      const srt::NO<Api::Common::SessionOpenArgs> &args) {
         __stdc_impl_t;
 
         if (isOpen()) {
@@ -841,7 +841,7 @@ namespace ds::onnxdriver {
     srt::Expected<srt::NO<srt::TaskResult>> Session::run(const srt::NO<srt::TaskStartInput> &input) {
         __stdc_impl_t;
         srt::Error tmpError;
-        if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
+        if (!(input && input->objectName() == Api::Common::API_NAME)) {
             tmpError = {srt::Error::InvalidArgument, "invalid task start input"};
             impl.sessionResult->error = tmpError;
             return tmpError;
@@ -851,7 +851,7 @@ namespace ds::onnxdriver {
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
-        auto startInput = input.as<Api::Onnx::SessionStartInput>();
+        auto startInput = input.as<Api::Common::SessionStartInput>();
         auto result = impl.sessionRun(startInput, &tmpError);
         if (!result) {
             impl.sessionResult->error = tmpError;
@@ -865,7 +865,7 @@ namespace ds::onnxdriver {
                                           const srt::ITask::StartAsyncCallback &callback) {
         __stdc_impl_t;
         srt::Error tmpError;
-        if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
+        if (!(input && input->objectName() == Api::Common::API_NAME)) {
             tmpError = {srt::Error::InvalidArgument, "invalid task start input"};
             impl.sessionResult->error = tmpError;
             return tmpError;
@@ -875,7 +875,7 @@ namespace ds::onnxdriver {
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
-        auto startInput = input.as<Api::Onnx::SessionStartInput>();
+        auto startInput = input.as<Api::Common::SessionStartInput>();
         bool ok = impl.sessionRunAsync(startInput, callback, &tmpError);
         if (!ok) {
             impl.sessionResult->error = tmpError;
