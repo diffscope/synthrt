@@ -26,6 +26,7 @@ namespace ds {
             Float = 1,
             Bool = 2,
             Int64 = 3,
+            Int32 = 4,
             // Note: after adding new types here, please register type traits using
             // DSINFER_TENSOR_REGISTER_DATATYPE(_CppType, _EnumType) macro (see below)
         };
@@ -103,6 +104,7 @@ namespace ds {
     DSINFER_TENSOR_REGISTER_DATATYPE(float, Float)
     DSINFER_TENSOR_REGISTER_DATATYPE(int64_t, Int64)
     DSINFER_TENSOR_REGISTER_DATATYPE(bool, Bool)
+    DSINFER_TENSOR_REGISTER_DATATYPE(int32_t, Int32)
 
 #undef DSINFER_TENSOR_REGISTER_DATATYPE
 

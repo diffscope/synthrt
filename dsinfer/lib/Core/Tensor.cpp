@@ -11,6 +11,8 @@ namespace ds {
                 return sizeof(float);
             case ITensor::Int64:
                 return sizeof(int64_t);
+            case ITensor::Int32:
+                return sizeof(int32_t);
             case ITensor::Bool:
                 return sizeof(bool);
             default:

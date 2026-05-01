@@ -158,6 +158,8 @@ namespace ds::onnxdriver {
                     return sizeof(float);
                 case ITensor::Int64:
                     return sizeof(int64_t);
+                case ITensor::Int32:
+                    return sizeof(int32_t);
                 case ITensor::Bool:
                     return sizeof(bool);
                 default:
@@ -171,6 +173,8 @@ namespace ds::onnxdriver {
                 return ITensor::Float;
             } else if constexpr (std::is_same_v<T, int64_t>) {
                 return ITensor::Int64;
+            } else if constexpr (std::is_same_v<T, int32_t>) {
+                return ITensor::Int32;
             } else if constexpr (std::is_same_v<T, bool>) {
                 return ITensor::Bool;
             } else {
@@ -214,6 +218,9 @@ namespace ds::onnxdriver {
                 case ITensor::Int64:
                     return _createOrtValueFromTensorImpl<int64_t>(rawBuffer, dataLength,
                                                                   shape);
+                case ITensor::Int32:
+                    return _createOrtValueFromTensorImpl<int32_t>(rawBuffer, dataLength,
+                                                                  shape);
                 case ITensor::Bool:
                     return _createOrtValueFromTensorImpl<bool>(rawBuffer, dataLength, shape);
                 default:
@@ -249,6 +256,10 @@ namespace ds::onnxdriver {
                 case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
                     tensorType = ITensor::Int64;
                     elementSize = sizeof(int64_t);
+                    break;
+                case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT32:
+                    tensorType = ITensor::Int32;
+                    elementSize = sizeof(int32_t);
                     break;
                 case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
                     tensorType = ITensor::Bool;
