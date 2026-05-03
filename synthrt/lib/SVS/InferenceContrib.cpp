@@ -1,6 +1,7 @@
 #include "InferenceContrib.h"
 
 #include <fstream>
+#include <set>
 
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
@@ -21,6 +22,7 @@ namespace srt {
         }
 
         Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj) override;
+        Expected<void> readDesc(const std::filesystem::path &basePath, const JsonValue &pathValue);
 
         std::filesystem::path path;
 
@@ -38,9 +40,70 @@ namespace srt {
         NO<InferenceInterpreter> interp = nullptr;
     };
 
+    static Expected<JsonObject> readJsonObjectFile(const std::filesystem::path &path,
+                                                   std::string_view displayName) {
+        std::ifstream file(path);
+        if (!file.is_open()) {
+            return Error{
+                Error::FileNotOpen,
+                stdc::formatN(R"(%1: failed to open %2 manifest)", path, displayName),
+            };
+        }
+
+        std::stringstream ss;
+        ss << file.rdbuf();
+
+        std::string error;
+        auto root = JsonValue::fromJson(ss.str(), true, &error);
+        if (!error.empty()) {
+            return Error{
+                Error::InvalidFormat,
+                stdc::formatN(R"(%1: invalid %2 manifest format: %3)", path, displayName, error),
+            };
+        }
+        if (!root.isObject()) {
+            return Error{
+                Error::InvalidFormat,
+                stdc::formatN(R"(%1: invalid %2 manifest format)", path, displayName),
+            };
+        }
+        return root.toObject();
+    }
+
+    Expected<void> InferenceSpec::Impl::readDesc(const std::filesystem::path &basePath,
+                                                 const JsonValue &pathValue) {
+        if (!pathValue.isString()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(invalid inference specification)",
+            };
+        }
+        auto descPath = stdc::path::from_utf8(pathValue.toString());
+        if (descPath.empty()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(inference specification path has invalid value)",
+            };
+        }
+        if (descPath.is_relative()) {
+            descPath = basePath / descPath;
+        }
+
+        auto obj = readJsonObjectFile(descPath, "inference");
+        if (!obj) {
+            return obj.error();
+        }
+        auto exp = read({}, obj.get());
+        if (!exp) {
+            return exp.error();
+        }
+        path = fs::canonical(descPath).parent_path();
+        return Expected<void>();
+    }
+
     Expected<void> InferenceSpec::Impl::read(const std::filesystem::path &basePath,
                                              const JsonObject &obj) {
-        fs::path configPath;
+        (void) basePath;
         stdc::VersionNumber fmtVersion_;
         std::string id_;
         std::string className_;
@@ -51,121 +114,86 @@ namespace srt {
         JsonObject schema_;
         JsonObject configuration_;
 
-        // Parse desc
         {
-            // id
+            const std::set<std::string_view> allowedKeys = {
+                "$version", "class", "configuration", "id", "level", "name", "schema",
+            };
+            for (const auto &item : obj) {
+                if (!allowedKeys.count(std::string_view(item.first))) {
+                    return Error{
+                        Error::InvalidFormat,
+                        stdc::formatN(R"(unknown field "%1" in inference manifest)", item.first),
+                    };
+                }
+            }
+        }
+
+        // Get attributes
+        // $version
+        {
+            auto it = obj.find("$version");
+            if (it == obj.end()) {
+                return Error{
+                    Error::InvalidFormat,
+                    R"(missing "$version" field in inference manifest)",
+                };
+            }
+            if (!it->second.isString() || it->second.toString() != "1.0") {
+                return Error{
+                    Error::FeatureNotSupported,
+                    stdc::formatN(R"(format version "%1" is not supported)",
+                                  it->second.toString()),
+                };
+            }
+            fmtVersion_ = stdc::VersionNumber(1);
+        }
+        // id
+        {
             auto it = obj.find("id");
             if (it == obj.end()) {
                 return Error{
                     Error::InvalidFormat,
-                    R"(missing "id" field in inference contribute field)",
+                    R"(missing "id" field in inference manifest)",
                 };
             }
             id_ = it->second.toString();
             if (!ContribLocator::isValidLocator(id_)) {
                 return Error{
                     Error::InvalidFormat,
-                    R"("id" field has invalid value in inference contribute field)",
+                    R"("id" field has invalid value in inference manifest)",
                 };
             }
-
-            // class
-            it = obj.find("class");
+        }
+        // class
+        {
+            auto it = obj.find("class");
             if (it == obj.end()) {
                 return Error{
                     Error::InvalidFormat,
-                    R"(missing "class" field in inference contribute field)",
+                    R"(missing "class" field in inference manifest)",
                 };
             }
             className_ = it->second.toString();
             if (className_.empty()) {
                 return Error{
                     Error::InvalidFormat,
-                    R"("class" field has invalid value in inference contribute field)",
+                    R"("class" field has invalid value in inference manifest)",
                 };
-            }
-
-            // configuration
-            it = obj.find("configuration");
-            if (it == obj.end()) {
-                return Error{
-                    Error::InvalidFormat,
-                    R"(missing "configuration" field in inference contribute field)",
-                };
-            }
-
-            std::string configPathString = it->second.toString();
-            if (configPathString.empty()) {
-                return Error{
-                    Error::InvalidFormat,
-                    R"("configuration" field has invalid value in inference contribute field)",
-                };
-            }
-
-            configPath = stdc::path::from_utf8(configPathString);
-            if (auto configPathExtension = stdc::to_lower(configPath.extension().string());
-                configPathExtension != ".json") {
-                configPath += ".json";
-            }
-            if (configPath.is_relative()) {
-                configPath = basePath / configPath;
-            }
-        }
-
-        // Read configuration
-        JsonObject configObj;
-        {
-            std::ifstream file(configPath);
-            if (!file.is_open()) {
-                return Error{
-                    Error::FileNotOpen,
-                    stdc::formatN(R"(%1: failed to open inference manifest)", configPath),
-                };
-            }
-
-            std::stringstream ss;
-            ss << file.rdbuf();
-
-            std::string error2;
-            auto root = JsonValue::fromJson(ss.str(), true, &error2);
-            if (!error2.empty()) {
-                return Error{
-                    Error::InvalidFormat,
-                    stdc::formatN(R"(%1: invalid inference manifest format: %2)", configPath,
-                                  error2),
-                };
-            }
-            if (!root.isObject()) {
-                return Error{
-                    Error::InvalidFormat,
-                    stdc::formatN(R"(%1: invalid inference manifest format)", configPath),
-                };
-            }
-            configObj = root.toObject();
-        }
-
-        // Get attributes
-        // $version
-        {
-            auto it = configObj.find("$version");
-            if (it == configObj.end()) {
-                fmtVersion_ = stdc::VersionNumber(1);
-            } else {
-                fmtVersion_ = stdc::VersionNumber::fromString(it->second.toString());
-                if (fmtVersion_ > stdc::VersionNumber(1)) {
-                    return Error{
-                        Error::FeatureNotSupported,
-                        stdc::formatN(R"(%1: format version "%2" is not supported)", configPath,
-                                      fmtVersion_.toString()),
-                    };
-                }
             }
         }
         // name
         {
-            auto it = configObj.find("name");
-            if (it != configObj.end()) {
-                name_ = it->second;
+            auto it = obj.find("name");
+            if (it != obj.end()) {
+                auto exp = DisplayText::fromJsonValue(it->second);
+                if (!exp) {
+                    return Error{
+                        Error::InvalidFormat,
+                        stdc::formatN(R"("name" field has invalid value in inference manifest: %1)",
+                                      exp.error().message()),
+                    };
+                }
+                name_ = exp.take();
             }
             if (name_.isEmpty()) {
                 name_ = id_;
@@ -173,29 +201,29 @@ namespace srt {
         }
         // level
         {
-            auto it = configObj.find("level");
-            if (it == configObj.end()) {
+            auto it = obj.find("level");
+            if (it == obj.end()) {
                 return Error{
                     Error::InvalidFormat,
-                    stdc::formatN(R"(%1: missing "level" field)", configPath),
+                    R"(missing "level" field in inference manifest)",
                 };
             }
             apiLevel_ = it->second.toInt();
             if (apiLevel_ == 0) {
                 return Error{
                     Error::InvalidFormat,
-                    stdc::formatN(R"(%1: "level" field has invalid value)", configPath),
+                    R"("level" field has invalid value in inference manifest)",
                 };
             }
         }
         // schema
         {
-            auto it = configObj.find("schema");
-            if (it != configObj.end()) {
+            auto it = obj.find("schema");
+            if (it != obj.end()) {
                 if (!it->second.isObject()) {
                     return Error{
                         Error::InvalidFormat,
-                        stdc::formatN(R"(%1: "schema" field has invalid value)", configPath),
+                        R"("schema" field has invalid value in inference manifest)",
                     };
                 }
                 schema_ = it->second.toObject();
@@ -203,19 +231,18 @@ namespace srt {
         }
         // configuration
         {
-            auto it = configObj.find("configuration");
-            if (it != configObj.end()) {
+            auto it = obj.find("configuration");
+            if (it != obj.end()) {
                 if (!it->second.isObject()) {
                     return Error{
                         Error::InvalidFormat,
-                        stdc::formatN(R"(%1: "configuration" field has invalid value)", configPath),
+                        R"("configuration" field has invalid value in inference manifest)",
                     };
                 }
                 configuration_ = it->second.toObject();
             }
         }
 
-        path = fs::canonical(configPath).parent_path();
         fmtVersion = fmtVersion_;
         id = std::move(id_);
         className = std::move(className_);
@@ -330,14 +357,15 @@ namespace srt {
     Expected<ContribSpec *> InferenceCategory::parseSpec(const std::filesystem::path &basePath,
                                                          const JsonValue &config) const {
         __stdc_impl_t;
-        if (!config.isObject()) {
+        if (!config.isString()) {
             return Error{
                 Error::InvalidFormat,
                 R"(invalid inference specification)",
             };
         }
         auto spec = new InferenceSpec();
-        if (auto exp = spec->_impl->read(basePath, config.toObject()); !exp) {
+        auto spec_impl = static_cast<InferenceSpec::Impl *>(spec->_impl.get());
+        if (auto exp = spec_impl->readDesc(basePath, config); !exp) {
             delete spec;
             return exp.error();
         }

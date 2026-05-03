@@ -9,19 +9,17 @@ BOOST_AUTO_TEST_SUITE(test_Contribute)
 using Ver = stdc::VersionNumber;
 
 BOOST_AUTO_TEST_CASE(test_PackageDependency) {
-    // string
+    // string is no longer supported
     {
         auto exp = srt::PackageDependency::fromJsonValue("foo[1.2.3]");
-        BOOST_REQUIRE(exp.hasValue());
-        BOOST_CHECK(exp.value() == srt::PackageDependency("foo", Ver(1, 2, 3)));
+        BOOST_CHECK(!exp.hasValue());
     }
-    // json object with compat id
+    // json object requires an explicit version
     {
         auto exp = srt::PackageDependency::fromJsonValue(srt::JsonObject({
-            {"id", "foo[1.2.3]"},
+            {"id", "foo"},
         }));
-        BOOST_REQUIRE(exp.hasValue());
-        BOOST_CHECK(exp.value() == srt::PackageDependency("foo", Ver(1, 2, 3)));
+        BOOST_CHECK(!exp.hasValue());
     }
     // json object
     {
@@ -32,15 +30,14 @@ BOOST_AUTO_TEST_CASE(test_PackageDependency) {
         BOOST_REQUIRE(exp.hasValue());
         BOOST_CHECK(exp.value() == srt::PackageDependency("foo", Ver(1, 2, 3)));
     }
-    // json object with required
+    // package identifiers may contain slash segments
     {
         auto exp = srt::PackageDependency::fromJsonValue(srt::JsonObject({
-            {"id",       "foo"  },
-            {"version",  "1.2.3"},
-            {"required", false  }
+            {"id",      "foo/bar"},
+            {"version", "1.2.3"  }
         }));
         BOOST_REQUIRE(exp.hasValue());
-        BOOST_CHECK(exp.value() == srt::PackageDependency("foo", Ver(1, 2, 3), false));
+        BOOST_CHECK(exp.value() == srt::PackageDependency("foo/bar", Ver(1, 2, 3)));
     }
 }
 

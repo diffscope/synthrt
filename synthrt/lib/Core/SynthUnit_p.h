@@ -57,7 +57,6 @@ namespace srt {
 
         struct PackageBrief {
             std::filesystem::path path;
-            stdc::VersionNumber compatVersion;
         };
         bool packagePathsDirty = false;
         std::map<std::string, std::map<stdc::VersionNumber, PackageBrief>, std::less<>>

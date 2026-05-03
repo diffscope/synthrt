@@ -9,6 +9,7 @@
 #include <stdcorelib/support/versionnumber.h>
 
 #include <synthrt/Support/DisplayText.h>
+#include <synthrt/Support/DisplayPath.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
@@ -60,13 +61,13 @@ namespace srt {
 
         const std::string &id() const;
         stdc::VersionNumber version() const;
-        stdc::VersionNumber compatVersion() const; // maybe not used
 
         /// Author information, for display purposes only.
+        DisplayText name() const;
         DisplayText description() const;
         DisplayText vendor() const;
-        DisplayText copyright() const;
-        const std::filesystem::path &readme() const;
+        DisplayPath readme() const;
+        DisplayPath license() const;
         const std::string &url() const;
 
         /// Supported contribute categories:

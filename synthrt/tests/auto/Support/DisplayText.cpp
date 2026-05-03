@@ -16,7 +16,9 @@ BOOST_AUTO_TEST_CASE(test_DisplayText) {
             }
         )";
         auto jsonObj = srt::JsonValue::fromJson(json, false);
-        auto text = srt::DisplayText(jsonObj);
+        auto exp = srt::DisplayText::fromJsonValue(jsonObj);
+        BOOST_REQUIRE(exp.hasValue());
+        auto text = exp.take();
 
         BOOST_CHECK(text.text() == "DEF");
         BOOST_CHECK(text.text("zh_CN") == "CN");
@@ -36,7 +38,7 @@ BOOST_AUTO_TEST_CASE(test_DisplayText) {
     }
 }
 
-BOOST_AUTO_TEST_CASE(test_DisplayText_fallback) {
+BOOST_AUTO_TEST_CASE(test_DisplayText_missing_default) {
     {
         auto json = R"(
             {
@@ -46,11 +48,8 @@ BOOST_AUTO_TEST_CASE(test_DisplayText_fallback) {
             }
         )";
         auto jsonObj = srt::JsonValue::fromJson(json, false);
-        auto text = srt::DisplayText(jsonObj);
-
-        BOOST_CHECK(text.text() == "DEF");
-        BOOST_CHECK(text.text("zh_CN") == "CN");
-        BOOST_CHECK(text.text("zh_TW") == "TW");
+        auto exp = srt::DisplayText::fromJsonValue(jsonObj);
+        BOOST_CHECK(!exp.hasValue());
     }
 }
 

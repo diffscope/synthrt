@@ -2,6 +2,7 @@
 #include "SynthUnit_p.h"
 
 #include <mutex>
+#include <regex>
 
 #include <stdcorelib/stlextra/algorithms.h>
 #include <stdcorelib/pimpl.h>
@@ -16,6 +17,11 @@ namespace fs = std::filesystem;
 namespace srt {
 
     llvm::SmallVector<ContribCategory *(*) (SynthUnit *)> SynthUnit::Impl::categoryFactories;
+
+    static bool isValidPackageIdentifier(std::string_view token) {
+        static const std::regex re(R"(^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$)");
+        return std::regex_match(token.begin(), token.end(), re);
+    }
 
     SynthUnit::Impl::Impl(SynthUnit *decl) : PluginFactory::Impl(decl) {
         for (const auto &factory : categoryFactories) {
@@ -166,17 +172,6 @@ namespace srt {
             {
                 auto it2 = versionMap.find(version);
                 if (it2 != versionMap.end()) {
-                    res.emplace_back(it2->second.path);
-                }
-            }
-
-            // Test from high version to low version
-            for (auto it2 = versionMap.rbegin(); it2 != versionMap.rend(); ++it2) {
-                if (it2->first < version) {
-                    break;
-                }
-                const auto &brief = it2->second;
-                if (brief.compatVersion <= version) {
                     res.emplace_back(it2->second.path);
                 }
             }
@@ -464,10 +459,9 @@ namespace srt {
                     obj = exp.take();
                 }
 
-                // Search id, version, compatVersion
+                // Search id, version
                 std::string id_;
                 stdc::VersionNumber version_;
-                stdc::VersionNumber compatVersion_;
 
                 // id
                 {
@@ -476,7 +470,7 @@ namespace srt {
                         continue;
                     }
                     id_ = it->second.toString();
-                    if (!ContribLocator::isValidLocator(id_)) {
+                    if (!isValidPackageIdentifier(id_)) {
                         continue;
                     }
                 }
@@ -488,20 +482,9 @@ namespace srt {
                     }
                     version_ = stdc::VersionNumber::fromString(it->second.toString());
                 }
-                // compatVersion
-                {
-                    auto it = obj.find("compatVersion");
-                    if (it != obj.end()) {
-                        compatVersion_ = stdc::VersionNumber::fromString(it->second.toString());
-                    } else {
-                        compatVersion_ = version_;
-                    }
-                }
-
                 // Store
                 cachedPackageIndexesMap[id_][version_] = {
                     fs::canonical(entry.path()),
-                    compatVersion_,
                 };
             }
         }
