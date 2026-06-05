@@ -9,44 +9,9 @@ namespace srt {
         std::string defaultText;
         std::optional<std::map<std::string, std::string, std::less<>>> texts;
 
-        void assign(const JsonValue &value) {
-            if (value.isString()) {
-                defaultText = value.toString();
-                return;
-            }
-            if (!value.isObject()) {
-                return;
-            }
-            const auto &obj = value.toObject();
-            std::string defaultText_;
-            std::map<std::string, std::string, std::less<>> texts_;
-            for (const auto &item : obj) {
-                if (item.first == "_") {
-                    defaultText_ = item.second.toString();
-                    continue;
-                }
-                texts_[item.first] = item.second.toString();
-            }
-
-            if (!texts_.empty()) {
-                static const char *candidates[] = {
-                    "en", "en_US", "en_us", "en_GB", "en_gb",
-                };
-                for (const auto &item : candidates) {
-                    if (!defaultText_.empty()) {
-                        break;
-                    }
-                    auto it = texts_.find(item);
-                    if (it != texts_.end()) {
-                        defaultText_ = it->second;
-                    }
-                }
-                if (defaultText_.empty()) {
-                    defaultText_ = texts_.begin()->second;
-                }
-                texts = std::move(texts_);
-            }
-            defaultText = std::move(defaultText_);
+        void clear() {
+            defaultText.clear();
+            texts.reset();
         }
     };
 
@@ -66,8 +31,10 @@ namespace srt {
     }
 
     DisplayText::DisplayText(const JsonValue &value) : _impl(std::make_shared<Impl>()) {
-        __stdc_impl_t;
-        impl.assign(value);
+        auto exp = fromJsonValue(value);
+        if (exp) {
+            swap(exp.get());
+        }
     }
 
     DisplayText::~DisplayText() = default;
@@ -80,8 +47,56 @@ namespace srt {
 
     DisplayText &DisplayText::operator=(const JsonValue &value) {
         __stdc_impl_t;
-        impl.assign(value);
+        auto exp = fromJsonValue(value);
+        if (!exp) {
+            impl.clear();
+            return *this;
+        }
+        swap(exp.get());
         return *this;
+    }
+
+    Expected<DisplayText> DisplayText::fromJsonValue(const JsonValue &value) {
+        if (value.isString()) {
+            return DisplayText(value.toString());
+        }
+
+        if (!value.isObject()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(must be a string or an object)",
+            };
+        }
+
+        const auto &obj = value.toObject();
+        auto itDefault = obj.find("_");
+        if (itDefault == obj.end()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(must contain "_" field)",
+            };
+        }
+        if (!itDefault->second.isString()) {
+            return Error{
+                Error::InvalidFormat,
+                R"("_" field must be a string)",
+            };
+        }
+
+        std::map<std::string, std::string> texts;
+        for (const auto &item : obj) {
+            if (!item.second.isString()) {
+                return Error{
+                    Error::InvalidFormat,
+                    R"(field ")" + item.first + R"(" must be a string)",
+                };
+            }
+            if (item.first != "_") {
+                texts[item.first] = item.second.toString();
+            }
+        }
+
+        return DisplayText(itDefault->second.toString(), texts);
     }
 
     const std::string &DisplayText::text() const {

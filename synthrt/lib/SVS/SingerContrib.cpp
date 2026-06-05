@@ -2,6 +2,8 @@
 
 #include <fstream>
 #include <cstdlib>
+#include <regex>
+#include <set>
 
 #include <stdcorelib/3rdparty/llvm/smallvector.h>
 #include <stdcorelib/pimpl.h>
@@ -36,14 +38,14 @@ namespace srt {
 
         std::filesystem::path path;
 
-        std::string arch;
+        std::string className;
 
         DisplayText name;
         int apiLevel = 0;
 
-        std::filesystem::path avatar;
-        std::filesystem::path background;
-        std::filesystem::path demoAudio;
+        DisplayPath avatar;
+        DisplayPath background;
+        llvm::SmallVector<SingerDemoAudio> demoAudios;
 
         llvm::SmallVector<SingerImportData, kNumSingerImportFields> importDataList;
         llvm::SmallVector<SingerImport, kNumSingerImportFields>
@@ -55,32 +57,91 @@ namespace srt {
         NO<SingerProvider> prov = nullptr;
     };
 
+    static bool isValidPackageIdentifier(std::string_view token) {
+        static const std::regex re(R"(^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$)");
+        return std::regex_match(token.begin(), token.end(), re);
+    }
+
+    static Expected<JsonObject> readJsonObjectFile(const std::filesystem::path &path,
+                                                   std::string_view displayName) {
+        std::ifstream file(path);
+        if (!file.is_open()) {
+            return Error{
+                Error::FileNotOpen,
+                stdc::formatN(R"(%1: failed to open %2 manifest)", path, displayName),
+            };
+        }
+
+        std::stringstream ss;
+        ss << file.rdbuf();
+
+        std::string error;
+        auto root = JsonValue::fromJson(ss.str(), true, &error);
+        if (!error.empty()) {
+            return Error{
+                Error::InvalidFormat,
+                stdc::formatN(R"(%1: invalid %2 manifest format: %3)", path, displayName, error),
+            };
+        }
+        if (!root.isObject()) {
+            return Error{
+                Error::InvalidFormat,
+                stdc::formatN(R"(%1: invalid %2 manifest format)", path, displayName),
+            };
+        }
+        return root.toObject();
+    }
+
     static bool readSingerImport(const JsonValue &val, SingerImportData *out,
                                  std::string *errorMessage) {
-        if (val.isString()) {
-            auto inference = ContribLocator::fromString(val.toString());
-            if (inference.id().empty()) {
-                *errorMessage = R"(invalid id)";
-                return false;
-            }
-            SingerImportData res;
-            res.inferenceLocator = inference;
-            *out = std::move(res);
-            return true;
-        }
         if (!val.isObject()) {
             *errorMessage = R"(invalid data type)";
             return false;
         }
         auto obj = val.toObject();
-        auto it = obj.find("id");
+        {
+            const std::set<std::string_view> allowedKeys = {"id", "options", "inferenceId", "version"};
+            for (const auto &item : obj) {
+                if (!allowedKeys.count(std::string_view(item.first))) {
+                    *errorMessage = stdc::formatN(R"(unknown field "%1")", item.first);
+                    return false;
+                }
+            }
+        }
+
+        auto it = obj.find("inferenceId");
         if (it == obj.end()) {
-            *errorMessage = R"(missing "id" field)";
+            *errorMessage = R"(missing "inferenceId" field)";
             return false;
         }
-        auto inference = ContribLocator::fromString(it->second.toString());
+        auto id = it->second.toString();
+        if (!ContribLocator::isValidLocator(id)) {
+            *errorMessage = R"("inferenceId" field has invalid value)";
+            return false;
+        }
         SingerImportData res;
-        res.inferenceLocator = inference;
+        std::string package;
+        stdc::VersionNumber version;
+
+        it = obj.find("id");
+        if (it != obj.end()) {
+            package = it->second.toString();
+            if (!isValidPackageIdentifier(package)) {
+                *errorMessage = R"("id" field has invalid value)";
+                return false;
+            }
+        }
+
+        it = obj.find("version");
+        if (it != obj.end()) {
+            version = stdc::VersionNumber::fromString(it->second.toString());
+            if (version.isEmpty()) {
+                *errorMessage = R"("version" field has invalid value)";
+                return false;
+            }
+        }
+
+        res.inferenceLocator = ContribLocator(std::move(package), version, std::move(id));
 
         // options
         it = obj.find("options");
@@ -91,137 +152,149 @@ namespace srt {
         return true;
     }
 
+    static Expected<SingerDemoAudio> readDemoAudioItem(const JsonObject &obj) {
+        {
+            const std::set<std::string_view> allowedKeys = {"name", "path"};
+            for (const auto &item : obj) {
+                if (!allowedKeys.count(std::string_view(item.first))) {
+                    return Error{
+                        Error::InvalidFormat,
+                        stdc::formatN(R"(unknown field "%1")", item.first),
+                    };
+                }
+            }
+        }
+
+        auto it = obj.find("name");
+        if (it == obj.end()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(missing "name" field)",
+            };
+        }
+        auto name = DisplayText::fromJsonValue(it->second);
+        if (!name) {
+            return Error{
+                Error::InvalidFormat,
+                stdc::formatN(R"("name" field has invalid value: %1)", name.error().message()),
+            };
+        }
+
+        it = obj.find("path");
+        if (it == obj.end()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(missing "path" field)",
+            };
+        }
+        auto path = DisplayPath::fromJsonValue(it->second);
+        if (!path) {
+            return Error{
+                Error::InvalidFormat,
+                stdc::formatN(R"("path" field has invalid value: %1)", path.error().message()),
+            };
+        }
+
+        return SingerDemoAudio{name.take(), path.take()};
+    }
+
     Expected<void> SingerSpec::Impl::read(const std::filesystem::path &basePath,
                                           const JsonObject &obj) {
-        fs::path configPath;
+        (void) basePath;
         stdc::VersionNumber fmtVersion_;
         std::string id_;
-        std::string arch_;
+        std::string className_;
 
         DisplayText name_;
         int apiLevel_;
 
-        fs::path avatar_;
-        fs::path background_;
-        fs::path demoAudio_;
+        DisplayPath avatar_;
+        DisplayPath background_;
+        llvm::SmallVector<SingerDemoAudio> demoAudios_;
 
         llvm::SmallVector<SingerImportData, kNumSingerImportFields> imports_;
         JsonObject configuration_;
 
-        // Parse desc
         {
-            // id
+            const std::set<std::string_view> allowedKeys = {
+                "$version",   "avatar",      "background", "class", "configuration",
+                "demoAudio",  "id",          "imports",    "level", "name",
+            };
+            for (const auto &item : obj) {
+                if (!allowedKeys.count(std::string_view(item.first))) {
+                    return Error{
+                        Error::InvalidFormat,
+                        stdc::formatN(R"(unknown field "%1" in singer manifest)", item.first),
+                    };
+                }
+            }
+        }
+
+        // $version
+        {
+            auto it = obj.find("$version");
+            if (it == obj.end()) {
+                return Error{
+                    Error::InvalidFormat,
+                    R"(missing "$version" field in singer manifest)",
+                };
+            }
+            if (!it->second.isString() || it->second.toString() != "1.0") {
+                return Error{
+                    Error::FeatureNotSupported,
+                    stdc::formatN(R"(format version "%1" is not supported)",
+                                  it->second.toString()),
+                };
+            }
+            fmtVersion_ = stdc::VersionNumber(1);
+        }
+        // id
+        {
             auto it = obj.find("id");
             if (it == obj.end()) {
                 return Error{
                     Error::InvalidFormat,
-                    R"(missing "id" field in singer contribute field)",
+                    R"(missing "id" field in singer manifest)",
                 };
             }
             id_ = it->second.toString();
             if (!ContribLocator::isValidLocator(id_)) {
                 return Error{
                     Error::InvalidFormat,
-                    R"("id" field has invalid value in singer contribute field)",
+                    R"("id" field has invalid value in singer manifest)",
                 };
             }
-
-            // arch
-            it = obj.find("arch");
+        }
+        // class
+        {
+            auto it = obj.find("class");
             if (it == obj.end()) {
                 return Error{
                     Error::InvalidFormat,
-                    R"(missing "arch" field in singer contribute field)",
+                    R"(missing "class" field in singer manifest)",
                 };
             }
-            arch_ = it->second.toString();
-            if (arch_.empty()) {
+            className_ = it->second.toString();
+            if (className_.empty()) {
                 return Error{
                     Error::InvalidFormat,
-                    R"("arch" field has invalid value in singer contribute field)",
+                    R"("class" field has invalid value in singer manifest)",
                 };
-            }
-
-            // path
-            it = obj.find("path");
-            if (it == obj.end()) {
-                return Error{
-                    Error::InvalidFormat,
-                    R"(missing "path" field in singer contribute field)",
-                };
-            }
-
-            std::string configPathString = it->second.toString();
-            if (configPathString.empty()) {
-                return Error{
-                    Error::InvalidFormat,
-                    R"("path" field has invalid value in singer contribute field)",
-                };
-            }
-
-            configPath = stdc::path::from_utf8(configPathString);
-            if (auto configPathExtension = stdc::to_lower(configPath.extension().string());
-                configPathExtension != ".json") {
-                configPath += ".json";
-            }
-            if (configPath.is_relative()) {
-                configPath = basePath / configPath;
-            }
-        }
-
-        // Read configuration
-        JsonObject configObj;
-        {
-            std::ifstream file(configPath);
-            if (!file.is_open()) {
-                return Error{
-                    Error::FileNotOpen,
-                    stdc::formatN(R"(%1: failed to open singer manifest)", configPath),
-                };
-            }
-
-            std::stringstream ss;
-            ss << file.rdbuf();
-
-            std::string error2;
-            auto root = JsonValue::fromJson(ss.str(), true, &error2);
-            if (!error2.empty()) {
-                return Error{
-                    Error::InvalidFormat,
-                    stdc::formatN(R"(%1: invalid singer manifest format: %2)", configPath, error2),
-                };
-            }
-            if (!root.isObject()) {
-                return Error{
-                    Error::InvalidFormat,
-                    stdc::formatN(R"(%1: invalid singer manifest format)", configPath),
-                };
-            }
-            configObj = root.toObject();
-        }
-
-        // Get attributes
-        // $version
-        {
-            auto it = configObj.find("$version");
-            if (it == configObj.end()) {
-                fmtVersion_ = stdc::VersionNumber(1);
-            } else {
-                fmtVersion_ = stdc::VersionNumber::fromString(it->second.toString());
-                if (fmtVersion_ > stdc::VersionNumber(1)) {
-                    return Error{
-                        Error::FeatureNotSupported,
-                        stdc::formatN(R"(%1: format version "%1" is not supported)",
-                                      fmtVersion_.toString()),
-                    };
-                }
             }
         }
         // name
         {
-            auto it = configObj.find("name");
-            if (it != configObj.end()) {
-                name_ = it->second;
+            auto it = obj.find("name");
+            if (it != obj.end()) {
+                auto exp = DisplayText::fromJsonValue(it->second);
+                if (!exp) {
+                    return Error{
+                        Error::InvalidFormat,
+                        stdc::formatN(R"("name" field has invalid value in singer manifest: %1)",
+                                      exp.error().message()),
+                    };
+                }
+                name_ = exp.take();
             }
             if (name_.isEmpty()) {
                 name_ = id_;
@@ -229,89 +302,141 @@ namespace srt {
         }
         // level
         {
-            auto it = configObj.find("level");
-            if (it == configObj.end()) {
+            auto it = obj.find("level");
+            if (it == obj.end()) {
                 return Error{
                     Error::InvalidFormat,
-                    stdc::formatN(R"(%1: missing "level" field)", configPath),
+                    R"(missing "level" field in singer manifest)",
                 };
             }
             apiLevel_ = it->second.toInt();
             if (apiLevel_ == 0) {
                 return Error{
                     Error::InvalidFormat,
-                    stdc::formatN(R"(%1: "level" field has invalid value)", configPath),
+                    R"("level" field has invalid value in singer manifest)",
                 };
             }
         }
         // avatar
         {
-            auto it = configObj.find("avatar");
-            if (it != configObj.end()) {
-                avatar_ = stdc::path::from_utf8(it->second.toString());
+            auto it = obj.find("avatar");
+            if (it != obj.end()) {
+                auto exp = DisplayPath::fromJsonValue(it->second);
+                if (!exp) {
+                    return Error{
+                        Error::InvalidFormat,
+                        stdc::formatN(R"("avatar" field has invalid value in singer manifest: %1)",
+                                      exp.error().message()),
+                    };
+                }
+                avatar_ = exp.take();
             }
         }
         // background
         {
-            auto it = configObj.find("background");
-            if (it != configObj.end()) {
-                background_ = stdc::path::from_utf8(it->second.toString());
+            auto it = obj.find("background");
+            if (it != obj.end()) {
+                auto exp = DisplayPath::fromJsonValue(it->second);
+                if (!exp) {
+                    return Error{
+                        Error::InvalidFormat,
+                        stdc::formatN(
+                            R"("background" field has invalid value in singer manifest: %1)",
+                            exp.error().message()),
+                    };
+                }
+                background_ = exp.take();
             }
         }
         // demoAudio
         {
-            auto it = configObj.find("demoAudio");
-            if (it != configObj.end()) {
-                demoAudio_ = stdc::path::from_utf8(it->second.toString());
+            auto it = obj.find("demoAudio");
+            if (it != obj.end()) {
+                if (it->second.isArray()) {
+                    for (const auto &item : it->second.toArray()) {
+                        if (!item.isObject()) {
+                            return Error{
+                                Error::InvalidFormat,
+                                stdc::formatN(
+                                    R"("demoAudio" field entry %1 has invalid value in singer manifest)",
+                                    demoAudios_.size() + 1),
+                            };
+                        }
+                        auto exp = readDemoAudioItem(item.toObject());
+                        if (!exp) {
+                            return Error{
+                                Error::InvalidFormat,
+                                stdc::formatN(R"(invalid "demoAudio" field entry %1: %2)",
+                                              demoAudios_.size() + 1, exp.error().message()),
+                            };
+                        }
+                        demoAudios_.push_back(exp.take());
+                    }
+                } else {
+                    auto exp = DisplayPath::fromJsonValue(it->second);
+                    if (!exp) {
+                        return Error{
+                            Error::InvalidFormat,
+                            stdc::formatN(
+                                R"("demoAudio" field has invalid value in singer manifest: %1)",
+                                exp.error().message()),
+                        };
+                    }
+                    demoAudios_.push_back({DisplayText(), exp.take()});
+                }
             }
         }
         // imports
         {
-            auto it = configObj.find("imports");
-            if (it != configObj.end()) {
-                if (!it->second.isArray()) {
+            auto it = obj.find("imports");
+            if (it == obj.end()) {
+                return Error{
+                    Error::InvalidFormat,
+                    R"(missing "imports" field in singer manifest)",
+                };
+            }
+            if (!it->second.isArray()) {
+                return Error{
+                    Error::InvalidFormat,
+                    R"("imports" field has invalid value in singer manifest)",
+                };
+            }
+
+            for (const auto &item : it->second.toArray()) {
+                SingerImportData singerImport;
+                std::string errorMessage;
+                if (!readSingerImport(item, &singerImport, &errorMessage)) {
                     return Error{
                         Error::InvalidFormat,
-                        stdc::formatN(R"(%1: "imports" field has invalid value)", configPath),
+                        stdc::formatN(R"(invalid "imports" field entry %1: %2)",
+                                      imports_.size() + 1, errorMessage),
                     };
                 }
-
-                for (const auto &item : it->second.toArray()) {
-                    SingerImportData singerImport;
-                    std::string errorMessage;
-                    if (!readSingerImport(item, &singerImport, &errorMessage)) {
-                        return Error{
-                            Error::InvalidFormat,
-                            stdc::formatN(R"(%1: invalid "imports" field entry %2: %3)", configPath,
-                                          imports_.size() + 1, errorMessage),
-                        };
-                    }
-                    imports_.push_back(singerImport);
-                }
+                imports_.push_back(singerImport);
             }
         }
         // misc
         {
-            auto it = configObj.find("configuration");
-            if (it != configObj.end()) {
+            auto it = obj.find("configuration");
+            if (it != obj.end()) {
                 if (!it->second.isObject()) {
                     return Error{
                         Error::InvalidFormat,
-                        stdc::formatN(R"(%1: "configuration" field has invalid value)", configPath),
+                        R"("configuration" field has invalid value in singer manifest)",
                     };
                 }
                 configuration_ = it->second.toObject();
             }
         }
 
-        path = fs::canonical(configPath).parent_path();
+        fmtVersion = fmtVersion_;
         id = std::move(id_);
-        arch = std::move(arch_);
+        className = std::move(className_);
         name = std::move(name_);
         apiLevel = apiLevel_;
         avatar = std::move(avatar_);
         background = std::move(background_);
-        demoAudio = std::move(demoAudio_);
+        demoAudios = std::move(demoAudios_);
         importDataList = std::move(imports_);
         manifestConfiguration = std::move(configuration_);
         return Expected<void>();
@@ -352,9 +477,9 @@ namespace srt {
 
     SingerSpec::~SingerSpec() = default;
 
-    const std::string &SingerSpec::arch() const {
+    const std::string &SingerSpec::className() const {
         __stdc_impl_t;
-        return impl.arch;
+        return impl.className;
     }
 
     DisplayText SingerSpec::name() const {
@@ -367,19 +492,19 @@ namespace srt {
         return impl.apiLevel;
     }
 
-    const std::filesystem::path &SingerSpec::avatar() const {
+    DisplayPath SingerSpec::avatar() const {
         __stdc_impl_t;
         return impl.avatar;
     }
 
-    const std::filesystem::path &SingerSpec::background() const {
+    DisplayPath SingerSpec::background() const {
         __stdc_impl_t;
         return impl.background;
     }
 
-    const std::filesystem::path &SingerSpec::demoAudio() const {
+    stdc::array_view<SingerDemoAudio> SingerSpec::demoAudios() const {
         __stdc_impl_t;
-        return impl.demoAudio;
+        return impl.demoAudios;
     }
 
     stdc::array_view<SingerImport> SingerSpec::imports() const {
@@ -445,17 +570,35 @@ namespace srt {
 
     Expected<ContribSpec *> SingerCategory::parseSpec(const std::filesystem::path &basePath,
                                                       const JsonValue &config) const {
-        if (!config.isObject()) {
+        if (!config.isString()) {
             return Error{
                 Error::InvalidFormat,
-                R"(invalid inference specification)",
+                R"(invalid singer specification)",
             };
         }
+        auto descPath = stdc::path::from_utf8(config.toString());
+        if (descPath.empty()) {
+            return Error{
+                Error::InvalidFormat,
+                R"(singer specification path has invalid value)",
+            };
+        }
+        if (descPath.is_relative()) {
+            descPath = basePath / descPath;
+        }
+
+        auto obj = readJsonObjectFile(descPath, "singer");
+        if (!obj) {
+            return obj.error();
+        }
+
         auto spec = new SingerSpec();
-        if (auto exp = spec->_impl->read(basePath, config.toObject()); !exp) {
+        if (auto exp = spec->_impl->read({}, obj.get()); !exp) {
             delete spec;
             return exp.error();
         }
+        auto spec_impl = static_cast<SingerSpec::Impl *>(spec->_impl.get());
+        spec_impl->path = fs::canonical(descPath).parent_path();
         return spec;
     }
 
@@ -466,7 +609,7 @@ namespace srt {
                 auto singerSpec = static_cast<SingerSpec *>(spec);
                 auto spec_impl = static_cast<SingerSpec::Impl *>(singerSpec->_impl.get());
 
-                const auto &key = singerSpec->arch();
+                const auto &key = singerSpec->className();
                 NO<SingerProvider> prov;
 
                 // Search provider cache
@@ -474,12 +617,13 @@ namespace srt {
                     prov = it->second;
                 } else {
                     // Search provider
-                    auto plugin = SU()->plugin<SingerProviderPlugin>(singerSpec->arch().c_str());
+                    auto plugin =
+                        SU()->plugin<SingerProviderPlugin>(singerSpec->className().c_str());
                     if (!plugin) {
                         return Error{
                             Error::FeatureNotSupported,
-                            stdc::formatN(R"(required arch "%1" of singer "%2" not found)",
-                                          singerSpec->arch(), singerSpec->id()),
+                            stdc::formatN(R"(required class "%1" of singer "%2" not found)",
+                                          singerSpec->className(), singerSpec->id()),
                         };
                     }
                     prov = plugin->create();
@@ -491,8 +635,8 @@ namespace srt {
                     return Error{
                         Error::FeatureNotSupported,
                         stdc::formatN(
-                            R"(required arch "%1" of api level %2 doesn't support singer "%3" of api level %4)",
-                            singerSpec->arch(), prov->apiLevel(), singerSpec->id(),
+                            R"(required class "%1" of api level %2 doesn't support singer "%3" of api level %4)",
+                            singerSpec->className(), prov->apiLevel(), singerSpec->id(),
                             singerSpec->apiLevel()),
                     };
                 }
@@ -502,7 +646,7 @@ namespace srt {
                 if (!config) {
                     return Error{
                         Error::InvalidFormat,
-                        stdc::formatN(R"(failed to parse inference configuration of "%1": %2)",
+                        stdc::formatN(R"(failed to parse singer configuration of "%1": %2)",
                                       singerSpec->id(), config.error().message()),
                     };
                 }
@@ -512,10 +656,29 @@ namespace srt {
                 // Fix imports
                 for (auto &imp : spec_impl->importDataList) {
                     auto &loc = imp.inferenceLocator;
-                    ContribLocator newLoc(
-                        loc.package().empty() ? spec->parent().id() : loc.package(),
-                        loc.version().isEmpty() ? spec->parent().version() : loc.version(),
-                        loc.id());
+                    auto package = loc.package();
+                    auto version = loc.version();
+                    if (package.empty()) {
+                        package = spec->parent().id();
+                        if (version.isEmpty()) {
+                            version = spec->parent().version();
+                        }
+                    } else if (version.isEmpty()) {
+                        for (const auto &dep : spec->parent().dependencies()) {
+                            if (dep.id == package && (version.isEmpty() || dep.version > version)) {
+                                version = dep.version;
+                            }
+                        }
+                        if (version.isEmpty()) {
+                            return Error{
+                                Error::FeatureNotSupported,
+                                stdc::formatN(
+                                    R"(required package "%1" of singer "%2" is not declared in dependencies)",
+                                    package, singerSpec->id()),
+                            };
+                        }
+                    }
+                    ContribLocator newLoc(std::move(package), version, loc.id());
                     loc = newLoc;
                 }
                 return ContribCategory::loadSpec(spec, state);

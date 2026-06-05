@@ -1,6 +1,7 @@
 #ifndef SYNTHRT_SINGERCONTRIB_H
 #define SYNTHRT_SINGERCONTRIB_H
 
+#include <synthrt/Support/DisplayPath.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Core/Contribute.h>
 #include <synthrt/SVS/InferenceContrib.h>
@@ -12,6 +13,11 @@ namespace srt {
     class SingerCategory;
 
     class SingerImportData;
+
+    struct SYNTHRT_EXPORT SingerDemoAudio {
+        DisplayText name;
+        DisplayPath path;
+    };
 
     /// SingerInfoBase - The base class storing singer information.
     class SingerInfoBase : public NamedObject {
@@ -69,14 +75,14 @@ namespace srt {
         ~SingerSpec();
 
     public:
-        /// Indicates the engine to which the singer's voice library belongs
-        const std::string &arch() const;
+        /// Indicates the provider class to which the singer's voice library belongs
+        const std::string &className() const;
         DisplayText name() const;
         int apiLevel() const;
 
-        const std::filesystem::path &avatar() const;
-        const std::filesystem::path &background() const;
-        const std::filesystem::path &demoAudio() const;
+        DisplayPath avatar() const;
+        DisplayPath background() const;
+        stdc::array_view<SingerDemoAudio> demoAudios() const;
 
         stdc::array_view<SingerImport> imports() const;
 

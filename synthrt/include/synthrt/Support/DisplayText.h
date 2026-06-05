@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 
+#include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 
 namespace srt {
@@ -23,16 +24,18 @@ namespace srt {
         DisplayText(std::string defaultText, const std::map<std::string, std::string> &texts);
 
         /// Constructs with a JSON value.
-        /// \note The JSON value must be a string-mapping object, with the key being the locale code
-        /// and the value being the corresponding text. If the \c _ property exists, use it as the
-        /// default text; otherwise, search for the property of \c en_XX and try to use the value as
-        /// the default text.
+        /// \deprecated Use fromJsonValue() instead.
+        [[deprecated("Use DisplayText::fromJsonValue() instead.")]]
         explicit DisplayText(const JsonValue &value);
 
         ~DisplayText();
 
         DisplayText &operator=(std::string text);
+
+        [[deprecated("Use DisplayText::fromJsonValue() instead.")]]
         DisplayText &operator=(const JsonValue &value);
+
+        static Expected<DisplayText> fromJsonValue(const JsonValue &value);
 
         inline void swap(DisplayText &RHS) noexcept {
             _impl.swap(RHS._impl);

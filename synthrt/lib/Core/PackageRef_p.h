@@ -36,12 +36,11 @@ namespace srt {
         std::string id;
 
         stdc::VersionNumber version;
-        stdc::VersionNumber compatVersion;
-
+        DisplayText name;
         DisplayText description;
         DisplayText vendor;
-        DisplayText copyright;
-        std::filesystem::path readme;
+        DisplayPath readme;
+        DisplayPath license;
         std::string url;
 
         std::map<std::string, std::map<std::string, ContribSpec *, std::less<>>, std::less<>>
