@@ -59,7 +59,8 @@ namespace ds {
 #ifdef _WIN32
             auto orgLibPath = stdc::SharedLibrary::setLibraryPath(path.parent_path());
 #endif
-            if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint)) {
+            if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint |
+                                       stdc::SharedLibrary::ExportExternalSymbolsHint)) {
                 std::string msg =
                     stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);
