@@ -223,7 +223,11 @@ macro(${_CUR_MACRO_PREFIX}_add_executable _target)
         install(TARGETS ${_target}
             ${_export}
             RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}" OPTIONAL
+            PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
         )
+
+        # Executables live in bin/, sibling libraries in lib/.
+        _cur_set_install_rpath(${_target} "../lib")
     endif()
 
     if(FUNC_SYNC_INCLUDE OR(_CUR_SYNC_INCLUDE AND NOT FUNC_NO_SYNC_INCLUDE))
@@ -304,6 +308,7 @@ macro(${_CUR_MACRO_PREFIX}_add_plugin _target _category)
         INSTALL_RUNTIME_DIR "${CMAKE_INSTALL_LIBDIR}/${_plugin_dir}"
         INSTALL_LIBRARY_DIR "${CMAKE_INSTALL_LIBDIR}/${_plugin_dir}"
         INSTALL_ARCHIVE_DIR "${CMAKE_INSTALL_LIBDIR}/${_plugin_dir}"
+        INSTALL_RPATH "../../../../lib"
         ${ARGN}
     )
 endmacro()
@@ -350,13 +355,51 @@ endfunction()
 # ----------------------------------
 # Private
 # ----------------------------------
+
+#[[
+    Set the install RPATH of a target.
+
+    _cur_set_install_rpath(<target> [<sub-path>...])
+
+    Each <sub-path> is a loader-relative directory (e.g. "../lib"); "." (or empty)
+    means the loader directory itself. On Apple "@loader_path" is used as the loader
+    prefix, otherwise "$ORIGIN".
+]] #
+function(_cur_set_install_rpath _target)
+    # RPATH is only meaningful on ELF (Linux/*BSD) and Mach-O (macOS).
+    if(WIN32)
+        return()
+    endif()
+
+    if(APPLE)
+        set(_loader "@loader_path")
+    else()
+        set(_loader "$ORIGIN")
+    endif()
+
+    set(_rpaths)
+
+    foreach(_sub IN LISTS ARGN)
+        if(_sub STREQUAL "" OR _sub STREQUAL ".")
+            list(APPEND _rpaths "${_loader}")
+        else()
+            list(APPEND _rpaths "${_loader}/${_sub}")
+        endif()
+    endforeach()
+
+    set_target_properties(${_target} PROPERTIES
+        MACOSX_RPATH ON
+        INSTALL_RPATH "${_rpaths}"
+    )
+endfunction()
+
 macro(_cur_add_library_internal _target _type)
     set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT NO_INSTALL QT_AUTOGEN)
     set(oneValueArgs SYNC_INCLUDE_PREFIX PREFIX RC_NAME RC_DESCRIPTION RC_COPYRIGHT
         BUILD_RUNTIME_DIR BUILD_LIBRARY_DIR BUILD_ARCHIVE_DIR
         INSTALL_RUNTIME_DIR INSTALL_LIBRARY_DIR INSTALL_ARCHIVE_DIR
     )
-    set(multiValueArgs SYNC_INCLUDE_OPTIONS)
+    set(multiValueArgs SYNC_INCLUDE_OPTIONS INSTALL_RPATH)
     cmake_parse_arguments(FUNC "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
 
     add_library(${_target} ${_type})
@@ -466,8 +509,22 @@ macro(_cur_add_library_internal _target _type)
         install(TARGETS ${_target}
             ${_export}
             RUNTIME DESTINATION "${_install_runtime_dir}" OPTIONAL
+            PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
             LIBRARY DESTINATION "${_install_library_dir}" OPTIONAL
+            PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
         )
+
+        # Shared libraries (and plugins) need an RPATH to locate sibling libraries
+        # in lib/. A plain shared library lives in lib/ itself, so "$ORIGIN" suffices;
+        # plugins live deeper and pass their own relative path in via INSTALL_RPATH.
+        # Static/interface libraries need no RPATH.
+        if(NOT _type STREQUAL "STATIC" AND NOT _type STREQUAL "INTERFACE")
+            if(FUNC_INSTALL_RPATH)
+                _cur_set_install_rpath(${_target} ${FUNC_INSTALL_RPATH})
+            else()
+                _cur_set_install_rpath(${_target} ".")
+            endif()
+        endif()
 
         target_include_directories(${_target} INTERFACE
             "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
