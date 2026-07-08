@@ -33,6 +33,7 @@
 
 build-src*
 build/
+build_win/
 cmake-build*
 *.user
 *.lnk

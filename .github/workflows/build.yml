@@ -1,0 +1,62 @@
+name: Build
+
+on:
+  push:
+    branches: [main, refactor]
+  pull_request:
+    branches: [main, refactor]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: Windows
+            runner: windows-latest
+          - os: Linux
+            runner: ubuntu-latest
+          - os: macOS
+            runner: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install vcpkg
+        uses: lukka/run-vcpkg@v11
+        with:
+          vcpkgJsonGlob: scripts/vcpkg-manifest/vcpkg.json
+
+      - name: Setup LuaJIT (Windows)
+        if: matrix.os == 'Windows'
+        run: vcpkg install luajit --triplet x64-windows
+
+      - name: Setup LuaJIT (Linux)
+        if: matrix.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libluajit-5.1-dev
+
+      - name: Setup LuaJIT (macOS)
+        if: matrix.os == 'macOS'
+        run: brew install luajit
+
+      - name: Download ONNX Runtime
+        shell: cmake -P {0}
+        run: |
+          include(${{ github.workspace }}/scripts/setup-onnxruntime.cmake)
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . \
+            -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
+            -DSYNTHRT_BUILD_TESTS=OFF \
+            -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake
+
+      - name: Build
+        run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel

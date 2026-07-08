@@ -1,0 +1,22 @@
+#ifndef SRT_CORE_SRT_CORE_GLOBAL_H
+#define SRT_CORE_SRT_CORE_GLOBAL_H
+
+#include <stdcorelib/stdc_global.h>
+
+#ifndef SRT_CORE_EXPORT
+#  ifdef SRT_CORE_STATIC
+#    define SRT_CORE_EXPORT
+#  else
+#    ifdef SRT_CORE_LIBRARY
+#      define SRT_CORE_EXPORT STDCORELIB_DECL_EXPORT
+#    else
+#      define SRT_CORE_EXPORT STDCORELIB_DECL_IMPORT
+#    endif
+#  endif
+#endif
+
+#ifndef SYNTHRT_EXPORT
+#  define SYNTHRT_EXPORT SRT_CORE_EXPORT
+#endif
+
+#endif // SRT_CORE_SRT_CORE_GLOBAL_H

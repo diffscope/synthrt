@@ -1,0 +1,15 @@
+{
+  "packageId": "num-official",
+  "version": "0.0.1",
+  "vendor": "wolf",
+  "copyright": "Copyright (C) wolf",
+  "modules": {
+    "g2p": [
+      {
+        "moduleId": "g2p-num-official",
+        "class": "g2p.chain.ChainG2pInference",
+        "configuration": "modules/ChainG2p-Num/config.json"
+      }
+    ]
+  }
+}

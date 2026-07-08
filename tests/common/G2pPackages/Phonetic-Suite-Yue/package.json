@@ -1,0 +1,15 @@
+{
+  "packageId": "yue-official",
+  "version": "1.0.1",
+  "vendor": "wolf",
+  "copyright": "Copyright (C) wolf",
+  "modules": {
+    "g2p": [
+      {
+        "moduleId": "g2p-yue-official",
+        "class": "g2p.template.CantoneseG2pInference",
+        "configuration": "modules/G2p-Yue/config.json"
+      }
+    ]
+  }
+}

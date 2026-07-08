@@ -284,7 +284,7 @@ endmacro()
 #[[
     Add plugin target.
 
-    <name>_add_plugin(<target> <category>
+    <name>_add_plugin(<target> <category> <plugin_folder>
         [PREFIX <prefix>]
         [SYNC_INCLUDE_PREFIX  <prefix>]
         [SYNC_INCLUDE_OPTIONS <options...>]
@@ -299,8 +299,8 @@ endmacro()
         <configure_options...>
     )
 ]] #
-macro(${_CUR_MACRO_PREFIX}_add_plugin _target _category)
-    set(_plugin_dir plugins/${_CUR_INSTALL_NAME}/${_category})
+macro(${_CUR_MACRO_PREFIX}_add_plugin _target _category _plugin_folder)
+    set(_plugin_dir plugins/${_CUR_INSTALL_NAME}/${_category}/${_plugin_folder})
     _cur_add_library_internal(${_target} SHARED
         BUILD_RUNTIME_DIR "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${_plugin_dir}"
         BUILD_LIBRARY_DIR "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${_plugin_dir}"
@@ -308,9 +308,10 @@ macro(${_CUR_MACRO_PREFIX}_add_plugin _target _category)
         INSTALL_RUNTIME_DIR "${CMAKE_INSTALL_LIBDIR}/${_plugin_dir}"
         INSTALL_LIBRARY_DIR "${CMAKE_INSTALL_LIBDIR}/${_plugin_dir}"
         INSTALL_ARCHIVE_DIR "${CMAKE_INSTALL_LIBDIR}/${_plugin_dir}"
-        INSTALL_RPATH "../../../../lib"
+        INSTALL_RPATH "../../../../../lib"
         ${ARGN}
     )
+    _cur_add_desc_internal(${_target})
 endmacro()
 
 #[[
@@ -551,6 +552,29 @@ macro(_cur_add_library_internal _target _type)
         )
         target_include_directories(${_target} INTERFACE
             "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/${_CUR_INSTALL_NAME}>"
+        )
+    endif()
+endmacro()
+
+macro(_cur_add_desc_internal _target)
+    set(_plugin_desc "${CMAKE_CURRENT_BINARY_DIR}/plugin-desc/${_target}-$<CONFIG>.json")
+    file(GENERATE
+        OUTPUT "${_plugin_desc}"
+        CONTENT "{\n    \"target\": \"$<TARGET_FILE_NAME:${_target}>\"\n}\n"
+    )
+
+    add_custom_command(TARGET ${_target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${_plugin_desc}"
+            "$<TARGET_FILE_DIR:${_target}>/plugin.json"
+        COMMENT "Generating plugin.json for ${_target}"
+        VERBATIM
+    )
+
+    if(_CUR_INSTALL AND NOT FUNC_NO_INSTALL)
+        install(FILES "${_plugin_desc}"
+            DESTINATION "${_install_library_dir}"
+            RENAME plugin.json
         )
     endif()
 endmacro()

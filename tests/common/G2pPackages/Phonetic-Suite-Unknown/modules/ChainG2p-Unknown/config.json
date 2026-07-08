@@ -1,0 +1,1 @@
+{"$version": "1.0", "level": 1, "schema": {}, "configuration": {"steps": [{"step": "tagAndValidate", "params": {"tagger": [{"type": "regex", "value": ["([.]+)"], "tag": "unknown", "action": "copy"}]}}, {"step": "fallback", "params": {"useOriginal": true, "markFailed": true}}]}}

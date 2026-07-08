@@ -1,0 +1,1 @@
+synthrt_add_cross_test(synthrt-test-install-package InstallPackageSkeletonTest.cpp)

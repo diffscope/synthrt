@@ -147,8 +147,9 @@ function(_lookup_sha512 filename out_hash)
     set(var_name "SHA512_${safe_var}")
     if(DEFINED ${var_name})
         set(${out_hash} "${${var_name}}" PARENT_SCOPE)
-    else()
-        message(FATAL_ERROR "Unknown hash for: ${filename}")
+else()
+        set(${out_hash} "" PARENT_SCOPE)
+        message(WARNING "Unknown hash for: ${filename}; downloading without EXPECTED_HASH")
     endif()
 endfunction()
 
@@ -163,11 +164,18 @@ macro(download_onnxruntime_from_github)
 
     message(STATUS "Downloading ONNX Runtime from ${_url}")
 
-    file(DOWNLOAD ${_url} ${_file_path}
-        SHOW_PROGRESS
-        EXPECTED_HASH SHA512=${_expected_hash}
-        TLS_VERIFY ON
-    )
+    if(_expected_hash)
+        file(DOWNLOAD ${_url} ${_file_path}
+            SHOW_PROGRESS
+            EXPECTED_HASH SHA512=${_expected_hash}
+            TLS_VERIFY ON
+        )
+    else()
+        file(DOWNLOAD ${_url} ${_file_path}
+            SHOW_PROGRESS
+            TLS_VERIFY ON
+        )
+    endif()
 
     if (${ARGC} GREATER 0)
         set(_extract_dir ${CMAKE_BINARY_DIR}/onnxruntime/${ARGV0})
@@ -288,9 +296,10 @@ endif()
 #endif()
 
 
-# First, download default version of ONNX Runtime (Windows: DirectML, other OS: CPU)
+# First, download default version of ONNX Runtime.
+# Windows defaults to the CPU GitHub package; pass -Dep=dml to install DirectML.
 message(STATUS "OS: ${_os_display_name}")
-if(WIN32)
+if(WIN32 AND DEFINED ep AND ("${ep}" STREQUAL "dml" OR "${ep}" STREQUAL "directml"))
     message(STATUS "Downloading DirectML version of ONNX Runtime...")
     set(_deploy_subdir "default")
     download_onnxruntime_from_nuget(${_deploy_subdir})

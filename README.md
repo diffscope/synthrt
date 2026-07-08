@@ -1,5 +1,9 @@
 # Synthesizer Runtime
 
+> Refactoring notice: the active clean-break plan is `docs/refactoring-vnext`.
+> vNext removes the legacy runtime, singleton managers, compatibility adapters,
+> conversion layers, and old P5 C ABI from the final production graph.
+
 ## Requirements
 
 + [nlohmann_json](https://github.com/nlohmann/json)

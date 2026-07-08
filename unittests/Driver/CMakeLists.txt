@@ -1,0 +1,1 @@
+synthrt_add_unittest(synthrt-unittest-driver DriverSkeletonTest.cpp)

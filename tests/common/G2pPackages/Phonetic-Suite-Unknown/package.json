@@ -1,0 +1,15 @@
+{
+  "packageId": "unknown-official",
+  "version": "0.0.1",
+  "vendor": "wolf",
+  "copyright": "Copyright (C) wolf",
+  "modules": {
+    "g2p": [
+      {
+        "moduleId": "g2p-unknown-official",
+        "class": "g2p.chain.ChainG2pInference",
+        "configuration": "modules/ChainG2p-Unknown/config.json"
+      }
+    ]
+  }
+}

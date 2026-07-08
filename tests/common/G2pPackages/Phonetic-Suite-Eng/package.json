@@ -1,0 +1,28 @@
+{
+  "packageId": "eng-official",
+  "version": "1.0.0",
+  "vendor": "wolf",
+  "copyright": "Copyright (C) wolf",
+  "modules": {
+    "g2p": [
+      {
+        "moduleId": "g2p-lstm-eng-official",
+        "class": "g2p.model.LstmG2pInference",
+        "configuration": "modules/LstmG2p-Eng/config.json"
+      },
+      {
+        "moduleId": "g2p-eng-official",
+        "class": "g2p.chain.ChainG2pInference",
+        "configuration": "modules/ChainG2p-Eng/config.json",
+        "dependencies": [
+          {
+            "packageId": "eng-official",
+            "moduleId": "g2p-lstm-eng-official",
+            "level": 2,
+            "version": "*"
+          }
+        ]
+      }
+    ]
+  }
+}

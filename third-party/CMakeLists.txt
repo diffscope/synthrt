@@ -1,1 +1,6 @@
-# Empty
+if(SYNTHRT_BUILD_TESTS)
+    set(CMAKE_FOLDER "ThirdParty")
+    add_subdirectory(catch2)
+    list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/catch2/extras")
+    set(CMAKE_MODULE_PATH "${CMAKE_MODULE_PATH}" PARENT_SCOPE)
+endif()

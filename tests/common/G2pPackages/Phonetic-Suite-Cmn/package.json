@@ -1,0 +1,15 @@
+{
+  "packageId": "cmn-official",
+  "version": "1.0.1",
+  "vendor": "wolf",
+  "copyright": "Copyright (C) wolf",
+  "modules": {
+    "g2p": [
+      {
+        "moduleId": "g2p-cmn-official",
+        "class": "g2p.template.MandarinG2pInference",
+        "configuration": "modules/G2p-Cmn/config.json"
+      }
+    ]
+  }
+}

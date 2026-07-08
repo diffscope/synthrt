@@ -7,13 +7,14 @@
         "stdcorelib",
         "blake3",
         "sparsepp",
-        "bit7z"
+        "bit7z",
+        "luajit"
     ],
     "features": {
         "tests": {
             "description": "Enable test cases support",
             "dependencies": [
-                "boost-test"
+                { "name": "catch2", "version>=": "3.4.0" }
             ]
         }
     },

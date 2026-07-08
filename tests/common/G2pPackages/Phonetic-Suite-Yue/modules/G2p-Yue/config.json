@@ -1,0 +1,33 @@
+{
+  "$version": "1.0",
+  "level": 1,
+  "schema": {},
+  "configuration": {
+    "verify": [
+      {
+        "type": "array",
+        "value": [
+          "SP",
+          "AP",
+          "EP"
+        ],
+        "mode": "copy"
+      },
+      {
+        "type": "dict",
+        "value": [
+          "../../assets/jyutping_dict.txt"
+        ],
+        "mode": "copy"
+      },
+      {
+        "type": "regex",
+        "value": [
+          "([\\p{Han}])"
+        ],
+        "mode": "convert"
+      }
+    ],
+    "dictPath": "dict"
+  }
+}

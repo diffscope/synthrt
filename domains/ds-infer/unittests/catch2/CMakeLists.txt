@@ -1,0 +1,36 @@
+# Catch2 v3 unit tests for ds-infer inferutil helpers and srt::core version utils.
+#
+# These tests cover Algorithm.h (arange/interpolate/resample/fillRestMidi),
+# TensorHelper.h, Speedup.h, VersionUtils, InputWord helpers, and
+# SpeakerEmbedding — the shared helpers used by all 5 DiffSinger inference
+# plugins. Bug regression tests for BF-04..20 are included where noted.
+# Real-world scenario tests mirror actual ds-editor-lite call patterns.
+
+if(NOT TARGET Catch2::Catch2WithMain)
+    find_package(Catch2 3 CONFIG REQUIRED)
+endif()
+
+include(Catch)
+
+add_executable(tst-ds-infer-catch2
+    test_algorithm.cpp
+    test_algorithm_realworld.cpp
+    test_tensor_helper.cpp
+    test_version_utils.cpp
+    test_version_utils_complex.cpp
+    test_input_word.cpp
+    test_input_word_realworld.cpp
+    test_speaker_embedding.cpp
+    test_modelset.cpp
+)
+
+target_link_libraries(tst-ds-infer-catch2 PRIVATE
+    Catch2::Catch2WithMain
+    inferutil
+    synthrt::core
+    srt-ds::infer
+)
+
+set_target_properties(tst-ds-infer-catch2 PROPERTIES FOLDER "Tests")
+
+catch_discover_tests(tst-ds-infer-catch2)

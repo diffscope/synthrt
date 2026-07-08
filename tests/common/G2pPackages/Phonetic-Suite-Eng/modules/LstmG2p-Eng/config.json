@@ -1,0 +1,11 @@
+{
+  "$version": "1.0",
+  "level": 2,
+  "schema": {},
+  "configuration": {
+    "encoder": "encoder.onnx",
+    "decoder": "decoder.onnx",
+    "charVocab": "char.json",
+    "phonemeVocab": "phonemes.json"
+  }
+}

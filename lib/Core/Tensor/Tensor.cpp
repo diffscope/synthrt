@@ -1,0 +1,229 @@
+#include "Tensor.h"
+
+#include <cassert>
+#include <cstdint>
+#include <limits>
+#include <optional>
+
+namespace srt::core {
+
+    static inline size_t getElementSize(ITensor::DataType dataType) {
+        switch (dataType) {
+            case ITensor::Float:
+                return sizeof(float);
+            case ITensor::Int64:
+                return sizeof(int64_t);
+            case ITensor::Bool:
+                return sizeof(bool);
+            case ITensor::Float16:
+                return sizeof(Float16);
+            case ITensor::Float64:
+                return sizeof(double);
+            case ITensor::Int32:
+                return sizeof(int32_t);
+            case ITensor::UInt8:
+                return sizeof(uint8_t);
+            default:
+                assert(false && "Unsupported data type");
+                return 0;
+        }
+    }
+
+    static inline std::optional<uint64_t>
+        getElementCountFromShape(ITensor::DataType dataType, const std::vector<int64_t> &shape) {
+        if (shape.empty()) {
+            return 1;
+        }
+        uint64_t totalElements = 1;
+
+        const size_t elementSize = getElementSize(dataType);
+
+        if (elementSize == 0) {
+            return std::nullopt;
+        }
+
+        for (const auto dim : shape) {
+            // Each dimension must be positive
+            if (dim <= 0) {
+                return std::nullopt;
+            }
+
+            // Check for multiplication overflow
+            if (dim > std::numeric_limits<uint64_t>::max() / elementSize / totalElements) {
+                return std::nullopt;
+            }
+
+            totalElements *= static_cast<uint64_t>(dim);
+        }
+        return totalElements;
+    }
+
+    static inline bool verifyShape(ITensor::DataType dataType, const std::vector<int64_t> &shape,
+                                   size_t dataSize) {
+        if (shape.empty()) {
+            return dataSize == getElementSize(dataType);
+        }
+
+        auto maybeTotalElements = getElementCountFromShape(dataType, shape);
+        if (!maybeTotalElements.has_value()) {
+            return false;
+        }
+        const uint64_t totalElements = maybeTotalElements.value();
+
+        const size_t elementSize = getElementSize(dataType);
+
+        if (elementSize == 0) {
+            return false;
+        }
+
+        // Check whether total bytes match
+        const uint64_t totalBytes = totalElements * static_cast<uint64_t>(elementSize);
+        return totalBytes == static_cast<uint64_t>(dataSize);
+    }
+
+    Expected<void> verify(ITensor::DataType dataType, const std::vector<int64_t> &shape,
+                          size_t dataSize) {
+        if (dataType == ITensor::Undefined) {
+            return Error(Error::InvalidArgument, "data type can not be Undefined");
+        }
+        if (!verifyShape(dataType, shape, dataSize)) {
+            return Error(Error::InvalidArgument, "data size and shape mismatch");
+        }
+        return Expected<void>();
+    }
+
+    Expected<NO<Tensor>> Tensor::create(DataType dataType, const std::vector<int64_t> &shape) {
+        auto maybeTotalElements = getElementCountFromShape(dataType, shape);
+        if (!maybeTotalElements.has_value()) {
+            return Error(Error::InvalidArgument, "invalid shape");
+        }
+        const uint64_t totalElements = maybeTotalElements.value();
+
+        const size_t elementSize = getElementSize(dataType);
+        if (elementSize == 0) {
+            return Error(Error::InvalidArgument, "invalid data type");
+        }
+        auto tensor = NO<Tensor>::create();
+        tensor->_dataType = dataType;
+        tensor->_shape = shape;
+        tensor->_data = Container(totalElements * elementSize, std::byte{0});
+        return tensor;
+    }
+
+    Expected<NO<Tensor>> Tensor::createFromRawData(DataType dataType,
+                                                   const std::vector<int64_t> &shape,
+                                                   const Container &data) {
+        auto tensor = NO<Tensor>::create();
+        if (auto exp = verify(dataType, shape, data.size()); !exp) {
+            return exp.takeError();
+        }
+        tensor->_dataType = dataType;
+        tensor->_shape = shape;
+        tensor->_data = data;
+        return tensor;
+    }
+
+    Expected<NO<Tensor>>
+        Tensor::createFromRawView(DataType dataType, const std::vector<int64_t> &shape,
+                                  const stdc::array_view<std::byte> &data) {
+        auto tensor = NO<Tensor>::create();
+        if (auto exp = verify(dataType, shape, data.size()); !exp) {
+            return exp.takeError();
+        }
+        tensor->_dataType = dataType;
+        tensor->_shape = shape;
+        tensor->_data = Container{data.begin(), data.end()};
+        return tensor;
+    }
+
+    Expected<NO<Tensor>> Tensor::createFromRawData(DataType dataType,
+                                                   const std::vector<int64_t> &shape,
+                                                   Container &&data) {
+        auto tensor = NO<Tensor>::create();
+        if (auto exp = verify(dataType, shape, data.size()); !exp) {
+            return exp.takeError();
+        }
+        tensor->_dataType = dataType;
+        tensor->_shape = shape;
+        tensor->_data = std::move(data);
+        return tensor;
+    }
+
+    std::string Tensor::backend() const {
+        return BACKEND;
+    }
+
+    ITensor::DataType Tensor::dataType() const {
+        return _dataType;
+    }
+
+    std::vector<int64_t> Tensor::shape() const {
+        return _shape;
+    }
+
+    std::vector<int64_t> Tensor::strides() const {
+        std::vector<int64_t> result(_shape.size());
+        if (_shape.empty()) {
+            return result;
+        }
+        // Contiguous, row-major: strides[i] = product of shape[i+1:]
+        int64_t acc = 1;
+        for (size_t i = _shape.size(); i-- > 0;) {
+            result[i] = acc;
+            acc *= _shape[i];
+        }
+        return result;
+    }
+
+    size_t Tensor::byteSize() const {
+        return _data.size();
+    }
+
+    size_t Tensor::elementCount() const {
+        if (auto size = elementSize(); size > 0) {
+            return byteSize() / size;
+        }
+        return 0;
+    }
+
+    size_t Tensor::elementSize() const {
+        return getElementSize(_dataType);
+    }
+
+    const std::byte *Tensor::rawData() const {
+        return _data.data();
+    }
+
+    std::byte *Tensor::mutableRawData() {
+        return _data.data();
+    }
+
+    stdc::array_view<std::byte> Tensor::rawView() const {
+        return {_data.data(), _data.size()};
+    }
+
+    NO<ITensor> Tensor::clone() const {
+        auto tensor = NO<Tensor>::create();
+        tensor->_dataType = _dataType;
+        tensor->_shape = _shape;
+        tensor->_data = _data;
+        return tensor;
+    }
+
+    Expected<void> Tensor::reshape(const std::vector<int64_t> &shape) {
+        auto maybeTotalElements = getElementCountFromShape(_dataType, shape);
+        if (!maybeTotalElements.has_value()) {
+            return Error(Error::InvalidArgument, "invalid shape");
+        }
+        const uint64_t newTotalElements = maybeTotalElements.value();
+
+        const uint64_t currentTotalElements = static_cast<uint64_t>(elementCount());
+        if (newTotalElements != currentTotalElements) {
+            return Error(Error::InvalidArgument,
+                         "reshape cannot change the total number of elements");
+        }
+        _shape = shape;
+        return Expected<void>();
+    }
+
+}
