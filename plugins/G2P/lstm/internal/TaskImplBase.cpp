@@ -11,6 +11,7 @@
 #include <synthrt/Core/Support/ConfigAccessor.h>
 #include <synthrt/Core/Tensor/Tensor.h>
 #include <synthrt/Core/Support/Logging.h>
+#include <synthrt/G2P/Core/Manager.h>
 #include <synthrt/G2P/Task/Task.h>
 #include <synthrt/G2P/Task/TaskPlugin.h>
 #include <synthrt/G2P/Task/G2pTask.h>
@@ -84,19 +85,18 @@ namespace srt::g2p::plugins::LstmG2p::Internal
 
         static srt::LogCategory Log("lstmG2p");
 
-        // Get driver from package manager (graceful degradation)
+        // Get driver from G2P Manager's driver category (graceful degradation).
+        // The g2pOnnxDriver is registered by the host (e.g. SynthrtEngine) as a
+        // SessionFactory in the "driver" category before Manager::initialize().
         bool driverFound = false;
-        // TODO: ModuleSpec::Mgr() is not yet migrated to srt::core::ModuleSpec.
-        // When ModuleSpec::Mgr() becomes available, uncomment the following block
-        // to look up the ONNX driver from the PackageManager's driver category.
-        // auto driverCate = m_spec->Mgr()->category(srt::g2p::kDriverCategory);
-        // if (driverCate) {
-        //     auto driverObj = driverCate->getFirstObject(srt::g2p::kG2pOnnxDriverName);
-        //     if (driverObj) {
-        //         m_driver = driverObj.as<srt::g2p::SessionFactory>();
-        //         driverFound = true;
-        //     }
-        // }
+        auto driverCate = srt::g2p::Manager::instance()->category(srt::g2p::kDriverCategory);
+        if (driverCate) {
+            auto driverObj = driverCate->getFirstObject(srt::g2p::kG2pOnnxDriverName);
+            if (driverObj) {
+                m_driver = driverObj.as<srt::g2p::SessionFactory>();
+                driverFound = true;
+            }
+        }
 
         if (!driverFound) {
             Log.srtWarning("ONNX driver unavailable: inference will be disabled for module '%1'. "

@@ -4,6 +4,7 @@
 #include <filesystem>
 
 #include <synthrt/Core/Support/Expected.h>
+#include <synthrt/Driver/onnx/OnnxDriverApi.h>
 
 #include <onnxruntime_cxx_api.h>
 
@@ -15,6 +16,7 @@ namespace srt::driver::onnx {
         ~SessionImage();
 
         bool open(const std::filesystem::path &onnxPath, int hints,
+                  ExecutionProvider ep, int deviceIndex,
                   std::string *errorMessage = nullptr);
 
     public:

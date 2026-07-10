@@ -83,6 +83,42 @@ public:
 
 `InferenceSession` 继承 `ITask`，支持 `start/stop/result` 生命周期。
 
+### per-session EP 覆盖 (2026-07-11)
+
+`SessionOpenArgs` 扩展了两个可选字段，使不同调用方（G2P、推理等）可以共享一个
+`OnnxDriver` 实例，同时各自指定 EP：
+
+```cpp
+class SessionOpenArgs : public InferenceSessionOpenArgs {
+public:
+    bool useCpu = false;                              // 最高优先级：强制 CPU
+    std::optional<ExecutionProvider> ep;               // per-session EP 覆盖
+    std::optional<int> deviceIndex;                   // per-session device 覆盖
+};
+```
+
+**EP 解析优先级**（在 `Session::open()` 中）：
+1. `useCpu=true` → CPU（`SH_PreferCPUHint`，跳过 EP 初始化）
+2. `args.ep` 已设置 → 用 `*args.ep` + `args.deviceIndex`（或全局 deviceIndex）
+3. 都未设置 → 读全局 `Env::s_deviceConfig`（现有行为不变）
+
+**缓存隔离**：解析后的 EP+deviceIndex 编码到 `SessionHint` 高位（bit 8-15 EP，
+bit 16-23 deviceIndex+1），作为 `SessionImage` 缓存 key 的一部分，保证不同 EP
+的模型镜像独立缓存。`SH_NoHint`（跟随全局）和 `SH_PreferCPUHint`（强制 CPU）
+的 bit 布局不变，向后兼容。
+
+**关键修复**：`SH_EPOverrideHint`（bit 1）作为哨兵标志，区分"显式传 ep=CPU"和
+"跟随全局"。若不加此标志，`ep=CPU + deviceIndex=-1` 会编码为 0（= `SH_NoHint`），
+命中全局配置的缓存（可能是 CUDA session），返回错误 EP。同时 `deviceIndex` 被
+clamp 到 `[-1, 254]` 防止 8-bit 编码溢出。
+
+**全局 EP 缓存失效修复**：else 分支（不传 ep，跟随全局）原本用 `SH_NoHint`(0)
+作为缓存 key，不记录实际 EP。若运行时调用 `Env::setDeviceConfig()` 改变全局 EP，
+后续 `open()` 仍命中旧 EP 的 SessionImage。现在全局 EP 也被编码进 hints，
+`SH_NoHint` 退化为纯"未初始化"哨兵，不再作为缓存 key。
+
+提交: `90834df`（特性）, `1a4adc2`（缓存 key 冲突修复）, `396cb43`（全局 EP 缓存失效修复）
+
 ---
 
 ## 调用关系

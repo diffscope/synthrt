@@ -25,6 +25,7 @@
 #include "OnnxDriver_Logger.h"
 #include "SessionImage.h"
 #include "ScopedTimer.h"
+#include "Env.h"
 
 #include <synthrt/Driver/onnx/OnnxTensor.h>
 
@@ -704,9 +705,43 @@ namespace srt::driver::onnx {
         std::vector<uint8_t> hash;
         std::streamsize size;
 
+        // Resolve the actual EP/deviceIndex to use for this session.
+        // Priority: useCpu=true (force CPU) > args.ep (per-session override)
+        // > global Env config. The resolved values are passed to SessionImage
+        // so createOrtSession no longer needs to read the global Env.
+        ExecutionProvider actualEp;
+        int actualDeviceIndex;
         int hints = SH_NoHint;
         if (args->useCpu) {
             hints |= SH_PreferCPUHint;
+            actualEp = CPUExecutionProvider; // ignored when SH_PreferCPUHint set
+            actualDeviceIndex = -1;
+        } else {
+            // Resolve EP from args.ep or the global Env config.
+            if (args->ep) {
+                actualEp = *args->ep;
+                const auto devConfig = Env::getDeviceConfig();
+                actualDeviceIndex = args->deviceIndex.value_or(devConfig.deviceIndex);
+            } else {
+                const auto devConfig = Env::getDeviceConfig();
+                actualEp = devConfig.ep;
+                actualDeviceIndex = devConfig.deviceIndex;
+            }
+            // Encode the resolved EP/deviceIndex (whether from args.ep or
+            // global) into the high bits so that:
+            //  - sessions with different EPs get distinct SessionImage cache keys
+            //  - SH_EPOverrideHint distinguishes an explicit ep=CPU override
+            //    from SH_NoHint (uninitialized), preventing the wrong image
+            //    from being returned when ep=CPU+deviceIndex=-1 encodes to 0
+            //  - a subsequent Env::setDeviceConfig() change cannot hit a stale
+            //    SessionImage cached under the old global EP
+            hints |= SH_EPOverrideHint;
+            hints |= (static_cast<int>(actualEp) << SH_EPOffset);
+            // deviceIndex is clamped to [-1, 254] so that (deviceIndex+1) fits
+            // in the 8-bit SH_DeviceMask field without overflow.
+            const int clampedDevice =
+                std::clamp(actualDeviceIndex, -1, static_cast<int>(0xFF) - 1);
+            hints |= ((clampedDevice + 1) << SH_DeviceOffset);
         }
         // Search path
         SessionSystem::ImageGroup *image_group = nullptr;
@@ -755,7 +790,8 @@ namespace srt::driver::onnx {
 
         // Create new one
         image = new SessionImage();
-        if (std::string error1; !image->open(canonical_path, hints, &error1)) {
+        if (std::string error1;
+            !image->open(canonical_path, hints, actualEp, actualDeviceIndex, &error1)) {
             delete image;
             return srt::core::Error{
                 srt::core::Error::FileNotOpen,

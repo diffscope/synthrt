@@ -13,11 +13,15 @@ namespace srt::driver::onnx {
 
     static Ort::Session createOrtSession(const Ort::Env &ortEnv,
                                          const std::filesystem::path &modelPath,
-                                         bool preferCpu,
+                                         int hints,
+                                         ExecutionProvider ep,
+                                         int deviceIndex,
                                          std::string *errorMessage) {
-        auto devConfig = Env::getDeviceConfig();
-        auto ep = devConfig.ep;
-        auto deviceIndex = devConfig.deviceIndex;
+        // The EP/deviceIndex have already been resolved by Session::open():
+        //   useCpu=true → CPU (SH_PreferCPUHint set, ep ignored)
+        //   args.ep set → *args.ep (+ args.deviceIndex or global)
+        //   otherwise    → global Env config
+        const bool preferCpu = (hints & Session::SH_PreferCPUHint) != 0;
         try {
             Ort::SessionOptions sessOpt;
 
@@ -96,11 +100,12 @@ namespace srt::driver::onnx {
     SessionImage::~SessionImage() = default;
 
     bool SessionImage::open(const std::filesystem::path &onnxPath, int hints,
+                            ExecutionProvider ep, int deviceIndex,
                             std::string *errorMessage) {
         auto filename = onnxPath.filename();
         Log.srtDebug("SessionImage [%1] - creating", filename);
 
-        session = createOrtSession(env, onnxPath, hints & Session::SH_PreferCPUHint, errorMessage);
+        session = createOrtSession(env, onnxPath, hints, ep, deviceIndex, errorMessage);
         if (!session) {
             Log.srtCritical("SessionImage [%1] - create failed", filename);
             return false;

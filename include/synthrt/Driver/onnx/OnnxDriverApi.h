@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <set>
 
 #include <synthrt/Core/Tensor/ITensor.h>
@@ -42,8 +43,18 @@ namespace srt::driver::onnx {
         inline SessionOpenArgs() : InferenceSessionOpenArgs(API_NAME, API_VERSION) {
         }
 
-        /// Whether to force the use of the CPU for the session.
+        /// Whether to force the use of the CPU for the session. (highest priority)
         bool useCpu = false;
+
+        /// Optional per-session execution provider override. When set (and
+        /// \c useCpu is false), this session uses the specified EP instead of
+        /// the driver's global EP, enabling different callers (G2P, inference,
+        /// ...) to share one ONNX driver while pinning their own EP.
+        std::optional<ExecutionProvider> ep;
+
+        /// Optional per-session device index override. Used together with
+        /// \c ep. Falls back to the driver's global deviceIndex when unset.
+        std::optional<int> deviceIndex;
     };
 
     class SessionStartInput : public srt::driver::InferenceSessionStartInput {
