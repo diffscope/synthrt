@@ -10,6 +10,7 @@
 
 #include <diffsinger/Infer/SingerStageResolver.h>
 
+#include <filesystem>
 #include <string>
 #include <vector>
 
@@ -65,7 +66,7 @@ namespace ds::infer {
     srt::core::Expected<StageSet>
         SingerStageResolver::resolve(const srt::svs::SingerSpec *singerSpec) {
         if (!singerSpec) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                                     "SingerStageResolver::resolve: singerSpec is null");
         }
 
@@ -74,20 +75,22 @@ namespace ds::infer {
         for (const auto &imp : singerSpec->imports()) {
             auto *inference = imp.inference();
             if (!inference) {
-                return srt::core::Error(
-                    srt::core::Error::FileNotFound,
+                return srt::core::Error::inferenceError(
+                    srt::core::ErrorCode::SvsStageResolveFailed,
                     "SingerStageResolver::resolve: unresolved inference import for singer: " +
-                        singerSpec->id());
+                        singerSpec->id(),
+                    singerSpec->id());
             }
 
             const auto &cls = inference->className();
             for (const auto &entry : kStageEntries) {
                 if (cls == entry.className) {
                     if (!imp.options()) {
-                        return srt::core::Error(
-                            srt::core::Error::InvalidFormat,
+                        return srt::core::Error::inferenceError(
+                            srt::core::ErrorCode::SvsStageResolveFailed,
                             "SingerStageResolver::resolve: import options missing for " + cls +
-                                " in singer: " + singerSpec->id());
+                                " in singer: " + singerSpec->id(),
+                            singerSpec->id(), cls);
                     }
 
                     (stageSet.*(entry.slot)).kind = entry.kind;
@@ -107,10 +110,11 @@ namespace ds::infer {
             &stageSet.acoustic, &stageSet.vocoder};
         for (size_t i = 0; i < std::size(kStageEntries); ++i) {
             if (!stages[i]->spec) {
-                return srt::core::Error(
-                    srt::core::Error::FileNotFound,
+                return srt::core::Error::inferenceError(
+                    srt::core::ErrorCode::InferenceStageMissing,
                     std::string(kStageNames[i]) +
-                        " inference not found for singer: " + singerSpec->id());
+                        " inference not found for singer: " + singerSpec->id(),
+                    singerSpec->id(), kStageNames[i]);
             }
         }
 
@@ -143,11 +147,13 @@ namespace ds::infer {
         }
 
         if (candidates.empty()) {
-            return srt::core::Error(srt::core::Error::FileNotFound,
-                                    "singer not found in loaded package: "
-                                    "packageId=" + packageId +
-                                    ", singerId=" + singerId +
-                                    ", version=" + version);
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::SvsSingerNotFound,
+                "singer not found in loaded package: "
+                "packageId=" + packageId +
+                ", singerId=" + singerId +
+                ", version=" + version,
+                singerId);
         }
 
         const srt::svs::SingerSpec *singerSpec = nullptr;
@@ -157,15 +163,25 @@ namespace ds::infer {
             singerSpec = candidates.front();
         } else if (!packageId.empty() || !version.empty()) {
             // Multiple candidates with the same singerId. SingerSpec does not
-            // expose packageId/version directly, so attempt a best-effort
-            // disambiguation: the spec's path() contains the package
-            // directory, which usually embeds the packageId. version cannot
-            // be derived from the path and is only used to decide whether
-            // disambiguation is required.
+            // expose packageId/version directly, so attempt disambiguation
+            // via the spec's path(): the path contains the package directory,
+            // which is matched against packageId by exact directory name.
+            // version cannot be derived from the path and is only used to
+            // decide whether disambiguation is required.
             for (const auto *cand : candidates) {
-                const auto pathStr = cand->path().string();
-                if (!packageId.empty() &&
-                    pathStr.find(packageId) == std::string::npos) {
+                // BF-23: Match packageId against path directory names exactly
+                // rather than using substring search, which can false-match
+                // (e.g. packageId="opencpop" matching "notopencpop" in path).
+                bool packageMatches = packageId.empty();
+                if (!packageMatches) {
+                    for (const auto &component : cand->path()) {
+                        if (component.string() == packageId) {
+                            packageMatches = true;
+                            break;
+                        }
+                    }
+                }
+                if (!packageMatches) {
                     continue;
                 }
                 if (singerSpec) {
@@ -176,21 +192,23 @@ namespace ds::infer {
                 singerSpec = cand;
             }
             if (!singerSpec) {
-                return srt::core::Error(
-                    srt::core::Error::FileNotFound,
+                return srt::core::Error::inferenceError(
+                    srt::core::ErrorCode::SvsSingerNotFound,
                     "ambiguous singer: multiple singers with singerId=" +
                         singerId + " loaded; cannot disambiguate by "
                         "packageId/version (packageId=" + packageId +
-                        ", version=" + version + ")");
+                        ", version=" + version + ")",
+                    singerId);
             }
         } else {
             // Multiple candidates but no packageId/version supplied to
             // disambiguate. Preserve legacy behavior (first match) would be
             // silently incorrect, so report the ambiguity instead.
-            return srt::core::Error(
-                srt::core::Error::FileNotFound,
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::SvsSingerNotFound,
                 "ambiguous singer: multiple singers with singerId=" + singerId +
-                    " loaded; provide packageId/version to disambiguate");
+                    " loaded; provide packageId/version to disambiguate",
+                singerId);
         }
 
         return resolve(singerSpec);

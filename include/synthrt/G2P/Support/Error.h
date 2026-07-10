@@ -2,6 +2,7 @@
 #define SRT_G2P_SUPPORT_ERROR_H
 
 #include <memory>
+#include <source_location>
 #include <string>
 
 #include <synthrt/Core/Support/Error.h>
@@ -9,18 +10,22 @@
 
 namespace srt::g2p {
 
-    /// Error - G2P domain error type with 12 specific error codes.
+    using srt::core::ErrorCode;
+
+    /// Error - G2P domain error type.
     ///
     /// Inherits from srt::core::Error to allow seamless use with
     /// srt::core::Expected<T> (slicing is safe: same layout, no virtual
-    /// members, no additional data members). The G2P-specific Type enum is
-    /// preserved via the int storage in the base class; callers can recover
-    /// the original type via g2pType().
+    /// members, no additional data members beyond _suggestion).
+    ///
+    /// The legacy Type enum is deprecated; new code should use
+    /// srt::core::ErrorCode (G2p* codes, 300-399). Old constructors map
+    /// Type → ErrorCode internally.
     ///
     /// Migrated from LangCore::Error (12 types preserved per D11/D12).
     class SRT_G2P_EXPORT Error : public srt::core::Error {
     public:
-        enum Type {
+        [[deprecated("use srt::core::ErrorCode::G2p* instead")]] enum Type {
             Success = 0,
             ConfigError,             // 配置错误（JSON 格式错误、参数错误等）
             FileSystemError,         // 文件系统错误（文件未找到、无法打开、重复加载等）
@@ -35,31 +40,41 @@ namespace srt::g2p {
             AlreadyInitialized,      // 已初始化错误（Manager::initialize() 重复调用等，D11 硬幂等）
         };
 
-        Error() : Error(Success) {}
+        // === New constructors (ErrorCode + auto source_location) ===
 
-        Error(Type type)
-            : srt::core::Error(static_cast<int>(type), *defaultMessage(type)) {}
+        Error(ErrorCode code, std::string msg,
+              const std::source_location &loc = std::source_location::current());
 
-        Error(Type type, std::string msg)
-            : srt::core::Error(static_cast<int>(type), std::move(msg)) {}
+        Error(ErrorCode code, const char *msg,
+              const std::source_location &loc = std::source_location::current());
 
-        Error(Type type, const char *msg)
-            : srt::core::Error(static_cast<int>(type), msg) {}
+        /// Constructor with suggestion (migrated from LangCore::Error).
+        Error(ErrorCode code, std::string msg, std::string suggestion,
+              const std::source_location &loc = std::source_location::current());
 
-        /// 3-arg constructor with suggestion (migrated from LangCore::Error).
-        Error(Type type, std::string msg, std::string suggestion)
-            : srt::core::Error(static_cast<int>(type), std::move(msg)),
-              _suggestion(std::make_shared<std::string>(std::move(suggestion))) {}
+        Error(ErrorCode code, const char *msg, const char *suggestion,
+              const std::source_location &loc = std::source_location::current());
 
-        Error(Type type, const char *msg, const char *suggestion)
-            : srt::core::Error(static_cast<int>(type), msg),
-              _suggestion(std::make_shared<std::string>(suggestion)) {}
+        // === Default constructor (uses ErrorCode, not deprecated) ===
+        Error() : Error(ErrorCode::G2pSuccess, std::string{}) {}
 
-        /// Recover the G2P-specific error type.
-        Type g2pType() const { return static_cast<Type>(srt::core::Error::type()); }
+        // === Legacy constructors (deprecated, map Type → ErrorCode) ===
 
-        /// G2P-specific ok check (equivalent to base ok() since Success == NoError == 0).
-        bool ok() const { return g2pType() == Success; }
+        [[deprecated]] Error(Type type);
+
+        [[deprecated]] Error(Type type, std::string msg);
+
+        [[deprecated]] Error(Type type, const char *msg);
+
+        [[deprecated]] Error(Type type, std::string msg, std::string suggestion);
+
+        [[deprecated]] Error(Type type, const char *msg, const char *suggestion);
+
+        /// Recover the G2P-specific error type (deprecated).
+        [[deprecated]] Type g2pType() const { return static_cast<Type>(srt::core::Error::type()); }
+
+        /// G2P-specific ok check (G2pSuccess is semantically NoError).
+        bool ok() const { return code() == ErrorCode::G2pSuccess; }
 
         /// Suggestion accessor (returns empty string if no suggestion is set).
         const std::string &suggestion() const {
@@ -69,9 +84,9 @@ namespace srt::g2p {
 
         bool hasSuggestion() const { return _suggestion != nullptr; }
 
-        static Error success() { return Error(Success); }
+        static Error success() { return Error(ErrorCode::G2pSuccess, std::string{}); }
 
-        static std::shared_ptr<std::string> defaultMessage(Type type);
+        [[deprecated]] static std::shared_ptr<std::string> defaultMessage(Type type);
 
     protected:
         std::shared_ptr<std::string> _suggestion;

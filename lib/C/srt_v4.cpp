@@ -67,6 +67,10 @@ extern "C" const char *srt_last_error(void) {
     return srt::c::detail::lastErrorMessage();
 }
 
+extern "C" srt_error srt_last_error_code(void) {
+    return srt::c::detail::lastErrorCode();
+}
+
 extern "C" void srt_clear_last_error(void) {
     srt::c::detail::clearLastError();
 }
@@ -177,17 +181,19 @@ extern "C" srt_error srt_session_set_plugin_paths(srt_session session,
         return SRT_ERR_INVALID_ARG;
     }
 
-    try {
-        // Plugin paths are accepted but not yet exercised by the current C ABI
-        // surface. They will be used when the C ABI is expanded to expose
-        // Runtime::scanPackages() / initialize().
-        (void)paths;
-        (void)count;
-        return SRT_OK;
-    } catch (const std::exception &e) {
-        srt::c::detail::setLastError(std::string("srt_session_set_plugin_paths: ") + e.what());
-        return SRT_ERR_GENERIC;
-    }
+    // Plugin path configuration is not yet supported at the session C ABI
+    // level. Plugin discovery is driven by Runtime::scanPackages(), which
+    // takes individual package root directories rather than a search-path
+    // list, and Runtime package sources are immutable after initialize().
+    // Until the C ABI is expanded to expose Runtime scanning/initialization,
+    // report the operation as unsupported instead of silently succeeding and
+    // misleading callers into believing their paths were applied.
+    (void)paths;
+    (void)count;
+    srt::c::detail::setLastError(
+        "srt_session_set_plugin_paths: not supported at the session level; "
+        "configure plugin paths via the Runtime (scanPackages) instead");
+    return SRT_ERR_UNSUPPORTED;
 }
 
 extern "C" srt_error srt_session_refresh(srt_session session) {

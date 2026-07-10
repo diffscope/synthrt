@@ -43,12 +43,12 @@ namespace srt::svs {
 
         const auto genericConfig = spec->configuration();
         if (!genericConfig) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Variance] configuration is nullptr");
         }
         if (!(genericConfig->className() == Var::API_CLASS &&
               genericConfig->objectName() == Var::API_NAME)) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Variance] invalid configuration");
         }
         return genericConfig.as<Var::VarianceConfiguration>();
@@ -59,12 +59,12 @@ namespace srt::svs {
 
         const auto genericSchema = spec->schema();
         if (!genericSchema) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Variance] schema is nullptr");
         }
         if (!(genericSchema->className() == Var::API_CLASS &&
               genericSchema->objectName() == Var::API_NAME)) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Variance] invalid schema");
         }
         return genericSchema.as<Var::VarianceSchema>();
@@ -90,12 +90,12 @@ namespace srt::svs {
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
         if (!args) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Variance] task init args is nullptr");
         }
         if (auto name = args->objectName(); name != Var::API_NAME) {
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Variance] invalid task init args name: expected "%1", got "%2")",
                               Var::API_NAME, name));
         }
@@ -161,7 +161,7 @@ namespace srt::svs {
             if (!impl.driver) {
                 setState(Failed);
                 Log.srtCritical("[Variance] start: inference driver not initialized");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                                   "[Variance] inference driver not initialized");
             }
         }
@@ -189,7 +189,7 @@ namespace srt::svs {
         if (!input) {
             setState(Failed);
             Log.srtCritical("[Variance] start: input is nullptr");
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Variance] input is nullptr");
         }
 
@@ -198,7 +198,7 @@ namespace srt::svs {
             Log.srtCritical("[Variance] start: invalid input name: expected %1, got %2",
                             Var::API_NAME, name);
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Variance] invalid input name: expected "%1", got "%2")",
                               Var::API_NAME, name));
         }
@@ -212,7 +212,7 @@ namespace srt::svs {
         if (!std::isfinite(frameWidth) || frameWidth <= 0) {
             setState(Failed);
             Log.srtCritical("[Variance] start: frame width must be positive");
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Variance] frame width must be positive");
         }
 
@@ -249,7 +249,7 @@ namespace srt::svs {
                 default:
                     setState(Failed);
                     Log.srtCritical("[Variance] start: invalid LinguisticMode");
-                    return srt::core::Error(srt::core::Error::SessionError,
+                    return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                       "[Variance] invalid LinguisticMode");
             }
 
@@ -258,7 +258,7 @@ namespace srt::svs {
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
                 setState(Failed);
                 Log.srtCritical("[Variance] start: linguistic encoder session is not initialized");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                                   "[Variance] linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
@@ -296,7 +296,7 @@ namespace srt::svs {
         if (schema->predictions.empty()) {
             setState(Failed);
             Log.srtCritical("[Variance] start: no parameters to predict");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                               "[Variance] no parameters to predict");
         }
         bool satisfyPitch = false;
@@ -316,7 +316,7 @@ namespace srt::svs {
                 setState(Failed);
                 Log.srtCritical("[Variance] start: parameter %1 resample failed",
                                 std::string(param.tag.name()));
-                return srt::core::Error(srt::core::Error::SessionError, "[Variance] parameter " +
+                return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid, "[Variance] parameter " +
                                                                 std::string(param.tag.name()) +
                                                                 " resample failed");
             }
@@ -328,14 +328,14 @@ namespace srt::svs {
                         setState(Failed);
                         Log.srtCritical("[Variance] start: pitch tensor element count does not match target length");
                         return srt::core::Error(
-                            srt::core::Error::SessionError,
+                            srt::core::ErrorCode::InferenceTensorCreateFailed,
                             "[Variance] pitch tensor element count does not match target length");
                     }
                     auto pitchBuffer = pitchTensor->mutableData<float>();
                     if (!pitchBuffer) {
                         setState(Failed);
                         Log.srtCritical("[Variance] start: failed to create pitch tensor");
-                        return srt::core::Error(srt::core::Error::SessionError,
+                        return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
                                           "[Variance] failed to create pitch tensor");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
@@ -363,14 +363,14 @@ namespace srt::svs {
                         setState(Failed);
                         Log.srtCritical("[Variance] start: param tensor element count does not match target length");
                         return srt::core::Error(
-                            srt::core::Error::SessionError,
+                            srt::core::ErrorCode::InferenceTensorCreateFailed,
                             "[Variance] param tensor element count does not match target length");
                     }
                     auto paramBuffer = paramTensor->mutableData<float>();
                     if (!paramBuffer) {
                         setState(Failed);
                         Log.srtCritical("[Variance] start: failed to create param tensor");
-                        return srt::core::Error(srt::core::Error::SessionError,
+                        return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
                                           "[Variance] failed to create param tensor");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
@@ -453,7 +453,7 @@ namespace srt::svs {
         if (!satisfyPitch) {
             setState(Failed);
             Log.srtCritical("[Variance] start: missing pitch input");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                               "[Variance] missing pitch input");
         }
 
@@ -480,7 +480,7 @@ namespace srt::svs {
             if (varianceInput->speakers.empty()) {
                 setState(Failed);
                 Log.srtCritical("[Variance] start: no speakers found in input");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceSpeakerNotFound,
                                   "[Variance] no speakers found in input");
             }
 
@@ -523,7 +523,7 @@ namespace srt::svs {
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
             setState(Failed);
             Log.srtCritical("[Variance] start: predictor session is not initialized");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                               "[Variance] predictor session is not initialized");
         }
 
@@ -544,14 +544,14 @@ namespace srt::svs {
         if (!sessionTaskResult) {
             setState(Failed);
             Log.srtCritical("[Variance] start: predictor session result is nullptr");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                               "[Variance] predictor session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             Log.srtCritical("[Variance] start: invalid result API name: %1",
                             sessionTaskResult->objectName());
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Variance] invalid result API name");
         }
         auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
@@ -565,7 +565,7 @@ namespace srt::svs {
                 if (view.empty() && output->elementCount() > 0) {
                     setState(Failed);
                     Log.srtCritical("[Variance] start: model output is not float");
-                    return srt::core::Error(srt::core::Error::SessionError,
+                    return srt::core::Error(srt::core::ErrorCode::InferenceDataTypeMismatch,
                                       "[Variance] model output is not float");
                 }
                 Co::InputParameterInfo inputParam{prediction};
@@ -582,7 +582,7 @@ namespace srt::svs {
             Log.srtCritical("[Variance] start: predicted parameter count mismatch: expected %1, got %2",
                             expectedCount, actualCount);
             return srt::core::Error(
-                srt::core::Error::SessionError,
+                srt::core::ErrorCode::InferenceRunFailed,
                 stdc::formatN("[Variance] predicted parameter count mismatch: expected %1, got %2",
                               expectedCount, actualCount));
         }
@@ -595,7 +595,7 @@ namespace srt::svs {
     srt::core::Expected<void> VarianceInference::startAsync(const srt::core::NO<srt::core::TaskStartInput> &input,
                                                    const StartAsyncCallback &callback) {
         // TODO:
-        return srt::core::Error(srt::core::Error::NotImplemented);
+        return srt::core::Error(srt::core::ErrorCode::NotImplemented, "not implemented");
     }
 
     bool VarianceInference::stop() {

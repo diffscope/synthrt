@@ -73,13 +73,22 @@ typedef struct srt_session_t *srt_session;
  * Returns a UTF-8 string describing the last error that occurred on the
  * calling thread, or an empty string ("") if no error is pending.
  *
+ * The string includes the error category, code, message, and source location
+ * (when available) in the form "[Category::Code] message\n  at file:line:func".
+ *
  * The returned pointer is valid until the next srt API call on the same
  * thread; the caller must NOT free it.
  */
 SRT_C_EXPORT const char *srt_last_error(void);
 
 /**
- * Clears the per-thread last-error buffer.
+ * Returns the srt_error code of the last error that occurred on the calling
+ * thread, or SRT_OK if no error is pending.
+ */
+SRT_C_EXPORT srt_error srt_last_error_code(void);
+
+/**
+ * Clears the per-thread last-error buffer and code.
  */
 SRT_C_EXPORT void srt_clear_last_error(void);
 
@@ -168,11 +177,18 @@ SRT_C_EXPORT srt_error srt_session_set_package_paths(srt_session session,
  *
  * Replaces any previously configured plugin search paths.
  *
+ * \note Plugin path configuration is not yet supported at the session C ABI
+ *       level. Plugin discovery is driven by Runtime::scanPackages(), which
+ *       takes individual package root directories rather than a search-path
+ *       list. Until the C ABI is expanded to expose Runtime scanning, this
+ *       function returns \c SRT_ERR_UNSUPPORTED.
+ *
  * \param session  Session handle returned by srt_session_create().
  * \param paths    Array of UTF-8 directory paths. May be NULL if \p count is 0.
  * \param count    Number of entries in \p paths.
- * \return SRT_OK on success; SRT_ERR_INVALID_ARG if \p session is NULL or
- *         \p paths is NULL while \p count > 0.
+ * \return SRT_ERR_UNSUPPORTED (plugin paths not yet supported at the session
+ *         level); SRT_ERR_INVALID_ARG if \p session is NULL or \p paths is
+ *         NULL while \p count > 0.
  */
 SRT_C_EXPORT srt_error srt_session_set_plugin_paths(srt_session session,
                                                      const char *const *paths,

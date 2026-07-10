@@ -622,7 +622,7 @@ TEST_CASE("LanguageService convert returns false on route resolution failure", "
     bool ok = langSvc.convert("nonexistent.pkg", "singer", "cmn",
                               {G2pInput("test", "g2p-x")}, outputs, &error);
     REQUIRE(!ok);
-    REQUIRE(error.code == srt::core::ErrorCode::FileNotFound);
+    REQUIRE(error.code == srt::core::ErrorCode::G2pPackageNotFound);
     REQUIRE(!error.message.empty());
 }
 

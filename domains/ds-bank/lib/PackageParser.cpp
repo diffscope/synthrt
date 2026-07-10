@@ -303,13 +303,13 @@ namespace ds::bank {
         auto root = JsonValue::fromJson(text, true, &parseErr);
         if (!parseErr.empty()) {
             return Error{
-                Error::InvalidFormat,
+                srt::core::ErrorCode::PackageManifestInvalid,
                 stdc::formatN(R"(%1: invalid package manifest format: %2)", manifestPath, parseErr),
             };
         }
         if (!root.isObject()) {
             return Error{
-                Error::InvalidFormat,
+                srt::core::ErrorCode::PackageManifestInvalid,
                 stdc::formatN(R"(%1: package manifest must be a JSON object)", manifestPath),
             };
         }
@@ -322,7 +322,7 @@ namespace ds::bank {
             if (it == obj.end() || !it->second.isString()) {
                 (void) mode;
                 return Error{
-                    Error::InvalidFormat,
+                    srt::core::ErrorCode::PackageManifestMissingField,
                     stdc::formatN(R"(%1: missing required field "id")", manifestPath),
                 };
             } else {
@@ -336,10 +336,10 @@ namespace ds::bank {
             if (it != obj.end() && it->second.isString()) {
                 info.setVersion(stdc::VersionNumber::fromString(it->second.toString()));
             } else {
-                return Error{
-                    Error::InvalidFormat,
+                return Error::packageError(
+                    srt::core::ErrorCode::PackageManifestMissingField,
                     stdc::formatN(R"(%1: missing required field "version")", manifestPath),
-                };
+                    info.packageId());
             }
         }
 

@@ -41,12 +41,12 @@ namespace srt::svs {
 
         const auto genericConfig = spec->configuration();
         if (!genericConfig) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Duration] configuration is nullptr");
         }
         if (!(genericConfig->className() == Dur::API_CLASS &&
               genericConfig->objectName() == Dur::API_NAME)) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Duration] invalid configuration class/name");
         }
         return genericConfig.as<Dur::DurationConfiguration>();
@@ -88,7 +88,7 @@ namespace srt::svs {
             }
 
             if (!ds::infer::inferutil::fillRestMidiWithNearestInPlace<int64_t>(phMidi, isRest)) {
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                   "[Duration] failed to fill rest notes");
             }
         }
@@ -122,12 +122,12 @@ namespace srt::svs {
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
         if (!args) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Duration] task init args is nullptr");
         }
         if (auto name = args->objectName(); name != Dur::API_NAME) {
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Duration] invalid task init args name: expected "%1", got "%2")",
                               Dur::API_NAME, name));
         }
@@ -195,7 +195,7 @@ namespace srt::svs {
             if (!impl.driver) {
                 setState(Failed);
                 Log.srtCritical("[Duration] start: inference driver not initialized");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                                   "[Duration] inference driver not initialized");
             }
         }
@@ -214,7 +214,7 @@ namespace srt::svs {
         if (!input) {
             setState(Failed);
             Log.srtCritical("[Duration] start: input is nullptr");
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Duration] input is nullptr");
         }
 
@@ -223,7 +223,7 @@ namespace srt::svs {
             Log.srtCritical("[Duration] start: invalid input name: expected %1, got %2",
                             Dur::API_NAME, name);
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Duration] invalid input name: expected "%1", got "%2")",
                               Dur::API_NAME, name));
         }
@@ -237,7 +237,7 @@ namespace srt::svs {
         if (!std::isfinite(frameWidth) || frameWidth <= 0) {
             setState(Failed);
             Log.srtCritical("[Duration] start: frame width must be positive");
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Duration] frame width must be positive");
         }
 
@@ -251,7 +251,7 @@ namespace srt::svs {
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
                 setState(Failed);
                 Log.srtCritical("[Duration] start: linguistic encoder session is not initialized");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                                   "[Duration] linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
@@ -290,7 +290,7 @@ namespace srt::svs {
                 if (!buffer) {
                     setState(Failed);
                     Log.srtCritical("[Duration] start: failed to create spk_embed tensor");
-                    return srt::core::Error(srt::core::Error::SessionError,
+                    return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
                                       "[Duration] failed to create spk_embed tensor");
                 }
 
@@ -303,7 +303,7 @@ namespace srt::svs {
                             Log.srtCritical("[Duration] start: phoneme %1 missing speakers",
                                             phone.token);
                             return srt::core::Error(
-                                srt::core::Error::SessionError,
+                                srt::core::ErrorCode::InferenceSpeakerNotFound,
                                 stdc::formatN("[Duration] phoneme %1 missing speakers", phone.token));
                         }
                         for (const auto &speaker : phone.speakers) {
@@ -313,7 +313,7 @@ namespace srt::svs {
                                 if (embedding.size() != config->hiddenSize) {
                                     setState(Failed);
                                     Log.srtCritical("[Duration] start: speaker embedding vector length does not match hiddenSize");
-                                    return srt::core::Error(srt::core::Error::SessionError,
+                                    return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                                       "[Duration] speaker embedding vector length does not "
                                                       "match hiddenSize");
                                 }
@@ -345,7 +345,7 @@ namespace srt::svs {
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
             setState(Failed);
             Log.srtCritical("[Duration] start: predictor session is not initialized");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                               "[Duration] predictor session is not initialized");
         }
 
@@ -366,14 +366,14 @@ namespace srt::svs {
         if (!sessionTaskResult) {
             setState(Failed);
             Log.srtCritical("[Duration] start: predictor session result is nullptr");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                               "[Duration] predictor session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             Log.srtCritical("[Duration] start: invalid result API name: %1",
                             sessionTaskResult->objectName());
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Duration] invalid result API name");
         }
         auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
@@ -384,14 +384,14 @@ namespace srt::svs {
             if (output->dataType() != srt::core::ITensor::Float) {
                 setState(Failed);
                 Log.srtCritical("[Duration] start: model output is not float");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceDataTypeMismatch,
                                   "[Duration] model output is not float");
             }
             const auto view = output->view<float>();
             if (view.empty()) {
                 setState(Failed);
                 Log.srtCritical("[Duration] start: model output is empty");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                                   "[Duration] model output is empty");
             }
             auto &durationVector = durationResult->durations;
@@ -403,7 +403,7 @@ namespace srt::svs {
                 if (word.phones.empty()) {
                     setState(Failed);
                     Log.srtCritical("[Duration] start: error scaling duration results: index out of bounds");
-                    return srt::core::Error(srt::core::Error::SessionError,
+                    return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                       "[Duration] error scaling duration results: index out of bounds");
                 }
                 auto phNum = word.phones.size();
@@ -420,7 +420,7 @@ namespace srt::svs {
                     setState(Failed);
                     Log.srtCritical("[Duration] start: error scaling duration results: invalid predicted word duration: %1",
                                     predWordDur);
-                    return srt::core::Error(srt::core::Error::SessionError,
+                    return srt::core::Error(srt::core::ErrorCode::InferenceRunFailed,
                                       "[Duration] error scaling duration results: "
                                       "invalid predicted word duration: " +
                                           std::to_string(predWordDur));
@@ -434,7 +434,7 @@ namespace srt::svs {
         } else {
             setState(Failed);
             Log.srtCritical("[Duration] start: output 'ph_dur_pred' not found in session result");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                               "[Duration] output 'ph_dur_pred' not found in session result");
         }
 
@@ -443,7 +443,7 @@ namespace srt::svs {
             setState(Failed);
             Log.srtCritical("[Duration] start: predicted phoneme count mismatch: expected %1, got %2",
                             phoneCount, predictedPhoneCount);
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceRunFailed,
                               stdc::formatN("[Duration] predicted phoneme count mismatch: expected %1, got %2",
                                             phoneCount, predictedPhoneCount));
         }
@@ -456,7 +456,7 @@ namespace srt::svs {
     srt::core::Expected<void> DurationInference::startAsync(const srt::core::NO<srt::core::TaskStartInput> &input,
                                                       const StartAsyncCallback &callback) {
         // TODO:
-        return srt::core::Error(srt::core::Error::NotImplemented);
+        return srt::core::Error(srt::core::ErrorCode::NotImplemented, "not implemented");
     }
 
     bool DurationInference::stop() {

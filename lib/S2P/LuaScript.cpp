@@ -81,7 +81,7 @@ namespace srt::s2p {
 
         const std::unique_ptr<lua_State, LuaStateDeleter> state(luaL_newstate());
         if (!state) {
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                 "LuaScript error: failed to create Lua state");
         }
 
@@ -90,14 +90,14 @@ namespace srt::s2p {
             if (message.empty()) {
                 message = "unknown compile error";
             }
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                 "LuaScript compile error: " + message);
         }
 
         DumpContext context{&obj->d->byteCode, false};
         if (lua_dump(state.get(), writeByteCode, &context) != 0 || context.failed) {
             obj->d->byteCode.clear();
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                 "LuaScript dump error: failed to dump bytecode");
         }
 

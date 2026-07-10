@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <synthrt/Core/Support/Diagnostic.h>
+#include <synthrt/Core/Support/Error.h>
 #include <synthrt/Core/Support/Expected.h>
 #include <synthrt/SVS/Inference.h>
 #include <synthrt/Core/Task/ITask.h>
@@ -38,7 +39,7 @@ namespace ds::infer {
                                                           const StageSpec &acoustic,
                                                           const StageSpec &vocoder) {
         if (!duration.spec || !pitch.spec || !variance.spec || !acoustic.spec || !vocoder.spec) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                     "InferenceService::setStages: a stage spec is null");
         }
 
@@ -48,7 +49,7 @@ namespace ds::infer {
         if (acousticConfig && vocoderConfig &&
             acousticConfig->sampleRate != vocoderConfig->sampleRate) {
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InferenceInputInvalid,
                 "InferenceService::setStages: acoustic and vocoder sampleRate mismatch");
         }
 
@@ -66,25 +67,29 @@ namespace ds::infer {
         createAndInit(const InferenceService::StageSpec &stage, const std::string &stageName,
                       const std::string &singerId) {
         if (!stage.spec) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
-                                    "InferenceService: " + stageName + " stage not set");
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceModelNotFound,
+                "InferenceService: " + stageName + " stage not set", singerId, stageName);
         }
 
         NO<srt::svs::Inference> inference;
         auto createExp = stage.spec->createInference(stage.options, NO<RuntimeOptions>::create());
         if (!createExp) {
-            return srt::core::Error(srt::core::Error::SessionError,
-                                    "failed to create " + stageName + " inference for singer \"" +
-                                        singerId + "\": " + createExp.error().message());
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceStartFailed,
+                "failed to create " + stageName + " inference for singer \"" + singerId +
+                    "\": " + createExp.error().message(),
+                singerId, stageName);
         }
         inference = createExp.take();
 
         auto initExp = inference->initialize(NO<InitArgs>::create());
         if (!initExp) {
-            return srt::core::Error(srt::core::Error::SessionError,
-                                    "failed to initialize " + stageName +
-                                        " inference for singer \"" + singerId +
-                                        "\": " + initExp.error().message());
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceNotInitialized,
+                "failed to initialize " + stageName + " inference for singer \"" + singerId +
+                    "\": " + initExp.error().message(),
+                singerId, stageName);
         }
         return inference;
     }
@@ -97,21 +102,26 @@ namespace ds::infer {
         NO<ResultType> result;
         auto startExp = inference->start(input);
         if (!startExp) {
-            return srt::core::Error(srt::core::Error::SessionError,
-                                    "failed to start " + stageName + " inference for singer \"" +
-                                        singerId + "\": " + startExp.error().message());
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceStartFailed,
+                "failed to start " + stageName + " inference for singer \"" + singerId +
+                    "\": " + startExp.error().message(),
+                singerId, stageName);
         }
         result = startExp.take().template as<ResultType>();
         if (!result) {
-            return srt::core::Error(
-                srt::core::Error::SessionError,
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceRunFailed,
                 "failed to run " + stageName + " inference for singer \"" + singerId +
-                    "\": result type mismatch or null result");
+                    "\": result type mismatch or null result",
+                singerId, stageName);
         }
         if (inference->state() == srt::core::ITask::Failed) {
-            return srt::core::Error(srt::core::Error::SessionError,
-                                    "failed to run " + stageName + " inference for singer \"" +
-                                        singerId + "\": " + result->error.message());
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceRunFailed,
+                "failed to run " + stageName + " inference for singer \"" + singerId +
+                    "\": " + result->error.message(),
+                singerId, stageName);
         }
         return result;
     }
@@ -122,7 +132,7 @@ namespace ds::infer {
                                                           const InferenceService::StageSpec &acoustic,
                                                           const InferenceService::StageSpec &vocoder) {
         if (!duration.spec || !pitch.spec || !variance.spec || !acoustic.spec || !vocoder.spec) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                     "InferenceService::run: stages not set");
         }
         return srt::core::Expected<void>{};
@@ -138,8 +148,9 @@ namespace ds::infer {
     srt::core::Expected<NO<srt::svs::Api::Duration::L1::DurationResult>>
     InferenceService::runDuration(const NO<srt::svs::Api::Duration::L1::DurationStartInput> &input) {
         if (!m_duration.spec) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
-                                    "InferenceService::runDuration: duration stage not set");
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceModelNotFound,
+                "InferenceService::runDuration: duration stage not set", {}, "duration");
         }
         auto infExp = createAndInit<Dur::DurationInitArgs, Dur::DurationRuntimeOptions>(
             m_duration, "duration", {});
@@ -152,8 +163,9 @@ namespace ds::infer {
     srt::core::Expected<NO<srt::svs::Api::Pitch::L1::PitchResult>>
     InferenceService::runPitch(const NO<srt::svs::Api::Pitch::L1::PitchStartInput> &input) {
         if (!m_pitch.spec) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
-                                    "InferenceService::runPitch: pitch stage not set");
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceModelNotFound,
+                "InferenceService::runPitch: pitch stage not set", {}, "pitch");
         }
         auto infExp = createAndInit<Pit::PitchInitArgs, Pit::PitchRuntimeOptions>(
             m_pitch, "pitch", {});
@@ -166,8 +178,9 @@ namespace ds::infer {
     srt::core::Expected<NO<srt::svs::Api::Variance::L1::VarianceResult>>
     InferenceService::runVariance(const NO<srt::svs::Api::Variance::L1::VarianceStartInput> &input) {
         if (!m_variance.spec) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
-                                    "InferenceService::runVariance: variance stage not set");
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceModelNotFound,
+                "InferenceService::runVariance: variance stage not set", {}, "variance");
         }
         auto infExp = createAndInit<Var::VarianceInitArgs, Var::VarianceRuntimeOptions>(
             m_variance, "variance", {});
@@ -180,8 +193,9 @@ namespace ds::infer {
     srt::core::Expected<NO<srt::svs::Api::Acoustic::L1::AcousticResult>>
     InferenceService::runAcoustic(const NO<srt::svs::Api::Acoustic::L1::AcousticStartInput> &input) {
         if (!m_acoustic.spec) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
-                                    "InferenceService::runAcoustic: acoustic stage not set");
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceModelNotFound,
+                "InferenceService::runAcoustic: acoustic stage not set", {}, "acoustic");
         }
         auto infExp = createAndInit<Ac::AcousticInitArgs, Ac::AcousticRuntimeOptions>(
             m_acoustic, "acoustic", {});
@@ -194,8 +208,9 @@ namespace ds::infer {
     srt::core::Expected<NO<srt::svs::Api::Vocoder::L1::VocoderResult>>
     InferenceService::runVocoder(const NO<srt::svs::Api::Vocoder::L1::VocoderStartInput> &input) {
         if (!m_vocoder.spec) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
-                                    "InferenceService::runVocoder: vocoder stage not set");
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceModelNotFound,
+                "InferenceService::runVocoder: vocoder stage not set", {}, "vocoder");
         }
         auto infExp = createAndInit<Vo::VocoderInitArgs, Vo::VocoderRuntimeOptions>(
             m_vocoder, "vocoder", {});
@@ -211,7 +226,9 @@ namespace ds::infer {
 
         auto stagesExp = validateAllStagesSet(m_duration, m_pitch, m_variance, m_acoustic, m_vocoder);
         if (!stagesExp) {
-            result.error = stagesExp.error().diagnostic();
+            auto err = stagesExp.takeError();
+            err.appendTrace(std::source_location::current(), "InferenceService::run");
+            result.error = err;
             return result;
         }
 
@@ -225,7 +242,9 @@ namespace ds::infer {
             auto infExp = createAndInit<Dur::DurationInitArgs, Dur::DurationRuntimeOptions>(
                 m_duration, "duration", singer);
             if (!infExp) {
-                result.error = infExp.error().diagnostic();
+                auto err = infExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
             auto inference = infExp.take();
@@ -236,7 +255,9 @@ namespace ds::infer {
             auto resExp = startAndCheck<Dur::DurationStartInput, Dur::DurationResult>(
                 inference, input, "duration", singer);
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                auto err = resExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
             const auto &durations = resExp.value()->durations;
@@ -260,7 +281,9 @@ namespace ds::infer {
             auto infExp = createAndInit<Pit::PitchInitArgs, Pit::PitchRuntimeOptions>(
                 m_pitch, "pitch", singer);
             if (!infExp) {
-                result.error = infExp.error().diagnostic();
+                auto err = infExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
             auto inference = infExp.take();
@@ -278,7 +301,9 @@ namespace ds::infer {
             auto resExp = startAndCheck<Pit::PitchStartInput, Pit::PitchResult>(inference, input,
                                                                                 "pitch", singer);
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                auto err = resExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
             const auto &pitch = resExp.value()->pitch;
@@ -303,7 +328,9 @@ namespace ds::infer {
             auto infExp = createAndInit<Var::VarianceInitArgs, Var::VarianceRuntimeOptions>(
                 m_variance, "variance", singer);
             if (!infExp) {
-                result.error = infExp.error().diagnostic();
+                auto err = infExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
             auto inference = infExp.take();
@@ -331,7 +358,9 @@ namespace ds::infer {
             auto resExp = startAndCheck<Var::VarianceStartInput, Var::VarianceResult>(
                 inference, input, "variance", singer);
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                auto err = resExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
 
@@ -377,7 +406,9 @@ namespace ds::infer {
             auto infExp = createAndInit<Ac::AcousticInitArgs, Ac::AcousticRuntimeOptions>(
                 m_acoustic, "acoustic", singer);
             if (!infExp) {
-                result.error = infExp.error().diagnostic();
+                auto err = infExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
             auto inference = infExp.take();
@@ -411,7 +442,9 @@ namespace ds::infer {
             auto resExp = startAndCheck<Ac::AcousticStartInput, Ac::AcousticResult>(
                 inference, input, "acoustic", singer);
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                auto err = resExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
             mel = resExp.value()->mel;
@@ -423,7 +456,9 @@ namespace ds::infer {
             auto infExp = createAndInit<Vo::VocoderInitArgs, Vo::VocoderRuntimeOptions>(
                 m_vocoder, "vocoder", singer);
             if (!infExp) {
-                result.error = infExp.error().diagnostic();
+                auto err = infExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
             auto inference = infExp.take();
@@ -435,7 +470,9 @@ namespace ds::infer {
             auto resExp = startAndCheck<Vo::VocoderStartInput, Vo::VocoderResult>(
                 inference, input, "vocoder", singer);
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                auto err = resExp.takeError();
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = err;
                 return result;
             }
 
@@ -459,9 +496,7 @@ namespace ds::infer {
             result.channels = 1;
         }
 
-        result.error.code = srt::core::ErrorCode::None;
-        result.error.severity = srt::core::Severity::Info;
-        result.error.message = "InferenceService: pipeline completed";
+        result.error = srt::core::Error();
         return result;
     }
 

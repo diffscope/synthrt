@@ -82,7 +82,7 @@ namespace srt::s2p {
             obj->d->environment.loadAndRun(luaScript);
             obj->d->s2pRef = obj->d->environment.getGlobalFunctionRef("s2p");
         } catch (const std::exception &e) {
-            return srt::core::Error(srt::core::Error::InvalidFormat, e.what());
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError, e.what());
         }
 
         return obj;
@@ -101,12 +101,12 @@ namespace srt::s2p {
         lua_pushlstring(state, pronunciation.data(), pronunciation.size());
 
         if (d->environment.pcall(1, 1, 0) != 0) {
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                 "LuaS2P error: s2p failed: " + d->environment.errorString());
         }
 
         if (!lua_istable(state, -1)) {
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                 "LuaS2P error: s2p must return a table");
         }
 
@@ -117,7 +117,7 @@ namespace srt::s2p {
         for (std::size_t i = 1; i <= length; ++i) {
             lua_rawgeti(state, -1, static_cast<int>(i));
             if (lua_type(state, -1) != LUA_TSTRING) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                     "LuaS2P error: s2p return value contains a non-string element at index " +
                         std::to_string(i));
             }

@@ -42,12 +42,12 @@ namespace srt::svs {
 
         const auto genericConfig = spec->configuration();
         if (!genericConfig) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Pitch] configuration is nullptr");
         }
         if (!(genericConfig->className() == Pit::API_CLASS &&
               genericConfig->objectName() == Pit::API_NAME)) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Pitch] invalid configuration");
         }
         return genericConfig.as<Pit::PitchConfiguration>();
@@ -73,12 +73,12 @@ namespace srt::svs {
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
         if (!args) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Pitch] task init args is nullptr");
         }
         if (auto name = args->objectName(); name != Pit::API_NAME) {
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Pitch] invalid task init args name: expected "%1", got "%2")",
                               Pit::API_NAME, name));
         }
@@ -144,7 +144,7 @@ namespace srt::svs {
             if (!impl.driver) {
                 setState(Failed);
                 Log.srtCritical("[Pitch] start: inference driver not initialized");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                                   "[Pitch] inference driver not initialized");
             }
         }
@@ -163,7 +163,7 @@ namespace srt::svs {
         if (!input) {
             setState(Failed);
             Log.srtCritical("[Pitch] start: input is nullptr");
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Pitch] input is nullptr");
         }
 
@@ -172,7 +172,7 @@ namespace srt::svs {
             Log.srtCritical("[Pitch] start: invalid input name: expected %1, got %2",
                             Pit::API_NAME, name);
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Pitch] invalid input name: expected "%1", got "%2")",
                               Pit::API_NAME, name));
         }
@@ -186,7 +186,7 @@ namespace srt::svs {
         if (!std::isfinite(frameWidth) || frameWidth <= 0) {
             setState(Failed);
             Log.srtCritical("[Pitch] start: frame width must be positive");
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Pitch] frame width must be positive");
         }
 
@@ -223,7 +223,7 @@ namespace srt::svs {
                 default:
                     setState(Failed);
                     Log.srtCritical("[Pitch] start: invalid LinguisticMode");
-                    return srt::core::Error(srt::core::Error::SessionError,
+                    return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                       "[Pitch] invalid LinguisticMode");
             }
 
@@ -232,7 +232,7 @@ namespace srt::svs {
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
                 setState(Failed);
                 Log.srtCritical("[Pitch] start: linguistic encoder session is not initialized");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                                   "[Pitch] linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
@@ -277,7 +277,7 @@ namespace srt::svs {
         if (!ds::infer::inferutil::fillRestMidiWithNearestInPlace<float>(noteMidi, noteRest)) {
             setState(Failed);
             Log.srtCritical("[Pitch] start: failed to fill rest notes");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                               "[Pitch] failed to fill rest notes");
         }
 
@@ -347,7 +347,7 @@ namespace srt::svs {
                 setState(Failed);
                 Log.srtCritical("[Pitch] start: parameter %1 resample failed (size=%2, expected=%3)",
                                 std::string(param.tag.name()), samples.size(), targetLength);
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                 "[Pitch] parameter " +
                                 std::string(param.tag.name()) +
                                 " resample failed");
@@ -360,14 +360,14 @@ namespace srt::svs {
                         setState(Failed);
                         Log.srtCritical("[Pitch] start: pitch tensor element count does not match target length");
                         return srt::core::Error(
-                            srt::core::Error::SessionError,
+                            srt::core::ErrorCode::InferenceTensorCreateFailed,
                             "[Pitch] pitch tensor element count does not match target length");
                     }
                     auto pitchBuffer = pitchTensor->mutableData<float>();
                     if (!pitchBuffer) {
                         setState(Failed);
                         Log.srtCritical("[Pitch] start: failed to create pitch tensor");
-                        return srt::core::Error(srt::core::Error::SessionError,
+                        return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
                                           "[Pitch] failed to create pitch tensor");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
@@ -414,14 +414,14 @@ namespace srt::svs {
                     if (exprTensor->elementCount() != targetLength) {
                         setState(Failed);
                         Log.srtCritical("[Pitch] start: expr tensor element count does not match target length");
-                        return srt::core::Error(srt::core::Error::SessionError,
+                        return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
                                           "[Pitch] expr tensor element count does not match target length");
                     }
                     auto exprBuffer = exprTensor->mutableData<float>();
                     if (!exprBuffer) {
                         setState(Failed);
                         Log.srtCritical("[Pitch] start: failed to create expr tensor");
-                        return srt::core::Error(srt::core::Error::SessionError,
+                        return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
                                           "[Pitch] failed to create expr tensor");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
@@ -481,7 +481,7 @@ namespace srt::svs {
             if (pitchInput->speakers.empty()) {
                 setState(Failed);
                 Log.srtCritical("[Pitch] start: no speakers found in input");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceSpeakerNotFound,
                                   "[Pitch] no speakers found in input");
             }
 
@@ -527,7 +527,7 @@ namespace srt::svs {
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
             setState(Failed);
             Log.srtCritical("[Pitch] start: predictor session is not initialized");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                               "[Pitch] predictor session is not initialized");
         }
 
@@ -548,14 +548,14 @@ namespace srt::svs {
         if (!sessionTaskResult) {
             setState(Failed);
             Log.srtCritical("[Pitch] start: predictor session result is nullptr");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                               "[Pitch] predictor session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             Log.srtCritical("[Pitch] start: invalid result API name: %1",
                             sessionTaskResult->objectName());
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Pitch] invalid result API name");
         }
         auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
@@ -566,14 +566,14 @@ namespace srt::svs {
             if (output->dataType() != srt::core::ITensor::Float) {
                 setState(Failed);
                 Log.srtCritical("[Pitch] start: model output is not float");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceDataTypeMismatch,
                                   "[Pitch] model output is not float");
             }
             const auto view = output->view<float>();
             if (view.empty()) {
                 setState(Failed);
                 Log.srtCritical("[Pitch] start: model output is empty");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                                   "[Pitch] model output is empty");
             }
             pitchResult->interval = frameWidth;
@@ -581,7 +581,7 @@ namespace srt::svs {
         } else {
             setState(Failed);
             Log.srtCritical("[Pitch] start: output 'pitch_pred' not found in session result");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                               "[Pitch] output 'pitch_pred' not found in session result");
         }
         impl.result = pitchResult;
@@ -593,7 +593,7 @@ namespace srt::svs {
     srt::core::Expected<void> PitchInference::startAsync(const srt::core::NO<srt::core::TaskStartInput> &input,
                                                    const StartAsyncCallback &callback) {
         // TODO:
-        return srt::core::Error(srt::core::Error::NotImplemented);
+        return srt::core::Error(srt::core::ErrorCode::NotImplemented, "not implemented");
     }
 
     bool PitchInference::stop() {

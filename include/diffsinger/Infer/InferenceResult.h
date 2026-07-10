@@ -2,7 +2,7 @@
 
 #include <vector>
 
-#include <synthrt/Core/Support/Diagnostic.h>
+#include <synthrt/Core/Support/Error.h>
 #include <diffsinger/Infer/dsinfer/dsinfer_global.h>
 
 namespace ds::infer {
@@ -14,7 +14,7 @@ namespace ds::infer {
         std::vector<float> audio;        ///< PCM samples
         int sampleRate = 0;
         int channels = 0;
-        srt::core::Diagnostic error;
+        srt::core::Error error;
     };
 
 } // namespace ds::infer

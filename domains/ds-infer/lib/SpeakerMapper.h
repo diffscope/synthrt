@@ -3,6 +3,9 @@
 #include <map>
 #include <string>
 
+#include <synthrt/Core/Support/Error.h>
+#include <synthrt/Core/Support/Expected.h>
+
 #include <diffsinger/Infer/dsinfer/dsinfer_global.h>
 
 namespace ds::bank {
@@ -40,11 +43,10 @@ namespace ds::infer {
                                    const ds::bank::InferenceInfo &info);
 
         /// Resolve a singer speaker to the model speaker id for the given
-        /// inference. Returns an empty string when no mapping is registered
-        /// for the inference, or when the singer speaker is not present in the
-        /// table (caller treats empty as the model's default speaker).
-        std::string resolve(const std::string &inferenceId,
-                            const std::string &singerSpeaker) const;
+        /// inference. Returns an error when no mapping is registered for the
+        /// inference, or when the singer speaker is not present in the table.
+        srt::core::Expected<std::string> resolve(const std::string &inferenceId,
+                                                 const std::string &singerSpeaker) const;
 
     private:
         std::map<std::string, SpeakerMapping> m_mappings;

@@ -41,22 +41,22 @@ namespace srt::s2p {
 
             const auto tab = line.find('\t');
             if (tab == std::string::npos) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pDictionaryError,
                     "DictionaryS2P parse error at line " + std::to_string(lineNumber) +
                         ": missing tab separator");
             }
             if (line.find('\t', tab + 1) != std::string::npos) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pDictionaryError,
                     "DictionaryS2P parse error at line " + std::to_string(lineNumber) +
                         ": multiple tab separators");
             }
             if (tab == 0) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pDictionaryError,
                     "DictionaryS2P parse error at line " + std::to_string(lineNumber) +
                         ": empty pronunciation");
             }
             if (tab + 1 == line.size()) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pDictionaryError,
                     "DictionaryS2P parse error at line " + std::to_string(lineNumber) +
                         ": empty phoneme sequence");
             }
@@ -67,7 +67,7 @@ namespace srt::s2p {
 
             if (std::any_of(phonemes.begin(), phonemes.end(),
                     [](const std::string &phoneme) { return phoneme.empty(); })) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pDictionaryError,
                     "DictionaryS2P parse error at line " + std::to_string(lineNumber) +
                         ": empty phoneme");
             }
@@ -75,14 +75,14 @@ namespace srt::s2p {
             const auto inserted =
                 obj->d->dictionary.emplace(std::string(pronunciation), std::move(phonemes));
             if (!inserted.second) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pDictionaryError,
                     "DictionaryS2P parse error at line " + std::to_string(lineNumber) +
                         ": duplicate pronunciation");
             }
         }
 
         if (dictionaryFile.bad()) {
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pDictionaryError,
                 "DictionaryS2P parse error: failed to read dictionary stream");
         }
 

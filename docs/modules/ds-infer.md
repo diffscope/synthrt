@@ -79,7 +79,7 @@ public:
 };
 ```
 
-**注意**: `SingerSpec` 不直接暴露 packageId/version，多候选消歧通过 `spec->path()` 字符串包含 packageId 做 best-effort 匹配，version 仅用于决定是否需要消歧。
+**注意**: `SingerSpec` 不直接暴露 packageId/version，多候选消歧通过 `spec->path()` 的路径目录名组件逐一匹配 packageId（BF-23 修复，不再用子串搜索避免误匹配），version 仅用于决定是否需要消歧。错误码使用 `ErrorCode::SvsSingerNotFound`/`SvsStageResolveFailed`。
 
 ### ModelSet
 
@@ -116,7 +116,7 @@ public:
 };
 ```
 
-**关键**: `load()` 返回 `Expected<Inference *>`（不是引用，因为 Expected 禁止引用类型）。`model()` 返回 `NO<Inference>&`，调用方可拷贝延长引用计数。
+**关键**: `load()` 返回 `Expected<Inference *>`（不是引用，因为 Expected 禁止引用类型）。`model()` 返回 `NO<Inference>&`，调用方可拷贝延长引用计数。`stop()` 在模型已处于 Stopped/Failed 状态时静默返回成功（BF-24 修复）。错误创建使用 `Error::inferenceError()` 工厂函数，自动填充 singerId/moduleId 上下文。
 
 ### InferenceService
 
@@ -141,6 +141,8 @@ public:
     Expected<NO<VocoderResult>> runVocoder(const NO<VocoderStartInput> &input);
 };
 ```
+
+`run()` 在各阶段错误传播点调用 `error.appendTrace(std::source_location::current(), "InferenceService::run")`，记录跨层调用链（BF-27）。`InferenceResult.error` 字段类型为 `srt::core::Error`（v4 从 `Diagnostic` 改为 `Error`），包含错误码、分类、消息、源位置和 trace。
 
 ---
 
@@ -220,7 +222,7 @@ ds::infer::InferenceResult result = service.run(request);
 | InputParser | `InputParser/` | 5 个 stage 的输入解析器 |
 | WavFile | `WavFile/` | WAV 文件读写（使用 dr_wav） |
 
-Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorithm/TensorHelper/VersionUtils。
+Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorithm/TensorHelper/VersionUtils 以及 v4 新增的 `test_modelset_errors.cpp`（错误路径 + BF-24 回归）、`test_singer_resolver_ambiguity.cpp`（BF-23 回归）、`test_speaker_mapper.cpp`（BF-22 回归）。
 
 ---
 
@@ -234,3 +236,8 @@ Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorith
 | BF-13 | getInferenceDriver 现在检查 nullptr |
 | BF-15 | AcousticInference 除零保护（steps=0） |
 | BF-17 | ModelSet::unloadAll 继续卸载剩余阶段（首次失败不中断） |
+| BF-22 | SpeakerMapper::resolve() 返回 Expected，不再静默返回空字符串 |
+| BF-23 | SingerStageResolver 使用路径目录名组件匹配，不再用子串搜索 |
+| BF-24 | ModelSet::stop() 检查 state() != Running，已停止模型不报错 |
+| BF-27 | InferenceService::run() 在 11 个错误传播点追加 appendTrace |
+| BF-28 | AcousticInference speedup 钳制最小值 1，防止除零 |

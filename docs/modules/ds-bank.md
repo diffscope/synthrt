@@ -150,3 +150,9 @@ v3 修复了多个版本匹配 Bug：
 - BF-21: 版本比较使用 `VersionNumber` 语义匹配（"1.0" == "1.0.0" == "1.0.0.0"）
 
 `ref.version` 为空时不做版本过滤（兼容旧调用方）；非空时使用 `VersionNumber` 语义比较（`"1.0"` 与 `"1.0.0"` 视为相等），因为 `VersionNumber::toString()` 会归一化掉尾部零。
+
+---
+
+## 错误处理
+
+Package 错误使用 `ErrorCode::Package*` 代码段（100-199）和 `Error::packageError()` 工厂函数：`PackageRootInvalid`、`PackageManifestInvalid`、`PackageManifestMissingField`、`PackageDependencyMissing`、`PackageDependencyCycle`、`PackageVersionConflict`、`PackageSingerConfigInvalid`、`PackageDuplicate` 等。

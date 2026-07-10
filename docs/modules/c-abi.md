@@ -48,11 +48,14 @@ srt_error srt_session_refresh(srt_session session);
 ### 错误处理
 
 ```c
-const char *srt_last_error(void);      // 线程本地错误字符串
+const char *srt_last_error(void);          // 线程本地错误字符串（toString 格式）
+srt_error srt_last_error_code(void);       // 线程本地错误码（v4 新增）
 void srt_clear_last_error(void);
 void srt_free_string(char *str);
 void srt_free_string_array(char **arr, size_t count);
 ```
+
+`srt_last_error()` 返回 `[Category::Code] message\n  at file:line:function` 格式的完整错误描述（不仅是纯消息）。`srt_last_error_code()` 返回映射后的 `srt_error` 枚举值。
 
 ### 错误码
 
@@ -117,7 +120,15 @@ extern "C" srt_error srt_session_refresh(srt_session session) {
 
 ### mapError 统一 (EX-07)
 
-`mapError(srt::core::Error)` 在 `LastError.cpp` 中统一定义，`srt_v4.cpp` 不再有自己的 file-local 版本。`RecursiveDependency` 统一映射为 `SRT_ERR_DEPENDENCY_CYCLE`。
+`mapError(srt::core::Error)` 在 `LastError.cpp` 中统一定义，`srt_v4.cpp` 不再有自己的 file-local 版本。v4 起 `mapError` 使用 `error.code()`（ErrorCode 枚举）映射，不再用 `error.type()`（int），解决了 G2P Error 类型冲突导致的误分类问题（BF-25）。`RecursiveDependency` 统一映射为 `SRT_ERR_DEPENDENCY_CYCLE`。
+
+### setLastError 存储 toString (BF-29)
+
+`setLastError(const Error &error)` 存储 `error.toString()` 而非 `error.message()`，C 调用方通过 `srt_last_error()` 可看到完整的 `[Category::Code] message\n  at file:line:function` 格式输出。
+
+### srt_session_set_plugin_paths (BF-30)
+
+`srt_session_set_plugin_paths` 返回 `SRT_ERR_UNSUPPORTED`（不再静默返回 `SRT_OK`），明确告知调用方此接口未实现。
 
 ---
 
@@ -148,4 +159,4 @@ C 调用方 (Python/Rust/C#)
 
 `tests/abi/CAbiSkeletonTest.cpp` — C ABI 骨架测试，验证 `srt_session_create/destroy/set_*_paths/refresh` 可调用。
 
-`unittests/C/test_last_error.cpp` — LastError 机制单元测试。
+`unittests/C/test_c_abi.cpp` — C ABI 单元测试，覆盖 `srt_last_error`/`srt_last_error_code` 生命周期、错误码映射、BF-25/BF-29/BF-30 回归。

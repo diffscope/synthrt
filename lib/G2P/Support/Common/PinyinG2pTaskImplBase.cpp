@@ -20,6 +20,8 @@ namespace srt::g2p::plugins::Common
 {
     using namespace srt::g2p::plugins::InferUtil;
 
+    srt::core::LogCategory pinyinG2pLog("g2p");
+
     PinyinG2pTaskImplBase::PinyinG2pTaskImplBase(const srt::g2p::ModuleSpec *spec, Config config)
         : m_spec(spec), m_langConfig(std::move(config)) {}
 
@@ -130,6 +132,9 @@ namespace srt::g2p::plugins::Common
             try {
                 pinyinRes = doHanziToPinyin(_input);
             } catch (const std::exception &e) {
+                pinyinG2pLog.srtWarning(
+                    "%1: doHanziToPinyin threw exception (mode=%2, count=%3): %4",
+                    m_langConfig.languageName, std::string(mode), _input.size(), std::string(e.what()));
                 for (const auto &word : _input) {
                     srt::g2p::G2pRes newRes;
                     newRes.lyric = word;

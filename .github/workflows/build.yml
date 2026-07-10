@@ -1,4 +1,4 @@
-name: Build
+name: Build and Test
 
 on:
   push:
@@ -10,8 +10,8 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  build:
-    name: Build (${{ matrix.os }})
+  build-and-test:
+    name: ${{ matrix.os }}
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
@@ -29,21 +29,20 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Prepare vcpkg overlay ports
-        shell: bash
-        run: |
-          git clone --depth 1 https://github.com/flutydeer/ds-editor-lite.git /tmp/ds-editor-lite
-          cd /tmp/ds-editor-lite && git submodule update --init --depth 1 scripts/vcpkg
-          mkdir -p scripts/vcpkg/ports scripts/vcpkg/triplets
-          cp -r /tmp/ds-editor-lite/scripts/vcpkg/ports/. scripts/vcpkg/ports/
-          cp -r /tmp/ds-editor-lite/scripts/vcpkg/triplets/. scripts/vcpkg/triplets/
-
       - name: Install vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgJsonGlob: scripts/vcpkg-manifest/vcpkg.json
 
+      - name: Cache ONNX Runtime
+        id: cache-ort
+        uses: actions/cache@v4
+        with:
+          path: build/onnxruntime
+          key: onnxruntime-${{ matrix.os }}-1.17.3-v1
+
       - name: Download ONNX Runtime
+        if: steps.cache-ort.outputs.cache-hit != 'true'
         shell: cmake -P {0}
         run: |
           set(ws [=[${{ github.workspace }}]=])
@@ -54,9 +53,15 @@ jobs:
         run: |
           cmake -B build -S . \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
-            -DSYNTHRT_BUILD_TESTS=OFF \
+            -DSYNTHRT_BUILD_TESTS=ON \
             -DSYNTHRT_ORT_DIR=${{ github.workspace }}/build/onnxruntime \
-            -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake
+            -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake \
+            -DVCPKG_OVERLAY_PORTS=${{ github.workspace }}/scripts/vcpkg/ports
 
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+
+      - name: Test
+        run: |
+          ctest --test-dir build --build-config ${{ env.BUILD_TYPE }} \
+            --output-on-failure --parallel 4 --timeout 300

@@ -88,7 +88,7 @@ namespace srt::g2p {
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
 
         if (impl.initialized) {
-            return Error(Error::AlreadyInitialized,
+            return Error(ErrorCode::G2pAlreadyInitialized,
                          "Manager::initialize() has already been called");
         }
 
@@ -97,13 +97,13 @@ namespace srt::g2p {
             srt::core::ContextKey defaultCtx("");
             const auto moduleInfos = this->getModuleMetadatas(defaultCtx);
             if (moduleInfos.empty()) {
-                return Error(Error::InitializationError,
+                return Error(ErrorCode::G2pInitializationError,
                              "Ord-1: Default context initialization failed: no modules found");
             }
 
             auto compatibleModules = filterCompatibleModules(moduleInfos);
             if (compatibleModules.empty()) {
-                return Error(Error::InitializationError,
+                return Error(ErrorCode::G2pInitializationError,
                              "Ord-1: Default context has no compatible modules after Level check");
             }
 
@@ -113,12 +113,12 @@ namespace srt::g2p {
                 depGraph.addModule(info);
 
             if (!depGraph.buildGraph()) {
-                return Error(Error::DependencyError,
+                return Error(ErrorCode::G2pDependencyError,
                              "Ord-1: Failed to build dependency graph for default context");
             }
 
             if (const auto cycles = depGraph.findCycles(); !cycles.empty()) {
-                return Error(Error::DependencyError,
+                return Error(ErrorCode::G2pDependencyError,
                              "Ord-1: Circular dependencies detected in default context");
             }
 
@@ -160,7 +160,7 @@ namespace srt::g2p {
                 for (const auto &e : pkgErrors) {
                     detail += "\n  " + e;
                 }
-                return Error(Error::InitializationError, detail);
+                return Error(ErrorCode::G2pInitializationError, detail);
             }
 
             impl.contextStates[defaultCtx] = ContextState::Ready;
@@ -234,7 +234,7 @@ namespace srt::g2p {
 
         // Phase 3: Load tasks for categories
         if (auto result = loadTasksForCategory(kG2pCategory); !result) {
-            return Error(Error::RuntimeError,
+            return Error(ErrorCode::G2pRuntimeError,
                          "Failed to load g2p tasks: " + result.error().message());
         }
 
@@ -260,38 +260,38 @@ namespace srt::g2p {
         const std::string &category, const std::string &context,
         const stdc::VersionNumber &version, const std::string &id) const {
         if (category.empty())
-            return Error(Error::ValidationError, "T-1: category cannot be empty");
+            return Error(ErrorCode::G2pValidationError, "T-1: category cannot be empty");
 
         if (auto exp = ContextUtils::validateContextName(context); !exp)
-            return Error(Error::ValidationError, "T-2: " + exp.error().message());
+            return Error(ErrorCode::G2pValidationError, "T-2: " + exp.error().message());
 
         if (id.empty())
-            return Error(Error::ValidationError, "T-3: id cannot be empty");
+            return Error(ErrorCode::G2pValidationError, "T-3: id cannot be empty");
 
         if (auto exp = ContextUtils::validateModuleId(id); !exp)
-            return Error(Error::ValidationError, "T-4: " + exp.error().message());
+            return Error(ErrorCode::G2pValidationError, "T-4: " + exp.error().message());
 
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
         std::shared_lock<std::shared_mutex> lock(impl.tasks_mtx);
 
         auto catIt = impl.tasks.find(category);
         if (catIt == impl.tasks.end())
-            return Error(Error::RuntimeError, "T-5: could not find category: " + category);
+            return Error(ErrorCode::G2pRouteNotFound, "T-5: could not find category: " + category);
 
         srt::core::ContextKey ctxKey(context, version);
         auto ctxIt = catIt->second.find(ctxKey);
         if (ctxIt == catIt->second.end()) {
             auto stateIt = impl.contextStates.find(ctxKey);
             if (stateIt != impl.contextStates.end() && stateIt->second == ContextState::Failed)
-                return Error(Error::RuntimeError,
+                return Error(ErrorCode::G2pContextNotFound,
                              "T-6: context '" + ctxKey.toString() + "' failed initialization");
-            return Error(Error::RuntimeError,
+            return Error(ErrorCode::G2pContextNotFound,
                          "T-6: could not find context: " + ctxKey.toString());
         }
 
         auto idIt = ctxIt->second.find(id);
         if (idIt == ctxIt->second.end())
-            return Error(Error::RuntimeError,
+            return Error(ErrorCode::G2pTaskNotFound,
                          "T-7: could not find id: " + id + " in context " + ctxKey.toString());
 
         return idIt->second;
@@ -306,7 +306,7 @@ namespace srt::g2p {
         const std::string &category, const std::string &context,
         const stdc::VersionNumber &version) const {
         if (category.empty())
-            return Error(Error::ValidationError, "category cannot be empty");
+            return Error(ErrorCode::G2pValidationError, "category cannot be empty");
 
         if (auto exp = ContextUtils::validateContextName(context); !exp)
             return exp.error();
@@ -316,12 +316,12 @@ namespace srt::g2p {
 
         auto catIt = impl.tasks.find(category);
         if (catIt == impl.tasks.end())
-            return Error(Error::RuntimeError, "could not find category: " + category);
+            return Error(ErrorCode::G2pRouteNotFound, "could not find category: " + category);
 
         srt::core::ContextKey ctxKey(context, version);
         auto ctxIt = catIt->second.find(ctxKey);
         if (ctxIt == catIt->second.end())
-            return Error(Error::RuntimeError, "could not find context: " + ctxKey.toString());
+            return Error(ErrorCode::G2pContextNotFound, "could not find context: " + ctxKey.toString());
 
         std::vector<srt::core::NO<Task>> result;
         result.reserve(ctxIt->second.size());
@@ -329,7 +329,7 @@ namespace srt::g2p {
             result.push_back(t);
 
         if (result.empty())
-            return Error(Error::RuntimeError,
+            return Error(ErrorCode::G2pRuntimeError,
                          "category: " + category + " is empty in context " + ctxKey.toString());
 
         return result;

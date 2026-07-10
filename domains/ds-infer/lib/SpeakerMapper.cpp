@@ -26,15 +26,20 @@ namespace ds::infer {
         setMapping(inferenceId, std::move(mapping));
     }
 
-    std::string SpeakerMapper::resolve(const std::string &inferenceId,
-                                       const std::string &singerSpeaker) const {
+    srt::core::Expected<std::string>
+        SpeakerMapper::resolve(const std::string &inferenceId,
+                               const std::string &singerSpeaker) const {
         auto it = m_mappings.find(inferenceId);
         if (it == m_mappings.end()) {
-            return {};
+            return srt::core::Error(
+                srt::core::ErrorCode::InferenceSpeakerNotFound,
+                "no speaker mapping registered for inference: " + inferenceId);
         }
         auto sit = it->second.byId.find(singerSpeaker);
         if (sit == it->second.byId.end()) {
-            return {};
+            return srt::core::Error(
+                srt::core::ErrorCode::InferenceSpeakerNotFound,
+                "speaker not found in mapping: " + singerSpeaker);
         }
         return sit->second;
     }

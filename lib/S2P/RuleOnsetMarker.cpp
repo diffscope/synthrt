@@ -300,7 +300,7 @@ namespace srt::s2p {
                 obj->d->trie.insert(pattern, onsets);
             }
         } catch (const std::exception &e) {
-            return srt::core::Error(srt::core::Error::InvalidFormat, e.what());
+            return srt::core::Error(srt::core::ErrorCode::S2pConversionFailed, e.what());
         }
 
         return obj;

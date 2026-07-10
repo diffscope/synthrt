@@ -131,6 +131,33 @@ namespace srt::core {
             assert(!_has_value && "Expected doesn't contain an error");
             return _storage.err;
         }
+
+        /// Error message string (empty if success)
+        std::string errorMessage() const {
+            return _has_value ? std::string{} : _storage.err.message();
+        }
+
+        /// Full error description string (empty if success)
+        /// Format: "[Category::Code] message\n  at file:line:function"
+        std::string errorString() const {
+            return _has_value ? std::string{} : _storage.err.toString();
+        }
+
+        /// Error code (ErrorCode::None if success)
+        ErrorCode errorCode() const {
+            return _has_value ? ErrorCode::None : _storage.err.code();
+        }
+
+        /// Error category (ErrorCategory::None if success)
+        ErrorCategory errorCategory() const {
+            return _has_value ? ErrorCategory::None : _storage.err.category();
+        }
+
+        /// Check if error matches specific code
+        bool isError(ErrorCode code) const {
+            return !_has_value && _storage.err.code() == code;
+        }
+
         template <class U = T>
         T valueOr(const U &defaultValue) const & {
             return _has_value ? **this : static_cast<T>(defaultValue);

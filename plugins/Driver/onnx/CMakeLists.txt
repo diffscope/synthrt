@@ -55,7 +55,7 @@ find_package(blake3 CONFIG REQUIRED)
 
 srt_driver_add_plugin(${PROJECT_NAME} inferencedrivers ${PROJECT_NAME} NO_EXPORT
     SOURCES ${_src}
-    FEATURES cxx_std_17
+    FEATURES cxx_std_20
     LINKS srt::driver srt::core
     LINKS_PRIVATE stduuid BLAKE3::blake3
     INCLUDE_PRIVATE * ${_onnxruntime_default_dir}/include

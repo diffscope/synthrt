@@ -116,7 +116,9 @@ srt::c             ← 依赖 core + g2p + ds-bank + ds-infer（C ABI 组合层�
 
 | 层级 | 目录 | 框架 | 说明 |
 |---|---|---|---|
-| 单元测试 | `unittests/` | Catch2 v3 | 单组件，不加载插件 |
-| 领域测试 | `domains/*/unittests/` | Catch2 v3 | ds-bank/ds-infer 领域内 |
+| 单元测试 | `unittests/` | Catch2 v3 | 单组件，不加载插件。包含 `test_error_system.cpp`（ErrorCode/toString/工厂函数）、`test_c_abi.cpp`（C ABI + BF-25/BF-29/BF-30 回归）、`test_g2p_error_migration.cpp`（G2P Error 迁移） |
+| 领域测试 | `domains/*/unittests/` | Catch2 v3 | ds-bank/ds-infer 领域内。包含 `test_modelset_errors.cpp`、`test_singer_resolver_ambiguity.cpp`、`test_speaker_mapper.cpp` 等 |
 | 跨模块测试 | `tests/` | Catch2 v3 | smoke/integration/abi/packaging |
 | CLI 测试 | `tools/dsinfer-cli/` | 手动 | `--test-lite-style` lite 风格流水线 |
+
+GitHub Actions CI (`.github/workflows/build.yml`) 在 Windows/Linux/macOS 三平台执行编译 + `ctest` 测试，ONNX Runtime 使用缓存，vcpkg overlay ports 通过 git submodule 引入。

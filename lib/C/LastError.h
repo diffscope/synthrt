@@ -14,16 +14,22 @@
 
 #include <synthrt/C/srt.h>
 
+#include <synthrt/Core/Support/Diagnostic.h>
 #include <synthrt/Core/Support/Error.h>
 
 namespace srt::c::detail {
 
     // Sets the per-thread last-error message from a raw string.
-    // An empty view clears the buffer.
+    // An empty view clears the buffer. The error code is set to
+    // SRT_ERR_GENERIC (use the overload below for a specific code).
     void setLastError(std::string_view message);
 
-    // Sets the per-thread last-error message from a srt::core::Error.
-    // NoError clears the buffer.
+    // Sets the per-thread last-error message and error code from raw values.
+    void setLastError(std::string_view message, srt_error code);
+
+    // Sets the per-thread last-error message and code from a srt::core::Error.
+    // Stores error.toString() (including category, code, and source location).
+    // NoError clears the buffer and resets the code to SRT_OK.
     void setLastError(const srt::core::Error &error);
 
     // Returns a pointer to the per-thread last-error message.
@@ -31,12 +37,19 @@ namespace srt::c::detail {
     // the same thread; it always points at a valid (possibly empty) string.
     const char *lastErrorMessage();
 
-    // Clears the per-thread last-error buffer.
+    // Returns the per-thread last-error code.
+    srt_error lastErrorCode();
+
+    // Clears the per-thread last-error buffer and code.
     void clearLastError();
 
-    // Maps a srt::core::Error::Type to the public srt_error enum.
-    // Also stores the error message in the TLS buffer (convenience wrapper
-    // used by all C API implementation files).
+    // Maps a srt::core::ErrorCode to the public srt_error enum using the
+    // category-based approach (see BF-25).
+    srt_error mapErrorCode(srt::core::ErrorCode code);
+
+    // Maps a srt::core::Error to the public srt_error enum.
+    // Also stores the error message and code in the TLS buffer (convenience
+    // wrapper used by all C API implementation files).
     srt_error mapError(const srt::core::Error &error);
 
 } // namespace srt::c::detail

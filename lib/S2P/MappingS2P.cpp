@@ -39,22 +39,22 @@ namespace srt::s2p {
 
             const auto tab = line.find('\t');
             if (tab == std::string::npos) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pConversionFailed,
                     "MappingS2P parse error at line " + std::to_string(lineNumber) +
                         ": missing tab separator");
             }
             if (line.find('\t', tab + 1) != std::string::npos) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pConversionFailed,
                     "MappingS2P parse error at line " + std::to_string(lineNumber) +
                         ": multiple tab separators");
             }
             if (tab == 0) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pConversionFailed,
                     "MappingS2P parse error at line " + std::to_string(lineNumber) +
                         ": empty original phoneme");
             }
             if (tab + 1 == line.size()) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pConversionFailed,
                     "MappingS2P parse error at line " + std::to_string(lineNumber) +
                         ": empty target phoneme");
             }
@@ -66,14 +66,14 @@ namespace srt::s2p {
             const auto inserted =
                 obj->d->mapping.emplace(std::string(originalPhoneme), std::string(targetPhoneme));
             if (!inserted.second) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pConversionFailed,
                     "MappingS2P parse error at line " + std::to_string(lineNumber) +
                         ": duplicate original phoneme");
             }
         }
 
         if (mappingFile.bad()) {
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pConversionFailed,
                 "MappingS2P parse error: failed to read mapping stream");
         }
 

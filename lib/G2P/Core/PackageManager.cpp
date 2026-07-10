@@ -145,7 +145,7 @@ namespace srt::g2p {
                                const srt::core::JsonValue &config) const {
             if (!config.isObject()) {
                 return srt::core::Error{
-                    srt::core::Error::InvalidFormat,
+                    ErrorCode::G2pConfigError,
                     "g2p module config must be a JSON object"};
             }
             auto *spec = new G2pSpec();
@@ -185,7 +185,7 @@ namespace srt::g2p {
                                 const srt::core::JsonValue &config) const {
             if (!config.isObject()) {
                 return srt::core::Error{
-                    srt::core::Error::InvalidFormat,
+                    ErrorCode::G2pConfigError,
                     "dict module config must be a JSON object"};
             }
             auto *spec = new DictSpec();
@@ -268,7 +268,7 @@ namespace srt::g2p {
     srt::core::Expected<PackageData *> PackageManager::Impl::openPackage(const fs::path &path) {
         auto canonicalPath = stdc::path::canonical(path);
         if (canonicalPath.empty() || !fs::is_directory(canonicalPath)) {
-            return Error(Error::FileSystemError, "Invalid package path: " + stdc::path::to_utf8(path));
+            return Error(ErrorCode::G2pFileSystemError, "Invalid package path: " + stdc::path::to_utf8(path));
         }
 
         {
@@ -307,18 +307,16 @@ namespace srt::g2p {
             if (auto it = pkgMap.idIndexes.find(pd->id); it != pkgMap.idIndexes.end()) {
                 auto &versionMap = it->second;
                 if (auto it2 = versionMap.find(pd->version); it2 != versionMap.end()) {
-                    auto err = Error(Error::FileSystemError,
+                    pd->err = Error(ErrorCode::G2pFileSystemError,
                         stdc::formatN("duplicate package %1[%2]", pd->id, pd->version.toString()));
-                    pd->err = err;
                     resourcePackages.insert(pd);
                     return pd;
                 }
             }
             if (auto it = pendingPackages.find(pd->id); it != pendingPackages.end()) {
                 if (it->second.count(pd->version)) {
-                    auto err = Error(Error::DependencyError,
+                    pd->err = Error(ErrorCode::G2pDependencyError,
                         stdc::formatN("recursive dependency: %1[%2]", pd->id, pd->version.toString()));
-                    pd->err = err;
                     resourcePackages.insert(pd);
                     return pd;
                 }
@@ -335,14 +333,14 @@ namespace srt::g2p {
                 auto *spec = contributes[i];
                 auto catIt = categories.find(spec->category());
                 if (catIt == categories.end()) {
-                    error1 = Error(Error::NotImplementedError,
+                    error1 = Error(ErrorCode::G2pNotImplementedError,
                         "category not found: " + spec->category());
                     failed = true;
                     break;
                 }
                 auto *cc = catIt->second;
                 if (auto exp = cc->loadSpec(spec, srt::core::ModuleSpec::Initialized); !exp) {
-                    error1 = Error(static_cast<Error::Type>(exp.error().type()), exp.error().message());
+                    error1 = Error(exp.error().code(), exp.error().message());
                     failed = true;
                     break;
                 }
@@ -374,7 +372,7 @@ namespace srt::g2p {
                 auto *spec = contributes[i];
                 auto *cc = categories.at(spec->category());
                 if (auto exp = cc->loadSpec(spec, srt::core::ModuleSpec::Ready); !exp) {
-                    error1 = Error(static_cast<Error::Type>(exp.error().type()), exp.error().message());
+                    error1 = Error(exp.error().code(), exp.error().message());
                     failed = true;
                     break;
                 }
@@ -532,7 +530,7 @@ namespace srt::g2p {
 
         auto &impl = *static_cast<Impl *>(_impl.get());
         if (!fs::exists(path) || !fs::is_directory(path)) {
-            return Error(Error::FileSystemError,
+            return Error(ErrorCode::G2pFileSystemError,
                 stdc::formatN("Package path does not exist or is not a directory: %1", path));
         }
 
@@ -556,14 +554,14 @@ namespace srt::g2p {
             return exp.error();
 
         if (context.empty() && !version.isEmpty())
-            return Error(Error::ValidationError, "R-8: Default context cannot have a version");
+            return Error(ErrorCode::G2pValidationError, "R-8: Default context cannot have a version");
         if (!context.empty() && version.isEmpty())
-            return Error(Error::ValidationError,
+            return Error(ErrorCode::G2pValidationError,
                 "Context '" + context + "': version cannot be empty for a versioned context");
 
         auto &impl = *static_cast<Impl *>(_impl.get());
         if (!fs::exists(path) || !fs::is_directory(path)) {
-            return Error(Error::FileSystemError,
+            return Error(ErrorCode::G2pFileSystemError,
                 stdc::formatN("Package path does not exist or is not a directory: %1", path));
         }
 
@@ -605,9 +603,9 @@ namespace srt::g2p {
             return exp.error();
 
         if (context.empty() && !version.isEmpty())
-            return Error(Error::ValidationError, "R-8: Default context cannot have a version");
+            return Error(ErrorCode::G2pValidationError, "R-8: Default context cannot have a version");
         if (!context.empty() && version.isEmpty())
-            return Error(Error::ValidationError,
+            return Error(ErrorCode::G2pValidationError,
                 "Context '" + context + "': version cannot be empty for a versioned context");
 
         auto &impl = *static_cast<Impl *>(_impl.get());
@@ -723,17 +721,19 @@ namespace srt::g2p {
         const srt::dependency::ModuleMetadata &moduleInfo, const Package &pkg) const {
         auto *moduleSpec = pkg.moduleSpec(moduleInfo.type, moduleInfo.moduleId);
         if (!moduleSpec) {
-            return Error(Error::FileSystemError,
+            return Error::g2pError(ErrorCode::G2pPackageNotFound,
                 stdc::formatN("Module not found: package=%1, moduleId=%2, type=%3",
-                    moduleInfo.packageId, moduleInfo.moduleId, moduleInfo.type));
+                    moduleInfo.packageId, moduleInfo.moduleId, moduleInfo.type),
+                {}, moduleInfo.packageId);
         }
 
         moduleSpec->_impl->contextKey = srt::core::ContextKey(moduleInfo.context, moduleInfo.contextVersion);
 
         auto *taskPlugin = this->plugin<TaskPlugin>(moduleInfo.iid.c_str());
         if (!taskPlugin) {
-            return Error(Error::RuntimeError,
-                stdc::formatN("Task plugin not found for iid: %1", moduleInfo.iid));
+            return Error::g2pError(ErrorCode::G2pRuntimeError,
+                stdc::formatN("Task plugin not found for iid: %1", moduleInfo.iid),
+                {}, moduleInfo.packageId);
         }
 
         auto taskExp = taskPlugin->createTask(moduleSpec);

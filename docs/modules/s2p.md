@@ -60,3 +60,9 @@ S2P 不被 LanguageService 直接调用，而是由宿主层根据 `LanguageRout
 
 - **G2P**: `LanguageService` 解析路由后返回 S2P 资源路径，宿主层调用 S2P
 - **Core**: 依赖 `srt::core` 基础设施
+
+---
+
+## 错误处理
+
+S2P 错误使用 `ErrorCode::S2p*` 代码段（500-599）：`S2pResourceNotFound`、`S2pConversionFailed`、`S2pScriptError`、`S2pDictionaryError`。

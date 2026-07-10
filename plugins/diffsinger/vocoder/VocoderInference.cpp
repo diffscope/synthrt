@@ -32,12 +32,12 @@ namespace srt::svs {
 
         const auto genericConfig = spec->configuration();
         if (!genericConfig) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Vocoder] configuration is nullptr");
         }
         if (!(genericConfig->className() == Vo::API_CLASS &&
               genericConfig->objectName() == Vo::API_NAME)) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Vocoder] invalid configuration class/name");
         }
         return genericConfig.as<Vo::VocoderConfiguration>();
@@ -62,12 +62,12 @@ namespace srt::svs {
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
         if (!args) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Vocoder] task init args is nullptr");
         }
         if (auto name = args->objectName(); name != Vo::API_NAME) {
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Vocoder] invalid task init args name: expected "%1", got "%2")",
                               Vo::API_NAME, name));
         }
@@ -123,7 +123,7 @@ namespace srt::svs {
             if (!impl.driver) {
                 setState(Failed);
                 Log.srtCritical("[Vocoder] start: inference driver not initialized");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                                   "[Vocoder] inference driver not initialized");
             }
         }
@@ -142,7 +142,7 @@ namespace srt::svs {
         if (!input) {
             setState(Failed);
             Log.srtCritical("[Vocoder] start: input is nullptr");
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Vocoder] input is nullptr");
         }
 
@@ -151,7 +151,7 @@ namespace srt::svs {
             Log.srtCritical("[Vocoder] start: invalid input name: expected %1, got %2",
                             Vo::API_NAME, name);
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Vocoder] invalid input name: expected "%1", got "%2")",
                               Vo::API_NAME, name));
         }
@@ -170,7 +170,7 @@ namespace srt::svs {
         if (!impl.session || !impl.session->isOpen()) {
             setState(Failed);
             Log.srtCritical("[Vocoder] start: session is not initialized or not open");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                               "[Vocoder] session is not initialized");
         }
 
@@ -191,14 +191,14 @@ namespace srt::svs {
         if (!sessionTaskResult) {
             setState(Failed);
             Log.srtCritical("[Vocoder] start: session result is nullptr");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                               "[Vocoder] session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             Log.srtCritical("[Vocoder] start: invalid result API name: %1",
                             sessionTaskResult->objectName());
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Vocoder] invalid result API name");
         }
         auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
@@ -213,7 +213,7 @@ namespace srt::svs {
         } else {
             setState(Failed);
             Log.srtCritical("[Vocoder] start: output 'waveform' not found in session result");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                               "[Vocoder] output 'waveform' not found in session result");
         }
         impl.result = vocoderResult;
@@ -225,7 +225,7 @@ namespace srt::svs {
     srt::core::Expected<void> VocoderInference::startAsync(const srt::core::NO<srt::core::TaskStartInput> &input,
                                                      const StartAsyncCallback &callback) {
         // TODO:
-        return srt::core::Error(srt::core::Error::NotImplemented);
+        return srt::core::Error(srt::core::ErrorCode::NotImplemented, "not implemented");
     }
 
     bool VocoderInference::stop() {

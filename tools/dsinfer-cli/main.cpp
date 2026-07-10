@@ -70,9 +70,8 @@ namespace dsinfer_cli {
         //    without this check, stages.variance.spec->schema() etc. would crash.
         if (!stages.duration.spec || !stages.pitch.spec || !stages.variance.spec ||
             !stages.acoustic.spec || !stages.vocoder.spec) {
-            result.error.code = srt::core::ErrorCode::InvalidArgument;
-            result.error.severity = srt::core::Severity::Error;
-            result.error.message = "runLiteStylePipeline: one or more stage specs are null";
+            result.error = srt::core::Error(srt::core::ErrorCode::InvalidArgument,
+                                            "runLiteStylePipeline: one or more stage specs are null");
             return result;
         }
 
@@ -114,14 +113,14 @@ namespace dsinfer_cli {
             input->words = words;
             auto resExp = startStage(ds::infer::StageKind::Duration, input, "duration");
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                result.error = resExp.error();
                 return result;
             }
             auto durResult = resExp.value().as<Dur::DurationResult>();
             if (!durResult || durResult->error.code() != srt::core::ErrorCode::None) {
-                result.error = durResult ? durResult->error.diagnostic()
+                result.error = durResult ? durResult->error
                                          : srt::core::Error(srt::core::Error::SessionError,
-                                                              "duration result type mismatch").diagnostic();
+                                                              "duration result type mismatch");
                 return result;
             }
             const auto &durations = durResult->durations;
@@ -151,14 +150,14 @@ namespace dsinfer_cli {
             input->steps = request.steps;
             auto resExp = startStage(ds::infer::StageKind::Pitch, input, "pitch");
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                result.error = resExp.error();
                 return result;
             }
             auto pitResult = resExp.value().as<Pit::PitchResult>();
             if (!pitResult || pitResult->error.code() != srt::core::ErrorCode::None) {
-                result.error = pitResult ? pitResult->error.diagnostic()
+                result.error = pitResult ? pitResult->error
                                          : srt::core::Error(srt::core::Error::SessionError,
-                                                              "pitch result type mismatch").diagnostic();
+                                                              "pitch result type mismatch");
                 return result;
             }
             bool hasPitch = false;
@@ -196,14 +195,14 @@ namespace dsinfer_cli {
             input->steps = request.steps;
             auto resExp = startStage(ds::infer::StageKind::Variance, input, "variance");
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                result.error = resExp.error();
                 return result;
             }
             auto varResult = resExp.value().as<Var::VarianceResult>();
             if (!varResult || varResult->error.code() != srt::core::ErrorCode::None) {
-                result.error = varResult ? varResult->error.diagnostic()
+                result.error = varResult ? varResult->error
                                          : srt::core::Error(srt::core::Error::SessionError,
-                                                              "variance result type mismatch").diagnostic();
+                                                              "variance result type mismatch");
                 return result;
             }
             auto &predictions = varResult->predictions;
@@ -268,14 +267,14 @@ namespace dsinfer_cli {
             input->depth = request.depth;
             auto resExp = startStage(ds::infer::StageKind::Acoustic, input, "acoustic");
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                result.error = resExp.error();
                 return result;
             }
             auto acResult = resExp.value().as<Ac::AcousticResult>();
             if (!acResult || acResult->error.code() != srt::core::ErrorCode::None) {
-                result.error = acResult ? acResult->error.diagnostic()
+                result.error = acResult ? acResult->error
                                          : srt::core::Error(srt::core::Error::SessionError,
-                                                              "acoustic result type mismatch").diagnostic();
+                                                              "acoustic result type mismatch");
                 return result;
             }
             mel = acResult->mel;
@@ -289,14 +288,14 @@ namespace dsinfer_cli {
             input->f0 = f0;
             auto resExp = startStage(ds::infer::StageKind::Vocoder, input, "vocoder");
             if (!resExp) {
-                result.error = resExp.error().diagnostic();
+                result.error = resExp.error();
                 return result;
             }
             auto voResult = resExp.value().as<Vo::VocoderResult>();
             if (!voResult || voResult->error.code() != srt::core::ErrorCode::None) {
-                result.error = voResult ? voResult->error.diagnostic()
+                result.error = voResult ? voResult->error
                                          : srt::core::Error(srt::core::Error::SessionError,
-                                                              "vocoder result type mismatch").diagnostic();
+                                                              "vocoder result type mismatch");
                 return result;
             }
             const auto &audioData = voResult->audioData;
@@ -371,9 +370,7 @@ namespace dsinfer_cli {
             }
         }
 
-        result.error.code = srt::core::ErrorCode::None;
-        result.error.severity = srt::core::Severity::Info;
-        result.error.message = "Lite-style pipeline completed";
+        result.error = srt::core::Error();
         return result;
     }
 
@@ -586,8 +583,8 @@ namespace dsinfer_cli {
             }
             result = inferenceService.run(req);
         }
-        if (result.error.code != srt::core::ErrorCode::None) {
-            cliLog.srtCritical("runInference failed: " + result.error.message);
+        if (!result.error.ok()) {
+            cliLog.srtCritical("runInference failed: " + result.error.message());
             return -1;
         }
         if (!result.sampleRate || result.audio.empty()) {

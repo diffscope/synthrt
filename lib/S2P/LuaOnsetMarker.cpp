@@ -82,7 +82,7 @@ namespace srt::s2p {
             obj->d->environment.loadAndRun(luaScript);
             obj->d->markOnsetRef = obj->d->environment.getGlobalFunctionRef("markonset");
         } catch (const std::exception &e) {
-            return srt::core::Error(srt::core::Error::InvalidFormat, e.what());
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError, e.what());
         }
 
         return obj;
@@ -107,18 +107,18 @@ namespace srt::s2p {
         }
 
         if (d->environment.pcall(1, 1, 0) != 0) {
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                 "LuaOnsetMarker error: markonset failed: " + d->environment.errorString());
         }
 
         if (!lua_istable(state, -1)) {
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                 "LuaOnsetMarker error: markonset must return a table");
         }
 
         const auto length = lua_objlen(state, -1);
         if (length != phonemeSequence.size()) {
-            return srt::core::Error(srt::core::Error::InvalidFormat,
+            return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                 "LuaOnsetMarker error: markonset must return a table with the same length as the input");
         }
 
@@ -128,7 +128,7 @@ namespace srt::s2p {
         for (std::size_t i = 1; i <= length; ++i) {
             lua_rawgeti(state, -1, static_cast<int>(i));
             if (lua_type(state, -1) != LUA_TBOOLEAN) {
-                return srt::core::Error(srt::core::Error::InvalidFormat,
+                return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
                     "LuaOnsetMarker error: markonset return value contains a non-boolean element at index " +
                         std::to_string(i));
             }

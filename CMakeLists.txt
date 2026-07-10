@@ -8,6 +8,13 @@ project(synthrt
 )
 
 # ----------------------------------
+# C++ Standard
+# ----------------------------------
+set(CMAKE_CXX_STANDARD 20 CACHE STRING "C++ standard")
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# ----------------------------------
 # Build Options
 # ----------------------------------
 option(SYNTHRT_BUILD_TESTS "Build test cases" OFF)

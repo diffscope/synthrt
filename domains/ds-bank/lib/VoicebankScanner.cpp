@@ -178,7 +178,7 @@ namespace ds::bank {
                 PackageStatus status;
                 status.rootPath = searchPath;
                 status.valid = false;
-                status.error.code = srt::core::ErrorCode::FileNotOpen;
+                status.error.code = srt::core::ErrorCode::PackageRootInvalid;
                 status.error.severity = srt::core::Severity::Warning;
                 status.error.message =
                     "directory iteration failed: " + std::string(e.what());
@@ -197,13 +197,10 @@ namespace ds::bank {
         const SingerRef &ref) const {
         const auto *snap = _impl->findSnapshot(ref);
         if (!snap) {
-            srt::core::Diagnostic d;
-            d.code = srt::core::ErrorCode::FileNotFound;
-            d.severity = srt::core::Severity::Error;
-            d.message = "singer not found: " + ref.toString();
-            d.packageId = ref.packageId;
-            d.singerId = ref.singerId;
-            return srt::core::Error(std::move(d));
+            return srt::core::Error::packageError(
+                srt::core::ErrorCode::FileNotFound,
+                "singer not found: " + ref.toString(),
+                ref.packageId);
         }
         return *snap;
     }
@@ -226,19 +223,15 @@ namespace ds::bank {
                 continue;
             return snap.ref;
         }
-        srt::core::Diagnostic d;
-        d.code = srt::core::ErrorCode::FileNotFound;
-        d.severity = srt::core::Severity::Error;
-        d.message = "singer not found: singerId=" + singerId;
+        std::string msg = "singer not found: singerId=" + singerId;
         if (!packageId.empty()) {
-            d.message += ", packageId=" + packageId;
+            msg += ", packageId=" + packageId;
         }
         if (!version.empty()) {
-            d.message += ", version=" + version;
+            msg += ", version=" + version;
         }
-        d.singerId = singerId;
-        d.packageId = packageId;
-        return srt::core::Error(std::move(d));
+        return srt::core::Error::packageError(
+            srt::core::ErrorCode::FileNotFound, std::move(msg), packageId);
     }
 
     std::filesystem::path VoicebankScanner::packageDirectory(

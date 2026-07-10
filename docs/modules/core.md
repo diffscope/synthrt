@@ -145,12 +145,110 @@ public:
 
 ## 错误处理
 
-所有可能失败的 API 返回 `Expected<T>`。`Error` 包含错误码和消息。`Diagnostic` 包含错误码、严重级别和消息（用于更丰富的错误报告）。
+所有可能失败的 API 返回 `Expected<T>`。错误系统基于分层 `ErrorCode` 枚举，按模块划分代码段（General 0-99, Package 100-199, Inference 200-299, G2P 300-399, Driver 400-499, S2P 500-599, SVS 600-699）。
+
+### ErrorCode 枚举
+
+```cpp
+// include/synthrt/Core/Support/Diagnostic.h
+enum class ErrorCode {
+    None = 0, InvalidFormat, FileNotFound, ..., Unknown,           // General (0-99)
+    PackageRootInvalid = 100, ..., PackageDuplicate,               // Package (100-199)
+    InferenceNotInitialized = 200, ..., InferenceSampleRateMismatch, // Inference (200-299)
+    G2pSuccess = 300, ..., G2pTaskNotFound,                        // G2P (300-399)
+    DriverNotFound = 400, ..., DriverPluginNotFound,               // Driver (400-499)
+    S2pResourceNotFound = 500, ..., S2pDictionaryError,            // S2P (500-599)
+    SvsSingerNotFound = 600, ..., SvsCategoryNotFound,             // SVS (600-699)
+};
+
+enum class ErrorCategory { None, General, Package, Inference, G2P, Driver, S2P, SVS };
+
+ErrorCategory errorCodeCategory(ErrorCode code) noexcept;
+const char *errorCodeToString(ErrorCode code) noexcept;   // "Inference::ModelLoadFailed"
+```
+
+枚举值只追加不重排（ARCH-02），保证 ABI 稳定性。
+
+### Error 类
+
+```cpp
+// include/synthrt/Core/Support/Error.h
+class Error {
+public:
+    // 构造函数 — 自动捕获 std::source_location (C++20)
+    Error(ErrorCode code, std::string msg,
+          const std::source_location &loc = std::source_location::current());
+    Error(ErrorCode code, std::string msg, Diagnostic context,
+          const std::source_location &loc = std::source_location::current());
+
+    // 查询方法
+    ErrorCode code() const noexcept;
+    ErrorCategory category() const noexcept;
+    const char *codeString() const noexcept;     // "Inference::ModelLoadFailed"
+    std::string message() const;
+    std::string sourceLocation() const;          // "ModelSet.cpp:42:load"
+    std::string toString() const;                // 完整错误描述
+    bool ok() const noexcept;
+    const Diagnostic &diagnostic() const;
+
+    // trace 追加（跨层传播）
+    void appendTrace(const std::source_location &loc = std::source_location::current(),
+                     std::string note = {});
+    void appendTrace(std::string entry);
+
+    // 工厂函数（按模块分组，自动填充上下文）
+    static Error packageError(ErrorCode code, std::string msg, std::string packageId = {}, ...);
+    static Error inferenceError(ErrorCode code, std::string msg, std::string singerId = {},
+                                std::string stage = {}, ...);
+    static Error g2pError(ErrorCode code, std::string msg, std::string language = {},
+                          std::string packageId = {}, ...);
+};
+```
+
+`toString()` 输出格式：
+```
+[Inference::ModelLoadFailed] failed to load duration model
+  at ModelSet.cpp:42:load
+  singerId: "singer1", moduleId: "duration"
+  trace:
+    - InferenceService::run [InferenceService.cpp:85]
+```
+
+### Expected\<T\> 便捷方法
+
+```cpp
+// include/synthrt/Core/Support/Expected.h
+template <class T>
+class Expected {
+public:
+    // 原有 API
+    bool hasValue() const noexcept;
+    explicit operator bool() const noexcept;
+    T &value();
+    const T &value() const;
+    T take();
+    Error takeError();
+    const Error &error() const;
+
+    // v4 新增便捷方法
+    std::string errorMessage() const;       // error().message()
+    std::string errorString() const;        // error().toString()
+    ErrorCode errorCode() const;            // error().code()
+    ErrorCategory errorCategory() const;    // error().category()
+    bool isError(ErrorCode code) const;     // error().code() == code
+};
+```
+
+### 使用示例
 
 ```cpp
 auto result = runtime.loadPackage(path);
 if (!result) {
-    auto &err = result.error();
-    // err.code(), err.message()
+    // 一行看到完整错误
+    qCritical() << QString::fromStdString(result.errorString());
+    // 按错误码分支处理
+    if (result.isError(ErrorCode::PackageManifestInvalid)) {
+        // 提示声库描述文件损坏
+    }
 }
 ```

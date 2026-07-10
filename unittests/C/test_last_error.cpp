@@ -53,10 +53,14 @@ TEST_CASE("setLastError(Error) maps NoError to cleared", "[p5.1][error]") {
     REQUIRE(std::string(srt_last_error()).empty());
 }
 
-TEST_CASE("setLastError(Error) preserves message", "[p5.1][error]") {
+TEST_CASE("setLastError(Error) stores full toString()", "[p5.1][error]") {
     srt::core::Error err(srt::core::Error::FileNotFound, "missing.onnx");
     srt::c::detail::setLastError(err);
-    REQUIRE(std::string(srt_last_error()) == "missing.onnx");
+    std::string msg = srt_last_error();
+    // BF-29: setLastError stores toString() (includes code string + message),
+    // not just the bare message.
+    REQUIRE(msg.find("missing.onnx") != std::string::npos);
+    REQUIRE(msg.find("FileNotFound") != std::string::npos);
 }
 
 TEST_CASE("srt_clear_last_error clears buffer", "[p5.1][error]") {

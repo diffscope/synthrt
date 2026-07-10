@@ -16,7 +16,7 @@ find_package(nlohmann_json CONFIG QUIET)
 find_package(opendspx CONFIG QUIET)
 
 add_executable(${PROJECT_NAME} ${_src})
-target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_17)
+target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_SOURCE_DIR}/include/diffsinger/Infer)
 target_link_libraries(${PROJECT_NAME} PRIVATE
     srt-ds::infer srt::g2p srt::s2p syscmdline::syscmdline bit7z::bit7z64 wavfile

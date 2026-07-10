@@ -22,6 +22,15 @@ add_executable(tst-ds-infer-catch2
     test_input_word_realworld.cpp
     test_speaker_embedding.cpp
     test_modelset.cpp
+    test_modelset_errors.cpp
+    test_speaker_mapper.cpp
+    test_singer_resolver_ambiguity.cpp
+)
+
+# SpeakerMapper.h is a private header of srt-ds-infer (lives in lib/), so
+# expose that directory to the test target.
+target_include_directories(tst-ds-infer-catch2 PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../lib
 )
 
 target_link_libraries(tst-ds-infer-catch2 PRIVATE

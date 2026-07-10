@@ -41,12 +41,12 @@ namespace srt::svs {
 
         const auto genericConfig = spec->configuration();
         if (!genericConfig) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Acoustic] configuration is nullptr");
         }
         if (!(genericConfig->className() == Ac::API_CLASS &&
               genericConfig->objectName() == Ac::API_NAME)) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Acoustic] invalid configuration class/name");
         }
         return genericConfig.as<Ac::AcousticConfiguration>();
@@ -71,12 +71,12 @@ namespace srt::svs {
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
         if (!args) {
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Acoustic] task init args is nullptr");
         }
         if (auto name = args->objectName(); name != Ac::API_NAME) {
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Acoustic] invalid task init args name: expected "%1", got "%2")",
                               Ac::API_NAME, name));
         }
@@ -133,7 +133,7 @@ namespace srt::svs {
             if (!impl.driver) {
                 setState(Failed);
                 Log.srtCritical("[Acoustic] start: inference driver not initialized");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                                   "[Acoustic] inference driver not initialized");
             }
         }
@@ -152,7 +152,7 @@ namespace srt::svs {
         if (!input) {
             setState(Failed);
             Log.srtCritical("[Acoustic] start: input is nullptr");
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Acoustic] input is nullptr");
         }
 
@@ -161,7 +161,7 @@ namespace srt::svs {
             Log.srtCritical("[Acoustic] start: invalid input name: expected %1, got %2",
                             Ac::API_NAME, name);
             return srt::core::Error(
-                srt::core::Error::InvalidArgument,
+                srt::core::ErrorCode::InvalidArgument,
                 stdc::formatN(R"([Acoustic] invalid input name: expected "%1", got "%2")",
                               Ac::API_NAME, name));
         }
@@ -217,6 +217,11 @@ namespace srt::svs {
         int64_t acceleration = acousticInput->steps;
         if (!config->useContinuousAcceleration) {
             acceleration = ds::infer::inferutil::getSpeedupFromSteps(acceleration);
+            // BF-28: Guard against speedup being 0 to prevent division by zero
+            // in depth calculation and downstream model inference.
+            if (acceleration < 1) {
+                acceleration = 1;
+            }
         }
         {
             auto exp = srt::core::Tensor::createScalar<int64_t>(acceleration);
@@ -342,7 +347,7 @@ namespace srt::svs {
                 setState(Failed);
                 Log.srtCritical("[Acoustic] start: parameter %1 resample failed (size=%2, expected=%3)",
                                 std::string(param.tag.name()), resampled.size(), targetLength);
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                 "[Acoustic] parameter " +
                                 std::string(param.tag.name()) +
                                 " resample failed");
@@ -406,7 +411,7 @@ namespace srt::svs {
             auto samples =
                 ds::infer::inferutil::resample(param.values, param.interval, frameWidth, targetLength, true);
             if (samples.size() != targetLength) {
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                 "[Acoustic] parameter " +
                                 std::string(param.tag.name()) +
                                 " resample failed");
@@ -426,7 +431,7 @@ namespace srt::svs {
                     auto toneShiftSamples = ds::infer::inferutil::resample(
                         toneShift.values, toneShift.interval, frameWidth, targetLength, false);
                     if (toneShiftSamples.size() != targetLength) {
-                        return srt::core::Error(srt::core::Error::SessionError,
+                        return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                           "[Acoustic] parameter " + std::string(toneShift.tag.name()) +
                                               " resample failed");
                     }
@@ -484,7 +489,7 @@ namespace srt::svs {
             // No pitch or f0 found
             setState(Failed);
             Log.srtCritical("[Acoustic] start: parameter f0 or pitch missing");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                               "[Acoustic] parameter f0 or pitch missing");
         }
 
@@ -501,7 +506,7 @@ namespace srt::svs {
             if (!satisfyTension)
                 msg += R"( "tension")";
             Log.srtCritical("%1", msg);
-            return srt::core::Error(srt::core::Error::SessionError, std::move(msg));
+            return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid, std::move(msg));
         }
 
         // Speaker embedding
@@ -509,7 +514,7 @@ namespace srt::svs {
             if (acousticInput->speakers.empty()) {
                 setState(Failed);
                 Log.srtCritical("[Acoustic] start: no speakers found in input");
-                return srt::core::Error(srt::core::Error::SessionError,
+                return srt::core::Error(srt::core::ErrorCode::InferenceSpeakerNotFound,
                                   "[Acoustic] no speakers found in input");
             }
 
@@ -535,7 +540,7 @@ namespace srt::svs {
         if (!impl.session || !impl.session->isOpen()) {
             setState(Failed);
             Log.srtCritical("[Acoustic] start: session is not initialized or not open");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
                               "[Acoustic] session is not initialized");
         }
 
@@ -556,14 +561,14 @@ namespace srt::svs {
         if (!sessionTaskResult) {
             setState(Failed);
             Log.srtCritical("[Acoustic] start: session result is nullptr");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                               "[Acoustic] session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
             Log.srtCritical("[Acoustic] start: invalid result API name: %1",
                             sessionTaskResult->objectName());
-            return srt::core::Error(srt::core::Error::InvalidArgument,
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
                               "[Acoustic] invalid result API name");
         }
         auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
@@ -573,7 +578,7 @@ namespace srt::svs {
         } else {
             setState(Failed);
             Log.srtCritical("[Acoustic] start: output 'mel' not found in session result");
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
                               "[Acoustic] output 'mel' not found in session result");
         }
         acousticResult->f0 = f0TensorForVocoder;
@@ -586,7 +591,7 @@ namespace srt::svs {
     srt::core::Expected<void> AcousticInference::startAsync(const srt::core::NO<srt::core::TaskStartInput> &input,
                                                       const StartAsyncCallback &callback) {
         // TODO:
-        return srt::core::Error(srt::core::Error::NotImplemented);
+        return srt::core::Error(srt::core::ErrorCode::NotImplemented, "not implemented");
     }
 
     bool AcousticInference::stop() {

@@ -1,1 +1,5 @@
-# The vNext test plan reserves this directory for future G2P unit coverage.
+file(GLOB _g2p_tests CONFIGURE_DEPENDS "test_*.cpp")
+if(_g2p_tests)
+    synthrt_add_unittest(synthrt-unittest-g2p "${_g2p_tests}")
+    target_link_libraries(synthrt-unittest-g2p PRIVATE srt::g2p)
+endif()

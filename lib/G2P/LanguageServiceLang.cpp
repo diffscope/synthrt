@@ -54,23 +54,24 @@ namespace ds::lang {
                     return singer.singerId() == singerId;
                 });
             if (singerIt == package.singers().end()) {
-                return srt::core::Error(
-                    srt::core::Error::InvalidArgument,
+                return srt::core::Error::g2pError(
+                    srt::core::ErrorCode::G2pRouteNotFound,
                     "singer not found in package: " + singerId);
             }
 
             std::string resolvedLanguageId = languageId.empty()
                 ? singerIt->defaultLanguage() : languageId;
             if (resolvedLanguageId.empty()) {
-                return srt::core::Error(
-                    srt::core::Error::InvalidArgument,
+                return srt::core::Error::g2pError(
+                    srt::core::ErrorCode::G2pValidationError,
                     "language id is required because singer has no defaultLanguage");
             }
             if (!singerIt->languages().empty() &&
                 !containsLanguage(singerIt->languages(), resolvedLanguageId)) {
-                return srt::core::Error(
-                    srt::core::Error::InvalidArgument,
-                    "language not declared by singer: " + resolvedLanguageId);
+                return srt::core::Error::g2pError(
+                    srt::core::ErrorCode::G2pValidationError,
+                    "language not declared by singer: " + resolvedLanguageId,
+                    resolvedLanguageId);
             }
 
             const auto languageIt = std::find_if(
@@ -79,9 +80,10 @@ namespace ds::lang {
                     return language.languageId() == resolvedLanguageId;
                 });
             if (languageIt == package.languages().end()) {
-                return srt::core::Error(
-                    srt::core::Error::InvalidArgument,
-                    "language resource not found in package: " + resolvedLanguageId);
+                return srt::core::Error::g2pError(
+                    srt::core::ErrorCode::G2pRouteNotFound,
+                    "language resource not found in package: " + resolvedLanguageId,
+                    resolvedLanguageId);
             }
 
             G2pRouteData route;
@@ -142,7 +144,7 @@ namespace ds::lang {
                 auto exp = mgr->addPackagePath(srt::g2p::kOfficialContext, path);
                 if (!exp) {
                     return srt::core::Error(
-                        srt::core::Error::SessionError,
+                        srt::core::ErrorCode::G2pSessionError,
                         "Failed to register official G2P package path: " +
                             exp.error().message());
                 }
@@ -212,7 +214,7 @@ namespace ds::lang {
             auto g2pResult = mgr->initialize();
             if (!g2pResult) {
                 return srt::core::Error(
-                    srt::core::Error::SessionError,
+                    srt::core::ErrorCode::G2pInitializationError,
                     "G2P Manager initialization failed: " +
                         g2pResult.error().message());
             }
@@ -228,9 +230,10 @@ namespace ds::lang {
 
         const auto it = _impl->packageDirs.find(packageId);
         if (it == _impl->packageDirs.end()) {
-            return srt::core::Error(
-                srt::core::Error::FileNotFound,
-                "package directory not found for packageId: " + packageId);
+            return srt::core::Error::g2pError(
+                srt::core::ErrorCode::G2pPackageNotFound,
+                "package directory not found for packageId: " + packageId,
+                {}, packageId);
         }
         const auto &packageDir = it->second;
 
@@ -247,23 +250,26 @@ namespace ds::lang {
                 return singer.singerId() == singerId;
             });
         if (singerIt == package.singers().end()) {
-            return srt::core::Error(
-                srt::core::Error::InvalidArgument,
-                "singer not found in package: " + singerId);
+            return srt::core::Error::g2pError(
+                srt::core::ErrorCode::G2pRouteNotFound,
+                "singer not found in package: " + singerId,
+                {}, packageId);
         }
 
         std::string resolvedLanguageId = languageId.empty()
             ? singerIt->defaultLanguage() : languageId;
         if (resolvedLanguageId.empty()) {
-            return srt::core::Error(
-                srt::core::Error::InvalidArgument,
-                "language id is required because singer has no defaultLanguage");
+            return srt::core::Error::g2pError(
+                srt::core::ErrorCode::G2pValidationError,
+                "language id is required because singer has no defaultLanguage",
+                {}, packageId);
         }
         if (!singerIt->languages().empty() &&
             !containsLanguage(singerIt->languages(), resolvedLanguageId)) {
-            return srt::core::Error(
-                srt::core::Error::InvalidArgument,
-                "language not declared by singer: " + resolvedLanguageId);
+            return srt::core::Error::g2pError(
+                srt::core::ErrorCode::G2pValidationError,
+                "language not declared by singer: " + resolvedLanguageId,
+                resolvedLanguageId, packageId);
         }
 
         const auto languageIt = std::find_if(
@@ -272,9 +278,10 @@ namespace ds::lang {
                 return language.languageId() == resolvedLanguageId;
             });
         if (languageIt == package.languages().end()) {
-            return srt::core::Error(
-                srt::core::Error::InvalidArgument,
-                "language resource not found in package: " + resolvedLanguageId);
+            return srt::core::Error::g2pError(
+                srt::core::ErrorCode::G2pRouteNotFound,
+                "language resource not found in package: " + resolvedLanguageId,
+                resolvedLanguageId, packageId);
         }
 
         LanguageRoute result;
@@ -313,7 +320,7 @@ namespace ds::lang {
         for (const auto &res : outputs) {
             if (res.isFailed()) {
                 if (error) {
-                    error->code = srt::core::ErrorCode::SessionError;
+                    error->code = srt::core::ErrorCode::G2pConversionFailed;
                     error->severity = srt::core::Severity::Error;
                     error->message = "G2P conversion failed (errorType=" +
                                      std::to_string(static_cast<int>(res.errorType)) + ")";

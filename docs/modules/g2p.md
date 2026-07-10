@@ -156,3 +156,53 @@ DictStep → ModelStep → FormatStep → TagAndValidateStep → FallbackStep
 - **S2P**: `LanguageRoute.s2pFile` 指向 S2P 资源，由宿主层调用 S2P 模块
 - **ds-bank**: `packageDirs` 来自 `VoicebankScanner::packageDirectory()`
 - **ONNX Driver**: lstm 插件依赖 ONNX 驱动，必须在 `initialize()` 前注册
+
+---
+
+## G2P 错误系统
+
+`srt::g2p::Error` 继承 `srt::core::Error`，v4 起使用 `srt::core::ErrorCode`（G2p* 代码段 300-399）替代原有的 12 值 Type 枚举。旧 Type 枚举标记为 `[[deprecated]]` 但仍可用。
+
+```cpp
+// include/synthrt/G2P/Support/Error.h
+class Error : public srt::core::Error {
+public:
+    using srt::core::ErrorCode;  // 引入 G2p* 代码
+
+    // 新构造函数（ErrorCode + 自动源位置）
+    Error(ErrorCode code, std::string msg,
+          const std::source_location &loc = std::source_location::current());
+    Error(ErrorCode code, std::string msg, std::string suggestion,
+          const std::source_location &loc = std::source_location::current());
+
+    // ok() 覆写：检查 ErrorCode::G2pSuccess
+    bool ok() const noexcept override;
+
+    [[deprecated]] enum Type { Success=0, ConfigError=1, ..., AlreadyInitialized=11 };
+};
+```
+
+### G2P 错误码
+
+| ErrorCode | 说明 |
+|---|---|
+| `G2pSuccess` (300) | 成功 |
+| `G2pConfigError` | 配置错误 |
+| `G2pFileSystemError` | 文件系统错误 |
+| `G2pDependencyError` | 依赖错误 |
+| `G2pRuntimeError` | 运行时错误 |
+| `G2pRouteNotFound` | 语言路由未找到 |
+| `G2pPackageNotFound` | G2P 包未找到 |
+| `G2pConversionFailed` | 转换失败 |
+| `G2pAlreadyInitialized` | Manager 已初始化 |
+| ... | 完整列表见 `Diagnostic.h` |
+
+错误创建使用 `Error::g2pError()` 工厂函数，自动填充 language/packageId 上下文和源位置。
+
+### resolveLanguageRoute 错误码
+
+| 场景 | ErrorCode |
+|---|---|
+| packageId 不在 packageDirs 中 | `G2pPackageNotFound` |
+| singerId 在包中未找到 | `G2pRouteNotFound` |
+| 语言未配置 G2P | `G2pRouteNotFound` |
