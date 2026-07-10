@@ -158,6 +158,13 @@ if(SYNTHRT_INSTALL)
         "${CMAKE_CURRENT_BINARY_DIR}/synthrtConfigVersion.cmake"
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/synthrt
     )
+
+    # Install official G2P packages (Phonetic-Suite-*) required by LanguageService
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/common/G2pPackages")
+        install(DIRECTORY tests/common/G2pPackages
+            DESTINATION ${CMAKE_INSTALL_DATADIR}/synthrt
+        )
+    endif()
 endif()
 
 if(SYNTHRT_BUILD_TESTS)

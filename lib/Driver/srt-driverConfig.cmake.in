@@ -1,0 +1,9 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(stdcorelib)
+find_dependency(srt-core)
+
+include("${CMAKE_CURRENT_LIST_DIR}/srt-driverTargets.cmake")
+
+check_required_components(srt-driver)

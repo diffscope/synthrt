@@ -9,7 +9,7 @@ project(dsbank
 # ----------------------------------
 set(DSBANK_INSTALL ${SYNTHRT_INSTALL})
 set(DSBANK_VERSION ${PROJECT_VERSION})
-set(DSBANK_INSTALL_NAME ${PROJECT_NAME})
+set(DSBANK_INSTALL_NAME srt-ds-bank)
 
 # ----------------------------------
 # Configure BuildAPI

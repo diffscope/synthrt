@@ -1,0 +1,13 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(stdcorelib)
+find_dependency(srt-core)
+find_dependency(srt-ds-bank)
+find_dependency(srt-g2p)
+find_dependency(srt-driver)
+find_dependency(dsinfer)
+
+include("${CMAKE_CURRENT_LIST_DIR}/srt-cTargets.cmake")
+
+check_required_components(srt-c)

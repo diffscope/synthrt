@@ -11,7 +11,16 @@ if(NOT TARGET srt::driver)
 endif()
 
 # Require onnxruntime headers.
-set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
+# Locate ONNX Runtime: check SYNTHRT_ORT_DIR (CI), then third-party/ (local), then build dir
+if(DEFINED SYNTHRT_ORT_DIR AND IS_DIRECTORY "${SYNTHRT_ORT_DIR}/default")
+    set(_onnxruntime_dir ${SYNTHRT_ORT_DIR})
+elseif(IS_DIRECTORY ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime/default)
+    set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
+elseif(IS_DIRECTORY ${CMAKE_BINARY_DIR}/onnxruntime/default)
+    set(_onnxruntime_dir ${CMAKE_BINARY_DIR}/onnxruntime)
+else()
+    set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
+endif()
 set(_onnxruntime_default_dir ${_onnxruntime_dir}/default)
 
 if(NOT IS_DIRECTORY ${_onnxruntime_default_dir})

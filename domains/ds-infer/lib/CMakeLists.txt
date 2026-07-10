@@ -30,7 +30,7 @@ dsinfer_add_library(srt-ds-infer SHARED PREFIX dsinfer
 target_compile_definitions(srt-ds-infer PRIVATE DSINFER_LIBRARY)
 
 find_path(SPARSEPP_INCLUDE_DIRS "sparsepp/spp.h")
-# Expose include/diffsinger/Infer/ as PUBLIC so consumers (ds-session, CLI) can
+# Expose include/diffsinger/Infer/ as PUBLIC so consumers (CLI, lite) can
 # resolve <dsinfer/...> headers transitively included by public headers such as
 # InferenceRequest.h -> CommonApiL1.h -> <dsinfer/Core/ParamTag.h>.
 target_include_directories(srt-ds-infer PUBLIC
