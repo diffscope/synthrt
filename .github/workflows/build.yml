@@ -49,7 +49,9 @@ jobs:
       - name: Download ONNX Runtime
         shell: cmake -P {0}
         run: |
-          include(${{ github.workspace }}/scripts/setup-onnxruntime.cmake)
+          set(ws ${{ github.workspace }})
+          file(TO_CMAKE_PATH "${ws}" ws)
+          include(${ws}/scripts/setup-onnxruntime.cmake)
 
       - name: Configure CMake
         run: |
