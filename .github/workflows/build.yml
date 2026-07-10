@@ -32,7 +32,8 @@ jobs:
       - name: Prepare vcpkg overlay ports
         shell: bash
         run: |
-          git clone --depth 1 https://github.com/diffscope/ds-editor-lite.git /tmp/ds-editor-lite
+          git clone --depth 1 https://github.com/flutydeer/ds-editor-lite.git /tmp/ds-editor-lite
+          cd /tmp/ds-editor-lite && git submodule update --init --depth 1 scripts/vcpkg
           mkdir -p scripts/vcpkg/ports scripts/vcpkg/triplets
           cp -r /tmp/ds-editor-lite/scripts/vcpkg/ports/. scripts/vcpkg/ports/
           cp -r /tmp/ds-editor-lite/scripts/vcpkg/triplets/. scripts/vcpkg/triplets/

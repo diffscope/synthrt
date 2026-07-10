@@ -119,6 +119,10 @@ namespace ds::bank {
                     snapshot.languages.push_back(lang.languageId());
                 }
 
+                for (const auto &spk : singer.speakers()) {
+                    snapshot.speakerIds.push_back(spk.speakerId());
+                }
+
                 for (const auto &inf : package.inferences()) {
                     snapshot.inferenceIds.push_back(inf.id);
                 }
