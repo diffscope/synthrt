@@ -110,6 +110,16 @@ add_subdirectory(plugins)
 set(CMAKE_FOLDER "Tools")
 add_subdirectory(tools)
 
+# Aggregate target: synthrt::synthrt — links all core runtime libraries
+if(NOT TARGET synthrt-synthrt)
+    add_library(synthrt-synthrt INTERFACE)
+    add_library(synthrt::synthrt ALIAS synthrt-synthrt)
+    target_link_libraries(synthrt-synthrt INTERFACE
+        srt::core srt::driver srt::s2p srt::svs srt-ds::bank)
+    set_target_properties(synthrt-synthrt PROPERTIES FOLDER "Domains")
+endif()
+
+# Domain-specific aggregate: srt::diffsinger — adds G2P and ds-infer on top
 if(NOT TARGET srt-diffsinger)
     add_library(srt-diffsinger INTERFACE)
     add_library(srt::diffsinger ALIAS srt-diffsinger)
@@ -119,15 +129,13 @@ if(NOT TARGET srt-diffsinger)
 endif()
 
 # ----------------------------------
-# Export srt-diffsinger for find_package(synthrt)
+# Export aggregate targets for find_package(synthrt)
 # ----------------------------------
-if(SYNTHRT_INSTALL AND TARGET srt-diffsinger)
+if(SYNTHRT_INSTALL)
+    set_target_properties(synthrt-synthrt PROPERTIES EXPORT_NAME synthrt)
     set_target_properties(srt-diffsinger PROPERTIES EXPORT_NAME diffsinger)
-    install(TARGETS srt-diffsinger
+    install(TARGETS synthrt-synthrt srt-diffsinger
         EXPORT synthrtTargets
-        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     )
     install(EXPORT synthrtTargets
         NAMESPACE srt::

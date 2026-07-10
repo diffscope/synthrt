@@ -1,8 +1,9 @@
 @PACKAGE_INIT@
 
-# synthrt - DiffSinger synthesis runtime
-# find_package(synthrt) provides the srt::diffsinger aggregate target
-# which links: srt::g2p, srt-ds::bank, srt-ds::infer, srt-ds::session
+# synthrt - SVS Synthesis Runtime Library
+# find_package(synthrt) provides:
+#   synthrt::synthrt  — aggregate of all core libraries (core, driver, s2p, svs, ds-bank)
+#   srt::diffsinger   — aggregate for DiffSinger (g2p, ds-bank, ds-infer)
 
 include(CMakeFindDependencyMacro)
 
@@ -12,7 +13,6 @@ find_dependency(srt-driver)
 find_dependency(srt-g2p)
 find_dependency(srt-ds-bank)
 find_dependency(srt-ds-infer)
-find_dependency(srt-ds-session)
 
 include("${CMAKE_CURRENT_LIST_DIR}/synthrtTargets.cmake")
 
