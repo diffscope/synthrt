@@ -605,7 +605,9 @@ srt_extract_add_plugin(${PROJECT_NAME} MidiExtractor ${PROJECT_NAME} NO_EXPORT
 - [x] 删除 `src/libs/audio-util/` 目录
 - [x] 删除 `src/libs/rmvpe-infer/` 目录
 - [x] 删除 `src/libs/game-infer/` 目录
-- [ ] 更新 synthrt vcpkg port（`scripts/vcpkg/ports/synthrt/`）
+- [x] 更新 synthrt vcpkg port（`scripts/vcpkg/ports/synthrt/`）
+  - [x] portfile.cmake 新增 srt-audio / srt-extract 的 `vcpkg_cmake_config_fixup`
+  - [x] vcpkg.json 新增 `ffmpeg` 依赖
 
 ### 6.2 lite 初始化代码
 
@@ -686,6 +688,11 @@ void SynthrtEngine::initializeExtractPlugins() {
   - lib/Audio/CMakeLists.txt: 添加 `target_include_directories(srt-audio PRIVATE ${FFMPEG_INCLUDE_DIRS})`
   - Slicer.cpp: 补齐 `<iterator>` 头文件（`std::distance` 所需，GCC/Clang 不通过 `<algorithm>` 传递）
   - FfmpegAudioDecoder.cpp: 补齐 `<string>` 头文件（`std::to_string` 所需，GCC/Clang 不通过 Error.h 传递）
+
+- [x] **CMake 目标命名空间修复**（commit 1c3cec0）
+  - 问题：BuildAPI 导出目标为 `srt-audio::srt-audio` / `srt-extract::srt-extract`，但 lite 引用 `srt::audio` / `srt::extract`
+  - 修复：创建自定义 `srt-audioConfig.cmake.in` 和 `srt-extractConfig.cmake.in`，在安装时创建 `srt::audio` / `srt::extract` 作为 IMPORTED INTERFACE 别名
+  - 与 `srt::diffsinger` 聚合目标模式一致，消费者可使用统一的 `srt::` 命名空间
 
 ---
 
