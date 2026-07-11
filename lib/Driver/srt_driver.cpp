@@ -26,8 +26,4 @@ namespace srt::driver {
     InferenceDriverPlugin::InferenceDriverPlugin() = default;
     InferenceDriverPlugin::~InferenceDriverPlugin() = default;
 
-    const char *InferenceDriverPlugin::iid() const {
-        return "srt.driver.InferenceDriver";
-    }
-
 }

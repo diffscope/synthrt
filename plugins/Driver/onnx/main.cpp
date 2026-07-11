@@ -10,7 +10,7 @@ namespace srt::driver::onnx {
 
     public:
         const char *iid() const override {
-            return "srt.driver.InferenceDriver";
+            return staticIid();
         }
 
         const char *key() const override {
