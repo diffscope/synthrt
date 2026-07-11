@@ -1,6 +1,7 @@
 #include <synthrt/G2P/Core/Manager.h>
 
 #include <algorithm>
+#include <mutex>
 #include <shared_mutex>
 
 #include <stdcorelib/path.h>

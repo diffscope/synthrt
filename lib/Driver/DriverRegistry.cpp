@@ -1,3 +1,5 @@
+#include <mutex>
+
 #include <synthrt/Driver/DriverRegistry.h>
 
 namespace srt::driver {
