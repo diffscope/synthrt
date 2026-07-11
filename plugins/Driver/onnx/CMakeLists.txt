@@ -21,6 +21,13 @@ elseif(IS_DIRECTORY ${CMAKE_BINARY_DIR}/onnxruntime/default)
 else()
     set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
 endif()
+
+# Normalize to forward slashes for portability. On Windows CI the workspace
+# path may contain backslashes (e.g. "D:\a\synthrt") which break CMake string
+# parsing when the path is embedded in a list argument ("\a" is an invalid
+# escape). file(TO_CMAKE_PATH) converts native separators to "/".
+file(TO_CMAKE_PATH "${_onnxruntime_dir}" _onnxruntime_dir)
+
 set(_onnxruntime_default_dir ${_onnxruntime_dir}/default)
 
 if(NOT IS_DIRECTORY ${_onnxruntime_default_dir})
