@@ -177,11 +177,11 @@ AudioWriteFailed = 704,         // 音频文件写入失败
 
 ### 2.5 验证标准
 
-- [ ] `synthrt-audio` target 编译成功
+- [x] `synthrt-audio` target 编译成功
 - [ ] 单元测试通过（AudioBuffer view/owned、FFmpeg 解码、重采样、切片）
-- [ ] 现有 synthrt 构建不受影响（Audio 模块是新增，不修改现有代码）
-- [ ] vcpkg FFmpeg 依赖安装成功
-- [ ] FFmpeg C 头文件不暴露到公开 API（PIMPL 核对）
+- [x] 现有 synthrt 构建不受影响（Audio 模块是新增，不修改现有代码）
+- [x] vcpkg FFmpeg 依赖安装成功
+- [x] FFmpeg C 头文件不暴露到公开 API（PIMPL 核对）
 
 ---
 
@@ -357,7 +357,7 @@ ExtractUnsupportedVersion = 805,   // 不支持的模型版本
 
 ### 3.5 验证标准
 
-- [ ] `synthrt-extract` target 编译成功
+- [x] `synthrt-extract` target 编译成功
 - [ ] `plugins/Extract/` 目录存在但为空壳
 - [ ] 单元测试通过（AudioPreprocessor 重采样+切片流程、getInferenceDriver）
 - [ ] 现有 synthrt 构建不受影响
@@ -473,7 +473,7 @@ srt_extract_add_plugin(${PROJECT_NAME} PitchExtractor ${PROJECT_NAME} NO_EXPORT
 
 ### 4.5 验证标准
 
-- [ ] rmvpe 插件 DLL 编译成功，输出到 `bin/plugins/srt-extract/PitchExtractor/`
+- [x] rmvpe 插件 DLL 编译成功，输出到 `bin/plugins/srt-extract/PitchExtractor/`
 - [ ] 用 rmvpe 模型文件测试提取功能
 - [ ] 输出与 lite 原始实现一致（f0 + uv + offset）
 
@@ -577,7 +577,7 @@ srt_extract_add_plugin(${PROJECT_NAME} MidiExtractor ${PROJECT_NAME} NO_EXPORT
 
 ### 5.5 验证标准
 
-- [ ] game 插件 DLL 编译成功，输出到 `bin/plugins/srt-extract/MidiExtractor/`
+- [x] game 插件 DLL 编译成功，输出到 `bin/plugins/srt-extract/MidiExtractor/`
 - [ ] 用 game 模型目录测试提取功能
 - [ ] 输出与 lite 原始实现一致（MIDI 音符序列）
 
@@ -647,13 +647,45 @@ void SynthrtEngine::initializeExtractPlugins() {
   - [ ] 端到端测试：加载 rmvpe 插件 → 解码音频 → 提取音高
   - [ ] 端到端测试：加载 game 插件 → 解码音频 → 提取 MIDI
 - [ ] 更新 `.github/workflows/build.yml` CI 配置
-- [ ] 编译验证（需安装 FFmpeg vcpkg 依赖后执行）
+- [x] 编译验证（59/59 targets 编译成功，含 audio/extract/rmvpe/game）
 
 ### 7.2 验证标准
 
 - [ ] 所有文档更新完成
 - [ ] 集成测试通过
 - [ ] CI 三平台构建成功
+
+---
+
+## 7a. 迁移后修复（编译/Bug/报错/跨平台）
+
+迁移完成后对 audio/extract 模块进行的编译修复、Bug 修复、报错规范化和跨平台适配。
+
+### 7a.1 修复清单
+
+- [x] **编译错误修复**（commit 7f8307b）
+  - lib/Audio/CMakeLists.txt: `SRT_AUDIO_INCLUDE_DIR` 从 `../../include` 改为 `include`
+  - lib/Extract/CMakeLists.txt: `SRT_EXTRACT_INCLUDE_DIR` 从 `../../include` 改为 `include`
+  - GameExtractor.h: 补齐缺失的 `#include <synthrt/Core/Tensor/ITensor.h>`
+
+- [x] **隐含 Bug 修复**（commit bf99905）
+  - FfmpegAudioDecoder: `decodeNextFrame()` 使用 `frame->format` 而非 `codecCtx->sample_fmt` 判断 planar 格式
+  - AudioFileWriter: 移除 `av_channel_layout_default()` 前的冗余 `ch_layout.nb_channels` 赋值
+  - SwresampleResampler: `init()` 增加参数复用检查，避免分块 convert 时丢失重采样器内部延迟状态
+
+- [x] **报错信息规范化**（commit e0a05a3）
+  - ExtractorDriver: 修正错误码（`SessionError`→`InvalidArgument`、`DriverNotFound`→`ExtractNotInitialized`/`DriverUnsupportedProvider`），增加 null 类型转换检查
+  - FfmpegAudioDecoder: 所有错误消息添加函数名前缀和文件路径上下文
+  - AudioFileWriter: 所有错误消息添加文件路径和函数上下文
+  - SwresampleResampler: 错误消息添加 `init`/`convert` 函数前缀
+  - AudioPreprocessor: 错误消息包含无效采样率值
+  - RmvpeExtractor: 所有错误消息添加 `open`/`extract`/`forward` 函数前缀，包含模型路径
+  - GameExtractor: 错误消息添加 `open`/`extract` 函数前缀，统一 slicer 错误消息风格
+
+- [x] **跨平台编译修复**（commit a8dbb3c）
+  - lib/Audio/CMakeLists.txt: 添加 `target_include_directories(srt-audio PRIVATE ${FFMPEG_INCLUDE_DIRS})`
+  - Slicer.cpp: 补齐 `<iterator>` 头文件（`std::distance` 所需，GCC/Clang 不通过 `<algorithm>` 传递）
+  - FfmpegAudioDecoder.cpp: 补齐 `<string>` 头文件（`std::to_string` 所需，GCC/Clang 不通过 Error.h 传递）
 
 ---
 
@@ -666,7 +698,7 @@ void SynthrtEngine::initializeExtractPlugins() {
 | PluginFactory 找不到插件 DLL | Phase 5 运行时失败 | 确保插件输出到 `bin/plugins/srt-extract/{category}/`，路径注册正确 |
 | rmvpe/game 输出与原实现不一致 | Phase 3/4 功能回归 | 用相同模型和音频对比输出 |
 | lite vcpkg port 更新延迟 | Phase 5 阻塞 | 先用源码依赖，port 更新后切换 |
-| SwresampleResampler 状态管理 | Phase 2 重采样错误 | 每次 convert 重新初始化 swrCtx（参考 dataset-tools 实现） |
+| SwresampleResampler 状态管理 | Phase 2 重采样错误 | 已修复：init() 增加参数复用检查，避免分块 convert 时丢失内部延迟状态（commit bf99905） |
 | AudioBuffer view 语义误用 | Phase 3/4 崩溃 | view 不可修改，需修改时用 clone() 转为 owned |
 
 ---
