@@ -13,7 +13,7 @@
         "re2",
         "cpp-pinyin",
         "syscmdline",
-        "ffmpeg-fake"
+        "ffmpeg"
     ],
     "features": {
         "tests": {

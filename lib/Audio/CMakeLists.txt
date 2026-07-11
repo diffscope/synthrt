@@ -25,7 +25,7 @@ file(GLOB_RECURSE _src CONFIGURE_DEPENDS
 )
 
 find_package(stdcorelib CONFIG REQUIRED)
-find_package(ffmpeg-fake CONFIG REQUIRED)
+find_package(FFmpeg REQUIRED)
 
 srt_audio_add_library(${PROJECT_NAME} SHARED PREFIX srt_audio
     SOURCES ${_src}
