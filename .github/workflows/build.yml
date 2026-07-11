@@ -29,7 +29,7 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Install vcpkg
+      - name: Set up vcpkg
         uses: lukka/run-vcpkg@v11
         with:
           vcpkgJsonGlob: scripts/vcpkg-manifest/vcpkg.json
@@ -47,21 +47,26 @@ jobs:
         run: |
           set(ws [=[${{ github.workspace }}]=])
           file(TO_CMAKE_PATH "${ws}" ws)
+          set(CMAKE_BINARY_DIR "${ws}/build")
           include(${ws}/scripts/setup-onnxruntime.cmake)
 
       - name: Configure CMake
+        shell: bash
         run: |
           cmake -B build -S . \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DSYNTHRT_BUILD_TESTS=ON \
             -DSYNTHRT_ORT_DIR=${{ github.workspace }}/build/onnxruntime \
-            -DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake \
-            -DVCPKG_OVERLAY_PORTS=${{ github.workspace }}/scripts/vcpkg/ports
+            -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
+            -DVCPKG_MANIFEST_DIR=${{ github.workspace }}/scripts/vcpkg-manifest \
+            -DVCPKG_OVERLAY_PORTS=${{ github.workspace }}/scripts/vcpkg/ports \
+            -DVCPKG_OVERLAY_TRIPLETS=${{ github.workspace }}/scripts/vcpkg/triplets
 
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
 
       - name: Test
+        shell: bash
         run: |
           ctest --test-dir build --build-config ${{ env.BUILD_TYPE }} \
             --output-on-failure --parallel 4 --timeout 300

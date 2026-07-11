@@ -19,7 +19,7 @@
             ]
         }
     },
-    "vcpkg-configuration": {
+    "configuration": {
         "overlay-ports": [
             "../vcpkg/ports"
         ],

@@ -11,6 +11,7 @@
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
 
+#include <synthrt/G2P/Base/LangCommon.h>
 #include <synthrt/G2P/Package/Package.h>
 #include <synthrt/G2P/Support/ContextUtils.h>
 #include <synthrt/G2P/Support/Error.h>
@@ -74,6 +75,20 @@ namespace srt::g2p {
             srt::core::Expected<srt::core::ModuleSpec *>
             parseSpec(const std::filesystem::path &basePath,
                       const srt::core::JsonValue &config) const override;
+        };
+
+        /// Concrete ModuleCategory for the "driver" category.
+        /// Hosts register G2P driver factories (e.g. g2pOnnxDriver) here via
+        /// addObject() before Manager::initialize(). Drivers are registered
+        /// programmatically, not parsed from package.json, so parseSpec uses
+        /// the default NotImplemented behavior.
+        class DriverCategory : public srt::core::ModuleCategory {
+        public:
+            explicit DriverCategory(void *mgr)
+                : srt::core::ModuleCategory(kDriverCategory, mgr) {}
+
+            std::string key() const override { return kDriverCategory; }
+            std::string category() const override { return kDriverCategory; }
         };
 
         /// Load a config file referenced by "configuration" in a module entry.
@@ -216,8 +231,9 @@ namespace srt::g2p {
     } // namespace
 
     PackageManager::Impl::Impl(PackageManager *decl) : decl(decl) {
-        categories["g2p"] = new G2pCategory(decl);
-        categories["dict"] = new DictCategory(decl);
+        categories[kG2pCategory] = new G2pCategory(decl);
+        categories[kDictCategory] = new DictCategory(decl);
+        categories[kDriverCategory] = new DriverCategory(decl);
     }
 
     PackageManager::Impl::~Impl() {
