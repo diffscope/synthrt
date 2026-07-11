@@ -1,0 +1,18 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+find_dependency(stdcorelib)
+find_dependency(srt-core)
+
+include("${CMAKE_CURRENT_LIST_DIR}/srt-audioTargets.cmake")
+
+# Convenience alias: srt::audio -> srt-audio::srt-audio
+# Allows consumers to use the short srt:: namespace consistently.
+if(TARGET srt-audio::srt-audio AND NOT TARGET srt::audio)
+    add_library(srt::audio INTERFACE IMPORTED)
+    set_target_properties(srt::audio PROPERTIES
+        INTERFACE_LINK_LIBRARIES "srt-audio::srt-audio"
+    )
+endif()
+
+check_required_components(srt-audio)
