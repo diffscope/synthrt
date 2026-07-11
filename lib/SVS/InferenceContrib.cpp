@@ -6,10 +6,13 @@
 #include <synthrt/Core/Core/Runtime.h>
 #include <synthrt/Core/Plugin/PluginFactory.h>
 #include <synthrt/Core/Support/DisplayText.h>
+#include <synthrt/Core/Support/Logging.h>
 
 #include "../Core/Module/Module_p.h"
 
 namespace srt::svs {
+
+    static srt::core::LogCategory SVSLog("svs.inference");
 
     // ============================================================================
     // Helpers
@@ -255,20 +258,36 @@ namespace srt::svs {
                 // Find the interpreter plugin via runtime and cache the interpreter.
                 auto *rt = runtime();
                 if (!rt) {
+                    SVSLog.srtWarning("loadSpec(Initialized): runtime is null for inference "
+                                      "spec class '%1', interpreter will be unavailable",
+                                      impl.className);
                     break;
                 }
                 auto *plugin = findInterpreterPlugin(rt, impl.className);
                 if (!plugin) {
-                    // Plugin not found; leave interpreter null. The spec is still
-                    // registered (Initialized) so callers can inspect metadata.
+                    // Plugin not found — log loudly so silent synthesis failures
+                    // are diagnosable. The spec is still registered (Initialized)
+                    // so callers can inspect metadata, but createInference() will
+                    // return an error later.
+                    SVSLog.srtWarning("loadSpec(Initialized): interpreter plugin not found "
+                                      "for class '%1'; inference for this spec will fail "
+                                      "at createInference time", impl.className);
                     break;
                 }
                 impl.interpreter = plugin->create();
+                if (!impl.interpreter) {
+                    SVSLog.srtWarning("loadSpec(Initialized): plugin->create() returned null "
+                                      "for class '%1'", impl.className);
+                }
                 break;
             }
 
             case core::ModuleSpec::Ready: {
                 if (!impl.interpreter) {
+                    // Silent skip: no schema/configuration will be created. This
+                    // is the continuation of the Initialized-phase failure above.
+                    SVSLog.srtWarning("loadSpec(Ready): skipping schema/config creation "
+                                      "for class '%1' (interpreter is null)", impl.className);
                     break;
                 }
                 // Create schema and configuration from the interpreter.
