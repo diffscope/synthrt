@@ -10,7 +10,7 @@ set(SRT_EXTRACT_VERSION ${PROJECT_VERSION})
 set(SRT_EXTRACT_INSTALL_NAME ${PROJECT_NAME})
 set(SRT_EXTRACT_AUTHOR "Team OpenVPI")
 set(SRT_EXTRACT_START_YEAR 2026)
-set(SRT_EXTRACT_INCLUDE_DIR ../../include)
+set(SRT_EXTRACT_INCLUDE_DIR include)
 include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
 
 # srt-extract library
@@ -29,7 +29,7 @@ find_package(stdcorelib CONFIG REQUIRED)
 srt_extract_add_library(${PROJECT_NAME} SHARED
     SOURCES ${_src}
     LINKS stdcorelib::stdcorelib srt::core srt::audio srt::driver
-    INCLUDE_PRIVATE ../../include/synthrt/Extract/** **
+    INCLUDE_PRIVATE include/synthrt/Extract/** **
 )
 
 # Convenience alias matching the v3 roadmap convention (srt::extract).

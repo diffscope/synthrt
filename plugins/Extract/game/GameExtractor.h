@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <synthrt/Core/Support/Expected.h>
+#include <synthrt/Core/Tensor/ITensor.h>
 #include <synthrt/Driver/InferenceDriver.h>
 #include <synthrt/Driver/InferenceSession.h>
 #include <synthrt/Extract/MidiExtractor.h>

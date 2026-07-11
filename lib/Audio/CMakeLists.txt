@@ -15,7 +15,7 @@ set(SRT_AUDIO_VERSION ${PROJECT_VERSION})
 set(SRT_AUDIO_INSTALL_NAME ${PROJECT_NAME})
 set(SRT_AUDIO_AUTHOR "Team OpenVPI")
 set(SRT_AUDIO_START_YEAR 2023)
-set(SRT_AUDIO_INCLUDE_DIR ../../include)
+set(SRT_AUDIO_INCLUDE_DIR include)
 include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
 
 file(GLOB_RECURSE _src CONFIGURE_DEPENDS
@@ -30,7 +30,7 @@ find_package(FFmpeg REQUIRED)
 srt_audio_add_library(${PROJECT_NAME} SHARED PREFIX srt_audio
         SOURCES ${_src}
         LINKS stdcorelib::stdcorelib srt::core
-        INCLUDE_PRIVATE ../../include/synthrt/Audio/** **
+        INCLUDE_PRIVATE include/synthrt/Audio/** **
 )
 target_compile_definitions(srt-audio PRIVATE SRT_AUDIO_LIBRARY)
 
