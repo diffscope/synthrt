@@ -124,7 +124,6 @@ srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sam
     }
 
     d->codecCtx->sample_rate = sampleRate;
-    d->codecCtx->ch_layout.nb_channels = channelCount;
     av_channel_layout_default(&d->codecCtx->ch_layout, channelCount);
 
     // Determine encoder format

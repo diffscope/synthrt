@@ -110,16 +110,20 @@ bool FfmpegAudioDecoder::Impl::decodeNextFrame(std::vector<uint8_t> &outData, in
             continue;
 
         while (avcodec_receive_frame(codecCtx, frame) == 0) {
-            // Copy raw frame data in source format (no resampling)
-            const int frameBytes = frame->nb_samples * channels * bps;
-            if (av_sample_fmt_is_planar(codecCtx->sample_fmt)) {
+            // Copy raw frame data in source format (no resampling).
+            // Use frame->format (actual decoded format) instead of codecCtx->sample_fmt
+            // (configured format) — they may differ for some decoders.
+            const auto frameFmt = static_cast<AVSampleFormat>(frame->format);
+            const int frameChannels = frame->ch_layout.nb_channels;
+            const int frameBytes = frame->nb_samples * frameChannels * bps;
+            if (av_sample_fmt_is_planar(frameFmt)) {
                 // Planar: deinterleave to interleaved
                 planarBuf.resize(frameBytes);
-                for (int ch = 0; ch < channels; ++ch) {
+                for (int ch = 0; ch < frameChannels; ++ch) {
                     const uint8_t *src = frame->data[ch];
                     auto *dst = planarBuf.data() + ch * bps;
                     for (int s = 0; s < frame->nb_samples; ++s) {
-                        std::memcpy(dst + s * channels * bps, src + s * bps, bps);
+                        std::memcpy(dst + s * frameChannels * bps, src + s * bps, bps);
                     }
                 }
                 outData.insert(outData.end(), planarBuf.begin(), planarBuf.end());

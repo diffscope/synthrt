@@ -69,6 +69,16 @@ struct SwresampleResampler::Impl {
             return {};
         }
 
+        // Reuse existing swrCtx if parameters haven't changed.
+        // This preserves the resampler's internal delay state across chunked
+        // convert() calls (e.g. AudioPipeline's 4096-frame streaming decode),
+        // preventing audio artifacts at chunk boundaries.
+        if (swrCtx &&
+            inSampleRate == srcRate && inChannels == srcCh && inFormat == srcFmt &&
+            outSampleRate == dstRate && outChannels == dstCh && outFormat == dstFmt) {
+            return {};
+        }
+
         cleanup();
 
         AVChannelLayout inChLayout{};
