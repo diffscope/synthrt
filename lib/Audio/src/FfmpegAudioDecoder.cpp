@@ -13,6 +13,7 @@ extern "C" {
 
 #include <cstring>
 #include <limits>
+#include <string>
 #include <vector>
 
 #include <synthrt/Core/Support/Error.h>

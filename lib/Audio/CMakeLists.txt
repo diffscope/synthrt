@@ -36,6 +36,7 @@ target_compile_definitions(srt-audio PRIVATE SRT_AUDIO_LIBRARY)
 
 # FFmpeg/libswresample — private link (PIMPL, headers not exposed in public API)
 target_link_libraries(srt-audio PRIVATE ${FFMPEG_LIBRARIES})
+target_include_directories(srt-audio PRIVATE ${FFMPEG_INCLUDE_DIRS})
 
 # Optional: xsimd SIMD acceleration (Slicer RMS computation)
 find_package(xsimd CONFIG)
