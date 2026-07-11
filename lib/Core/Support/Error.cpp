@@ -10,6 +10,8 @@ namespace srt::core {
         int v = static_cast<int>(code);
         if (v == 0)
             return ErrorCategory::None;
+        if (v >= 800)
+            return ErrorCategory::Extract;
         if (v >= 700)
             return ErrorCategory::Audio;
         if (v >= 600)
@@ -127,6 +129,14 @@ namespace srt::core {
             case ErrorCode::AudioUnsupportedFormat:  return "Audio::UnsupportedFormat";
             case ErrorCode::AudioInvalidBuffer:      return "Audio::InvalidBuffer";
             case ErrorCode::AudioWriteFailed:        return "Audio::WriteFailed";
+
+            // Extract (800-899)
+            case ErrorCode::ExtractNotInitialized:     return "Extract::NotInitialized";
+            case ErrorCode::ExtractModelOpenFailed:    return "Extract::ModelOpenFailed";
+            case ErrorCode::ExtractInferenceFailed:    return "Extract::InferenceFailed";
+            case ErrorCode::ExtractOutputInvalid:      return "Extract::OutputInvalid";
+            case ErrorCode::ExtractPluginNotFound:     return "Extract::PluginNotFound";
+            case ErrorCode::ExtractUnsupportedVersion: return "Extract::UnsupportedVersion";
         }
         return "Unknown";
     }
@@ -143,6 +153,7 @@ namespace srt::core {
             case ErrorCategory::S2P:       return "S2P";
             case ErrorCategory::SVS:       return "SVS";
             case ErrorCategory::Audio:     return "Audio";
+            case ErrorCategory::Extract:   return "Extract";
         }
         return "Unknown";
     }
@@ -457,6 +468,8 @@ namespace srt::core {
             case ErrorCategory::SVS:
                 return InvalidArgument;
             case ErrorCategory::Audio:
+                return SessionError;
+            case ErrorCategory::Extract:
                 return SessionError;
         }
         return InvalidArgument;

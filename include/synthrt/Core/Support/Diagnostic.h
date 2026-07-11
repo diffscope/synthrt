@@ -24,6 +24,7 @@ namespace srt::core {
         S2P,        // 500-599
         SVS,        // 600-699
         Audio,      // 700-799
+        Extract,    // 800-899
     };
 
     /// Hierarchical error code. Values are grouped by module in 100-code segments.
@@ -126,6 +127,14 @@ namespace srt::core {
         AudioUnsupportedFormat,
         AudioInvalidBuffer,
         AudioWriteFailed,
+
+        // === Extract (800-899) ===
+        ExtractNotInitialized = 800,
+        ExtractModelOpenFailed,
+        ExtractInferenceFailed,
+        ExtractOutputInvalid,
+        ExtractPluginNotFound,
+        ExtractUnsupportedVersion,
     };
 
     /// Returns the category for a given error code.
