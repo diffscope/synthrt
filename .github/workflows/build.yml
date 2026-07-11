@@ -56,11 +56,11 @@ jobs:
           cmake -B build -S . \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DSYNTHRT_BUILD_TESTS=ON \
-            -DSYNTHRT_ORT_DIR=${{ github.workspace }}/build/onnxruntime \
+            -DSYNTHRT_ORT_DIR="${{ github.workspace }}/build/onnxruntime" \
             -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
-            -DVCPKG_MANIFEST_DIR=${{ github.workspace }}/scripts/vcpkg-manifest \
-            -DVCPKG_OVERLAY_PORTS=${{ github.workspace }}/scripts/vcpkg/ports \
-            -DVCPKG_OVERLAY_TRIPLETS=${{ github.workspace }}/scripts/vcpkg/triplets
+            -DVCPKG_MANIFEST_DIR="${{ github.workspace }}/scripts/vcpkg-manifest" \
+            -DVCPKG_OVERLAY_PORTS="${{ github.workspace }}/scripts/vcpkg/ports" \
+            -DVCPKG_OVERLAY_TRIPLETS="${{ github.workspace }}/scripts/vcpkg/triplets"
 
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel

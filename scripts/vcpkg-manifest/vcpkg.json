@@ -9,7 +9,10 @@
         "blake3",
         "sparsepp",
         "bit7z",
-        "luajit"
+        "luajit",
+        "re2",
+        "cpp-pinyin",
+        "syscmdline"
     ],
     "features": {
         "tests": {
