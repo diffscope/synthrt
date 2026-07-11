@@ -23,7 +23,7 @@ set(SRT_EXTRACT_INCLUDE_DIR ../../include)
 include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
 
 # Phase 3: pitch extractor plugin (rmvpe)
-# add_subdirectory(rmvpe)
+add_subdirectory(rmvpe)
 
 # Phase 4: MIDI extractor plugin (game)
-# add_subdirectory(game)
+add_subdirectory(game)
