@@ -10,6 +10,8 @@ namespace srt::core {
         int v = static_cast<int>(code);
         if (v == 0)
             return ErrorCategory::None;
+        if (v >= 700)
+            return ErrorCategory::Audio;
         if (v >= 600)
             return ErrorCategory::SVS;
         if (v >= 500)
@@ -118,6 +120,13 @@ namespace srt::core {
             case ErrorCode::SvsSingerNotLoaded:    return "SVS::SingerNotLoaded";
             case ErrorCode::SvsStageResolveFailed: return "SVS::StageResolveFailed";
             case ErrorCode::SvsCategoryNotFound:   return "SVS::CategoryNotFound";
+
+            // Audio (700-799)
+            case ErrorCode::AudioDecodeFailed:       return "Audio::DecodeFailed";
+            case ErrorCode::AudioResampleFailed:     return "Audio::ResampleFailed";
+            case ErrorCode::AudioUnsupportedFormat:  return "Audio::UnsupportedFormat";
+            case ErrorCode::AudioInvalidBuffer:      return "Audio::InvalidBuffer";
+            case ErrorCode::AudioWriteFailed:        return "Audio::WriteFailed";
         }
         return "Unknown";
     }
@@ -133,6 +142,7 @@ namespace srt::core {
             case ErrorCategory::Driver:    return "Driver";
             case ErrorCategory::S2P:       return "S2P";
             case ErrorCategory::SVS:       return "SVS";
+            case ErrorCategory::Audio:     return "Audio";
         }
         return "Unknown";
     }
@@ -446,6 +456,8 @@ namespace srt::core {
                 return InvalidFormat;
             case ErrorCategory::SVS:
                 return InvalidArgument;
+            case ErrorCategory::Audio:
+                return SessionError;
         }
         return InvalidArgument;
     }

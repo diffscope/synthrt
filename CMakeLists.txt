@@ -87,6 +87,7 @@ add_subdirectory(third-party)
 # Generic runtime (dependency bottom-up)
 set(CMAKE_FOLDER "Libraries")
 add_subdirectory(lib/Core)
+add_subdirectory(lib/Audio)
 add_subdirectory(lib/Driver)
 add_subdirectory(lib/S2P)
 # v2 Phase 5: SVS extracted from lib/Core/SVS/ as independent srt-svs target

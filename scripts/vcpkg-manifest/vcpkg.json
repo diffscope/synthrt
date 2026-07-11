@@ -12,7 +12,8 @@
         "luajit",
         "re2",
         "cpp-pinyin",
-        "syscmdline"
+        "syscmdline",
+        "ffmpeg-fake"
     ],
     "features": {
         "tests": {

@@ -23,6 +23,7 @@ namespace srt::core {
         Driver,     // 400-499
         S2P,        // 500-599
         SVS,        // 600-699
+        Audio,      // 700-799
     };
 
     /// Hierarchical error code. Values are grouped by module in 100-code segments.
@@ -118,6 +119,13 @@ namespace srt::core {
         SvsSingerNotLoaded,
         SvsStageResolveFailed,
         SvsCategoryNotFound,
+
+        // === Audio (700-799) ===
+        AudioDecodeFailed = 700,
+        AudioResampleFailed,
+        AudioUnsupportedFormat,
+        AudioInvalidBuffer,
+        AudioWriteFailed,
     };
 
     /// Returns the category for a given error code.
