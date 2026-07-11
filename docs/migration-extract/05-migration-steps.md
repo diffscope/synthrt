@@ -587,24 +587,24 @@ srt_extract_add_plugin(${PROJECT_NAME} MidiExtractor ${PROJECT_NAME} NO_EXPORT
 
 ### 6.1 任务清单
 
-- [ ] 修改 lite 的 `vcpkg.json`：移除 audio 相关依赖（sndfile/soxr/mpg123/FLAC/xsimd）
-- [ ] 修改 lite 的 `CMakeLists.txt`：移除 `add_subdirectory(src/libs/audio-util)`、`rmvpe-infer`、`game-infer`
-- [ ] 修改 `SynthrtEngine`：新增 extract 插件路径注册
-  - [ ] 调用 `plugins->addPluginPath(kPitchExtractorPluginIid, extractPluginDir)`
-  - [ ] 调用 `plugins->addPluginPath(kMidiExtractorPluginIid, extractPluginDir)`
-- [ ] 修改 `ExtractPitchTask`：
-  - [ ] 移除 `#include <rmvpe-infer/Rmvpe.h>`
-  - [ ] 改用 `plugins->plugin<srt::extract::PitchExtractorPlugin>("rmvpe")` 获取插件
-  - [ ] 改用 `srt::audio::AudioPipeline::create()` 解码音频
-  - [ ] 结果转换：`PitchResult` → lite 内部 `QList<QPair<double, QList<double>>>`
-- [ ] 修改 `ExtractMidiTask`：
-  - [ ] 移除 `#include <game-infer/Game.h>`
-  - [ ] 改用 `plugins->plugin<srt::extract::MidiExtractorPlugin>("game")` 获取插件
-  - [ ] 配置 `MidiExtractOptions`（tempo、segThreshold、estThreshold、language）
-  - [ ] 结果转换：`MidiResult` → lite 内部 `std::vector<GameMidi>`
-- [ ] 删除 `src/libs/audio-util/` 目录
-- [ ] 删除 `src/libs/rmvpe-infer/` 目录
-- [ ] 删除 `src/libs/game-infer/` 目录
+- [x] 修改 lite 的 `vcpkg.json`：移除 audio 相关依赖（sndfile/soxr/mpg123/FLAC/xsimd）
+- [x] 修改 lite 的 `CMakeLists.txt`：移除 `add_subdirectory(src/libs/audio-util)`、`rmvpe-infer`、`game-infer`
+- [x] 修改 `SynthrtEngine`：新增 extract 插件路径注册
+  - [x] 调用 `plugins->addPluginPath(kPitchExtractorPluginIid, extractPluginDir)`
+  - [x] 调用 `plugins->addPluginPath(kMidiExtractorPluginIid, extractPluginDir)`
+- [x] 修改 `ExtractPitchTask`：
+  - [x] 移除 `#include <rmvpe-infer/Rmvpe.h>`
+  - [x] 改用 `plugins->plugin<srt::extract::PitchExtractorPlugin>("rmvpe")` 获取插件
+  - [x] 改用 `srt::audio::AudioPipeline::create()` 解码音频
+  - [x] 结果转换：`PitchResult` → lite 内部 `QList<QPair<double, QList<double>>>`
+- [x] 修改 `ExtractMidiTask`：
+  - [x] 移除 `#include <game-infer/Game.h>`
+  - [x] 改用 `plugins->plugin<srt::extract::MidiExtractorPlugin>("game")` 获取插件
+  - [x] 配置 `MidiExtractOptions`（tempo、segThreshold、estThreshold、language）
+  - [x] 结果转换：`MidiResult` → lite 内部 `std::vector<ExtractMidiNote>`
+- [x] 删除 `src/libs/audio-util/` 目录
+- [x] 删除 `src/libs/rmvpe-infer/` 目录
+- [x] 删除 `src/libs/game-infer/` 目录
 - [ ] 更新 synthrt vcpkg port（`scripts/vcpkg/ports/synthrt/`）
 
 ### 6.2 lite 初始化代码
@@ -626,7 +626,7 @@ void SynthrtEngine::initializeExtractPlugins() {
 - [ ] lite 编译成功（无 rmvpe-infer/game-infer/audio-util 依赖）
 - [ ] 音高提取功能正常
 - [ ] MIDI 提取功能正常
-- [ ] 无残留的 `audio-util` / `rmvpe-infer` / `game-infer` 引用
+- [x] 无残留的 `audio-util` / `rmvpe-infer` / `game-infer` 引用
 
 ---
 
