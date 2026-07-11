@@ -6,6 +6,8 @@
 
 #include <stdcorelib/str.h>
 
+#include <synthrt/Core/srt_core_global.h>
+
 namespace srt::core {
 
     class LogContext {
@@ -35,8 +37,7 @@ namespace srt::core {
 
         using LogCallback = void (*)(int, const LogContext &, const std::string_view &);
 
-        Logger(const char *file, int line, const char *function, const char *category)
-            : _context(file, line, function, category) {}
+        SRT_CORE_EXPORT Logger(const char *file, int line, const char *function, const char *category);
 
         template <class... Args>
         void log(int level, const std::string_view &format, Args &&...args) {
@@ -49,20 +50,13 @@ namespace srt::core {
             }
         }
 
-        static LogCallback logCallback() {
-            return callbackStorage();
-        }
-
-        static void setLogCallback(LogCallback callback) {
-            callbackStorage() = callback;
-        }
+        // Exported so that the callback storage is shared across all DLLs
+        // that link to srt-core. Without export, each DLL gets its own copy
+        // of the static callback variable (Windows DLL boundary issue).
+        static SRT_CORE_EXPORT LogCallback logCallback();
+        static SRT_CORE_EXPORT void setLogCallback(LogCallback callback);
 
     private:
-        static LogCallback &callbackStorage() {
-            static LogCallback callback = nullptr;
-            return callback;
-        }
-
         LogContext _context;
     };
 
