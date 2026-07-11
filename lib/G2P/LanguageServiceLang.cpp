@@ -1,7 +1,6 @@
 #include <synthrt/G2P/LanguageService.h>
 
 #include <algorithm>
-#include <iostream>
 #include <memory>
 #include <shared_mutex>
 #include <string>
@@ -12,6 +11,7 @@
 #include <stdcorelib/path.h>
 #include <stdcorelib/support/versionnumber.h>
 
+#include <synthrt/Core/Support/Logging.h>
 #include <synthrt/S2P/LanguageResource.h>
 
 #include <synthrt/Core/Support/Error.h>
@@ -27,6 +27,7 @@
 namespace ds::lang {
 
     namespace {
+        srt::core::LogCategory langSvcLog("LanguageService");
         bool containsLanguage(const std::vector<ds::bank::LanguageInfo> &items,
                               const std::string &value) {
             return std::find_if(items.begin(), items.end(),
@@ -165,16 +166,16 @@ namespace ds::lang {
         // Always executed: depends on this instance's packageDirs, not the
         // global singleton state. Non-default-context failures only mark the
         // context Failed and do not block other contexts, so per-package errors
-        // are reported via std::cerr (srt::core::Logger not yet migrated) but
-        // do not interrupt the loop (ER-03).
+        // are reported via srtWarning but do not interrupt the loop (ER-03).
         for (const auto &kv : _impl->packageDirs) {
             const auto &packageDir = kv.second;
 
             ds::bank::PackageParser parser;
             auto packageResult = parser.parsePackage(packageDir);
             if (!packageResult) {
-                std::cerr << "[LanguageService] WARNING: failed to parse package for G2P registration: "
-                          << packageDir << ": " << packageResult.error().message() << "\n";
+                langSvcLog.srtWarning("failed to parse package for G2P registration: %1: %2",
+                                      stdc::path::to_utf8(packageDir),
+                                      packageResult.error().message());
                 continue;
             }
             auto package = std::move(*packageResult);
@@ -184,9 +185,9 @@ namespace ds::lang {
                     auto routeExp = resolveG2pRoute(
                         package, singer.singerId(), lang.languageId());
                     if (!routeExp) {
-                        std::cerr << "[LanguageService] WARNING: failed to resolve G2P route for singer "
-                                  << singer.singerId() << ", lang " << lang.languageId()
-                                  << ": " << routeExp.error().message() << "\n";
+                        langSvcLog.srtWarning("failed to resolve G2P route for singer %1, lang %2: %3",
+                                              singer.singerId(), lang.languageId(),
+                                              routeExp.error().message());
                         continue;
                     }
                     const auto &route = *routeExp;
@@ -201,17 +202,18 @@ namespace ds::lang {
                         if (version.isEmpty()) {
                             auto addExp = mgr->addPackagePath(route.singerId, g2pPath);
                             if (!addExp) {
-                                std::cerr << "[LanguageService] WARNING: addPackagePath failed for singer "
-                                          << route.singerId << ", path " << g2pPath
-                                          << ": " << addExp.error().message() << "\n";
+                                langSvcLog.srtWarning("addPackagePath failed for singer %1, path %2: %3",
+                                                      route.singerId,
+                                                      stdc::path::to_utf8(g2pPath),
+                                                      addExp.error().message());
                             }
                         } else {
                             auto addExp = mgr->addPackagePath(route.singerId, version, g2pPath);
                             if (!addExp) {
-                                std::cerr << "[LanguageService] WARNING: addPackagePath failed for singer "
-                                          << route.singerId << ", version " << route.g2pPackageVersion
-                                          << ", path " << g2pPath
-                                          << ": " << addExp.error().message() << "\n";
+                                langSvcLog.srtWarning("addPackagePath failed for singer %1, version %2, path %3: %4",
+                                                      route.singerId, route.g2pPackageVersion,
+                                                      stdc::path::to_utf8(g2pPath),
+                                                      addExp.error().message());
                             }
                         }
                     }
