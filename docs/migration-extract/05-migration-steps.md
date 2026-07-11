@@ -369,33 +369,33 @@ ExtractUnsupportedVersion = 805,   // 不支持的模型版本
 
 ### 4.1 任务清单
 
-- [ ] 创建 `plugins/Extract/rmvpe/` 目录
-- [ ] 创建插件入口
-  - [ ] `main.cpp`（`SRT_EXPORT_PLUGIN(RmvpePlugin)`）
-  - [ ] `RmvpePlugin.h/cpp`（PitchExtractorPlugin 实现，key="rmvpe"）
-- [ ] 创建提取器实现
-  - [ ] `RmvpeExtractor.h/cpp`（版本路由壳，继承 PitchExtractor）
-  - [ ] `internal/RmvpeExtractorBase.h/cpp`（共享逻辑：interpF0、forward 壳）
-  - [ ] `internal/V1/RmvpeExtractorV1.h/cpp`（从 lite RmvpeModel.cpp 迁移）
-- [ ] 创建 `plugins/Extract/rmvpe/CMakeLists.txt`
-- [ ] 迁移 f0 插值逻辑（`interp_f0` → `interpF0` 静态方法）
-- [ ] 迁移 forward 逻辑（ONNX session → f0 + uv）
-- [ ] 适配 AudioPreprocessor（重采样 + 切片）
-- [ ] 错误处理改为 Expected<T>
-- [ ] 更新 `plugins/Extract/CMakeLists.txt` 添加 `add_subdirectory(rmvpe)`
+- [x] 创建 `plugins/Extract/rmvpe/` 目录
+- [x] 创建插件入口
+  - [x] `main.cpp`（`SRT_EXPORT_PLUGIN(RmvpePlugin)`）
+  - [x] `RmvpePlugin.h/cpp`（PitchExtractorPlugin 实现，key="rmvpe"）
+- [x] 创建提取器实现（简化为单文件实现，无 internal/V1 子目录，当前只有 V1 版本）
+  - [x] `RmvpeExtractor.h/cpp`（继承 PitchExtractor，合并版本路由壳 + V1 实现）
+  - [x] ~~`internal/RmvpeExtractorBase.h/cpp`~~（合并到 RmvpeExtractor）
+  - [x] ~~`internal/V1/RmvpeExtractorV1.h/cpp`~~（合并到 RmvpeExtractor）
+- [x] 创建 `plugins/Extract/rmvpe/CMakeLists.txt`
+- [x] 迁移 f0 插值逻辑（`interp_f0` → `interpF0` 静态方法）
+- [x] 迁移 forward 逻辑（ONNX session → f0 + uv）
+- [x] 适配 AudioPreprocessor（重采样 + 切片）
+- [x] 错误处理改为 Expected<T>
+- [x] 更新 `plugins/Extract/CMakeLists.txt` 添加 `add_subdirectory(rmvpe)`
 
 ### 4.2 迁移映射
 
 | lite 源文件 | synthrt 目标文件 | 变更 |
 |---|---|---|
 | `Rmvpe.h` | `RmvpeExtractor.h` | 接口改为 PitchExtractor |
-| `Rmvpe.cpp` | `RmvpeExtractor.cpp` + `V1/RmvpeExtractorV1.cpp` | 拆分版本路由 + V1 实现 |
-| `RmvpeModel.h` | `internal/RmvpeExtractorBase.h` + `V1/RmvpeExtractorV1.h` | 合并到版本基类 |
-| `RmvpeModel.cpp` | `V1/RmvpeExtractorV1.cpp` | 适配新接口 |
+| `Rmvpe.cpp` | `RmvpeExtractor.cpp` | 合并版本路由 + V1 实现（简化为单文件） |
+| `RmvpeModel.h` | `RmvpeExtractor.h` | 合并到 RmvpeExtractor（无版本子目录） |
+| `RmvpeModel.cpp` | `RmvpeExtractor.cpp` | 适配新接口 |
 | `getInferenceDriver()` | 复用 `srt::extract::getInferenceDriver()` | arch 检查移除 |
-| `resample_to_vio()` | `AudioPreprocessor::resampleToMono()` | 通过 AudioPreprocessor |
+| `resample_to_vio()` | `AudioPreprocessor::prepare()` | 通过 AudioPreprocessor（重采样+切片） |
 | `Slicer(160, ...)` | `Slicer(16000, 0.02f, 160, 640, 500, 30, 50)` | 第一参数修正为 16000（sampleRate） |
-| `interp_f0()` | `RmvpeExtractorBase::interpF0()` | 静态方法迁移 |
+| `interp_f0()` | `RmvpeExtractor::interpF0()` | 静态方法迁移 |
 | `bool get_f0(..., msg)` | `Expected<PitchResult> extract(...)` | 错误处理改进 |
 
 ### 4.3 RmvpeExtractorV1 关键实现
@@ -483,22 +483,22 @@ srt_extract_add_plugin(${PROJECT_NAME} PitchExtractor ${PROJECT_NAME} NO_EXPORT
 
 ### 5.1 任务清单
 
-- [ ] 创建 `plugins/Extract/game/` 目录
-- [ ] 创建插件入口
-  - [ ] `main.cpp`（`SRT_EXPORT_PLUGIN(GamePlugin)`）
-  - [ ] `GamePlugin.h/cpp`（MidiExtractorPlugin 实现，key="game"）
-- [ ] 创建提取器实现
-  - [ ] `GameExtractor.h/cpp`（版本路由壳，继承 MidiExtractor）
-  - [ ] `internal/GameExtractorBase.h/cpp`（共享逻辑）
-  - [ ] `internal/V1/GameExtractorV1.h/cpp`（从 lite GameModel.cpp 迁移）
-- [ ] 创建 `plugins/Extract/game/CMakeLists.txt`
-- [ ] 迁移 config.json 解析逻辑（读取 targetSampleRate、seg_threshold 等）
-- [ ] 迁移 4 个 ONNX session 管理（encoder/segmenter/estimator/bd2dur）
-- [ ] 迁移 MIDI 构建逻辑（`build_midi_note`、`calculateNoteTicks`）
-- [ ] 迁移 D3PM 时间步生成（`generate_d3pm_ts`）
-- [ ] 适配 AudioPreprocessor（重采样 + 切片）
-- [ ] 错误处理改为 Expected<T>
-- [ ] 更新 `plugins/Extract/CMakeLists.txt` 添加 `add_subdirectory(game)`
+- [x] 创建 `plugins/Extract/game/` 目录
+- [x] 创建插件入口
+  - [x] `main.cpp`（`SRT_EXPORT_PLUGIN(GamePlugin)`）
+  - [x] `GamePlugin.h/cpp`（MidiExtractorPlugin 实现，key="game"）
+- [x] 创建提取器实现（简化为扁平结构，与 rmvpe 一致，不拆分 internal/V1）
+  - [x] `GameExtractor.h/cpp`（继承 MidiExtractor，包含全部推理逻辑）
+  - [x] ~~`internal/GameExtractorBase.h/cpp`~~（合并到 GameExtractor）
+  - [x] ~~`internal/V1/GameExtractorV1.h/cpp`~~（合并到 GameExtractor）
+- [x] 创建 `plugins/Extract/game/CMakeLists.txt`
+- [x] 迁移 config.json 解析逻辑（读取 targetSampleRate、seg_threshold 等）
+- [x] 迁移 4 个 ONNX session 管理（encoder/segmenter/estimator/bd2dur）
+- [x] 迁移 MIDI 构建逻辑（`build_midi_note`、`calculateNoteTicks`）
+- [x] 迁移 D3PM 时间步生成（`generate_d3pm_ts`）
+- [x] 适配 AudioPreprocessor（重采样 + 切片）
+- [x] 错误处理改为 Expected<T>
+- [x] 更新 `plugins/Extract/CMakeLists.txt` 添加 `add_subdirectory(game)`
 
 ### 5.2 迁移映射
 
