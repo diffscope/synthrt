@@ -28,9 +28,12 @@ find_package(nlohmann_json CONFIG REQUIRED)
 # It depends on ds::bank types (PackageParser, PackageManifest, etc.), so
 # srt-ds::bank must be linked. ds-bank only depends on srt::core, so no
 # circular dependency is introduced.
+# LanguageService::resolveS2pResource() returns srt::s2p::LanguageResource,
+# so srt::s2p is linked publicly. srt-s2p only depends on srt::core, so
+# no circular dependency is introduced.
 srt_g2p_add_library(${PROJECT_NAME} SHARED
     SOURCES ${_src}
-    LINKS stdcorelib::stdcorelib srt::core srt-ds::bank
+    LINKS stdcorelib::stdcorelib srt::core srt-ds::bank srt::s2p
     LINKS_PRIVATE nlohmann_json::nlohmann_json
     INCLUDE_PRIVATE ../../include/synthrt/G2P/** **
 )

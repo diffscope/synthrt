@@ -10,6 +10,7 @@
 #include <synthrt/Core/Support/Expected.h>
 #include <synthrt/G2P/Base/LangCommon.h>
 #include <synthrt/G2P/srt_g2p_global.h>
+#include <synthrt/S2P/LanguageResource.h>
 
 #include <diffsinger/Lang/LanguageRoute.h>
 
@@ -45,6 +46,17 @@ namespace ds::lang {
             const std::string &packageId,
             const std::string &singerId,
             const std::string &languageId) const;
+
+        // === Per-singer S2P resource ===
+        //
+        // Resolves and caches the S2P LanguageResource for a singer+language.
+        // Returns a shared_ptr so the host can call convert() directly.
+        // The resource is cached per (packageId, singerId, languageId) tuple;
+        // subsequent calls with the same key return the cached resource.
+        srt::core::Expected<std::shared_ptr<srt::s2p::LanguageResource>>
+        resolveS2pResource(const std::string &packageId,
+                           const std::string &singerId,
+                           const std::string &languageId) const;
 
         // === Batch G2P conversion ===
         std::vector<srt::g2p::G2pRes> convertLyric(

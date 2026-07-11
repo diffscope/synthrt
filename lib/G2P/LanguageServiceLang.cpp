@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <memory>
+#include <shared_mutex>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -10,6 +11,8 @@
 
 #include <stdcorelib/path.h>
 #include <stdcorelib/support/versionnumber.h>
+
+#include <synthrt/S2P/LanguageResource.h>
 
 #include <synthrt/Core/Support/Error.h>
 #include <synthrt/Core/Support/Expected.h>
@@ -104,6 +107,13 @@ namespace ds::lang {
     class LanguageService::Impl {
     public:
         std::unordered_map<std::string, std::filesystem::path> packageDirs;
+
+        // S2P resource cache (keyed by "packageId/singerId/languageId").
+        // LanguageResource is move-only, so we store shared_ptr for safe
+        // shared access across threads.
+        mutable std::shared_mutex s2pCacheMutex;
+        mutable std::unordered_map<std::string,
+                                   std::shared_ptr<srt::s2p::LanguageResource>> s2pCache;
     };
 
     LanguageService::LanguageService() : _impl(std::make_unique<Impl>()) {}
@@ -296,6 +306,64 @@ namespace ds::lang {
             ? languageIt->s2pFile() : languageIt->dict();
         result.onsetFile = languageIt->onsetFile();
         return result;
+    }
+
+    srt::core::Expected<std::shared_ptr<srt::s2p::LanguageResource>>
+    LanguageService::resolveS2pResource(const std::string &packageId,
+                                        const std::string &singerId,
+                                        const std::string &languageId) const {
+        const auto key = packageId + "/" + singerId + "/" + languageId;
+
+        // Check cache (read lock).
+        {
+            std::shared_lock<std::shared_mutex> lock(_impl->s2pCacheMutex);
+            const auto it = _impl->s2pCache.find(key);
+            if (it != _impl->s2pCache.end()) {
+                return it->second;
+            }
+        }
+
+        // Resolve route (reuses resolveLanguageRoute logic).
+        auto routeExp = resolveLanguageRoute(packageId, singerId, languageId);
+        if (!routeExp) {
+            return routeExp.takeError();
+        }
+        const auto &route = *routeExp;
+
+        if (route.s2pMode.empty()) {
+            return srt::core::Error(
+                srt::core::ErrorCode::S2pResourceNotFound,
+                "S2P mode is empty (no S2P resource configured) for language: " +
+                    languageId);
+        }
+
+        std::shared_ptr<srt::s2p::LanguageResource> resource;
+        try {
+            if (route.s2pMode == "dict" && !route.s2pFile.empty()) {
+                resource = std::make_shared<srt::s2p::LanguageResource>(
+                    srt::s2p::LanguageResource::dictionary(
+                        stdc::path::to_utf8(route.s2pFile),
+                        stdc::path::to_utf8(route.onsetFile)));
+            } else {
+                resource = std::make_shared<srt::s2p::LanguageResource>(
+                    srt::s2p::LanguageResource::direct(
+                        stdc::path::to_utf8(route.onsetFile)));
+            }
+        } catch (const std::exception &e) {
+            return srt::core::Error(
+                srt::core::ErrorCode::S2pResourceNotFound,
+                "S2P resource construction failed (s2pMode=" + route.s2pMode +
+                    ", s2pFile=" + stdc::path::to_utf8(route.s2pFile) +
+                    "): " + e.what());
+        }
+
+        // Cache (write lock).
+        {
+            std::unique_lock<std::shared_mutex> lock(_impl->s2pCacheMutex);
+            _impl->s2pCache.emplace(key, resource);
+        }
+
+        return resource;
     }
 
     std::vector<srt::g2p::G2pRes> LanguageService::convertLyric(
