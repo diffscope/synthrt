@@ -640,10 +640,14 @@ void SynthrtEngine::initializeExtractPlugins() {
 - [ ] 更新 `docs/modules/overview.md` 新增 Audio 和 Extract 模块
 - [ ] 更新 `docs/architecture/source-layout.md` 新增目录
 - [ ] 更新 `docs/decisions/human-decisions.md` 记录迁移决策
+- [x] API 验证（ExtractorDriver/PitchExtractorPlugin/MidiExtractorPlugin 调用链）
+- [x] CMake 配置验证（lib/Audio、lib/Extract、plugins/Extract/rmvpe、plugins/Extract/game）
+- [x] 插件入口验证（SRT_EXPORT_PLUGIN、key()、createExtractor）
 - [ ] 创建集成测试 `tests/extract/`
   - [ ] 端到端测试：加载 rmvpe 插件 → 解码音频 → 提取音高
   - [ ] 端到端测试：加载 game 插件 → 解码音频 → 提取 MIDI
 - [ ] 更新 `.github/workflows/build.yml` CI 配置
+- [ ] 编译验证（需安装 FFmpeg vcpkg 依赖后执行）
 
 ### 7.2 验证标准
 
