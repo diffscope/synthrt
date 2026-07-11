@@ -6,6 +6,7 @@
 
 #include <synthrt/Extract/AudioPreprocessor.h>
 
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -28,7 +29,8 @@ namespace srt::extract {
         if (requirements.sampleRate <= 0) {
             return srt::core::Error(
                 srt::core::ErrorCode::InvalidArgument,
-                "AudioPreprocessor::resampleToMono: invalid target sample rate");
+                "resampleToMono: invalid target sample rate (" +
+                    std::to_string(requirements.sampleRate) + ")");
         }
 
         // Resample to mono float32 at the model-required sample rate.

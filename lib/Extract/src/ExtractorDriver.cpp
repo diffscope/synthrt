@@ -22,27 +22,38 @@ namespace srt::extract {
     getInferenceDriver(const srt::core::Runtime *runtime) {
         if (!runtime) {
             return srt::core::Error(
-                srt::core::ErrorCode::SessionError, "Runtime is nullptr");
+                srt::core::ErrorCode::InvalidArgument,
+                "getInferenceDriver: runtime is nullptr");
         }
 
         auto *cate = runtime->moduleCategory("inference");
         if (!cate) {
             return srt::core::Error(
-                srt::core::ErrorCode::DriverNotFound, "inference category not found");
+                srt::core::ErrorCode::ExtractNotInitialized,
+                "getInferenceDriver: 'inference' module category not found; "
+                "runtime is not initialized with an inference module");
         }
 
         auto obj = cate->getFirstObject("dsdriver");
         if (!obj) {
             return srt::core::Error(
-                srt::core::ErrorCode::DriverNotFound, "dsdriver not found");
+                srt::core::ErrorCode::DriverNotFound,
+                "getInferenceDriver: 'dsdriver' not registered in inference category");
         }
 
         auto driver = obj.as<srt::driver::InferenceDriver>();
+        if (!driver) {
+            return srt::core::Error(
+                srt::core::ErrorCode::DriverNotFound,
+                "getInferenceDriver: 'dsdriver' is not an InferenceDriver");
+        }
 
         // Only check backend, not arch (extractors are not DiffSinger models).
         if (driver->backend() != srt::driver::onnx::API_NAME) {
             return srt::core::Error(
-                srt::core::ErrorCode::DriverNotFound, "backend is not onnx");
+                srt::core::ErrorCode::DriverUnsupportedProvider,
+                "getInferenceDriver: dsdriver backend is '" + driver->backend() +
+                    "', expected '" + srt::driver::onnx::API_NAME + "'");
         }
 
         return driver;

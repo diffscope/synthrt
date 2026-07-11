@@ -92,7 +92,7 @@ struct SwresampleResampler::Impl {
 
         if (ret < 0) {
             return srt::core::Error(srt::core::ErrorCode::AudioResampleFailed,
-                                    "Failed to set resampler options: " + ffmpegError(ret));
+                                    "init: failed to set resampler options: " + ffmpegError(ret));
         }
 
         // Apply quality flags
@@ -105,7 +105,7 @@ struct SwresampleResampler::Impl {
         if (ret < 0) {
             cleanup();
             return srt::core::Error(srt::core::ErrorCode::AudioResampleFailed,
-                                    "Failed to initialize resampler: " + ffmpegError(ret));
+                                    "init: failed to initialize resampler: " + ffmpegError(ret));
         }
 
         inSampleRate = srcRate;
@@ -181,7 +181,7 @@ SwresampleResampler::convert(const AudioBuffer &input, int inputSampleRate, cons
         int converted = swr_convert(d->swrCtx, &outPtr, outSamples, &inPtr, chunkFrames);
         if (converted < 0) {
             return srt::core::Error(srt::core::ErrorCode::AudioResampleFailed,
-                                    "swr_convert failed: " + ffmpegError(converted));
+                                    "convert: swr_convert failed: " + ffmpegError(converted));
         }
         if (converted > 0) {
             outData.insert(outData.end(), chunkBuf.begin(), chunkBuf.begin() + converted * outCh * dstBps);
@@ -199,7 +199,7 @@ SwresampleResampler::convert(const AudioBuffer &input, int inputSampleRate, cons
             int converted = swr_convert(d->swrCtx, &outPtr, outSamples, nullptr, 0);
             if (converted < 0) {
                 return srt::core::Error(srt::core::ErrorCode::AudioResampleFailed,
-                                        "swr_convert flush failed: " + ffmpegError(converted));
+                                        "convert: swr_convert flush failed: " + ffmpegError(converted));
             }
             if (converted > 0) {
                 outData.insert(outData.end(), flushBuf.begin(), flushBuf.begin() + converted * outCh * dstBps);

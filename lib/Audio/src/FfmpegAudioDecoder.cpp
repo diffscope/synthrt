@@ -162,13 +162,15 @@ srt::core::Expected<AudioFormatInfo> FfmpegAudioDecoder::probe(const std::string
     if (ret < 0) {
         avformat_close_input(&probeCtx);
         return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
-                                "Failed to find stream info: " + ffmpegError(ret));
+                                "probe: failed to find stream info for '" + path +
+                                    "': " + ffmpegError(ret));
     }
 
     int streamIdx = av_find_best_stream(probeCtx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
     if (streamIdx < 0) {
         avformat_close_input(&probeCtx);
-        return srt::core::Error(srt::core::ErrorCode::AudioUnsupportedFormat, "No audio stream found");
+        return srt::core::Error(srt::core::ErrorCode::AudioUnsupportedFormat,
+                                "probe: no audio stream found in '" + path + "'");
     }
 
     auto *codecPar = probeCtx->streams[streamIdx]->codecpar;
@@ -213,33 +215,40 @@ srt::core::Expected<void> FfmpegAudioDecoder::open(const std::string &path) {
     if (ret < 0) {
         d->cleanup();
         return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
-                                "Failed to find stream info: " + ffmpegError(ret));
+                                "open: failed to find stream info for '" + path +
+                                    "': " + ffmpegError(ret));
     }
 
     d->audioStreamIdx = av_find_best_stream(d->fmtCtx, AVMEDIA_TYPE_AUDIO, -1, -1, nullptr, 0);
     if (d->audioStreamIdx < 0) {
         d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioUnsupportedFormat, "No audio stream found");
+        return srt::core::Error(srt::core::ErrorCode::AudioUnsupportedFormat,
+                                "open: no audio stream found in '" + path + "'");
     }
 
     auto *codecPar = d->fmtCtx->streams[d->audioStreamIdx]->codecpar;
     const AVCodec *codec = avcodec_find_decoder(codecPar->codec_id);
     if (!codec) {
         d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioUnsupportedFormat, "Unsupported codec");
+        return srt::core::Error(srt::core::ErrorCode::AudioUnsupportedFormat,
+                                "open: no decoder found for codec id " +
+                                    std::to_string(codecPar->codec_id) + " in '" + path + "'");
     }
 
     d->codecCtx = avcodec_alloc_context3(codec);
     if (!d->codecCtx) {
         d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed, "Failed to allocate codec context");
+        return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
+                                "open: failed to allocate codec context for '" + path + "'");
     }
     avcodec_parameters_to_context(d->codecCtx, codecPar);
     ret = avcodec_open2(d->codecCtx, codec, nullptr);
     if (ret < 0) {
         d->cleanup();
         return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
-                                "Failed to open codec: " + ffmpegError(ret));
+                                "open: failed to open codec '" +
+                                    std::string(codec->name ? codec->name : "unknown") +
+                                    "' for '" + path + "': " + ffmpegError(ret));
     }
 
     // Fill format info
@@ -276,7 +285,8 @@ void FfmpegAudioDecoder::close() {
 
 srt::core::Expected<AudioBuffer> FfmpegAudioDecoder::read(int64_t frameCount) {
     if (!d->opened) {
-        return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed, "No file opened");
+        return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
+                                "read: no file is open");
     }
     if (d->eof) {
         return AudioBuffer::create(0, d->info.channelCount, d->info.sampleFormat);
@@ -302,7 +312,8 @@ srt::core::Expected<AudioBuffer> FfmpegAudioDecoder::read(int64_t frameCount) {
 
 srt::core::Expected<void> FfmpegAudioDecoder::seekToTime(double seconds) {
     if (!d->opened) {
-        return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed, "No file opened");
+        return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
+                                "seekToTime: no file is open");
     }
 
     AVStream *stream = d->fmtCtx->streams[d->audioStreamIdx];

@@ -133,7 +133,8 @@ srt::core::Expected<void> GameExtractor::open(const std::filesystem::path &model
             if (!session) {
                 return srt::core::Error(
                     srt::core::ErrorCode::ExtractModelOpenFailed,
-                    "could not create session for " + name);
+                    "open: could not create session for " + name +
+                        " (model dir: " + modelPath.string() + ")");
             }
             auto openExp = session->open(
                 modelFile, srt::core::NO<srt::driver::onnx::SessionOpenArgs>::create());
@@ -147,7 +148,7 @@ srt::core::Expected<void> GameExtractor::open(const std::filesystem::path &model
         if (!encoderExp) {
             return srt::core::Error(
                 srt::core::ErrorCode::ExtractModelOpenFailed,
-                "Failed to load encoder: " + encoderExp.error().message());
+                "open: failed to load encoder.onnx: " + encoderExp.error().message());
         }
         m_encoder = encoderExp.take();
 
@@ -155,7 +156,7 @@ srt::core::Expected<void> GameExtractor::open(const std::filesystem::path &model
         if (!segmenterExp) {
             return srt::core::Error(
                 srt::core::ErrorCode::ExtractModelOpenFailed,
-                "Failed to load segmenter: " + segmenterExp.error().message());
+                "open: failed to load segmenter.onnx: " + segmenterExp.error().message());
         }
         m_segmenter = segmenterExp.take();
 
@@ -163,7 +164,7 @@ srt::core::Expected<void> GameExtractor::open(const std::filesystem::path &model
         if (!estimatorExp) {
             return srt::core::Error(
                 srt::core::ErrorCode::ExtractModelOpenFailed,
-                "Failed to load estimator: " + estimatorExp.error().message());
+                "open: failed to load estimator.onnx: " + estimatorExp.error().message());
         }
         m_estimator = estimatorExp.take();
 
@@ -171,7 +172,7 @@ srt::core::Expected<void> GameExtractor::open(const std::filesystem::path &model
         if (!bd2durExp) {
             return srt::core::Error(
                 srt::core::ErrorCode::ExtractModelOpenFailed,
-                "Failed to load bd2dur: " + bd2durExp.error().message());
+                "open: failed to load bd2dur.onnx: " + bd2durExp.error().message());
         }
         m_bd2dur = bd2durExp.take();
 
@@ -254,7 +255,7 @@ GameExtractor::extract(const srt::audio::AudioBuffer &buffer,
 
         if (chunks.empty()) {
             return srt::core::Error(srt::core::ErrorCode::ExtractOutputInvalid,
-                                    "slicer: no audio chunks for output!");
+                                    "extract: slicer produced no audio chunks");
         }
 
         // 4. 逐切片推理 + 构建 MIDI 音符

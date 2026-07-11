@@ -32,13 +32,14 @@ RmvpeExtractor::open(const std::filesystem::path &modelPath) {
     if (!session) {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractModelOpenFailed,
-            "could not create ONNX session");
+            "open: could not create ONNX session");
     }
     auto openArgs = srt::core::NO<srt::driver::onnx::SessionOpenArgs>::create();
     if (auto exp = session->open(modelPath, openArgs); !exp) {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractModelOpenFailed,
-            stdc::formatN("failed to open RMVPE model: %1", exp.error().message()));
+            stdc::formatN("open: failed to open RMVPE model '%1': %2",
+                          modelPath.string(), exp.error().message()));
     }
     m_session = std::move(session);
     return srt::core::Expected<void>();
@@ -73,7 +74,7 @@ RmvpeExtractor::extract(const srt::audio::AudioBuffer &buffer,
     if (!isOpen()) {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractNotInitialized,
-            "RMVPE session is not open");
+            "extract: RMVPE session is not open");
     }
 
     // 1. Resample to 16000 Hz mono and slice by RMS.
@@ -91,7 +92,7 @@ RmvpeExtractor::extract(const srt::audio::AudioBuffer &buffer,
     if (slices.empty()) {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractOutputInvalid,
-            "slicer: no audio chunks for output");
+            "extract: slicer produced no audio chunks");
     }
 
     // 2. Per-slice forward inference.
@@ -134,7 +135,7 @@ RmvpeExtractor::forward(const std::vector<float> &waveform, float threshold,
     if (!m_session) {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractNotInitialized,
-            "RMVPE session is not initialized");
+            "forward: RMVPE session is not initialized");
     }
 
     const auto n = waveform.size();
@@ -159,7 +160,7 @@ RmvpeExtractor::forward(const std::vector<float> &waveform, float threshold,
     if (!sessionExp) {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractInferenceFailed,
-            stdc::formatN("RMVPE session start failed: %1",
+            stdc::formatN("forward: RMVPE session start failed: %1",
                           sessionExp.error().message()));
     }
 
@@ -167,13 +168,13 @@ RmvpeExtractor::forward(const std::vector<float> &waveform, float threshold,
     if (!sessionTaskResult) {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractInferenceFailed,
-            "could not get RMVPE session result");
+            "forward: could not get RMVPE session result");
     }
     auto sessionResult = sessionTaskResult.as<srt::driver::onnx::SessionResult>();
     if (!sessionResult) {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractInferenceFailed,
-            "invalid RMVPE session result type");
+            "forward: invalid RMVPE session result type");
     }
 
     // Extract f0 (float) output.
@@ -183,19 +184,19 @@ RmvpeExtractor::forward(const std::vector<float> &waveform, float threshold,
         if (tensor->dataType() != srt::core::ITensor::Float) {
             return srt::core::Error(
                 srt::core::ErrorCode::ExtractOutputInvalid,
-                "f0 output data type mismatch");
+                "forward: f0 output data type mismatch (expected Float)");
         }
         const auto view = tensor->view<float>();
         if (view.empty()) {
             return srt::core::Error(
                 srt::core::ErrorCode::ExtractOutputInvalid,
-                "f0 output is empty");
+                "forward: f0 output is empty");
         }
         f0.assign(view.begin(), view.end());
     } else {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractOutputInvalid,
-            "missing output: f0");
+            "forward: missing output 'f0'");
     }
 
     // Extract uv (bool) output.
@@ -205,13 +206,13 @@ RmvpeExtractor::forward(const std::vector<float> &waveform, float threshold,
         if (tensor->dataType() != srt::core::ITensor::Bool) {
             return srt::core::Error(
                 srt::core::ErrorCode::ExtractOutputInvalid,
-                "uv output data type mismatch");
+                "forward: uv output data type mismatch (expected Bool)");
         }
         const auto raw = tensor->rawView();
         if (raw.empty()) {
             return srt::core::Error(
                 srt::core::ErrorCode::ExtractOutputInvalid,
-                "uv output is empty");
+                "forward: uv output is empty");
         }
         uv.resize(raw.size());
         for (size_t i = 0; i < raw.size(); ++i) {
@@ -220,7 +221,7 @@ RmvpeExtractor::forward(const std::vector<float> &waveform, float threshold,
     } else {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractOutputInvalid,
-            "missing output: uv");
+            "forward: missing output 'uv'");
     }
 
     return srt::core::Expected<void>();

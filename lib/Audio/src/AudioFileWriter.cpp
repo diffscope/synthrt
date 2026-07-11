@@ -97,7 +97,8 @@ srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sam
     if (ret < 0 || !d->fmtCtx) {
         d->cleanup();
         return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "Failed to allocate output context: " + ffmpegError(ret));
+                                "open: failed to allocate output context for '" + path +
+                                    "': " + ffmpegError(ret));
     }
 
     // Find encoder
@@ -108,19 +109,22 @@ srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sam
     }
     if (!codec) {
         d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed, "No suitable audio encoder found");
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "open: no suitable audio encoder found for '" + path + "'");
     }
 
     d->stream = avformat_new_stream(d->fmtCtx, nullptr);
     if (!d->stream) {
         d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed, "Failed to create audio stream");
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "open: failed to create audio stream for '" + path + "'");
     }
 
     d->codecCtx = avcodec_alloc_context3(codec);
     if (!d->codecCtx) {
         d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed, "Failed to allocate codec context");
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "open: failed to allocate codec context for '" + path + "'");
     }
 
     d->codecCtx->sample_rate = sampleRate;
@@ -144,14 +148,16 @@ srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sam
     if (ret < 0) {
         d->cleanup();
         return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "Failed to open encoder: " + ffmpegError(ret));
+                                "open: failed to open encoder for '" + path +
+                                    "': " + ffmpegError(ret));
     }
 
     ret = avcodec_parameters_from_context(d->stream->codecpar, d->codecCtx);
     if (ret < 0) {
         d->cleanup();
         return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "Failed to copy codec parameters: " + ffmpegError(ret));
+                                "open: failed to copy codec parameters for '" + path +
+                                    "': " + ffmpegError(ret));
     }
     d->stream->time_base = d->codecCtx->time_base;
 
@@ -161,7 +167,8 @@ srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sam
         if (ret < 0) {
             d->cleanup();
             return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                    "Failed to open output file: " + ffmpegError(ret));
+                                    "open: failed to open output file '" + path +
+                                        "': " + ffmpegError(ret));
         }
     }
 
@@ -169,14 +176,16 @@ srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sam
     if (ret < 0) {
         d->cleanup();
         return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "Failed to write header: " + ffmpegError(ret));
+                                "open: failed to write header for '" + path +
+                                    "': " + ffmpegError(ret));
     }
 
     d->packet = av_packet_alloc();
     d->frame = av_frame_alloc();
     if (!d->packet || !d->frame) {
         d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed, "Failed to allocate packet/frame");
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "open: failed to allocate packet/frame for '" + path + "'");
     }
 
     // Setup resampler if input format differs from encoder format
@@ -201,13 +210,15 @@ srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sam
 
         if (!d->swrCtx) {
             d->cleanup();
-            return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed, "Failed to allocate resampler");
+            return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                    "open: failed to allocate resampler for '" + path + "'");
         }
         ret = swr_init(d->swrCtx);
         if (ret < 0) {
             d->cleanup();
             return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                    "Failed to init resampler: " + ffmpegError(ret));
+                                    "open: failed to init resampler for '" + path +
+                                        "': " + ffmpegError(ret));
         }
     }
 
@@ -221,7 +232,8 @@ srt::core::Expected<void> AudioFileWriter::write(const AudioBuffer &buffer, int 
     (void)sampleRate; // Sample rate is set during open(); parameter kept for API consistency
 
     if (!d->opened) {
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed, "Writer not open");
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "write: writer is not open");
     }
 
     if (buffer.empty()) {
@@ -246,7 +258,7 @@ srt::core::Expected<void> AudioFileWriter::write(const AudioBuffer &buffer, int 
         int ret = av_frame_get_buffer(d->frame, 0);
         if (ret < 0) {
             return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                    "Failed to allocate frame buffer: " + ffmpegError(ret));
+                                    "write: failed to allocate frame buffer: " + ffmpegError(ret));
         }
 
         if (d->swrCtx) {
@@ -255,7 +267,7 @@ srt::core::Expected<void> AudioFileWriter::write(const AudioBuffer &buffer, int 
             if (ret < 0) {
                 av_frame_unref(d->frame);
                 return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                        "Resample failed: " + ffmpegError(ret));
+                                        "write: resample failed: " + ffmpegError(ret));
             }
         } else {
             int byteSize = nbSamples * d->channelCount * av_get_bytes_per_sample(d->encoderFmt);
@@ -266,7 +278,7 @@ srt::core::Expected<void> AudioFileWriter::write(const AudioBuffer &buffer, int 
         av_frame_unref(d->frame);
         if (ret < 0) {
             return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                    "Failed to send frame: " + ffmpegError(ret));
+                                    "write: failed to send frame: " + ffmpegError(ret));
         }
 
         while ((ret = avcodec_receive_packet(d->codecCtx, d->packet)) >= 0) {
