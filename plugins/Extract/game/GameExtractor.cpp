@@ -43,7 +43,7 @@ namespace {
 
         return srt::core::Tensor::createFromRawData(
             srt::core::ITensor::Bool,
-            {1, static_cast<int64_t>(dataContainer.size())},
+            shape,
             std::move(dataContainer));
     }
 
@@ -467,17 +467,19 @@ std::vector<uint8_t> GameExtractor::runSegmenter(
         }
         sessionInput->inputs["language"] = langExp.take();
 
-        // threshold
+        // threshold (scalar/rank-0 — matches original dataset-tools which uses nullptr/0 shape;
+        // the segmenter model internally Unsqueezes scalars to rank-2, but rank-1 {1} would
+        // become rank-3, causing Concat rank mismatch errors)
         std::vector<float> threshVec = {threshold};
-        auto threshExp = srt::core::Tensor::createFromView<float>({1}, stdc::array_view<float>{threshVec});
+        auto threshExp = srt::core::Tensor::createFromView<float>({}, stdc::array_view<float>{threshVec});
         if (!threshExp) {
             throw std::runtime_error("Failed to create threshold tensor: " + threshExp.error().message());
         }
         sessionInput->inputs["threshold"] = threshExp.take();
 
-        // radius
+        // radius (scalar/rank-0 — same reason as threshold)
         std::vector<int64_t> radiusVec = {static_cast<int64_t>(radius)};
-        auto radiusExp = srt::core::Tensor::createFromView<int64_t>({1}, stdc::array_view<int64_t>{radiusVec});
+        auto radiusExp = srt::core::Tensor::createFromView<int64_t>({}, stdc::array_view<int64_t>{radiusVec});
         if (!radiusExp) {
             throw std::runtime_error("Failed to create radius tensor: " + radiusExp.error().message());
         }

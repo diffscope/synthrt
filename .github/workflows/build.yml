@@ -53,10 +53,30 @@ jobs:
         run: |
           brew install nasm yasm pkg-config
 
+      # Use the pre-installed vcpkg on GitHub-hosted runners.
+      # VCPKG_ROOT is set by the runner environment. This avoids the
+      # lukka/run-vcpkg action which sets up an isolated environment that
+      # may not inherit the system PATH (where nasm/yasm were installed),
+      # causing vcpkg_find_acquire_program to fail finding nasm.
       - name: Set up vcpkg
-        uses: lukka/run-vcpkg@v11
-        with:
-          vcpkgJsonGlob: scripts/vcpkg-manifest/vcpkg.json
+        shell: bash
+        run: |
+          echo "VCPKG_ROOT=${VCPKG_ROOT}"
+          if [ -z "${VCPKG_ROOT}" ]; then
+            echo "Error: VCPKG_ROOT is not set on the runner."
+            exit 1
+          fi
+          # Ensure vcpkg executable exists (bootstrap if missing).
+          if [ ! -x "${VCPKG_ROOT}/vcpkg" ] && [ ! -x "${VCPKG_ROOT}/vcpkg.exe" ]; then
+            echo "Bootstrapping vcpkg..."
+            if [ "${RUNNER_OS}" = "Windows" ]; then
+              "${VCPKG_ROOT}/bootstrap-vcpkg.bat" -disableMetrics
+            else
+              "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics
+            fi
+          fi
+          echo "vcpkg version:"
+          "${VCPKG_ROOT}/vcpkg" version || true
 
       - name: Cache ONNX Runtime
         id: cache-ort

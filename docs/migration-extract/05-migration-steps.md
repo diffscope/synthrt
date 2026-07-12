@@ -617,9 +617,13 @@ void SynthrtEngine::initializeExtractPlugins() {
     auto *plugins = m_runtime.services().get<srt::core::PluginFactory>();
 
     // 注册提取器插件搜索路径
-    const auto extractPluginDir = (m_pluginRoot / "srt-extract").string();
-    plugins->addPluginPath(srt::extract::kPitchExtractorPluginIid, extractPluginDir);
-    plugins->addPluginPath(srt::extract::kMidiExtractorPluginIid, extractPluginDir);
+    // 插件安装结构为 srt-extract/<Category>/<plugin_name>/plugin.json，
+    // PluginFactory::addPluginPath 只扫描一层子目录，因此每个 IID
+    // 必须指向对应的 Category 目录，而非共享的 srt-extract 根目录。
+    plugins->addPluginPath(srt::extract::kPitchExtractorPluginIid,
+                           (m_pluginRoot / "srt-extract" / "PitchExtractor").string());
+    plugins->addPluginPath(srt::extract::kMidiExtractorPluginIid,
+                           (m_pluginRoot / "srt-extract" / "MidiExtractor").string());
 }
 ```
 
@@ -696,6 +700,25 @@ void SynthrtEngine::initializeExtractPlugins() {
   - 问题：BuildAPI 导出目标为 `srt-audio::srt-audio` / `srt-extract::srt-extract`，但 lite 引用 `srt::audio` / `srt::extract`
   - 修复：创建自定义 `srt-audioConfig.cmake.in` 和 `srt-extractConfig.cmake.in`，在安装时创建 `srt::audio` / `srt::extract` 作为 IMPORTED INTERFACE 别名
   - 与 `srt::diffsinger` 聚合目标模式一致，消费者可使用统一的 `srt::` 命名空间
+
+- [x] **运行时插件路径修复**（SynthrtEngine.cpp）
+  - 问题：运行时报错 `game MidiExtractor plugin not found`，rmvpe 插件同样无法被发现
+  - 根因：`PluginFactory::addPluginPath` 只扫描一层子目录（`path/<subdir>/plugin.json`），而插件实际安装结构为 `srt-extract/<Category>/<plugin_name>/plugin.json`（两层）。原代码将两个 IID 都指向 `srt-extract` 根目录，扫描到的子目录是 `MidiExtractor`/`PitchExtractor`（分类目录，不含 `plugin.json`），因此没有任何插件被注册
+  - 修复：将 `kPitchExtractorPluginIid` 指向 `srt-extract/PitchExtractor`，将 `kMidiExtractorPluginIid` 指向 `srt-extract/MidiExtractor`，使扫描一层后正好命中 `<plugin_name>/plugin.json`
+
+- [x] **Game segmenter ONNX Concat rank 不匹配修复**（GameExtractor.cpp）
+  - 问题：运行时报错 `ConcatBase::PrepareForCompute input_rank == reference_rank was false. Ranks of input data are different, cannot concatenate them. expected rank: 2 got: 1`
+  - 根因：`threshold` 和 `radius` 张量被创建为 rank-1 `{1}`，而原始 dataset-tools 使用 `nullptr, 0`（标量 rank-0）。segmenter 模型内部对输入执行 `Unsqueeze` 操作：标量（rank-0）会被提升为 rank-2，但 rank-1 `{1}` 会被提升为 rank-3，导致 `Concat` 节点排名不匹配
+  - 修复：
+    - `threshold` 张量从 `createFromView<float>({1}, ...)` 改为 `createFromView<float>({}, ...)`（标量/rank-0）
+    - `radius` 张量从 `createFromView<int64_t>({1}, ...)` 改为 `createFromView<int64_t>({}, ...)`（标量/rank-0）
+    - 修复 `createBoolTensor` 辅助函数：忽略 `shape` 参数并硬编码 `{1, size}` 的 Bug，改为正确使用传入的 `shape`
+  - 参考：`https://github.com/openvpi/dataset-tools/tree/main/src/libs/game-infer` 的 `GameModel::runSegmenter` 实现
+
+- [x] **Linux CI nasm 未找到修复**（.github/workflows/build.yml）
+  - 问题：Linux CI 构建失败 `Could not find nasm. Please install it via your package manager: sudo apt-get install nasm`
+  - 根因：`lukka/run-vcpkg@v11` action 设置了独立的 vcpkg 环境，可能不继承系统 PATH（nasm 通过 `apt-get install` 安装到系统 PATH），导致 `vcpkg_find_acquire_program(nasm)` 找不到 nasm
+  - 修复：移除 `lukka/run-vcpkg@v11`，改用 GitHub-hosted runner 预装的 vcpkg（`$VCPKG_ROOT` 已设置），并在需要时执行 bootstrap
 
 ---
 
