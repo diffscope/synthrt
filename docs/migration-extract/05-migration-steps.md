@@ -648,7 +648,10 @@ void SynthrtEngine::initializeExtractPlugins() {
 - [ ] 创建集成测试 `tests/extract/`
   - [ ] 端到端测试：加载 rmvpe 插件 → 解码音频 → 提取音高
   - [ ] 端到端测试：加载 game 插件 → 解码音频 → 提取 MIDI
-- [ ] 更新 `.github/workflows/build.yml` CI 配置
+- [x] 更新 `.github/workflows/build.yml` CI 配置（commit 待提交）
+  - Linux/macOS 安装 nasm/yasm 解决 FFmpeg 汇编器缺失
+  - 启用 vcpkg binary caching（x-gha 后端），FFmpeg 等包编译后缓存
+  - FFmpeg 裁剪为 avcodec/avformat/swresample 三特性（去除 avdevice/avfilter/swscale）
 - [x] 编译验证（59/59 targets 编译成功，含 audio/extract/rmvpe/game）
 
 ### 7.2 验证标准

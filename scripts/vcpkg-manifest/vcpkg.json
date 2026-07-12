@@ -13,7 +13,11 @@
         "re2",
         "cpp-pinyin",
         "syscmdline",
-        "ffmpeg"
+        {
+            "name": "ffmpeg",
+            "default-features": false,
+            "features": ["avcodec", "avformat", "swresample"]
+        }
     ],
     "features": {
         "tests": {
