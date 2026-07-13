@@ -49,18 +49,46 @@ namespace srt::core {
         }
     }
 
-    void PluginFactory::Impl::preloadSharedLibraries(const fs::path &sharedDir) const {
-        if (!fs::is_directory(sharedDir))
-            return;
-        for (const auto &entry : fs::directory_iterator(sharedDir)) {
+    bool PluginFactory::Impl::preloadSharedLibraries(const fs::path &sharedDir) const {
+        std::error_code ec;
+        if (!fs::is_directory(sharedDir, ec))
+            return false;
+
+        bool allLoaded = true;
+        for (fs::directory_iterator it(sharedDir, ec), end; !ec && it != end; it.increment(ec)) {
+            const auto &entry = *it;
             const auto &p = entry.path();
             if (!stdc::SharedLibrary::isLibrary(p))
                 continue;
+
+            const auto &key = p.native();
+            if (preloadedLibraries.count(key))
+                continue;
+
             stdc::SharedLibrary lib;
             if (lib.open(p)) {
-                // pre-loaded, will be kept in process memory
+                preloadedLibraries.emplace(key,
+                                           std::make_unique<stdc::SharedLibrary>(std::move(lib)));
+            } else {
+                allLoaded = false;
+                PluginLog.srtWarning("preloadSharedLibraries: failed to load shared library %1",
+                                     stdc::path::to_utf8(p));
             }
         }
+        return !ec && allLoaded;
+    }
+
+    fs::path PluginFactory::Impl::sharedLibraryPath(const fs::path &categoryDir) {
+        std::error_code ec;
+        auto normalizedPath = fs::weakly_canonical(categoryDir, ec);
+        if (ec) {
+            ec.clear();
+            normalizedPath = fs::absolute(categoryDir, ec);
+            if (ec)
+                normalizedPath = categoryDir;
+            normalizedPath = normalizedPath.lexically_normal();
+        }
+        return normalizedPath.parent_path().parent_path() / "_shared";
     }
 
     void PluginFactory::Impl::scanPlugins(const char *iid) const {
@@ -73,13 +101,17 @@ namespace srt::core {
             }
         }
 
-        // Pre-load shared libraries from _shared/ dir (once)
-        if (!sharedLoaded) {
-            auto sharedDirIt = pluginDirs.find(iid);
-            if (sharedDirIt != pluginDirs.end() && !sharedDirIt->second.empty()) {
-                auto sharedDir = sharedDirIt->second.front().parent_path().parent_path() / "_shared";
-                preloadSharedLibraries(sharedDir);
-                sharedLoaded = true;
+        // Pre-load each global shared directory once, on the first scan that references it.
+        bool sharedPreloadPending = false;
+        if (auto sharedDirIt = sharedDirs.find(iid); sharedDirIt != sharedDirs.end()) {
+            for (const auto &sharedDir : sharedDirIt->second) {
+                const auto key = sharedDir.native();
+                if (loadedSharedDirs.count(key))
+                    continue;
+                if (preloadSharedLibraries(sharedDir))
+                    loadedSharedDirs.insert(key);
+                else
+                    sharedPreloadPending = true;
             }
         }
 
@@ -183,7 +215,8 @@ namespace srt::core {
 
         if (plugins.empty())
             allPlugins.erase(iid);
-        pluginsDirty.erase(iid);
+        if (!sharedPreloadPending)
+            pluginsDirty.erase(iid);
     }
 
     PluginFactory::PluginFactory() : _impl(new Impl(this)) {
@@ -239,12 +272,24 @@ namespace srt::core {
 
     void PluginFactory::addPluginPath(const char *iid, const std::filesystem::path &path) {
         __stdc_impl_t;
-        if (!fs::is_directory(path)) {
+
+        std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
+        auto &sharedDirs = impl.sharedDirs[iid];
+        const auto sharedDir = Impl::sharedLibraryPath(path);
+        if (std::find(sharedDirs.begin(), sharedDirs.end(), sharedDir) == sharedDirs.end())
+            sharedDirs.push_back(sharedDir);
+
+        std::error_code ec;
+        if (!fs::is_directory(path, ec)) {
+            impl.pluginsDirty.insert(iid);
             return;
         }
 
-        std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
-        const fs::path canonicalPath = fs::canonical(path);
+        const fs::path canonicalPath = fs::canonical(path, ec);
+        if (ec) {
+            impl.pluginsDirty.insert(iid);
+            return;
+        }
 
         // Scan subdirectories for plugin.json descriptors
         for (const auto &entry : fs::directory_iterator(canonicalPath)) {
@@ -266,12 +311,19 @@ namespace srt::core {
         std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
 
         impl.pluginDirs.erase(iid);
+        impl.sharedDirs.erase(iid);
 
         if (!paths.empty()) {
             llvm::SmallVector<fs::path> dirs;
+            llvm::SmallVector<fs::path> sharedDirs;
             for (const auto &path : paths) {
-                if (!fs::is_directory(path)) continue;
-                fs::path canonicalPath = fs::canonical(path);
+                const auto sharedDir = Impl::sharedLibraryPath(path);
+                if (std::find(sharedDirs.begin(), sharedDirs.end(), sharedDir) == sharedDirs.end())
+                    sharedDirs.push_back(sharedDir);
+                std::error_code ec;
+                if (!fs::is_directory(path, ec)) continue;
+                fs::path canonicalPath = fs::canonical(path, ec);
+                if (ec) continue;
                 for (const auto &entry : fs::directory_iterator(canonicalPath)) {
                     if (!entry.is_directory()) continue;
                     const auto &pluginDir = fs::canonical(entry.path());
@@ -282,6 +334,9 @@ namespace srt::core {
             }
             if (!dirs.empty()) {
                 impl.pluginDirs[iid] = dirs;
+            }
+            if (!sharedDirs.empty()) {
+                impl.sharedDirs[iid] = std::move(sharedDirs);
             }
         }
 

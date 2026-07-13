@@ -31,6 +31,9 @@ namespace srt::core {
         std::vector<Plugin *> runtimePlugins() const;
 
         void addPluginPath(const char *iid, const std::filesystem::path &path);
+        /// Replaces discovery paths for plugins not yet bound to a key.
+        /// Already loaded plugins and their libraries remain valid until this factory is destroyed;
+        /// changing paths does not hot-reload or unload them.
         void setPluginPaths(const char *iid, stdc::array_view<std::filesystem::path> paths);
         std::vector<std::filesystem::path> pluginPaths(const char *iid) const;
 

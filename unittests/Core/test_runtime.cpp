@@ -7,6 +7,8 @@
 
 #include <synthrt/Core/Core/Runtime.h>
 
+#include "../../lib/Core/Plugin/PluginFactory_p.h"
+
 namespace {
 
     std::filesystem::path makeTempRoot(const std::string &name) {
@@ -17,6 +19,112 @@ namespace {
         return dir;
     }
 
+}
+
+namespace {
+
+    class TestPluginFactory : public srt::core::PluginFactory {
+    public:
+        std::vector<std::filesystem::path> sharedDirectories(const char *iid) const {
+            std::shared_lock lock(_impl->plugins_mtx);
+            const auto it = _impl->sharedDirs.find(iid);
+            if (it == _impl->sharedDirs.end())
+                return {};
+            return {it->second.begin(), it->second.end()};
+        }
+
+        [[nodiscard]] bool isSharedDirectoryLoaded(const std::filesystem::path &path) const {
+            std::shared_lock lock(_impl->plugins_mtx);
+            return _impl->loadedSharedDirs.count(path.native()) != 0;
+        }
+
+        [[nodiscard]] bool isDirty(const char *iid) const {
+            std::shared_lock lock(_impl->plugins_mtx);
+            return _impl->pluginsDirty.count(iid) != 0;
+        }
+
+        [[nodiscard]] std::size_t preloadedLibraryCount() const {
+            std::shared_lock lock(_impl->plugins_mtx);
+            return _impl->preloadedLibraries.size();
+        }
+    };
+
+}
+
+TEST_CASE("PluginFactory derives one global shared dependency directory", "[plugin]") {
+    const auto root = makeTempRoot("plugin-shared-path");
+    TestPluginFactory factory;
+
+    factory.addPluginPath("test.plugin", root / "plugins" / "module-a" / "category-a");
+    factory.addPluginPath("test.plugin", root / "plugins" / "module-b" / "category-b");
+    const auto sharedDirs = factory.sharedDirectories("test.plugin");
+
+    REQUIRE(sharedDirs.size() == 1);
+    CHECK(sharedDirs.front() == root / "plugins" / "_shared");
+
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("PluginFactory retries a shared directory that appears later", "[plugin]") {
+    const auto root = makeTempRoot("plugin-shared-retry");
+    const auto categoryDir = root / "plugins" / "module" / "category";
+    const auto sharedDir = root / "plugins" / "_shared";
+    TestPluginFactory factory;
+
+    factory.addPluginPath("test.plugin", categoryDir);
+    CHECK(factory.plugin("test.plugin", "missing") == nullptr);
+    CHECK_FALSE(factory.isSharedDirectoryLoaded(sharedDir));
+    CHECK(factory.isDirty("test.plugin"));
+
+    std::filesystem::create_directories(sharedDir);
+    CHECK(factory.plugin("test.plugin", "missing") == nullptr);
+    CHECK(factory.isSharedDirectoryLoaded(sharedDir));
+    CHECK_FALSE(factory.isDirty("test.plugin"));
+
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("PluginFactory retries failed shared library candidates", "[plugin]") {
+    const auto root = makeTempRoot("plugin-shared-bad-library");
+    const auto categoryDir = root / "plugins" / "module" / "category";
+    const auto sharedDir = root / "plugins" / "_shared";
+#if defined(_WIN32)
+    const auto badLibrary = sharedDir / "bad.dll";
+#elif defined(__APPLE__)
+    const auto badLibrary = sharedDir / "libbad.dylib";
+#else
+    const auto badLibrary = sharedDir / "libbad.so";
+#endif
+    std::filesystem::create_directories(sharedDir);
+    std::ofstream(badLibrary) << "not a shared library";
+    const auto sourceLibrary = stdc::SharedLibrary::locateLibraryPath(
+        reinterpret_cast<const void *>(&stdc::SharedLibrary::isLibrary));
+    REQUIRE(std::filesystem::is_regular_file(sourceLibrary));
+    const auto goodLibrary = sharedDir / ("good" + sourceLibrary.extension().string());
+    std::filesystem::copy_file(sourceLibrary, goodLibrary);
+    TestPluginFactory factory;
+
+    factory.addPluginPath("test.plugin", categoryDir);
+    CHECK(factory.plugin("test.plugin", "missing") == nullptr);
+    CHECK_FALSE(factory.isSharedDirectoryLoaded(sharedDir));
+    CHECK(factory.isDirty("test.plugin"));
+    CHECK(factory.preloadedLibraryCount() == 1);
+
+    CHECK(factory.plugin("test.plugin", "missing") == nullptr);
+    CHECK_FALSE(factory.isSharedDirectoryLoaded(sharedDir));
+    CHECK(factory.isDirty("test.plugin"));
+    CHECK(factory.preloadedLibraryCount() == 1);
+
+    std::filesystem::remove(badLibrary);
+    CHECK(factory.plugin("test.plugin", "missing") == nullptr);
+    CHECK(factory.isSharedDirectoryLoaded(sharedDir));
+    CHECK_FALSE(factory.isDirty("test.plugin"));
+    CHECK(factory.preloadedLibraryCount() == 1);
+
+    factory.setPluginPaths("test.plugin", {});
+    CHECK(factory.preloadedLibraryCount() == 1);
+
+    std::filesystem::remove_all(root);
 }
 
 TEST_CASE("Runtime rejects package scans after initialize", "[runtime][packages]") {

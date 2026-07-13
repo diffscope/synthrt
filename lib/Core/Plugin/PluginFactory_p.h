@@ -2,6 +2,7 @@
 #define SRT_CORE_PLUGIN_PLUGINFACTORY_P_H
 
 #include <map>
+#include <memory>
 #include <unordered_set>
 #include <shared_mutex>
 
@@ -22,13 +23,17 @@ namespace srt::core {
 
     public:
         void scanPlugins(const char *iid) const;
-        void preloadSharedLibraries(const std::filesystem::path &sharedDir) const;
+        bool preloadSharedLibraries(const std::filesystem::path &sharedDir) const;
+        static std::filesystem::path sharedLibraryPath(const std::filesystem::path &categoryDir);
 
         // Directories per IID (each entry is a parent dir whose subdirectories contain plugin.json)
         std::map<std::string, llvm::SmallVector<std::filesystem::path>, std::less<>> pluginDirs;
+        std::map<std::string, llvm::SmallVector<std::filesystem::path>, std::less<>> sharedDirs;
         std::unordered_set<Plugin *> runtimePlugins;
         mutable std::unordered_set<std::string> scannedPluginDirs;
-        mutable bool sharedLoaded = false;
+        mutable std::unordered_set<std::filesystem::path::string_type> loadedSharedDirs;
+        mutable std::map<std::filesystem::path::string_type,
+                         std::unique_ptr<stdc::SharedLibrary>, std::less<>> preloadedLibraries;
         mutable std::map<std::filesystem::path::string_type, stdc::SharedLibrary *, std::less<>>
             libraryInstances;
         mutable std::unordered_set<std::string> pluginsDirty;
