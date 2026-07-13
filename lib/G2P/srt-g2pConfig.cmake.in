@@ -4,6 +4,7 @@ include(CMakeFindDependencyMacro)
 find_dependency(stdcorelib)
 find_dependency(srt-core)
 find_dependency(srt-ds-bank)
+find_dependency(srt-s2p)
 
 include("${CMAKE_CURRENT_LIST_DIR}/srt-g2pTargets.cmake")
 

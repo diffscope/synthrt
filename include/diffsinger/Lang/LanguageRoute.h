@@ -1,27 +1,18 @@
 #pragma once
 
-#include <filesystem>
-#include <string>
+// Legacy location — migrated to <synthrt/G2P/LanguageRoute.h> (R8).
+// This header is kept as a forwarding shim for external consumers (e.g.
+// ds-editor-lite) during the namespace migration window. New code should
+// include <synthrt/G2P/LanguageRoute.h> directly and use namespace srt::g2p.
+//
+// Note: the underlying struct now uses the renamed fields (g2pContext /
+// g2pSource) defined in srt::g2p::LanguageRoute. Callers still referencing
+// the old field names (singerId / voicebankContext) must be updated.
 
-#include <stdcorelib/support/versionnumber.h>
+#include <synthrt/G2P/LanguageRoute.h>
 
 namespace ds::lang {
-
-    /// LanguageRoute - G2P route + S2P resource, returned by
-    /// LanguageService::resolveLanguageRoute().
-    ///
-    /// Combines G2P routing info and S2P resource references so the host
-    /// (CLI/lite) doesn't need to call lower-level resolve methods.
-    struct LanguageRoute {
-        std::string g2pId;                 ///< Actual G2P plugin task id
-        std::string singerId;              ///< context = singerId (voicebank private G2P)
-        stdc::VersionNumber g2pContextVersion;
-        bool voicebankContext = false;     ///< true=voicebank private G2P, false=official G2P
-
-        // S2P resource (srt::s2p::LanguageResource construction params)
-        std::string s2pMode;               ///< "dict" | "direct"
-        std::filesystem::path s2pFile;
-        std::filesystem::path onsetFile;
-    };
-
+    /// Type alias for backward compatibility with the old include path.
+    /// New code should use srt::g2p::LanguageRoute directly.
+    using LanguageRoute = srt::g2p::LanguageRoute;
 } // namespace ds::lang

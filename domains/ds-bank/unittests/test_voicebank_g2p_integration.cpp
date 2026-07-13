@@ -37,14 +37,13 @@
 
 #include <synthrt/G2P/Base/LangCommon.h>
 #include <synthrt/G2P/LanguageService.h>
+#include <synthrt/G2P/LanguageRoute.h>
 
 #include <diffsinger/Bank/VoicebankScanner.h>
 #include <diffsinger/Bank/PackageParser.h>
 #include <diffsinger/Bank/SingerSnapshot.h>
-#include <diffsinger/Lang/LanguageRoute.h>
 
 using namespace srt::g2p;
-using namespace ds::lang;
 using namespace ds::bank;
 
 namespace {
@@ -180,7 +179,7 @@ TEST_CASE("Integration: scan official G2P package and resolve route", "[integrat
     auto routeExp = langSvc.resolveLanguageRoute("pkg.a", "singer_a", "cmn");
     REQUIRE(routeExp.hasValue());
     REQUIRE(routeExp->g2pId == "g2p-cmn-official");
-    REQUIRE(!routeExp->voicebankContext);
+    REQUIRE(routeExp->g2pSource == kG2pSourceOfficial);  // official (R7)
 
     // Step 4: Construct G2pInput from route
     G2pInput input("ni hao", routeExp->g2pId, "", {});
@@ -215,12 +214,12 @@ TEST_CASE("Integration: scan voicebank G2P package and resolve route", "[integra
     auto routeExp = langSvc.resolveLanguageRoute("pkg.vb", "singer_vb", "cmn");
     REQUIRE(routeExp.hasValue());
     REQUIRE(routeExp->g2pId == "g2p-cmn-custom");
-    REQUIRE(routeExp->voicebankContext);
+    REQUIRE(routeExp->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(routeExp->g2pContextVersion.toString() == "1.5");
 
-    // Step 4: Construct G2pInput with voicebank context
+    // Step 4: Construct G2pInput with voicebank context (R7: g2pContext = singerId)
     G2pInput input("ni hao", routeExp->g2pId,
-                   routeExp->singerId,        // g2pContext = singerId
+                   routeExp->g2pContext,        // g2pContext = singerId for voicebank
                    routeExp->g2pContextVersion);
     REQUIRE(input.g2pContext == "singer_vb");
     REQUIRE(input.g2pContextVersion.toString() == "1.5");
@@ -267,12 +266,12 @@ TEST_CASE("Integration: multi-package with mixed official and voicebank G2P", "[
     // Official
     auto routeOff = langSvc.resolveLanguageRoute("pkg.official", "singer_off", "cmn");
     REQUIRE(routeOff.hasValue());
-    REQUIRE(!routeOff->voicebankContext);
+    REQUIRE(routeOff->g2pSource == kG2pSourceOfficial);  // official (R7)
 
     // Voicebank
     auto routeCus = langSvc.resolveLanguageRoute("pkg.custom", "singer_cus", "cmn");
     REQUIRE(routeCus.hasValue());
-    REQUIRE(routeCus->voicebankContext);
+    REQUIRE(routeCus->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(routeCus->g2pContextVersion.toString() == "1.0");
 
     std::filesystem::remove_all(root);
@@ -396,7 +395,7 @@ TEST_CASE("Integration: voicebank dir with G2P packages and singer configs", "[i
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
     auto route = langSvc.resolveLanguageRoute("pkg.combined", "singer_combined", "cmn");
     REQUIRE(route.hasValue());
-    REQUIRE(route->voicebankContext);
+    REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(route->g2pId == "g2p-cmn-custom");
 
     std::filesystem::remove_all(root);
@@ -496,12 +495,12 @@ TEST_CASE("Integration: G2pInput context from official route", "[integration][g2
     auto route = langSvc.resolveLanguageRoute("pkg.in", "in_singer", "cmn");
     REQUIRE(route.hasValue());
 
-    // For official G2P, context is empty.
-    G2pInput input("ni", route->g2pId, route->singerId, route->g2pContextVersion);
+    // For official G2P, g2pContext is empty (= kOfficialContext, R7).
+    G2pInput input("ni", route->g2pId, route->g2pContext, route->g2pContextVersion);
     REQUIRE(input.g2pId == "g2p-cmn-official");
-    // Even though we pass singerId, official context should use empty.
+    // R7: official G2P route now carries empty g2pContext (was singerId).
     // The actual context routing happens in Manager::convert().
-    REQUIRE(input.g2pContext == "in_singer");
+    REQUIRE(input.g2pContext.empty());
     REQUIRE(input.g2pContextVersion.isEmpty());
 
     std::filesystem::remove_all(root);
@@ -521,9 +520,9 @@ TEST_CASE("Integration: G2pInput context from voicebank route", "[integration][g
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
     auto route = langSvc.resolveLanguageRoute("pkg.vb-in", "vb_singer", "cmn");
     REQUIRE(route.hasValue());
-    REQUIRE(route->voicebankContext);
+    REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
 
-    G2pInput input("ni", route->g2pId, route->singerId, route->g2pContextVersion);
+    G2pInput input("ni", route->g2pId, route->g2pContext, route->g2pContextVersion);
     REQUIRE(input.g2pId == "g2p-cmn-custom");
     REQUIRE(input.g2pContext == "vb_singer");
     REQUIRE(input.g2pContextVersion.toString() == "3.0");
@@ -623,36 +622,36 @@ TEST_CASE("Integration: realistic multi-singer multi-language voicebank director
     // CN singer: voicebank G2P
     auto routeCn = langSvc.resolveLanguageRoute("vb.cn", "cn_singer", "cmn");
     REQUIRE(routeCn.hasValue());
-    REQUIRE(routeCn->voicebankContext);
+    REQUIRE(routeCn->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(routeCn->g2pId == "g2p-cmn-custom");
     REQUIRE(routeCn->g2pContextVersion.toString() == "1.0");
 
     // EN singer: official G2P
     auto routeEn = langSvc.resolveLanguageRoute("vb.en", "en_singer", "en");
     REQUIRE(routeEn.hasValue());
-    REQUIRE(!routeEn->voicebankContext);
+    REQUIRE(routeEn->g2pSource == kG2pSourceOfficial);  // official (R7)
     REQUIRE(routeEn->g2pId == "g2p-en-official");
 
     // BI singer: cmn = voicebank, en = official
     auto routeBiCmn = langSvc.resolveLanguageRoute("vb.bi", "bi_singer", "cmn");
     REQUIRE(routeBiCmn.hasValue());
-    REQUIRE(routeBiCmn->voicebankContext);
+    REQUIRE(routeBiCmn->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(routeBiCmn->g2pContextVersion.toString() == "2.0");
 
     auto routeBiEn = langSvc.resolveLanguageRoute("vb.bi", "bi_singer", "en");
     REQUIRE(routeBiEn.hasValue());
-    REQUIRE(!routeBiEn->voicebankContext);
+    REQUIRE(routeBiEn->g2pSource == kG2pSourceOfficial);  // official (R7)
 
-    // Step 4: Construct G2pInputs
+    // Step 4: Construct G2pInputs (R7: g2pContext = singerId for voicebank, "" for official)
     std::vector<G2pInput> inputs;
-    inputs.emplace_back("ni hao", routeCn->g2pId, routeCn->singerId, routeCn->g2pContextVersion);
-    inputs.emplace_back("hello", routeEn->g2pId, routeEn->singerId, routeEn->g2pContextVersion);
-    inputs.emplace_back("shi jie", routeBiCmn->g2pId, routeBiCmn->singerId, routeBiCmn->g2pContextVersion);
+    inputs.emplace_back("ni hao", routeCn->g2pId, routeCn->g2pContext, routeCn->g2pContextVersion);
+    inputs.emplace_back("hello", routeEn->g2pId, routeEn->g2pContext, routeEn->g2pContextVersion);
+    inputs.emplace_back("shi jie", routeBiCmn->g2pId, routeBiCmn->g2pContext, routeBiCmn->g2pContextVersion);
 
     REQUIRE(inputs.size() == 3);
-    REQUIRE(inputs[0].g2pContext == "cn_singer");
-    REQUIRE(inputs[1].g2pContext == "en_singer");
-    REQUIRE(inputs[2].g2pContext == "bi_singer");
+    REQUIRE(inputs[0].g2pContext == "cn_singer");   // voicebank: singerId
+    REQUIRE(inputs[1].g2pContext.empty());           // official: empty (R7, was "en_singer")
+    REQUIRE(inputs[2].g2pContext == "bi_singer");   // voicebank: singerId
 
     std::filesystem::remove_all(root);
 }
@@ -683,7 +682,7 @@ TEST_CASE("Integration: voicebank G2P path doesn't exist on disk", "[integration
     // Route resolution should still succeed (it reads manifest, not G2P files).
     auto route = langSvc.resolveLanguageRoute("pkg.mg2p", "singer_mg", "cmn");
     REQUIRE(route.hasValue());
-    REQUIRE(route->voicebankContext);
+    REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(route->g2pId == "g2p-cmn-custom");
 
     std::filesystem::remove_all(root);
@@ -711,7 +710,7 @@ TEST_CASE("Integration: language with multiple G2P packages", "[integration][g2p
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
     auto route = langSvc.resolveLanguageRoute("pkg.mg2p2", "singer_mg2", "cmn");
     REQUIRE(route.hasValue());
-    REQUIRE(route->voicebankContext);
+    REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     // The route should carry the G2P version.
     REQUIRE(route->g2pContextVersion.toString() == "1.0");
 
@@ -768,7 +767,10 @@ TEST_CASE("Integration: singer with no languages uses defaultLanguage fallback",
     // This may or may not succeed depending on whether the parser merges
     // singer languages into package languages. Either way, no crash.
     if (route.hasValue()) {
-        REQUIRE(route->singerId == "singer_nl");
+        // Official G2P (no g2pPackages): g2pContext is empty, g2pSource is
+        // "official" (R7: was singerId == "singer_nl").
+        REQUIRE(route->g2pSource == kG2pSourceOfficial);
+        REQUIRE(route->g2pContext.empty());
     }
 
     std::filesystem::remove_all(root);
@@ -872,7 +874,7 @@ TEST_CASE("Integration: direct package mode with voicebank G2P", "[integration][
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
     auto route = langSvc.resolveLanguageRoute("pkg.direct", "direct_singer", "cmn");
     REQUIRE(route.hasValue());
-    REQUIRE(route->voicebankContext);
+    REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
 
     std::filesystem::remove_all(root);
 }

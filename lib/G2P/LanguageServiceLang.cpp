@@ -25,7 +25,7 @@
 #include <diffsinger/Bank/SingerManifest.h>
 #include <diffsinger/Bank/LanguageInfo.h>
 
-namespace ds::lang {
+namespace srt::g2p {
 
     namespace {
         srt::core::LogCategory langSvcLog("LanguageService");
@@ -37,7 +37,8 @@ namespace ds::lang {
                                 }) != items.end();
         }
 
-        // Local G2P route fields.
+        // Local G2P route fields (internal helper, not affected by R7 field
+        // renaming which applies to the public LanguageRoute struct).
         struct G2pRouteData {
             std::string singerId;
             std::string g2pId;
@@ -110,19 +111,66 @@ namespace ds::lang {
     public:
         std::unordered_map<std::string, std::filesystem::path> packageDirs;
 
+        // PackageManifest cache (R2+R3). Key = utf8-encoded packageDir path.
+        // Avoids re-parsing desc.json on every resolveLanguageRoute() call;
+        // Stage 1.3 (voicebank registration) and resolveLanguageRoute() share
+        // the same cache. Thread-safe via shared_mutex.
+        mutable std::shared_mutex manifestCacheMutex;
+        mutable std::unordered_map<std::string, ds::bank::PackageManifest> manifestCache;
+
         // S2P resource cache (keyed by "packageId/singerId/languageId").
         // LanguageResource is move-only, so we store shared_ptr for safe
         // shared access across threads.
         mutable std::shared_mutex s2pCacheMutex;
         mutable std::unordered_map<std::string,
                                    std::shared_ptr<srt::s2p::LanguageResource>> s2pCache;
+
+        // Two-stage loading state (MGR).
+        bool metadataReady = false;
+        bool modelsReady = false;
+
+        /// Get or parse the PackageManifest for a packageId (thread-safe, cached).
+        /// Returns a non-owning pointer valid for the lifetime of this Impl
+        /// (the cache is never evicted). On parse failure returns the Error.
+        srt::core::Expected<const ds::bank::PackageManifest *>
+        getManifest(const std::string &packageId) const {
+            const auto dirIt = packageDirs.find(packageId);
+            if (dirIt == packageDirs.end()) {
+                return srt::core::Error::g2pError(
+                    srt::core::ErrorCode::G2pPackageNotFound,
+                    "package directory not found for packageId: " + packageId,
+                    {}, packageId);
+            }
+            const auto &packageDir = dirIt->second;
+            const auto dirKey = stdc::path::to_utf8(packageDir);
+
+            // Check cache (read lock).
+            {
+                std::shared_lock<std::shared_mutex> lock(manifestCacheMutex);
+                if (const auto it = manifestCache.find(dirKey); it != manifestCache.end()) {
+                    return &it->second;
+                }
+            }
+
+            // Parse and cache (write lock).
+            ds::bank::PackageParser parser;
+            auto result = parser.parsePackage(packageDir);
+            if (!result) {
+                return result.takeError();
+            }
+            std::unique_lock<std::shared_mutex> lock(manifestCacheMutex);
+            // Another thread may have populated the entry concurrently; emplace
+            // only inserts on miss, so the existing entry (if any) wins.
+            auto emplaceResult = manifestCache.emplace(dirKey, std::move(*result));
+            return &emplaceResult.first->second;
+        }
     };
 
     LanguageService::LanguageService() : _impl(std::make_unique<Impl>()) {}
 
     LanguageService::~LanguageService() = default;
 
-    srt::core::Expected<void> LanguageService::initialize(
+    srt::core::Expected<void> LanguageService::initializeMetadata(
         const std::vector<std::filesystem::path> &pluginSearchPaths,
         const std::vector<std::filesystem::path> &officialG2pPackagePaths,
         const std::unordered_map<std::string, std::filesystem::path> &packageDirs) {
@@ -134,12 +182,13 @@ namespace ds::lang {
 
         // The G2P Manager is a process-wide singleton shared across
         // LanguageService instances. When a previous instance has already
-        // initialized it, skip Stage 1/2/4 (idempotent) but still run Stage 3,
-        // which registers this instance's voicebank G2P packages (ER-08).
+        // initialized it, skip Stage 1.1/1.2 (idempotent) but still run
+        // Stage 1.3, which registers this instance's voicebank G2P packages
+        // (ER-08).
         const bool alreadyInitialized = mgr->initialized();
 
         if (!alreadyInitialized) {
-            // Stage 1: Register G2P/Driver plugin search paths.
+            // Stage 1.1: Register G2P/Driver plugin search paths.
             // addPluginPath scans subdirectories for plugin.json descriptors and is
             // the framework's plugin loading entry point.
             for (const auto &path : pluginSearchPaths) {
@@ -147,7 +196,7 @@ namespace ds::lang {
                 mgr->addPluginPath(srt::g2p::kDriverPluginIid, path);
             }
 
-            // Stage 2: Register official G2P package paths to the default context.
+            // Stage 1.2: Register official G2P package paths to the default context.
             // Default-context failures block Manager::initialize().
             for (const auto &path : officialG2pPackagePaths) {
                 if (path.empty()) {
@@ -163,23 +212,24 @@ namespace ds::lang {
             }
         }
 
-        // Stage 3: Register voicebank private G2P packages for each singer.
+        // Stage 1.3: Register voicebank private G2P packages for each singer.
         // Always executed: depends on this instance's packageDirs, not the
         // global singleton state. Non-default-context failures only mark the
         // context Failed and do not block other contexts, so per-package errors
         // are reported via srtWarning but do not interrupt the loop (ER-03).
+        // Uses the manifest cache (R3) so this shares parse work with
+        // resolveLanguageRoute().
         for (const auto &kv : _impl->packageDirs) {
-            const auto &packageDir = kv.second;
+            const auto &packageId = kv.first;
 
-            ds::bank::PackageParser parser;
-            auto packageResult = parser.parsePackage(packageDir);
-            if (!packageResult) {
+            auto manifestExp = _impl->getManifest(packageId);
+            if (!manifestExp) {
                 langSvcLog.srtWarning("failed to parse package for G2P registration: %1: %2",
-                                      stdc::path::to_utf8(packageDir),
-                                      packageResult.error().message());
+                                      packageId,
+                                      manifestExp.error().message());
                 continue;
             }
-            auto package = std::move(*packageResult);
+            const auto &package = **manifestExp;
 
             for (const auto &singer : package.singers()) {
                 for (const auto &lang : singer.languages()) {
@@ -222,18 +272,61 @@ namespace ds::lang {
             }
         }
 
-        if (!alreadyInitialized) {
-            // Stage 4: Initialize all registered G2P contexts.
-            auto g2pResult = mgr->initialize();
-            if (!g2pResult) {
-                return srt::core::Error(
-                    srt::core::ErrorCode::G2pInitializationError,
-                    "G2P Manager initialization failed: " +
-                        g2pResult.error().message());
-            }
+        _impl->metadataReady = true;
+        return {};
+    }
+
+    srt::core::Expected<void> LanguageService::initializeModels() {
+        if (!_impl->metadataReady) {
+            return srt::core::Error(
+                srt::core::ErrorCode::G2pInitializationError,
+                "initializeModels() requires initializeMetadata() first");
         }
 
+        auto mgr = srt::g2p::Manager::instance();
+        if (mgr->initialized()) {
+            // Idempotent: already initialized by another LanguageService instance.
+            _impl->modelsReady = true;
+            return {};
+        }
+
+        // Stage 2: Initialize all registered G2P contexts (load plugins, create
+        // ONNX sessions). Failure terminates G2P conversion but route resolution
+        // (Stage 1) remains available.
+        auto g2pResult = mgr->initialize();
+        if (!g2pResult) {
+            return srt::core::Error(
+                srt::core::ErrorCode::G2pInitializationError,
+                "G2P Manager initialization failed: " +
+                    g2pResult.error().message());
+        }
+
+        _impl->modelsReady = true;
         return {};
+    }
+
+    srt::core::Expected<void> LanguageService::initialize(
+        const std::vector<std::filesystem::path> &pluginSearchPaths,
+        const std::vector<std::filesystem::path> &officialG2pPackagePaths,
+        const std::unordered_map<std::string, std::filesystem::path> &packageDirs) {
+
+        auto exp1 = initializeMetadata(pluginSearchPaths, officialG2pPackagePaths, packageDirs);
+        if (!exp1) {
+            return exp1;
+        }
+        return initializeModels();
+    }
+
+    bool LanguageService::metadataReady() const {
+        return _impl->metadataReady;
+    }
+
+    bool LanguageService::modelsReady() const {
+        return _impl->modelsReady;
+    }
+
+    bool LanguageService::ready() const {
+        return _impl->metadataReady && _impl->modelsReady;
     }
 
     srt::core::Expected<LanguageRoute> LanguageService::resolveLanguageRoute(
@@ -241,21 +334,12 @@ namespace ds::lang {
         const std::string &singerId,
         const std::string &languageId) const {
 
-        const auto it = _impl->packageDirs.find(packageId);
-        if (it == _impl->packageDirs.end()) {
-            return srt::core::Error::g2pError(
-                srt::core::ErrorCode::G2pPackageNotFound,
-                "package directory not found for packageId: " + packageId,
-                {}, packageId);
+        // Use the manifest cache (R2): parse once, reuse on subsequent calls.
+        auto manifestExp = _impl->getManifest(packageId);
+        if (!manifestExp) {
+            return manifestExp.takeError();
         }
-        const auto &packageDir = it->second;
-
-        ds::bank::PackageParser parser;
-        auto packageResult = parser.parsePackage(packageDir);
-        if (!packageResult) {
-            return packageResult.takeError();
-        }
-        auto package = std::move(*packageResult);
+        const auto &package = **manifestExp;
 
         const auto singerIt = std::find_if(
             package.singers().begin(), package.singers().end(),
@@ -297,13 +381,21 @@ namespace ds::lang {
                 resolvedLanguageId, packageId);
         }
 
+        const bool hasG2pPackages = !languageIt->g2pPackages().empty();
+
         LanguageRoute result;
         result.g2pId = languageIt->g2pId();
-        result.singerId = singerIt->singerId();
+        // g2pContext: empty (= kOfficialContext) for official G2P, singerId for
+        // voicebank private G2P (R7).
+        result.g2pContext = hasG2pPackages ? singerIt->singerId()
+                                          : srt::g2p::kOfficialContext;
         result.g2pContextVersion = languageIt->hasG2pPackageVersion()
             ? languageIt->g2pPackageVersion()
             : stdc::VersionNumber();
-        result.voicebankContext = !languageIt->g2pPackages().empty();
+        // g2pSource: "voicebank" when voicebank private G2P packages exist,
+        // "official" otherwise (R7).
+        result.g2pSource = hasG2pPackages ? srt::g2p::kG2pSourceVoicebank
+                                         : srt::g2p::kG2pSourceOfficial;
         result.s2pMode = languageIt->s2pMode();
         result.s2pFile = !languageIt->s2pFile().empty()
             ? languageIt->s2pFile() : languageIt->dict();
@@ -374,32 +466,20 @@ namespace ds::lang {
         return srt::g2p::Manager::instance()->convert(input);
     }
 
-    bool LanguageService::convert(const std::string &packageId,
-                                  const std::string &singerId,
-                                  const std::string &languageId,
-                                  const std::vector<srt::g2p::G2pInput> &inputs,
-                                  std::vector<srt::g2p::G2pRes> &outputs,
-                                  srt::core::Diagnostic *error) const {
+    srt::core::Expected<std::vector<srt::g2p::G2pRes>> LanguageService::convert(
+        const std::string &packageId,
+        const std::string &singerId,
+        const std::string &languageId,
+        const std::vector<srt::g2p::G2pInput> &inputs) const {
+        // Route resolution failure → propagate the error.
         auto routeExp = resolveLanguageRoute(packageId, singerId, languageId);
         if (!routeExp) {
-            if (error) {
-                *error = routeExp.error().diagnostic();
-            }
-            return false;
+            return routeExp.takeError();
         }
-        outputs = convertLyric(inputs);
-        for (const auto &res : outputs) {
-            if (res.isFailed()) {
-                if (error) {
-                    error->code = srt::core::ErrorCode::G2pConversionFailed;
-                    error->severity = srt::core::Severity::Error;
-                    error->message = "G2P conversion failed (errorType=" +
-                                     std::to_string(static_cast<int>(res.errorType)) + ")";
-                }
-                return false;
-            }
-        }
-        return true;
+        // Conversion results may contain per-lyric errors (G2pRes::isFailed());
+        // callers inspect each result rather than treating the whole call as
+        // failed (R6: don't lose error details by collapsing to bool).
+        return convertLyric(inputs);
     }
 
-} // namespace ds::lang
+} // namespace srt::g2p
