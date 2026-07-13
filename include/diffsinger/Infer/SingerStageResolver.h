@@ -11,20 +11,6 @@
 
 namespace ds::infer {
 
-    /// StageSet — Named collection of the 5 inference stage specifications.
-    /// Replaces array-by-index with self-documenting named fields.
-    /// spec pointers remain valid as long as Runtime holds the package open.
-    struct DSINFER_EXPORT StageSet {
-        InferenceService::StageSpec duration;
-        InferenceService::StageSpec pitch;
-        InferenceService::StageSpec variance;
-        InferenceService::StageSpec acoustic;
-        InferenceService::StageSpec vocoder;
-
-        /// Find a StageSpec by StageKind. Returns nullptr if not set.
-        const InferenceService::StageSpec *find(StageKind kind) const noexcept;
-    };
-
     /// SingerStageResolver resolves the 5 inference StageSpec entries
     /// from a singer's package imports into a StageSet.
     ///

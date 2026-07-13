@@ -34,7 +34,7 @@ namespace ds::infer {
         /// Lazily load the specified stage. If the model is already loaded,
         /// returns the existing pointer. Default RuntimeOptions/InitArgs are
         /// constructed from spec->configuration().
-        srt::core::Expected<srt::svs::Inference *> load(StageKind kind);
+        srt::core::Expected<srt::core::NO<srt::svs::Inference>> load(StageKind kind);
 
         /// Get the loaded model NO reference. Returns an empty NO if not loaded.
         srt::core::NO<srt::svs::Inference> &model(StageKind kind) noexcept;

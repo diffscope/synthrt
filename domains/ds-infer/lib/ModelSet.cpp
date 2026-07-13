@@ -142,10 +142,10 @@ namespace ds::infer {
     ModelSet::ModelSet(ModelSet &&) noexcept = default;
     ModelSet &ModelSet::operator=(ModelSet &&) noexcept = default;
 
-    srt::core::Expected<srt::svs::Inference *> ModelSet::load(StageKind kind) {
+    srt::core::Expected<NO<srt::svs::Inference>> ModelSet::load(StageKind kind) {
         auto &slot = _impl->slot(kind);
         if (slot) {
-            return slot.get();
+            return slot;
         }
 
         const auto &spec = _impl->stageSpec(kind);
@@ -162,7 +162,7 @@ namespace ds::infer {
             return infExp.error();
         }
         slot = infExp.take();
-        return slot.get();
+        return slot;
     }
 
     NO<srt::svs::Inference> &ModelSet::model(StageKind kind) noexcept {

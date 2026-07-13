@@ -33,19 +33,18 @@ namespace ds::infer {
     InferenceService::InferenceService() = default;
     InferenceService::~InferenceService() = default;
 
-    srt::core::Expected<void> InferenceService::setStages(const StageSpec &duration,
-                                                          const StageSpec &pitch,
-                                                          const StageSpec &variance,
-                                                          const StageSpec &acoustic,
-                                                          const StageSpec &vocoder) {
-        if (!duration.spec || !pitch.spec || !variance.spec || !acoustic.spec || !vocoder.spec) {
+    srt::core::Expected<void> InferenceService::setStages(const StageSet &stages) {
+        if (!stages.duration.spec || !stages.pitch.spec || !stages.variance.spec ||
+            !stages.acoustic.spec || !stages.vocoder.spec) {
             return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                     "InferenceService::setStages: a stage spec is null");
         }
 
         // Validate acoustic/vocoder sampleRate compatibility (mirrors CLI).
-        const auto acousticConfig = acoustic.spec->configuration().as<Ac::AcousticConfiguration>();
-        const auto vocoderConfig = vocoder.spec->configuration().as<Vo::VocoderConfiguration>();
+        const auto acousticConfig =
+            stages.acoustic.spec->configuration().as<Ac::AcousticConfiguration>();
+        const auto vocoderConfig =
+            stages.vocoder.spec->configuration().as<Vo::VocoderConfiguration>();
         if (acousticConfig && vocoderConfig &&
             acousticConfig->sampleRate != vocoderConfig->sampleRate) {
             return srt::core::Error(
@@ -53,11 +52,7 @@ namespace ds::infer {
                 "InferenceService::setStages: acoustic and vocoder sampleRate mismatch");
         }
 
-        m_duration = duration;
-        m_pitch = pitch;
-        m_variance = variance;
-        m_acoustic = acoustic;
-        m_vocoder = vocoder;
+        m_stages = stages;
         return srt::core::Expected<void>{};
     }
 
@@ -126,105 +121,20 @@ namespace ds::infer {
         return result;
     }
 
-    static srt::core::Expected<void> validateAllStagesSet(const InferenceService::StageSpec &duration,
-                                                          const InferenceService::StageSpec &pitch,
-                                                          const InferenceService::StageSpec &variance,
-                                                          const InferenceService::StageSpec &acoustic,
-                                                          const InferenceService::StageSpec &vocoder) {
-        if (!duration.spec || !pitch.spec || !variance.spec || !acoustic.spec || !vocoder.spec) {
+    static srt::core::Expected<void> validateAllStagesSet(const StageSet &stages) {
+        if (!stages.duration.spec || !stages.pitch.spec || !stages.variance.spec ||
+            !stages.acoustic.spec || !stages.vocoder.spec) {
             return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
                                     "InferenceService::run: stages not set");
         }
         return srt::core::Expected<void>{};
     }
 
-    // === Mode B: Per-stage methods ===
-    //
-    // Each method creates a transient Inference from the cached StageSpec,
-    // initializes it, starts it with the given input, and returns the typed
-    // result. The Inference is destroyed when the method returns. For
-    // persistent Inference objects, create them directly from StageSpec.
-
-    srt::core::Expected<NO<srt::svs::Api::Duration::L1::DurationResult>>
-    InferenceService::runDuration(const NO<srt::svs::Api::Duration::L1::DurationStartInput> &input) {
-        if (!m_duration.spec) {
-            return srt::core::Error::inferenceError(
-                srt::core::ErrorCode::InferenceModelNotFound,
-                "InferenceService::runDuration: duration stage not set", {}, "duration");
-        }
-        auto infExp = createAndInit<Dur::DurationInitArgs, Dur::DurationRuntimeOptions>(
-            m_duration, "duration", {});
-        if (!infExp) return infExp.error();
-        auto inference = infExp.take();
-        return startAndCheck<Dur::DurationStartInput, Dur::DurationResult>(
-            inference, input, "duration", {});
-    }
-
-    srt::core::Expected<NO<srt::svs::Api::Pitch::L1::PitchResult>>
-    InferenceService::runPitch(const NO<srt::svs::Api::Pitch::L1::PitchStartInput> &input) {
-        if (!m_pitch.spec) {
-            return srt::core::Error::inferenceError(
-                srt::core::ErrorCode::InferenceModelNotFound,
-                "InferenceService::runPitch: pitch stage not set", {}, "pitch");
-        }
-        auto infExp = createAndInit<Pit::PitchInitArgs, Pit::PitchRuntimeOptions>(
-            m_pitch, "pitch", {});
-        if (!infExp) return infExp.error();
-        auto inference = infExp.take();
-        return startAndCheck<Pit::PitchStartInput, Pit::PitchResult>(
-            inference, input, "pitch", {});
-    }
-
-    srt::core::Expected<NO<srt::svs::Api::Variance::L1::VarianceResult>>
-    InferenceService::runVariance(const NO<srt::svs::Api::Variance::L1::VarianceStartInput> &input) {
-        if (!m_variance.spec) {
-            return srt::core::Error::inferenceError(
-                srt::core::ErrorCode::InferenceModelNotFound,
-                "InferenceService::runVariance: variance stage not set", {}, "variance");
-        }
-        auto infExp = createAndInit<Var::VarianceInitArgs, Var::VarianceRuntimeOptions>(
-            m_variance, "variance", {});
-        if (!infExp) return infExp.error();
-        auto inference = infExp.take();
-        return startAndCheck<Var::VarianceStartInput, Var::VarianceResult>(
-            inference, input, "variance", {});
-    }
-
-    srt::core::Expected<NO<srt::svs::Api::Acoustic::L1::AcousticResult>>
-    InferenceService::runAcoustic(const NO<srt::svs::Api::Acoustic::L1::AcousticStartInput> &input) {
-        if (!m_acoustic.spec) {
-            return srt::core::Error::inferenceError(
-                srt::core::ErrorCode::InferenceModelNotFound,
-                "InferenceService::runAcoustic: acoustic stage not set", {}, "acoustic");
-        }
-        auto infExp = createAndInit<Ac::AcousticInitArgs, Ac::AcousticRuntimeOptions>(
-            m_acoustic, "acoustic", {});
-        if (!infExp) return infExp.error();
-        auto inference = infExp.take();
-        return startAndCheck<Ac::AcousticStartInput, Ac::AcousticResult>(
-            inference, input, "acoustic", {});
-    }
-
-    srt::core::Expected<NO<srt::svs::Api::Vocoder::L1::VocoderResult>>
-    InferenceService::runVocoder(const NO<srt::svs::Api::Vocoder::L1::VocoderStartInput> &input) {
-        if (!m_vocoder.spec) {
-            return srt::core::Error::inferenceError(
-                srt::core::ErrorCode::InferenceModelNotFound,
-                "InferenceService::runVocoder: vocoder stage not set", {}, "vocoder");
-        }
-        auto infExp = createAndInit<Vo::VocoderInitArgs, Vo::VocoderRuntimeOptions>(
-            m_vocoder, "vocoder", {});
-        if (!infExp) return infExp.error();
-        auto inference = infExp.take();
-        return startAndCheck<Vo::VocoderStartInput, Vo::VocoderResult>(
-            inference, input, "vocoder", {});
-    }
-
     InferenceResult InferenceService::run(const InferenceRequest &request) {
         InferenceResult result;
         const auto &singer = request.singerId;
 
-        auto stagesExp = validateAllStagesSet(m_duration, m_pitch, m_variance, m_acoustic, m_vocoder);
+        auto stagesExp = validateAllStagesSet(m_stages);
         if (!stagesExp) {
             auto err = stagesExp.takeError();
             err.appendTrace(std::source_location::current(), "InferenceService::run");
@@ -240,7 +150,7 @@ namespace ds::infer {
         // --- Stage 1: Duration ---
         {
             auto infExp = createAndInit<Dur::DurationInitArgs, Dur::DurationRuntimeOptions>(
-                m_duration, "duration", singer);
+                m_stages.duration, "duration", singer);
             if (!infExp) {
                 auto err = infExp.takeError();
                 err.appendTrace(std::source_location::current(), "InferenceService::run");
@@ -279,7 +189,7 @@ namespace ds::infer {
         // --- Stage 2: Pitch ---
         {
             auto infExp = createAndInit<Pit::PitchInitArgs, Pit::PitchRuntimeOptions>(
-                m_pitch, "pitch", singer);
+                m_stages.pitch, "pitch", singer);
             if (!infExp) {
                 auto err = infExp.takeError();
                 err.appendTrace(std::source_location::current(), "InferenceService::run");
@@ -326,7 +236,7 @@ namespace ds::infer {
         // --- Stage 3: Variance ---
         {
             auto infExp = createAndInit<Var::VarianceInitArgs, Var::VarianceRuntimeOptions>(
-                m_variance, "variance", singer);
+                m_stages.variance, "variance", singer);
             if (!infExp) {
                 auto err = infExp.takeError();
                 err.appendTrace(std::source_location::current(), "InferenceService::run");
@@ -335,7 +245,7 @@ namespace ds::infer {
             }
             auto inference = infExp.take();
 
-            const auto schema = m_variance.spec->schema().as<Var::VarianceSchema>();
+            const auto schema = m_stages.variance.spec->schema().as<Var::VarianceSchema>();
 
             auto input = NO<Var::VarianceStartInput>::create();
             input->words = words;
@@ -404,7 +314,7 @@ namespace ds::infer {
         NO<srt::core::ITensor> f0;
         {
             auto infExp = createAndInit<Ac::AcousticInitArgs, Ac::AcousticRuntimeOptions>(
-                m_acoustic, "acoustic", singer);
+                m_stages.acoustic, "acoustic", singer);
             if (!infExp) {
                 auto err = infExp.takeError();
                 err.appendTrace(std::source_location::current(), "InferenceService::run");
@@ -414,7 +324,7 @@ namespace ds::infer {
             auto inference = infExp.take();
 
             // Add default transition controls if not provided (mirrors CLI).
-            const auto acConfig = m_acoustic.spec->configuration().as<Ac::AcousticConfiguration>();
+            const auto acConfig = m_stages.acoustic.spec->configuration().as<Ac::AcousticConfiguration>();
             if (acConfig) {
                 const auto &cfgParams = acConfig->parameters;
                 auto hasParam = [&](const srt::svs::ParamTag &tag) {
@@ -454,7 +364,7 @@ namespace ds::infer {
         // --- Stage 5: Vocoder ---
         {
             auto infExp = createAndInit<Vo::VocoderInitArgs, Vo::VocoderRuntimeOptions>(
-                m_vocoder, "vocoder", singer);
+                m_stages.vocoder, "vocoder", singer);
             if (!infExp) {
                 auto err = infExp.takeError();
                 err.appendTrace(std::source_location::current(), "InferenceService::run");
@@ -489,7 +399,7 @@ namespace ds::infer {
 
             // Populate sampleRate from vocoder configuration.
             const auto vocoderConfig =
-                m_vocoder.spec->configuration().as<Vo::VocoderConfiguration>();
+                m_stages.vocoder.spec->configuration().as<Vo::VocoderConfiguration>();
             if (vocoderConfig) {
                 result.sampleRate = vocoderConfig->sampleRate;
             }
