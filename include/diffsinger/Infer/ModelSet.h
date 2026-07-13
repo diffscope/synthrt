@@ -3,6 +3,7 @@
 #include <filesystem>
 
 #include <synthrt/Core/Support/Expected.h>
+#include <synthrt/SVS/Inference.h>
 #include <synthrt/SVS/InferenceContrib.h>
 
 #include <diffsinger/Infer/InferenceService.h>

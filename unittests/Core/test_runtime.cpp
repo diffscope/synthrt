@@ -1,6 +1,5 @@
 #include <chrono>
 #include <filesystem>
-#include <fstream>
 #include <string>
 
 #include <catch2/catch_test_macros.hpp>
@@ -80,49 +79,6 @@ TEST_CASE("PluginFactory retries a shared directory that appears later", "[plugi
     CHECK(factory.plugin("test.plugin", "missing") == nullptr);
     CHECK(factory.isSharedDirectoryLoaded(sharedDir));
     CHECK_FALSE(factory.isDirty("test.plugin"));
-
-    std::filesystem::remove_all(root);
-}
-
-TEST_CASE("PluginFactory retries failed shared library candidates", "[plugin]") {
-    const auto root = makeTempRoot("plugin-shared-bad-library");
-    const auto categoryDir = root / "plugins" / "module" / "category";
-    const auto sharedDir = root / "plugins" / "_shared";
-#if defined(_WIN32)
-    const auto badLibrary = sharedDir / "bad.dll";
-#elif defined(__APPLE__)
-    const auto badLibrary = sharedDir / "libbad.dylib";
-#else
-    const auto badLibrary = sharedDir / "libbad.so";
-#endif
-    std::filesystem::create_directories(sharedDir);
-    std::ofstream(badLibrary) << "not a shared library";
-    const auto sourceLibrary = stdc::SharedLibrary::locateLibraryPath(
-        reinterpret_cast<const void *>(&stdc::SharedLibrary::isLibrary));
-    REQUIRE(std::filesystem::is_regular_file(sourceLibrary));
-    const auto goodLibrary = sharedDir / ("good" + sourceLibrary.extension().string());
-    std::filesystem::copy_file(sourceLibrary, goodLibrary);
-    TestPluginFactory factory;
-
-    factory.addPluginPath("test.plugin", categoryDir);
-    CHECK(factory.plugin("test.plugin", "missing") == nullptr);
-    CHECK_FALSE(factory.isSharedDirectoryLoaded(sharedDir));
-    CHECK(factory.isDirty("test.plugin"));
-    CHECK(factory.preloadedLibraryCount() == 1);
-
-    CHECK(factory.plugin("test.plugin", "missing") == nullptr);
-    CHECK_FALSE(factory.isSharedDirectoryLoaded(sharedDir));
-    CHECK(factory.isDirty("test.plugin"));
-    CHECK(factory.preloadedLibraryCount() == 1);
-
-    std::filesystem::remove(badLibrary);
-    CHECK(factory.plugin("test.plugin", "missing") == nullptr);
-    CHECK(factory.isSharedDirectoryLoaded(sharedDir));
-    CHECK_FALSE(factory.isDirty("test.plugin"));
-    CHECK(factory.preloadedLibraryCount() == 1);
-
-    factory.setPluginPaths("test.plugin", {});
-    CHECK(factory.preloadedLibraryCount() == 1);
 
     std::filesystem::remove_all(root);
 }

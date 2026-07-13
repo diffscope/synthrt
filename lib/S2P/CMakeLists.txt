@@ -113,7 +113,11 @@ if(SYNTHRT_ENABLE_LUAJIT)
             message(FATAL_ERROR
                 "SYNTHRT_ENABLE_LUAJIT is ON, but the LuaJIT Debug library was not found")
         endif()
-        add_library(synthrt_luajit UNKNOWN IMPORTED)
+        if(WIN32)
+            add_library(synthrt_luajit SHARED IMPORTED)
+        else()
+            add_library(synthrt_luajit UNKNOWN IMPORTED)
+        endif()
         set_target_properties(synthrt_luajit PROPERTIES
             IMPORTED_CONFIGURATIONS RELEASE
             IMPORTED_LOCATION_RELEASE "${_srt_s2p_lua_lib_release}"
