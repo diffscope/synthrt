@@ -8,7 +8,9 @@
 #include <utility>
 #include <vector>
 
+#ifdef SRT_S2P_HAS_LUA
 #include <lua.hpp>
+#endif
 
 namespace srt::s2p {
 
@@ -30,6 +32,7 @@ namespace srt::s2p {
             return interval;
         }
 
+#ifdef SRT_S2P_HAS_LUA
         struct LuaStateDeleter {
             void operator()(lua_State *state) const {
                 if (state) {
@@ -62,6 +65,7 @@ namespace srt::s2p {
             }
             return message;
         }
+#endif
 
     }
 
@@ -76,6 +80,7 @@ namespace srt::s2p {
 
     srt::core::Expected<std::unique_ptr<LuaScript>>
     LuaScript::create(const std::string &script, const std::string &chunkName) {
+#ifdef SRT_S2P_HAS_LUA
         auto obj = std::unique_ptr<LuaScript>(new LuaScript());
         obj->d->chunkName = chunkName;
 
@@ -102,6 +107,12 @@ namespace srt::s2p {
         }
 
         return obj;
+#else
+        (void) script;
+        (void) chunkName;
+        return srt::core::Error(srt::core::ErrorCode::FeatureNotSupported,
+            "LuaScript is unavailable because synthrt was built without LuaJIT support");
+#endif
     }
 
     void LuaScript::setLuaPrintHandler(PrintHandler handler) {

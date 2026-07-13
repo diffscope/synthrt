@@ -10,10 +10,13 @@
 #include <utility>
 #include <vector>
 
+#ifdef SRT_S2P_HAS_LUA
 #include <lua.hpp>
+#endif
 
 namespace srt::s2p {
 
+#ifdef SRT_S2P_HAS_LUA
     namespace {
 
         class StackGuard {
@@ -130,5 +133,32 @@ namespace srt::s2p {
 
         return result;
     }
+
+#else
+
+    class LuaS2P::Private {};
+
+    LuaS2P::LuaS2P() : d(std::make_unique<Private>()) {
+    }
+
+    LuaS2P::~LuaS2P() = default;
+    LuaS2P::LuaS2P(LuaS2P &&) noexcept = default;
+    LuaS2P &LuaS2P::operator=(LuaS2P &&) noexcept = default;
+
+    srt::core::Expected<std::unique_ptr<LuaS2P>> LuaS2P::create(const LuaScript &) {
+        return srt::core::Error(srt::core::ErrorCode::FeatureNotSupported,
+            "LuaS2P is unavailable because synthrt was built without LuaJIT support");
+    }
+
+    void LuaS2P::interrupt() const noexcept {
+    }
+
+    srt::core::Expected<std::vector<std::string>>
+    LuaS2P::convert(std::string_view) const {
+        return srt::core::Error(srt::core::ErrorCode::FeatureNotSupported,
+            "LuaS2P is unavailable because synthrt was built without LuaJIT support");
+    }
+
+#endif
 
 }

@@ -9,10 +9,13 @@
 #include <utility>
 #include <vector>
 
+#ifdef SRT_S2P_HAS_LUA
 #include <lua.hpp>
+#endif
 
 namespace srt::s2p {
 
+#ifdef SRT_S2P_HAS_LUA
     namespace {
 
         class StackGuard {
@@ -139,5 +142,33 @@ namespace srt::s2p {
 
         return result;
     }
+
+#else
+
+    class LuaOnsetMarker::Private {};
+
+    LuaOnsetMarker::LuaOnsetMarker() : d(std::make_unique<Private>()) {
+    }
+
+    LuaOnsetMarker::~LuaOnsetMarker() = default;
+    LuaOnsetMarker::LuaOnsetMarker(LuaOnsetMarker &&) noexcept = default;
+    LuaOnsetMarker &LuaOnsetMarker::operator=(LuaOnsetMarker &&) noexcept = default;
+
+    srt::core::Expected<std::unique_ptr<LuaOnsetMarker>>
+    LuaOnsetMarker::create(const LuaScript &) {
+        return srt::core::Error(srt::core::ErrorCode::FeatureNotSupported,
+            "LuaOnsetMarker is unavailable because synthrt was built without LuaJIT support");
+    }
+
+    void LuaOnsetMarker::interrupt() const noexcept {
+    }
+
+    srt::core::Expected<std::vector<bool>>
+    LuaOnsetMarker::mark(const std::vector<std::string> &) const {
+        return srt::core::Error(srt::core::ErrorCode::FeatureNotSupported,
+            "LuaOnsetMarker is unavailable because synthrt was built without LuaJIT support");
+    }
+
+#endif
 
 }
