@@ -531,12 +531,6 @@ macro(_cur_add_library_internal _target _type)
             "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
         )
 
-        if(_CUR_INCLUDE_DIR)
-            target_include_directories(${_target} INTERFACE
-                "$<INSTALL_INTERFACE:${_CUR_INCLUDE_DIR}>"
-            )
-        endif()
-
         set(_install_options
             INSTALL_DIR "${CMAKE_INSTALL_INCLUDEDIR}/${_CUR_INSTALL_NAME}/${_inc_name}"
         )
