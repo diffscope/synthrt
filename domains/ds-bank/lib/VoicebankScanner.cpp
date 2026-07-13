@@ -116,11 +116,13 @@ namespace ds::bank {
                 snapshot.phonemeLength = singer.phonemeLength();
 
                 for (const auto &lang : singer.languages()) {
-                    snapshot.languages.push_back(lang.languageId());
+                    snapshot.languages.push_back(lang.languageId());  // backward compat
+                    snapshot.languageInfos.push_back(lang);           // R1: full object
                 }
 
                 for (const auto &spk : singer.speakers()) {
-                    snapshot.speakerIds.push_back(spk.speakerId());
+                    snapshot.speakerIds.push_back(spk.speakerId());   // backward compat
+                    snapshot.speakerInfos.push_back(spk);              // R1: full object
                 }
 
                 for (const auto &inf : package.inferences()) {
