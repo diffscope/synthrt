@@ -42,6 +42,7 @@
 #include "g2p_s2p_pipeline.h"
 #include "note_data.h"
 #include "wav_writer.h"
+#include "RuntimeLayout.h"
 
 namespace fs = std::filesystem;
 
@@ -89,7 +90,7 @@ namespace dsinfer_cli {
                 return srt::core::Error(srt::core::Error::SessionError,
                                         "ModelSet: failed to load " + stageName + ": " + loadExp.error().message());
             }
-            auto *inference = *loadExp;
+            auto inference = *loadExp;  // NO<Inference> (NM-3: load returns NO)
             auto startExp = inference->start(input);
             if (!startExp) {
                 return srt::core::Error(srt::core::Error::SessionError,
@@ -408,7 +409,7 @@ namespace dsinfer_cli {
 
         // 3. LanguageService — G2P initialization (Stages 1-4) + convertLyric.
         //    Idempotent: skips when the G2P Manager singleton is initialized.
-        ds::lang::LanguageService langSvc;
+        srt::g2p::LanguageService langSvc;
         auto langInitExp = langSvc.initialize(
             args.pluginPaths, args.g2pPackagePaths, packageDirs);
         if (!langInitExp) {
@@ -416,17 +417,13 @@ namespace dsinfer_cli {
             return -1;
         }
 
-        // 4. Runtime + ONNX driver (Stage 5). Plugin root is auto-derived
-        //    from the application directory layout (<app>/../lib/plugins).
+        // 4. Runtime + ONNX driver (Stage 5).
         srt::core::Runtime runtime;
-        const auto appDir = stdc::system::application_directory();
-        const auto pluginRoot = appDir.parent_path() /
-                                stdc::path::from_utf8("lib") /
-                                stdc::path::from_utf8("plugins");
         srt::driver::OnnxDriverConfig driverCfg;
         driverCfg.ep = args.ep;
         driverCfg.deviceIndex = args.deviceIndex;
-        auto driverExp = srt::driver::setupOnnxInferenceDriver(runtime, pluginRoot, driverCfg);
+        auto driverExp =
+            srt::driver::setupOnnxInferenceDriver(runtime, args.pluginRoot, driverCfg);
         if (!driverExp) {
             cliLog.srtCritical("ONNX driver setup failed: " + driverExp.error().message());
             return -1;
@@ -444,9 +441,6 @@ namespace dsinfer_cli {
                 "DSPX parsing is not enabled (DSINFER_CLI_HAS_OPENDSPX not defined)");
             return -1;
 #endif
-        } else {
-            printUsage();
-            return 1;
         }
 
         // 6. Build continuous segments (~40s each for MIDI; single piece for DSPX)
@@ -574,9 +568,7 @@ namespace dsinfer_cli {
             result = runLiteStylePipeline(stages, req);
         } else {
             ds::infer::InferenceService inferenceService;
-            auto setStagesExp = inferenceService.setStages(
-                stages.duration, stages.pitch, stages.variance,
-                stages.acoustic, stages.vocoder);
+            auto setStagesExp = inferenceService.setStages(stages);
             if (!setStagesExp) {
                 cliLog.srtCritical("setStages failed: " + setStagesExp.error().message());
                 return -1;
@@ -599,6 +591,11 @@ namespace dsinfer_cli {
 } // namespace dsinfer_cli
 
 int main(int argc, char *argv[]) {
+    if (argc >= 2 && std::strcmp(argv[1], "--version") == 0) {
+        std::printf("%s\n", TOOL_VERSION);
+        return 0;
+    }
+
     using namespace dsinfer_cli;
 
     CliArgs args;

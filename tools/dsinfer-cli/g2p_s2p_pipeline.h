@@ -18,7 +18,7 @@ namespace dsinfer_cli {
     /// Uses the LanguageService component API (resolveLanguageRoute() +
     /// convertLyric()) together with srt::s2p::LanguageResource for
     /// pronunciation -> phoneme splitting.
-    InputObject buildInputFromPiece(ds::lang::LanguageService &langSvc,
+    InputObject buildInputFromPiece(srt::g2p::LanguageService &langSvc,
                                     const ds::bank::SingerRef &ref,
                                     const MidiPiece &piece,
                                     const std::string &speakerId,

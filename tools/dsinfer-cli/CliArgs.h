@@ -23,7 +23,8 @@ namespace dsinfer_cli {
 
         // Optional named parameters
         std::vector<std::filesystem::path> g2pPackagePaths;  // --g2p-packages
-        std::vector<std::filesystem::path> pluginPaths;      // --plugin-paths
+        std::vector<std::filesystem::path> pluginPaths;      // --plugin-paths (G2P categories)
+        std::filesystem::path pluginRoot;                    // --plugin-root
         std::filesystem::path dumpDataDir;                   // --dump-data (empty = disabled)
         bool testLiteStyle = false;                          // --test-lite-style
 

@@ -1,0 +1,68 @@
+#pragma once
+
+#include <filesystem>
+#include <string_view>
+
+namespace synthrt::tools::runtime_layout {
+
+inline constexpr std::string_view kBindirToLibdir =
+    R"(@SYNTHRT_TOOLS_BINDIR_TO_LIBDIR@)";
+inline constexpr std::string_view kBindirToDatadir =
+    R"(@SYNTHRT_TOOLS_BINDIR_TO_DATADIR@)";
+
+inline std::filesystem::path fromExecutableDirectory(
+    const std::filesystem::path &executableDirectory, std::string_view relativePath) {
+    return (executableDirectory / std::filesystem::path(relativePath)).lexically_normal();
+}
+
+inline std::filesystem::path buildTreeRoot(
+    const std::filesystem::path &executableDirectory) {
+    if (executableDirectory.parent_path().filename() == "bin") {
+        return executableDirectory.parent_path().parent_path();
+    }
+    return executableDirectory.parent_path();
+}
+
+inline std::filesystem::path pluginRoot(
+    const std::filesystem::path &executableDirectory) {
+    const auto installRoot =
+        fromExecutableDirectory(executableDirectory, kBindirToLibdir) / "plugins";
+    if (std::filesystem::is_directory(installRoot)) {
+        return installRoot;
+    }
+
+    const auto multiConfigRoot = buildTreeRoot(executableDirectory) / "lib" /
+                                 executableDirectory.filename() / "plugins";
+    if (std::filesystem::is_directory(multiConfigRoot)) {
+        return multiConfigRoot;
+    }
+
+    const auto singleConfigRoot = executableDirectory.parent_path() / "lib" / "plugins";
+    return std::filesystem::is_directory(singleConfigRoot) ? singleConfigRoot : installRoot;
+}
+
+inline std::filesystem::path diffsingerPluginRoot(
+    const std::filesystem::path &executableDirectory) {
+    return pluginRoot(executableDirectory) / "diffsinger";
+}
+
+inline std::filesystem::path g2pPackagesRoot(
+    const std::filesystem::path &executableDirectory) {
+    const auto installRoot = fromExecutableDirectory(executableDirectory, kBindirToDatadir) /
+                             "synthrt" / "G2pPackages";
+    if (std::filesystem::is_directory(installRoot)) {
+        return installRoot;
+    }
+
+    const auto buildRoot = buildTreeRoot(executableDirectory) / "share" /
+                           "synthrt" / "G2pPackages";
+    return std::filesystem::is_directory(buildRoot) ? buildRoot : installRoot;
+}
+
+inline std::filesystem::path mandarinDictionaryRoot(
+    const std::filesystem::path &executableDirectory) {
+    return g2pPackagesRoot(executableDirectory) / "Phonetic-Suite-Cmn" /
+           "modules" / "G2p-Cmn" / "dict";
+}
+
+} // namespace synthrt::tools::runtime_layout

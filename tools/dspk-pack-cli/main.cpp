@@ -50,6 +50,7 @@ static void printUsage(const char *prog) {
     std::printf("\n");
     std::printf("Options:\n");
     std::printf("  -h, --help    Show this help message\n");
+    std::printf("  --version     Show version\n");
 }
 
 static void printStringArray(const std::vector<std::string> &items) {
@@ -212,6 +213,11 @@ static int doPack(const std::string &dir, const std::string &output) {
 }
 
 int main(int argc, char **argv) {
+    if (argc >= 2 && std::string_view(argv[1]) == "--version") {
+        std::printf("%s\n", TOOL_VERSION);
+        return 0;
+    }
+
     if (argc < 2) {
         printUsage(argv[0]);
         return 1;

@@ -15,3 +15,14 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     TOOL_DESC="${PROJECT_DESCRIPTION}, Version ${PROJECT_VERSION}"
     TOOL_VERSION="${PROJECT_VERSION}"
 )
+
+if(SYNTHRT_INSTALL AND SYNTHRT_INSTALL_TOOLS)
+    if(UNIX)
+        set_target_properties(${PROJECT_NAME} PROPERTIES
+            INSTALL_RPATH "${SYNTHRT_TOOLS_INSTALL_RPATH}"
+        )
+    endif()
+    install(TARGETS ${PROJECT_NAME}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    )
+endif()

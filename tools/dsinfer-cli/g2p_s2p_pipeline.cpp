@@ -9,7 +9,7 @@
 
 #include <synthrt/S2P/LanguageResource.h>
 #include <synthrt/Core/Support/JSON.h>
-#include <diffsinger/Lang/LanguageRoute.h>
+#include <synthrt/G2P/LanguageRoute.h>
 #include <synthrt/G2P/Base/LangCommon.h>
 #include <stdcorelib/path.h>
 #include <stdcorelib/str.h>
@@ -52,7 +52,7 @@ static bool isPunctuationOrDigit(const std::string &lyric) {
 //     session.convertLyric().
 //   * g2pContext / g2pContextVersion come directly from the LanguageRoute
 //     (g2pContextVersion is already a VersionNumber, no string parsing).
-InputObject buildInputFromPiece(ds::lang::LanguageService &langSvc,
+InputObject buildInputFromPiece(srt::g2p::LanguageService &langSvc,
                                 const ds::bank::SingerRef &ref,
                                 const MidiPiece &piece,
                                 const std::string &speakerId,
@@ -74,8 +74,10 @@ InputObject buildInputFromPiece(ds::lang::LanguageService &langSvc,
     if (routeExp) {
         const auto &route = *routeExp;
         g2pId = route.g2pId;
-        if (route.voicebankContext) {
-            g2pContext = route.singerId;
+        // g2pContext is "" (= kOfficialContext) for official G2P and the
+        // singerId for voicebank private G2P (R7); g2pSource distinguishes them.
+        if (route.g2pSource == srt::g2p::kG2pSourceVoicebank) {
+            g2pContext = route.g2pContext;
             g2pContextVersion = route.g2pContextVersion;
         }
         s2pMode = route.s2pMode;

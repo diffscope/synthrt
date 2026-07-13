@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <synthrt/S2P/LanguageResource.h>
@@ -38,10 +39,18 @@ namespace {
         std::printf("Usage:\n");
         std::printf("  %s direct <pronunciation> [onset.json]\n", prog);
         std::printf("  %s dict <dictionary.tsv> <pronunciation> [onset.json]\n", prog);
+        std::printf("\nOptions:\n");
+        std::printf("  -h, --help  Show this help message\n");
+        std::printf("  --version   Show version\n");
     }
 }
 
 int main(int argc, char **argv) {
+    if (argc >= 2 && std::string_view(argv[1]) == "--version") {
+        std::printf("%s\n", TOOL_VERSION);
+        return 0;
+    }
+
     if (argc < 2 || std::string(argv[1]) == "-h" || std::string(argv[1]) == "--help") {
         printUsage(argv[0]);
         return argc < 2 ? 1 : 0;

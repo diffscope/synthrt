@@ -1,7 +1,6 @@
 #include "note_data.h"
 
 #include <algorithm>
-#include <filesystem>
 #include <fstream>
 #include <map>
 #include <string>
@@ -9,10 +8,11 @@
 #include <vector>
 
 #include <stdcorelib/str.h>
+#include <stdcorelib/system.h>
+
+#include "RuntimeLayout.h"
 
 namespace {
-    namespace fs = std::filesystem;
-
     std::vector<std::string> splitUtf8Chars(const std::string &text) {
         std::vector<std::string> chars;
         for (size_t i = 0; i < text.size();) {
@@ -49,8 +49,9 @@ namespace {
     const std::map<std::string, std::string> &mandarinWordDict() {
         static const auto dict = [] {
             std::map<std::string, std::string> result;
-#ifdef DSINFER_CLI_G2P_DICT_DIR
-            const auto path = fs::path(DSINFER_CLI_G2P_DICT_DIR) / "mandarin" / "word.txt";
+            const auto path = synthrt::tools::runtime_layout::mandarinDictionaryRoot(
+                                  stdc::system::application_directory()) /
+                              "mandarin" / "word.txt";
             std::ifstream file(path);
             std::string line;
             while (std::getline(file, line)) {
@@ -62,7 +63,6 @@ namespace {
                 if (comma != std::string::npos) value.resize(comma);
                 result.emplace(std::move(key), stripPinyinTone(std::move(value)));
             }
-#endif
             return result;
         }();
         return dict;

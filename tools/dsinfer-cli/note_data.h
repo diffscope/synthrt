@@ -52,5 +52,5 @@ double headerMinMs(const MidiNote &note);
 double tailMs(const MidiNote &note);
 
 // Lyric fallback: converts Chinese characters to pinyin pronunciation
-// using a bundled dictionary (DSINFER_CLI_G2P_DICT_DIR compile macro).
+// using the dictionary in the executable-relative runtime data layout.
 std::string lyricToPronunciation(const std::string &lyric, const std::string &languageId);

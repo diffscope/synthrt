@@ -9,6 +9,8 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/system.h>
 
+#include "RuntimeLayout.h"
+
 namespace fs = std::filesystem;
 
 namespace dsinfer_cli {
@@ -75,29 +77,17 @@ namespace {
         return result;
     }
 
-    // Extracted from main.cpp's g2pPackagesDir() (lines 1482-1488): official G2P
-    // package directory compiled in via DSINFER_CLI_G2P_PACKAGES_DIR.
     std::vector<fs::path> defaultG2pPackagePaths() {
-#ifdef DSINFER_CLI_G2P_PACKAGES_DIR
-        return {fs::path(DSINFER_CLI_G2P_PACKAGES_DIR)};
-#else
-        return {};
-#endif
+        return {synthrt::tools::runtime_layout::g2pPackagesRoot(
+            stdc::system::application_directory())};
     }
 
     // Extracted from main.cpp's initializeSU() (lines 567-588): DLL plugin
     // directories derived from app_dir. Each entry corresponds to a plugin
     // subdirectory registered with addPluginPath() in the original flow.
-    std::vector<fs::path> defaultPluginPaths() {
-        auto appDir = stdc::system::application_directory();
-        auto defaultPluginRoot = appDir.parent_path() / _TSTR("lib") / _TSTR("plugins");
-        auto defaultDriverPluginDir = defaultPluginRoot / _TSTR("srt-driver");
-        auto defaultDsinferPluginDir = defaultPluginRoot / _TSTR("dsinfer");
-        auto g2pPluginDir = defaultPluginRoot / _TSTR("srt-g2p");
+    std::vector<fs::path> defaultPluginPaths(const fs::path &pluginRoot) {
+        auto g2pPluginDir = pluginRoot / _TSTR("srt-g2p");
         return {
-            defaultDsinferPluginDir / _TSTR("singerproviders"),
-            defaultDriverPluginDir / _TSTR("inferencedrivers"),
-            defaultDsinferPluginDir / _TSTR("inferenceinterpreters"),
             g2pPluginDir / _TSTR("G2ps"),
             g2pPluginDir / _TSTR("dict"),
         };
@@ -107,6 +97,8 @@ namespace {
 
 // Extracted from main.cpp lines 1562-1568.
 void printUsage() {
+    stdc::u8println("%1", TOOL_DESC);
+    stdc::u8println("");
     stdc::u8println("Usage:");
     stdc::u8println("  %1 midi <package_dir> <filled.mid> <spk> <output_dir> [language] [ep] [device_index] [max_segments]",
                     stdc::system::application_name());
@@ -115,8 +107,11 @@ void printUsage() {
     stdc::u8println("Options:");
     stdc::u8println("  --test-lite-style  Use ModelSet for per-stage lazy load + lifecycle test");
     stdc::u8println("  --g2p-packages <paths>   Semicolon-separated G2P package directories");
-    stdc::u8println("  --plugin-paths <paths>   Semicolon-separated plugin directories");
+    stdc::u8println("  --plugin-paths <paths>   Semicolon-separated G2P plugin category directories");
+    stdc::u8println("  --plugin-root <dir>      Plugin root containing srt-driver, diffsinger, and srt-g2p");
     stdc::u8println("  --dump-data <dir>        Dump intermediate data to directory");
+    stdc::u8println("  -h, --help               Show this help message");
+    stdc::u8println("  --version                Show version");
 }
 
 bool CliArgs::parse(int argc, char *argv[]) {
@@ -132,13 +127,18 @@ bool CliArgs::parse(int argc, char *argv[]) {
         exitCode = 1;
         return false;
     }
+    if (cmdline[1] == "--version") {
+        stdc::u8println("%1", TOOL_VERSION);
+        exitCode = 0;
+        return false;
+    }
     if (cmdline[1] == "-h" || cmdline[1] == "--help") {
         printUsage();
         exitCode = 0;
         return false;
     }
 
-    // Separate named args (--g2p-packages / --plugin-paths) from positionals.
+    // Separate named args from positionals.
     // Named args consume the following token as their value, which may be a
     // semicolon-separated path list.
     std::vector<std::string> positionals;
@@ -165,6 +165,14 @@ bool CliArgs::parse(int argc, char *argv[]) {
             pluginPaths = splitPaths(cmdline[i + 1]);
             hasPluginPaths = true;
             ++i;
+        } else if (arg == "--plugin-root") {
+            if (i + 1 >= cmdline.size()) {
+                printUsage();
+                exitCode = 1;
+                return false;
+            }
+            pluginRoot = stdc::path::from_utf8(cmdline[i + 1]);
+            ++i;
         } else if (arg == "--dump-data") {
             if (i + 1 >= cmdline.size()) {
                 printUsage();
@@ -178,6 +186,13 @@ bool CliArgs::parse(int argc, char *argv[]) {
         } else {
             positionals.push_back(arg);
         }
+    }
+
+    if (!positionals.empty() && positionals[0] != "midi" && positionals[0] != "dspx") {
+        stdc::u8println("error: unknown mode '%1'", positionals[0]);
+        printUsage();
+        exitCode = 1;
+        return false;
     }
 
     // Positional layout (after stripping program name):
@@ -211,8 +226,12 @@ bool CliArgs::parse(int argc, char *argv[]) {
     if (!hasG2pPackages) {
         g2pPackagePaths = defaultG2pPackagePaths();
     }
+    if (pluginRoot.empty()) {
+        pluginRoot = synthrt::tools::runtime_layout::pluginRoot(
+            stdc::system::application_directory());
+    }
     if (!hasPluginPaths) {
-        pluginPaths = defaultPluginPaths();
+        pluginPaths = defaultPluginPaths(pluginRoot);
     }
 
     exitCode = 0;
