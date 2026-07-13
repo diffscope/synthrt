@@ -6,7 +6,7 @@ project(dsinfer-plugins
 set(dsinfer-plugins_VAR_PREFIX DSINFER)
 set(DSINFER_INSTALL ${SYNTHRT_INSTALL})
 set(DSINFER_VERSION ${PROJECT_VERSION})
-set(DSINFER_INSTALL_NAME dsinfer)
+set(DSINFER_INSTALL_NAME diffsinger)
 set(DSINFER_AUTHOR "Team OpenVPI")
 set(DSINFER_START_YEAR 2023)
 set(DSINFER_INCLUDE_DIR ../../include)

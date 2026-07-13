@@ -30,12 +30,12 @@ namespace srt::driver {
         const auto driverPluginDir =
             pluginRoot / stdc::path::from_utf8("srt-driver") /
             stdc::path::from_utf8("inferencedrivers");
-        const auto dsinferPluginDir =
-            pluginRoot / stdc::path::from_utf8("dsinfer");
+        const auto diffsingerPluginDir =
+            pluginRoot / stdc::path::from_utf8("diffsinger");
         const auto singerProviderDir =
-            dsinferPluginDir / stdc::path::from_utf8("singerproviders");
+            diffsingerPluginDir / stdc::path::from_utf8("singerproviders");
         const auto interpreterDir =
-            dsinferPluginDir / stdc::path::from_utf8("inferenceinterpreters");
+            diffsingerPluginDir / stdc::path::from_utf8("inferenceinterpreters");
 
         // 1. Register plugin search paths for singer providers, the inference
         //    driver, and the 5 inference interpreters. Each uses a dedicated

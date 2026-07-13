@@ -56,12 +56,14 @@ namespace srt::driver::onnx {
                 std::string msg =
                     stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);
+#ifdef _WIN32
+                stdc::SharedLibrary::setLibraryPath(orgLibPath);
+#endif
                 return srt::core::Error(srt::core::Error::SessionError, std::move(msg));
             }
 #ifdef _WIN32
             stdc::SharedLibrary::setLibraryPath(orgLibPath);
 #endif
-
             /**
              *  2. Get Ort Api getter handle
              */

@@ -34,8 +34,8 @@ namespace srt::driver {
     /// \param runtime     The Runtime to register plugins and driver into.
     /// \param pluginRoot  Root directory containing subdirs:
     ///                     - srt-driver/inferencedrivers/
-    ///                     - dsinfer/singerproviders/
-    ///                     - dsinfer/inferenceinterpreters/
+    ///                     - diffsinger/singerproviders/
+    ///                     - diffsinger/inferenceinterpreters/
     /// \param config      ONNX execution provider and device index.
     srt::core::Expected<void> SRT_DRIVER_EXPORT setupOnnxInferenceDriver(
         srt::core::Runtime &runtime,
