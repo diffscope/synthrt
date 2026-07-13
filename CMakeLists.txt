@@ -17,9 +17,16 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # ----------------------------------
 # Build Options
 # ----------------------------------
+include(CMakeDependentOption)
+
 option(SYNTHRT_BUILD_TESTS "Build test cases" OFF)
 option(SYNTHRT_BUILD_EXAMPLES "Build examples" OFF)
+option(SYNTHRT_BUILD_TOOLS "Build command line tools" ON)
 option(SYNTHRT_INSTALL "Install library" ON)
+option(SYNTHRT_ENABLE_LUAJIT "Enable LuaJIT-backed S2P support" ON)
+option(SYNTHRT_ENABLE_XSIMD "Enable xsimd audio acceleration" OFF)
+cmake_dependent_option(SYNTHRT_INSTALL_TOOLS "Install command line tools" ON
+    "SYNTHRT_INSTALL;SYNTHRT_BUILD_TOOLS" OFF)
 option(SYNTHRT_INSTALL_DEPLOY "Install with deploying dependencies" OFF)
 option(SYNTHRT_INSTALL_MSVC_RUNTIME "Install MSVC runtime" OFF)
 
@@ -116,8 +123,10 @@ set(CMAKE_FOLDER "Plugins")
 add_subdirectory(plugins)
 
 # Tools
-set(CMAKE_FOLDER "Tools")
-add_subdirectory(tools)
+if(SYNTHRT_BUILD_TOOLS)
+    set(CMAKE_FOLDER "Tools")
+    add_subdirectory(tools)
+endif()
 
 # Aggregate target: synthrt::synthrt — links all core runtime libraries
 if(NOT TARGET synthrt-synthrt)
@@ -168,12 +177,15 @@ if(SYNTHRT_INSTALL)
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/synthrt
     )
 
-    # Install official G2P packages (Phonetic-Suite-*) required by LanguageService
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/tests/common/G2pPackages")
-        install(DIRECTORY tests/common/G2pPackages
-            DESTINATION ${CMAKE_INSTALL_DATADIR}/synthrt
-        )
-    endif()
+    # The English package is excluded by default until its dictionary and model
+    # redistribution provenance is documented.
+    install(CODE
+        "file(REMOVE_RECURSE \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/synthrt/G2pPackages/Phonetic-Suite-Eng\")"
+    )
+    install(DIRECTORY resources/G2pPackages
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/synthrt
+        PATTERN "Phonetic-Suite-Eng" EXCLUDE
+    )
 endif()
 
 if(SYNTHRT_BUILD_TESTS)

@@ -38,9 +38,9 @@ target_compile_definitions(srt-audio PRIVATE SRT_AUDIO_LIBRARY)
 target_link_libraries(srt-audio PRIVATE ${FFMPEG_LIBRARIES})
 target_include_directories(srt-audio PRIVATE ${FFMPEG_INCLUDE_DIRS})
 
-# Optional: xsimd SIMD acceleration (Slicer RMS computation)
-find_package(xsimd CONFIG)
-if (xsimd_FOUND)
+# Optional xsimd SIMD acceleration (Slicer RMS computation).
+if (SYNTHRT_ENABLE_XSIMD)
+    find_package(xsimd CONFIG REQUIRED)
     target_link_libraries(srt-audio PRIVATE xsimd)
     target_compile_definitions(srt-audio PRIVATE SRT_AUDIO_ENABLE_XSIMD)
 endif ()
