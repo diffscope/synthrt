@@ -173,28 +173,6 @@ SRT_C_EXPORT srt_error srt_session_set_package_paths(srt_session session,
                                                       int count);
 
 /**
- * Sets the plugin search paths used by the session for plugin discovery.
- *
- * Replaces any previously configured plugin search paths.
- *
- * \note Plugin path configuration is not yet supported at the session C ABI
- *       level. Plugin discovery is driven by Runtime::scanPackages(), which
- *       takes individual package root directories rather than a search-path
- *       list. Until the C ABI is expanded to expose Runtime scanning, this
- *       function returns \c SRT_ERR_UNSUPPORTED.
- *
- * \param session  Session handle returned by srt_session_create().
- * \param paths    Array of UTF-8 directory paths. May be NULL if \p count is 0.
- * \param count    Number of entries in \p paths.
- * \return SRT_ERR_UNSUPPORTED (plugin paths not yet supported at the session
- *         level); SRT_ERR_INVALID_ARG if \p session is NULL or \p paths is
- *         NULL while \p count > 0.
- */
-SRT_C_EXPORT srt_error srt_session_set_plugin_paths(srt_session session,
-                                                     const char *const *paths,
-                                                     int count);
-
-/**
  * Triggers bank scan and dependency resolution (Stage 1, repeatable).
  *
  * Scans the configured package search paths, parses package manifests, and

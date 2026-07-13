@@ -3,6 +3,8 @@
 include(CMakeFindDependencyMacro)
 find_dependency(stdcorelib)
 find_dependency(srt-core)
+find_dependency(srt-s2p)
+find_dependency(srt-svs)
 find_dependency(srt-ds-bank)
 find_dependency(srt-g2p)
 find_dependency(srt-driver)

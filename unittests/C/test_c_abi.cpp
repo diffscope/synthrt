@@ -1,11 +1,10 @@
-// C ABI error handling tests (BF-25 / BF-29 / BF-30).
+// C ABI error handling tests (BF-25 / BF-29).
 //
 // Verifies:
 //   * srt_last_error() / srt_last_error_code() basic behavior
 //   * BF-25: G2P errors no longer misclassified as SRT_ERR_FILE_IO
 //   * BF-29: srt_last_error() returns toString() (with "[Category::Code]")
 //            and srt_last_error_code() returns the mapped srt_error
-//   * BF-30: srt_session_set_plugin_paths returns SRT_ERR_UNSUPPORTED
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -111,26 +110,4 @@ TEST_CASE("BF-29: srt_last_error_code returns mapped srt_error",
     srt::core::Error err(srt::core::ErrorCode::InvalidArgument, "bad argument");
     srt::c::detail::mapError(err);
     REQUIRE(srt_last_error_code() == SRT_ERR_INVALID_ARG);
-}
-
-// ---------------------------------------------------------------------------
-// d. BF-30 regression: srt_session_set_plugin_paths returns SRT_ERR_UNSUPPORTED
-//
-// Plugin path configuration is not supported at the session C ABI level; the
-// function must report SRT_ERR_UNSUPPORTED rather than silently succeeding.
-// ---------------------------------------------------------------------------
-
-TEST_CASE("BF-30: srt_session_set_plugin_paths returns SRT_ERR_UNSUPPORTED",
-          "[c_abi][bf-30]") {
-    srt_session session = srt_session_create();
-    REQUIRE(session != nullptr);
-
-    const char *paths[] = {"/nonexistent/plugin/path"};
-    srt_error ret = srt_session_set_plugin_paths(session, paths, 1);
-    REQUIRE(ret == SRT_ERR_UNSUPPORTED);
-
-    // The error buffer should also describe the unsupported operation.
-    REQUIRE_FALSE(std::string(srt_last_error()).empty());
-
-    srt_session_destroy(session);
 }

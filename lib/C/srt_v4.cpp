@@ -1,7 +1,7 @@
 // srt_v4.cpp - synthrt v4 C ABI implementation (FFI layer)
 //
 // Implements the v4 C ABI declared in <synthrt/C/srt.h>. The implementation
-// composes ds::bank::VoicebankScanner + ds::lang::LanguageService +
+// composes ds::bank::VoicebankScanner + srt::g2p::LanguageService +
 // srt::core::Runtime internally (ARCH-03), replacing the former delegation to
 // ds::session::DiffSingerSession which was removed in v2 Phase 1. Errors are
 // propagated via the shared TLS error buffer and converted to the v4 srt_error
@@ -41,7 +41,7 @@
 // components are held for future C ABI expansion.
 struct SrtSession {
     ds::bank::VoicebankScanner scanner;
-    ds::lang::LanguageService langSvc;
+    srt::g2p::LanguageService langSvc;
     srt::core::Runtime runtime;
 };
 
@@ -167,33 +167,6 @@ extern "C" srt_error srt_session_set_package_paths(srt_session session,
         srt::c::detail::setLastError(std::string("srt_session_set_package_paths: ") + e.what());
         return SRT_ERR_GENERIC;
     }
-}
-
-extern "C" srt_error srt_session_set_plugin_paths(srt_session session,
-                                                  const char *const *paths,
-                                                  int count) {
-    if (!session) {
-        srt::c::detail::setLastError("srt_session_set_plugin_paths: session handle is null");
-        return SRT_ERR_INVALID_ARG;
-    }
-    if (count > 0 && !paths) {
-        srt::c::detail::setLastError("srt_session_set_plugin_paths: paths is null");
-        return SRT_ERR_INVALID_ARG;
-    }
-
-    // Plugin path configuration is not yet supported at the session C ABI
-    // level. Plugin discovery is driven by Runtime::scanPackages(), which
-    // takes individual package root directories rather than a search-path
-    // list, and Runtime package sources are immutable after initialize().
-    // Until the C ABI is expanded to expose Runtime scanning/initialization,
-    // report the operation as unsupported instead of silently succeeding and
-    // misleading callers into believing their paths were applied.
-    (void)paths;
-    (void)count;
-    srt::c::detail::setLastError(
-        "srt_session_set_plugin_paths: not supported at the session level; "
-        "configure plugin paths via the Runtime (scanPackages) instead");
-    return SRT_ERR_UNSUPPORTED;
 }
 
 extern "C" srt_error srt_session_refresh(srt_session session) {
