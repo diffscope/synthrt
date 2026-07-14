@@ -277,6 +277,25 @@ namespace srt::core {
             spec->_impl->packageId = pkgId;
             spec->_impl->packageVersion = pkgVersion;
 
+            // Duplicate detection: reject a spec whose (id, packageId,
+            // packageVersion) strictly matches an already-loaded inference
+            // spec. Different versions of the same packageId are allowed
+            // (multi-version isolation); only strict id+version duplicates are
+            // rejected. Model file paths are intentionally NOT compared:
+            // different packages may legitimately share the same .onnx files
+            // on disk.
+            for (auto *existing : infCat->specs()) {
+                if (existing->id() == spec->id() &&
+                    existing->packageId() == pkgId &&
+                    existing->packageVersion() == pkgVersion) {
+                    return Error::packageError(
+                        ErrorCode::PackageDuplicate,
+                        "duplicate inference spec already loaded: id='" + spec->id() +
+                            "' in package " + pkgId + "[" + pkgVersion.toString() + "]",
+                        pkgId);
+                }
+            }
+
             auto initResult = infCat->loadSpec(spec, ModuleSpec::Initialized);
             if (!initResult) {
                 return Error{initResult.error()};
@@ -338,6 +357,22 @@ namespace srt::core {
             auto *spec = parseResult.value();
             spec->_impl->packageId = pkgId;
             spec->_impl->packageVersion = pkgVersion;
+
+            // Duplicate detection: reject a singer whose (singerId, packageId,
+            // packageVersion) strictly matches an already-loaded singer. Same
+            // semantics as the inference check above — multi-version isolation
+            // preserved, model file paths not compared.
+            for (auto *existing : singerCat->specs()) {
+                if (existing->id() == spec->id() &&
+                    existing->packageId() == pkgId &&
+                    existing->packageVersion() == pkgVersion) {
+                    return Error::packageError(
+                        ErrorCode::PackageDuplicate,
+                        "duplicate singer spec already loaded: id='" + spec->id() +
+                            "' in package " + pkgId + "[" + pkgVersion.toString() + "]",
+                        pkgId);
+                }
+            }
 
             auto initResult = singerCat->loadSpec(spec, ModuleSpec::Initialized);
             if (!initResult) {
