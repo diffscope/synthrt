@@ -650,3 +650,88 @@ TEST_CASE("resolveDependency empty versionRange matches all", "[version][complex
     REQUIRE(result.success);
     REQUIRE(result.resolvedVersion == "3.0.0");
 }
+
+// ===========================================================================
+// Extreme cases: resolver-level edge inputs
+// ===========================================================================
+
+TEST_CASE("resolveDependency dedupes duplicate versions", "[version][complex][extreme]") {
+    // Two identical module entries (same id+version+level) must not produce
+    // duplicate candidates; the resolver dedupes via sort+unique.
+    std::vector<ModuleMetadata> modules;
+    modules.push_back(makeModule("pkg", "mod", "1.0.0", 1));
+    modules.push_back(makeModule("pkg", "mod", "1.0.0", 1)); // exact duplicate
+
+    auto dep = makeRequirement("pkg", "mod", 1, "*");
+    auto requesting = makeModule("caller", "main", "1.0.0", 1);
+    auto result = VersionResolver::resolveDependency(modules, dep, requesting);
+
+    REQUIRE(result.success);
+    REQUIRE(result.resolvedVersion == "1.0.0");
+    REQUIRE(result.candidates.size() == 1);
+    REQUIRE(result.candidates[0] == "1.0.0");
+}
+
+TEST_CASE("resolveDependency level -1 matches requesting level", "[version][complex][extreme]") {
+    // When dependency.level == -1 (any), the resolver falls back to the
+    // REQUESTING module's level and selects versions whose level matches it.
+    std::vector<ModuleMetadata> modules;
+    modules.push_back(makeModule("pkg", "mod", "1.0.0", 1));
+    modules.push_back(makeModule("pkg", "mod", "2.0.0", 2));
+
+    auto dep = makeRequirement("pkg", "mod", -1, "*"); // any level
+    auto requesting = makeModule("caller", "main", "1.0.0", 1); // requesting level 1
+    auto result = VersionResolver::resolveDependency(modules, dep, requesting);
+
+    REQUIRE(result.success);
+    // 1.0.0 is the only version at level 1 (the requester's level).
+    REQUIRE(result.resolvedVersion == "1.0.0");
+    REQUIRE(result.resolvedLevel == 1);
+}
+
+TEST_CASE("resolveDependency level -1 with no compatible level fails", "[version][complex][extreme]") {
+    // Requesting level 1 but the only candidate is at level 2: with
+    // dependency.level == -1 the fallback to the requester's level yields no
+    // match.
+    std::vector<ModuleMetadata> modules;
+    modules.push_back(makeModule("pkg", "mod", "1.0.0", 2));
+
+    auto dep = makeRequirement("pkg", "mod", -1, "*");
+    auto requesting = makeModule("caller", "main", "1.0.0", 1);
+    auto result = VersionResolver::resolveDependency(modules, dep, requesting);
+
+    REQUIRE(!result.success);
+    REQUIRE(result.error.find("compatible level") != std::string::npos);
+}
+
+TEST_CASE("resolveDependency version 0.0.0 is selectable", "[version][complex][extreme]") {
+    // "0.0.0" is a legitimate version and must not be treated as empty or
+    // skipped by selectHighestVersion.
+    std::vector<ModuleMetadata> modules;
+    modules.push_back(makeModule("pkg", "mod", "0.0.0", 1));
+
+    auto dep = makeRequirement("pkg", "mod", 1, "*");
+    auto requesting = makeModule("caller", "main", "1.0.0", 1);
+    auto result = VersionResolver::resolveDependency(modules, dep, requesting);
+
+    REQUIRE(result.success);
+    REQUIRE(result.resolvedVersion == "0.0.0");
+}
+
+TEST_CASE("resolveDependency multiple versions selects highest with star", "[version][complex][extreme]") {
+    // Stress: many versions with "*" range picks the numerically highest,
+    // not the lexicographically last string.
+    std::vector<ModuleMetadata> modules;
+    modules.push_back(makeModule("pkg", "mod", "1.10.0", 1));
+    modules.push_back(makeModule("pkg", "mod", "1.2.0", 1));
+    modules.push_back(makeModule("pkg", "mod", "1.9.0", 1));
+
+    auto dep = makeRequirement("pkg", "mod", 1, "*");
+    auto requesting = makeModule("caller", "main", "1.0.0", 1);
+    auto result = VersionResolver::resolveDependency(modules, dep, requesting);
+
+    REQUIRE(result.success);
+    // 1.10.0 > 1.9.0 > 1.2.0 numerically (lexicographically "1.10.0" < "1.2.0"
+    // would be wrong). Verifies numeric, not string, comparison.
+    REQUIRE(result.resolvedVersion == "1.10.0");
+}

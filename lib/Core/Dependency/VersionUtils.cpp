@@ -130,6 +130,33 @@ namespace srt::dependency {
             return;
         }
 
+        // Multi-constraint: a space-separated list of constraints, e.g.
+        // ">=1.0.0 <2.0.0". This must be checked before the single-operator
+        // branch below, because such a string starts with an operator (">=")
+        // and would otherwise be mis-parsed as a single constraint whose
+        // version is the whole remainder ("1.0.0 <2.0.0"), silently dropping
+        // the upper bound. Hyphen ranges ("1.0.0 - 2.0.0") are already
+        // handled above, so any remaining whitespace means multi-constraint.
+        if (rangeStr.find(' ') != std::string::npos) {
+            std::istringstream iss(rangeStr);
+            std::string constraintStr;
+            while (iss >> constraintStr) {
+                auto constraint = parseConstraint(constraintStr);
+                if (constraint.op == Op::ANY && constraintStr != "*") {
+                    valid_ = false;
+                    parseError_ = "invalid constraint: " + constraintStr;
+                }
+                constraints_.push_back(constraint);
+            }
+
+            if (constraints_.empty()) {
+                valid_ = false;
+                parseError_ = "no valid constraints in range";
+                constraints_.push_back({Op::ANY, ""});
+            }
+            return;
+        }
+
         static const std::vector<std::pair<std::string, Op>> operators = {
             {"<=", Op::LESS_EQUAL}, {">=", Op::GREATER_EQUAL}, {"<", Op::LESS},      {">", Op::GREATER},
             {"==", Op::EQUAL},      {"=", Op::EQUAL},          {"~", Op::COMPATIBLE}};
@@ -151,24 +178,14 @@ namespace srt::dependency {
         }
 
         if (!parsed) {
-            std::istringstream iss(rangeStr);
-            std::string constraintStr;
-            while (iss >> constraintStr) {
-                if (!constraintStr.empty()) {
-                    auto constraint = parseConstraint(constraintStr);
-                    if (constraint.op == Op::ANY && constraintStr != "*" && !constraintStr.empty()) {
-                        valid_ = false;
-                        parseError_ = "invalid constraint: " + constraintStr;
-                    }
-                    constraints_.push_back(constraint);
-                }
-            }
-
-            if (constraints_.empty()) {
+            // Fallback for a single non-whitespace token that is neither a
+            // bare version nor a recognized operator prefix.
+            auto constraint = parseConstraint(rangeStr);
+            if (constraint.op == Op::ANY && rangeStr != "*") {
                 valid_ = false;
-                parseError_ = "no valid constraints in range";
-                constraints_.push_back({Op::ANY, ""});
+                parseError_ = "invalid constraint: " + rangeStr;
             }
+            constraints_.push_back(constraint);
         }
     }
 

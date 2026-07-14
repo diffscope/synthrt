@@ -222,7 +222,7 @@ ds::infer::InferenceResult result = service.run(request);
 | InputParser | `InputParser/` | 5 个 stage 的输入解析器 |
 | WavFile | `WavFile/` | WAV 文件读写（使用 dr_wav） |
 
-Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorithm/TensorHelper/VersionUtils 以及 v4 新增的 `test_modelset_errors.cpp`（错误路径 + BF-24 回归）、`test_singer_resolver_ambiguity.cpp`（BF-23 回归）、`test_speaker_mapper.cpp`（BF-22 + BF-31 跨包隔离回归）、`test_model_registry.cpp`（BF-31 跨包同 id 推理隔离）、`test_package_isolation.cpp`（BF-29/BF-30 多版本隔离与跨包声明）。
+Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorithm/TensorHelper/VersionUtils 以及 v4 新增的 `test_modelset_errors.cpp`（错误路径 + BF-24 回归）、`test_singer_resolver_ambiguity.cpp`（BF-23 回归）、`test_speaker_mapper.cpp`（BF-22 + BF-31 跨包隔离回归）、`test_model_registry.cpp`（BF-31 跨包同 id 推理隔离）、`test_package_isolation.cpp`（BF-29/BF-30 多版本隔离与跨包声明）。`test_version_utils.cpp` / `test_version_utils_complex.cpp` 在原有 normalizeVersion/compareVersions/VersionRange/VersionResolver 基础用例之上，新增 `[extreme]` 极端用例（仅 v/V 前缀、多段 pre-release、首尾点、全非数字段、空串/溢出段比较、COMPATIBLE 单段、反向 hyphen 区间、parseError 校验、selectHighestVersion 空/单元素、重复版本去重、level=-1 回退请求方 level、0.0.0 可选）与 BF-32 多约束回归。
 
 ---
 
@@ -244,3 +244,4 @@ Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorith
 | BF-29 | Runtime::loadPackage 检测重复 spec 加载（id+packageId+version 严格匹配） |
 | BF-30 | SingerImport 支持显式跨包声明（package+version，ARCH-06 跨包 stage 共享） |
 | BF-31 | ModelRegistry/SpeakerMapper 按 (packageId, inferenceId) 复合键隔离，避免跨包同 id 推理冲突；InferenceInfo 新增 packageId 字段由 PackageParser 注入 |
+| BF-32 | VersionRange 构造器在单算子分支之前增加空白分隔多约束解析：`">=1.0.0 <2.0.0"` 之前被首算子 `>=` 吞掉整个剩余串作为单个版本，上界 `<2.0.0` 被静默丢弃（3.0.0 错误命中）；现按空白拆分为多约束求交集 |
