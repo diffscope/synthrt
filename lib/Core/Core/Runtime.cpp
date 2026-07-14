@@ -11,6 +11,12 @@
 #include <synthrt/Core/Module/Module.h>
 #include <synthrt/Core/Support/JSON.h>
 
+// Module_p.h defines ModuleSpec::Impl (with packageId/packageVersion fields)
+// which Runtime::loadPackage writes to inject package identity. The header is
+// private to the srt-core target (lib/Core/Module/) and is reachable via the
+// target's PRIVATE include directories.
+#include "Module_p.h"
+
 namespace fs = std::filesystem;
 
 namespace srt::core {
