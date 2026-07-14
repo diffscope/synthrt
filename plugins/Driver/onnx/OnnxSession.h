@@ -19,6 +19,8 @@ namespace srt::driver::onnx {
 
         int64_t id() const override;
 
+        std::vector<std::string> inputNames() const override;
+
     public:
         srt::core::Expected<srt::core::NO<srt::core::TaskResult>>
             start(const srt::core::NO<srt::core::TaskStartInput> &input) override;

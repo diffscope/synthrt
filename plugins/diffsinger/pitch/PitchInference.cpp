@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <mutex>
+#include <algorithm>
 #include <numeric>
 #include <shared_mutex>
 #include <utility>
@@ -192,8 +193,22 @@ namespace srt::svs {
 
         // Part 1: Linguistic Encoder Inference
         {
+            // Auto-detect linguistic mode from ONNX model input names
+            auto linguisticMode = config->linguisticMode;
+            {
+                const auto &names = impl.encoderSession->inputNames();
+                bool hasWordDiv = std::find(names.begin(), names.end(), "word_div") != names.end();
+                bool hasPhDur = std::find(names.begin(), names.end(), "ph_dur") != names.end();
+                if (hasWordDiv && linguisticMode != Co::LinguisticMode::LM_Word) {
+                    Log.srtWarning("[Pitch] start: model expects word mode, overriding");
+                    linguisticMode = Co::LinguisticMode::LM_Word;
+                } else if (!hasWordDiv && hasPhDur && linguisticMode != Co::LinguisticMode::LM_Phoneme) {
+                    Log.srtWarning("[Pitch] start: model expects phoneme mode, overriding");
+                    linguisticMode = Co::LinguisticMode::LM_Phoneme;
+                }
+            }
             srt::core::NO<Onnx::SessionStartInput> linguisticInput;
-            switch (config->linguisticMode) {
+            switch (linguisticMode) {
                 case Co::LinguisticMode::LM_Word:
                     if (auto exp = ds::infer::inferutil::preprocessLinguisticWord(
                             pitchInput->words, config->phonemes, config->languages,

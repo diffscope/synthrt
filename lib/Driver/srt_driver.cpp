@@ -22,6 +22,10 @@ namespace srt::driver {
     InferenceSession::InferenceSession() = default;
     InferenceSession::~InferenceSession() = default;
 
+    std::vector<std::string> InferenceSession::inputNames() const {
+        return {};
+    }
+
     // --- InferenceDriverPlugin ---
     InferenceDriverPlugin::InferenceDriverPlugin() = default;
     InferenceDriverPlugin::~InferenceDriverPlugin() = default;

@@ -3,6 +3,8 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <string>
+#include <vector>
 
 #include <synthrt/Core/Support/Expected.h>
 #include <synthrt/Core/Task/ITask.h>
@@ -59,6 +61,8 @@ namespace srt::driver {
         virtual bool isOpen() const = 0;
 
         virtual int64_t id() const = 0;
+
+        virtual std::vector<std::string> inputNames() const;
     };
 
 }

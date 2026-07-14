@@ -54,6 +54,11 @@ namespace srt::driver::onnx {
         return impl.sessionId;
     }
 
+    std::vector<std::string> OnnxSession::inputNames() const {
+        __stdc_impl_t;
+        return impl.session.inputNames();
+    }
+
     srt::core::Expected<srt::core::NO<srt::core::TaskResult>>
         OnnxSession::start(const srt::core::NO<srt::core::TaskStartInput> &input) {
         __stdc_impl_t;
