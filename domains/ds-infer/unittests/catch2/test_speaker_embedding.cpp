@@ -229,3 +229,99 @@ TEST_CASE("preprocessSpeakerEmbedding crossfade between two speakers", "[speaker
     float lastFrame = view[(targetLength - 1) * hiddenSize];
     REQUIRE(firstFrame < lastFrame); // should increase over time
 }
+
+// ---------------------------------------------------------------------------
+// BF-34: preprocessSpeakerEmbeddingFrames must not silently skip speakers
+// when proportions is empty or when interval is 0 with multiple proportions.
+// These cases previously caused resample() to return {} and the speaker was
+// skipped without error, violating ROBUST-05.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("BF-34 empty proportions returns error", "[speakerembedding][extreme]") {
+    int hiddenSize = 4;
+    int64_t targetLength = 10;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk;
+    spk.name = "s1";
+    spk.interval = 0.01;
+    spk.proportions = {}; // empty proportions
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk};
+    auto embMap = std::map<std::string, std::vector<float>>{
+        {"s1", makeEmbedding(hiddenSize, 1.0f)}
+    };
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(!exp.hasValue());
+    REQUIRE(exp.error().message().find("empty proportions") != std::string::npos);
+}
+
+TEST_CASE("BF-34 multiple proportions with zero interval returns error", "[speakerembedding][extreme]") {
+    int hiddenSize = 4;
+    int64_t targetLength = 10;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk;
+    spk.name = "s1";
+    spk.interval = 0; // zero interval with multiple proportions
+    spk.proportions = {0.0, 0.5, 1.0};
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk};
+    auto embMap = std::map<std::string, std::vector<float>>{
+        {"s1", makeEmbedding(hiddenSize, 1.0f)}
+    };
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(!exp.hasValue());
+    REQUIRE(exp.error().message().find("interval is 0") != std::string::npos);
+}
+
+TEST_CASE("BF-34 single proportion with zero interval is valid", "[speakerembedding][extreme]") {
+    // Single proportion + interval=0 is the "static speaker" pattern.
+    // resample() broadcasts the single value to all frames. This must
+    // still succeed after the BF-34 fix.
+    int hiddenSize = 4;
+    int64_t targetLength = 10;
+    double frameWidth = 0.01;
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{makeStaticSpeaker("s1")};
+    auto embMap = std::map<std::string, std::vector<float>>{
+        {"s1", makeEmbedding(hiddenSize, 1.0f)}
+    };
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(exp.hasValue());
+    auto tensor = exp.take();
+    auto view = tensor->view<float>();
+    for (int64_t i = 0; i < targetLength; ++i) {
+        for (int j = 0; j < hiddenSize; ++j) {
+            REQUIRE(approxEqual(view[i * hiddenSize + j], 1.0f));
+        }
+    }
+}
+
+TEST_CASE("BF-34 empty proportions among multiple speakers fails fast", "[speakerembedding][extreme]") {
+    // First speaker is valid, second has empty proportions.
+    // The function must fail on the second speaker, not silently skip it.
+    int hiddenSize = 4;
+    int64_t targetLength = 5;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk1 = makeStaticSpeaker("s1");
+    Co::InputSpeakerInfo spk2;
+    spk2.name = "s2";
+    spk2.interval = 0.01;
+    spk2.proportions = {}; // empty
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk1, spk2};
+    auto embMap = std::map<std::string, std::vector<float>>{
+        {"s1", makeEmbedding(hiddenSize, 1.0f)},
+        {"s2", makeEmbedding(hiddenSize, 2.0f)}
+    };
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(!exp.hasValue());
+    REQUIRE(exp.error().message().find("s2") != std::string::npos);
+    REQUIRE(exp.error().message().find("empty proportions") != std::string::npos);
+}

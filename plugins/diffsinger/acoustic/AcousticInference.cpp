@@ -1,5 +1,6 @@
 #include "AcousticInference.h"
 
+#include <cmath>
 #include <mutex>
 #include <shared_mutex>
 #include <utility>
@@ -172,6 +173,15 @@ namespace srt::svs {
         auto sessionInput = srt::core::NO<Onnx::SessionStartInput>::create();
 
         double frameWidth = 1.0 * config->hopSize / config->sampleRate;
+        // BF-35: Validate frameWidth before use. Duration/Pitch/Variance all
+        // check this; Acoustic was missing the guard, risking division by zero
+        // in preprocessPhonemeDurations and silent skips in resample.
+        if (!std::isfinite(frameWidth) || frameWidth <= 0) {
+            setState(Failed);
+            Log.srtCritical("[Acoustic] start: frame width must be positive");
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
+                              "[Acoustic] frame width must be positive");
+        }
 
         // input param: tokens
         if (auto res =
