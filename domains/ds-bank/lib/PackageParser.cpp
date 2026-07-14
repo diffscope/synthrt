@@ -128,16 +128,27 @@ namespace ds::bank {
         return lang;
     }
 
+    // Parse a singer config file. On read/parse failure, \p err is set and the
+    // returned SingerManifest has an empty singerId (so callers can skip it in
+    // Relaxed mode or report the error in Strict mode).
     static void parseSingerConfig(const std::filesystem::path &filePath, SingerManifest &singer,
-                                 std::vector<LanguageInfo> &languages) {
+                                 std::vector<LanguageInfo> &languages, Error &err) {
         Error readErr;
         auto text = readAll(filePath, readErr);
         if (readErr.type() != Error::NoError) {
+            err = Error{
+                srt::core::ErrorCode::PackageManifestInvalid,
+                stdc::formatN(R"(%1: failed to read singer config: %2)", filePath, readErr.message()),
+            };
             return;
         }
         std::string parseErr;
         auto root = JsonValue::fromJson(text, true, &parseErr);
         if (!parseErr.empty() || !root.isObject()) {
+            err = Error{
+                srt::core::ErrorCode::PackageManifestInvalid,
+                stdc::formatN(R"(%1: invalid singer config format: %2)", filePath, parseErr),
+            };
             return;
         }
         const auto &obj = root.toObject();
@@ -215,17 +226,25 @@ namespace ds::bank {
         }
     }
 
-    static InferenceInfo parseInferenceConfig(const std::filesystem::path &filePath) {
+    static InferenceInfo parseInferenceConfig(const std::filesystem::path &filePath, Error &err) {
         InferenceInfo info;
         info.configPath = filePath.lexically_normal();
         Error readErr;
         auto text = readAll(filePath, readErr);
         if (readErr.type() != Error::NoError) {
+            err = Error{
+                srt::core::ErrorCode::PackageManifestInvalid,
+                stdc::formatN(R"(%1: failed to read inference config: %2)", filePath, readErr.message()),
+            };
             return info;
         }
         std::string parseErr;
         auto root = JsonValue::fromJson(text, true, &parseErr);
         if (!parseErr.empty() || !root.isObject()) {
+            err = Error{
+                srt::core::ErrorCode::PackageManifestInvalid,
+                stdc::formatN(R"(%1: invalid inference config format: %2)", filePath, parseErr),
+            };
             return info;
         }
         const auto &obj = root.toObject();
@@ -320,7 +339,6 @@ namespace ds::bank {
         {
             auto it = obj.find("id");
             if (it == obj.end() || !it->second.isString()) {
-                (void) mode;
                 return Error{
                     srt::core::ErrorCode::PackageManifestMissingField,
                     stdc::formatN(R"(%1: missing required field "id")", manifestPath),
@@ -418,7 +436,17 @@ namespace ds::bank {
 
             std::vector<InferenceInfo> standardInferences;
             for (const auto &ref : info.inferenceRefs()) {
-                auto inference = parseInferenceConfig(ref);
+                Error cfgErr;
+                auto inference = parseInferenceConfig(ref, cfgErr);
+                if (cfgErr.type() != Error::NoError) {
+                    // BF-33: Strict mode must report corrupted/missing inference
+                    // configs instead of silently skipping them. Relaxed mode
+                    // keeps the legacy tolerant behavior.
+                    if (mode == ParseMode::Strict) {
+                        return cfgErr;
+                    }
+                    continue;
+                }
                 if (!inference.id.empty()) {
                     // Stamp the owning package's identity so downstream
                     // ModelRegistry/SpeakerMapper can isolate inferences
@@ -435,7 +463,17 @@ namespace ds::bank {
             std::vector<SingerManifest> standardSingers;
             for (const auto &ref : singerRefs) {
                 SingerManifest singer;
-                parseSingerConfig(ref, singer, standardLanguages);
+                Error cfgErr;
+                parseSingerConfig(ref, singer, standardLanguages, cfgErr);
+                if (cfgErr.type() != Error::NoError) {
+                    // BF-33: Strict mode must report corrupted/missing singer
+                    // configs instead of silently skipping them. Relaxed mode
+                    // keeps the legacy tolerant behavior.
+                    if (mode == ParseMode::Strict) {
+                        return cfgErr;
+                    }
+                    continue;
+                }
                 if (!singer.singerId().empty()) {
                     singer.setPackageId(info.packageId());
                     singer.setPackageVersion(info.version());

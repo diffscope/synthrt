@@ -822,7 +822,7 @@ TEST_CASE("PackageParser missing desc.json returns error", "[ds-bank][parser][co
     std::filesystem::remove_all(dir);
 }
 
-TEST_CASE("PackageParser missing singer config file silently skips", "[ds-bank][parser][complex][strict]") {
+TEST_CASE("PackageParser strict mode reports missing singer config", "[ds-bank][parser][complex][strict][bf-33]") {
     const auto dir = makeTempDir("missing-singer-file");
 
     writeFile(dir / "desc.json", R"json({
@@ -833,9 +833,162 @@ TEST_CASE("PackageParser missing singer config file silently skips", "[ds-bank][
 
     PackageParser parser;
     auto result = parser.parsePackage(dir, PackageParser::ParseMode::Strict);
-    // Parser silently skips missing singer config files; singers list is empty.
+    // BF-33: Strict mode must report the missing singer config instead of
+    // silently returning success with an empty singers list.
+    REQUIRE(!result.hasValue());
+    REQUIRE(result.error().code() == srt::core::ErrorCode::PackageManifestInvalid);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("PackageParser relaxed mode silently skips missing singer config", "[ds-bank][parser][complex][relaxed][bf-33]") {
+    const auto dir = makeTempDir("missing-singer-relaxed");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.missing-relaxed",
+        "version": "1.0.0",
+        "contributes": {"singers": ["characters/nonexistent/config.json"]}
+    })json");
+
+    PackageParser parser;
+    auto result = parser.parsePackage(dir, PackageParser::ParseMode::Relaxed);
+    // Relaxed mode keeps the legacy tolerant behavior: silently skip.
     REQUIRE(result.hasValue());
     REQUIRE(result->singers().empty());
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("PackageParser strict mode reports corrupted singer config JSON", "[ds-bank][parser][complex][strict][bf-33]") {
+    const auto dir = makeTempDir("corrupt-singer-json");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.corrupt-singer",
+        "version": "1.0.0",
+        "contributes": {"singers": ["characters/s/config.json"]}
+    })json");
+
+    // Write a malformed JSON file (missing closing brace)
+    writeFile(dir / "characters/s/config.json", R"json({
+        "id": "s", "level": 1,
+        "configuration": {"defaultLanguage": "cmn"
+    )json");
+
+    PackageParser parser;
+    auto result = parser.parsePackage(dir, PackageParser::ParseMode::Strict);
+    REQUIRE(!result.hasValue());
+    REQUIRE(result.error().code() == srt::core::ErrorCode::PackageManifestInvalid);
+    REQUIRE(result.error().message().find("invalid singer config format") != std::string::npos);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("PackageParser strict mode reports missing inference config", "[ds-bank][parser][complex][strict][bf-33]") {
+    const auto dir = makeTempDir("missing-inference-file");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.missing-inf",
+        "version": "1.0.0",
+        "contributes": {"inferences": ["inferences/nonexistent/config.json"]}
+    })json");
+
+    PackageParser parser;
+    auto result = parser.parsePackage(dir, PackageParser::ParseMode::Strict);
+    REQUIRE(!result.hasValue());
+    REQUIRE(result.error().code() == srt::core::ErrorCode::PackageManifestInvalid);
+    REQUIRE(result.error().message().find("inference config") != std::string::npos);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("PackageParser relaxed mode silently skips missing inference config", "[ds-bank][parser][complex][relaxed][bf-33]") {
+    const auto dir = makeTempDir("missing-inference-relaxed");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.missing-inf-rel",
+        "version": "1.0.0",
+        "contributes": {"inferences": ["inferences/nonexistent/config.json"]}
+    })json");
+
+    PackageParser parser;
+    auto result = parser.parsePackage(dir, PackageParser::ParseMode::Relaxed);
+    REQUIRE(result.hasValue());
+    REQUIRE(result->inferences().empty());
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("PackageParser strict mode reports corrupted inference config JSON", "[ds-bank][parser][complex][strict][bf-33]") {
+    const auto dir = makeTempDir("corrupt-inference-json");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.corrupt-inf",
+        "version": "1.0.0",
+        "contributes": {"inferences": ["inferences/d/config.json"]}
+    })json");
+
+    // Malformed JSON (trailing comma)
+    writeFile(dir / "inferences/d/config.json", R"json({
+        "id": "duration", "class": "diffsinger.DurationInference",
+    )json");
+
+    PackageParser parser;
+    auto result = parser.parsePackage(dir, PackageParser::ParseMode::Strict);
+    REQUIRE(!result.hasValue());
+    REQUIRE(result.error().code() == srt::core::ErrorCode::PackageManifestInvalid);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("PackageParser strict mode partial failure: first singer bad stops parse", "[ds-bank][parser][complex][strict][bf-33]") {
+    const auto dir = makeTempDir("partial-bad-singer");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.partial-bad",
+        "version": "1.0.0",
+        "contributes": {"singers": ["characters/good/config.json", "characters/bad/config.json"]}
+    })json");
+
+    writeFile(dir / "characters/good/config.json", R"json({
+        "id": "good-singer", "level": 1,
+        "configuration": {"defaultLanguage": "cmn"}
+    })json");
+
+    // Bad config: missing closing brace
+    writeFile(dir / "characters/bad/config.json", R"json({"id": "bad-singer" )json");
+
+    PackageParser parser;
+    auto result = parser.parsePackage(dir, PackageParser::ParseMode::Strict);
+    // Strict mode: the corrupted second singer config causes the entire parse
+    // to fail (fail-fast). The good singer is NOT partially returned.
+    REQUIRE(!result.hasValue());
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("PackageParser relaxed mode partial failure: bad singer skipped, good singer kept", "[ds-bank][parser][complex][relaxed][bf-33]") {
+    const auto dir = makeTempDir("partial-bad-relaxed");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.partial-relaxed",
+        "version": "1.0.0",
+        "contributes": {"singers": ["characters/good/config.json", "characters/bad/config.json"]}
+    })json");
+
+    writeFile(dir / "characters/good/config.json", R"json({
+        "id": "good-singer", "level": 1,
+        "configuration": {"defaultLanguage": "cmn"}
+    })json");
+
+    // Bad config: missing closing brace
+    writeFile(dir / "characters/bad/config.json", R"json({"id": "bad-singer" )json");
+
+    PackageParser parser;
+    auto result = parser.parsePackage(dir, PackageParser::ParseMode::Relaxed);
+    // Relaxed mode: the bad singer is silently skipped, the good singer is kept.
+    REQUIRE(result.hasValue());
+    REQUIRE(result->singers().size() == 1);
+    REQUIRE(result->singers()[0].singerId() == "good-singer");
 
     std::filesystem::remove_all(dir);
 }

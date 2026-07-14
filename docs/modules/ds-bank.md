@@ -156,3 +156,5 @@ v3 修复了多个版本匹配 Bug：
 ## 错误处理
 
 Package 错误使用 `ErrorCode::Package*` 代码段（100-199）和 `Error::packageError()` 工厂函数：`PackageRootInvalid`、`PackageManifestInvalid`、`PackageManifestMissingField`、`PackageDependencyMissing`、`PackageDependencyCycle`、`PackageVersionConflict`、`PackageSingerConfigInvalid`、`PackageDuplicate` 等。
+
+BF-33: `PackageParser::parsePackage` 现在遵守 `ParseMode` 参数。Strict 模式下，singer/inference 配置文件读取失败或 JSON 解析失败时返回 `PackageManifestInvalid` 错误（fail-fast），不再静默跳过。Relaxed 模式保持容错行为（跳过损坏项继续解析）。修复前 `parsePackage` 通过 `(void) mode;` 丢弃了 mode 参数，Strict 和 Relaxed 行为完全相同。
