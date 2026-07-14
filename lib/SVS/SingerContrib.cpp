@@ -227,6 +227,17 @@ namespace srt::svs {
                         if (optIt != importObj.end()) {
                             singerImport._manifestOptions = optIt->second;
                         }
+                        // Cross-package declaration: "package" specifies the
+                        // target package id; "version" specifies the required
+                        // version ("*" or empty = any version).
+                        auto pkgIt = importObj.find("package");
+                        if (pkgIt != importObj.end() && pkgIt->second.isString()) {
+                            singerImport._declaredPackage = pkgIt->second.toString();
+                        }
+                        auto verIt = importObj.find("version");
+                        if (verIt != importObj.end() && verIt->second.isString()) {
+                            singerImport._declaredVersion = verIt->second.toString();
+                        }
                     }
                     impl.importInferenceIds.push_back(std::move(inferenceId));
                     impl.imports.push_back(std::move(singerImport));
@@ -267,15 +278,38 @@ namespace srt::svs {
                     if (inferenceId.empty()) {
                         continue;
                     }
-                    // Strict isolation: resolve only within the same package
-                    // identity (packageId + packageVersion). Multiple packages
-                    // can reuse inference ids like "pitch" safely.
+                    const auto &import = impl.imports[i];
                     InferenceSpec *found = nullptr;
                     for (auto *modSpec : inferenceSpecs) {
-                        if (modSpec->id() == inferenceId) {
-                            auto *infSpec = modSpec->as<InferenceSpec>();
+                        if (modSpec->id() != inferenceId) {
+                            continue;
+                        }
+                        auto *infSpec = modSpec->as<InferenceSpec>();
+                        if (import._declaredPackage.empty()) {
+                            // Same-package strict matching: resolve only within
+                            // the singer's own package identity (packageId +
+                            // packageVersion). Multiple packages can reuse
+                            // inference ids like "pitch" safely.
                             if (infSpec->packageId() == impl.packageId &&
                                 infSpec->packageVersion() == impl.packageVersion) {
+                                found = infSpec;
+                                break;
+                            }
+                        } else {
+                            // Cross-package matching (ARCH-06): resolve by
+                            // declared package id. Version supports wildcard
+                            // ("*" or empty = any) or exact match.
+                            if (infSpec->packageId() != import._declaredPackage) {
+                                continue;
+                            }
+                            if (import._declaredVersion.empty() ||
+                                import._declaredVersion == "*") {
+                                found = infSpec;
+                                break;
+                            }
+                            auto declaredVer =
+                                stdc::VersionNumber::fromString(import._declaredVersion);
+                            if (infSpec->packageVersion() == declaredVer) {
                                 found = infSpec;
                                 break;
                             }
@@ -284,11 +318,22 @@ namespace srt::svs {
                     if (found) {
                         impl.imports[i]._inference = found;
                     } else {
+                        std::string pkgDesc;
+                        if (import._declaredPackage.empty()) {
+                            pkgDesc = impl.packageId + "[" +
+                                      impl.packageVersion.toString() + "]";
+                        } else {
+                            pkgDesc = import._declaredPackage + "[" +
+                                      (import._declaredVersion.empty() ||
+                                               import._declaredVersion == "*"
+                                           ? "*"
+                                           : import._declaredVersion) +
+                                      "]";
+                        }
                         return core::Error{
                             core::Error::InvalidArgument,
                             "singer '" + impl.id + "' import '" + inferenceId +
-                                "' not found in package " + impl.packageId + "[" +
-                                impl.packageVersion.toString() + "]"};
+                                "' not found in package " + pkgDesc};
                     }
                 }
                 break;

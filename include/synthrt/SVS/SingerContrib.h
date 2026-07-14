@@ -33,6 +33,13 @@ namespace srt::svs {
         InferenceSpec *_inference = nullptr;
         core::JsonValue _manifestOptions;
         core::NO<InferenceImportOptions> _options = nullptr;
+        // Cross-package declaration: when _declaredPackage is empty, the import
+        // resolves within the singer's own package (strict isolation). When
+        // non-empty, the import resolves across packages by matching the
+        // declared package id. _declaredVersion supports "*" or empty (any
+        // version) or a specific version string (exact match).
+        std::string _declaredPackage;
+        std::string _declaredVersion;
         friend class SingerSpec;
         friend class SingerCategory;
     };
