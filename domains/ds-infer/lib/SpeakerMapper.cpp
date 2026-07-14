@@ -10,8 +10,14 @@ namespace ds::infer {
 
     SpeakerMapper::~SpeakerMapper() = default;
 
-    void SpeakerMapper::setMapping(const std::string &inferenceId, SpeakerMapping mapping) {
-        m_mappings[inferenceId] = std::move(mapping);
+    void SpeakerMapper::setMapping(const std::string &packageId,
+                                   const std::string &inferenceId,
+                                   SpeakerMapping mapping) {
+        // Composite key (packageId, inferenceId) isolates same-id inferences
+        // from different packages (ARCH-06). Without packageId, the second
+        // package's setMapping would silently overwrite the first package's
+        // table.
+        m_mappings[{packageId, inferenceId}] = std::move(mapping);
     }
 
     void SpeakerMapper::loadFromInferenceInfo(const std::string &inferenceId,
@@ -23,17 +29,20 @@ namespace ds::infer {
             // driver layer).
             mapping.byId[entry.first] = stdc::path::to_utf8(entry.second);
         }
-        setMapping(inferenceId, std::move(mapping));
+        // info.packageId is stamped by PackageParser from the owning manifest.
+        setMapping(info.packageId, inferenceId, std::move(mapping));
     }
 
     srt::core::Expected<std::string>
-        SpeakerMapper::resolve(const std::string &inferenceId,
+        SpeakerMapper::resolve(const std::string &packageId,
+                               const std::string &inferenceId,
                                const std::string &singerSpeaker) const {
-        auto it = m_mappings.find(inferenceId);
+        auto it = m_mappings.find({packageId, inferenceId});
         if (it == m_mappings.end()) {
             return srt::core::Error(
                 srt::core::ErrorCode::InferenceSpeakerNotFound,
-                "no speaker mapping registered for inference: " + inferenceId);
+                "no speaker mapping registered for inference: " + inferenceId +
+                    " in package: " + packageId);
         }
         auto sit = it->second.byId.find(singerSpeaker);
         if (sit == it->second.byId.end()) {

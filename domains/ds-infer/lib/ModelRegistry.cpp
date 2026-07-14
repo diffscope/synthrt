@@ -1,6 +1,7 @@
 #include "ModelRegistry.h"
 
 #include <map>
+#include <utility>
 
 #include <diffsinger/Infer/InferenceService.h>
 
@@ -10,9 +11,14 @@
 
 namespace ds::infer {
 
+    // Composite cache key: (packageId, inferenceId). Using std::pair keeps the
+    // lookup logic simple without inventing a custom delimiter that could
+    // collide with legitimate id strings.
+    using CacheKey = std::pair<std::string, std::string>;
+
     class ModelRegistry::Impl {
     public:
-        std::map<std::string, srt::core::NO<srt::driver::InferenceSession>> m_sessions;
+        std::map<CacheKey, srt::core::NO<srt::driver::InferenceSession>> m_sessions;
     };
 
     ModelRegistry::ModelRegistry() : _impl(std::make_unique<Impl>()) {
@@ -28,8 +34,12 @@ namespace ds::infer {
                                     "ModelRegistry::bind: driver is null");
         }
 
-        // Return cached session if already bound for this inference id.
-        auto it = _impl->m_sessions.find(manifest.id);
+        // Cache key is (packageId, inferenceId) so that two packages that both
+        // define an inference with id "pitch" keep independent sessions
+        // (ARCH-06). Without the packageId component, the second package's
+        // bind() would incorrectly return the first package's cached session.
+        const CacheKey key{manifest.packageId, manifest.id};
+        auto it = _impl->m_sessions.find(key);
         if (it != _impl->m_sessions.end()) {
             return it->second;
         }
@@ -51,16 +61,19 @@ namespace ds::infer {
         }
 
         // Cache and return the loaded session.
-        _impl->m_sessions[manifest.id] = session;
+        _impl->m_sessions[key] = session;
         return session;
     }
 
     srt::core::Expected<srt::core::NO<srt::driver::InferenceSession>>
-    ModelRegistry::getBoundSession(const std::string &inferenceId) const {
-        auto it = _impl->m_sessions.find(inferenceId);
+    ModelRegistry::getBoundSession(const std::string &packageId,
+                                   const std::string &inferenceId) const {
+        auto it = _impl->m_sessions.find({packageId, inferenceId});
         if (it == _impl->m_sessions.end()) {
             return srt::core::Error(srt::core::Error::FileNotFound,
-                                    "ModelRegistry::getBoundSession: inference id not bound");
+                                    "ModelRegistry::getBoundSession: "
+                                    "inference id not bound for package " +
+                                        packageId);
         }
         return it->second;
     }

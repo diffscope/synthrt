@@ -3,8 +3,8 @@
 # Sources are globbed from lib/. The glob picks up:
 #   - dsinfer_api.cpp        : dsinfer_abi_version() C export (single symbol anchor)
 #   - InferenceService.cpp   : v4 InferenceService stub (ctor/dtor + run() -> NotImplemented)
-#   - ModelRegistry.cpp      : v4 ModelRegistry stub (bind() -> NotImplemented)
-#   - SpeakerMapper.cpp      : v4 SpeakerMapper stub (singer speaker -> model speaker)
+#   - ModelRegistry.cpp      : ModelRegistry (bind() caches by (packageId, inferenceId))
+#   - SpeakerMapper.cpp      : SpeakerMapper (singer speaker -> model speaker, keyed by (packageId, inferenceId))
 #
 # S2P/LanguageResource implementations were migrated back to the general runtime
 # layer (lib/S2P/, namespace srt::s2p) in v9; ds-infer now links srt::s2p.

@@ -20,6 +20,11 @@ namespace ds::infer {
     /// to loaded model graphs (srt::driver::InferenceSession bound to a driver).
     ///
     /// \see 01-target-architecture.md section 3.2
+    ///
+    /// Sessions are cached by composite key (packageId, inferenceId) so that
+    /// two packages defining inferences with the same id (e.g. "pitch") do not
+    /// collide (ARCH-06 cross-package stage sharing). Repeated bind() calls for
+    /// the same (packageId, inferenceId) return the cached session.
     class DSINFER_EXPORT ModelRegistry {
     public:
         ModelRegistry();
@@ -27,16 +32,19 @@ namespace ds::infer {
 
         /// Bind an InferenceInfo to a driver, producing a loaded
         /// InferenceSession. The manifest's modelPaths are resolved against the
-        /// package root by ds::bank before reaching the registry. Repeated
-        /// bind() calls for the same inference id return the cached session.
+        /// package root by ds::bank before reaching the registry. The cache key
+        /// is (manifest.packageId, manifest.id). Repeated bind() calls for the
+        /// same key return the cached session.
         srt::core::Expected<srt::core::NO<srt::driver::InferenceSession>> bind(
             const ds::bank::InferenceInfo &manifest,
             srt::driver::InferenceDriver *driver);
 
-        /// Return the session previously bound for \p inferenceId, or
-        /// \c Error::FileNotFound when no session has been bound.
+        /// Return the session previously bound for (packageId, inferenceId), or
+        /// \c Error::FileNotFound when no session has been bound. The packageId
+        /// is required to isolate same-id inferences from different packages.
         srt::core::Expected<srt::core::NO<srt::driver::InferenceSession>>
-            getBoundSession(const std::string &inferenceId) const;
+            getBoundSession(const std::string &packageId,
+                            const std::string &inferenceId) const;
 
     private:
         class Impl;

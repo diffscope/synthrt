@@ -2,6 +2,7 @@
 
 #include <map>
 #include <string>
+#include <utility>
 
 #include <synthrt/Core/Support/Error.h>
 #include <synthrt/Core/Support/Expected.h>
@@ -25,31 +26,44 @@ namespace ds::infer {
     /// SpeakerMapper - Resolves a singer speaker to the model speaker id (and,
     /// in a later phase, the speaker embedding) expected by a given inference.
     ///
+    /// Mappings are keyed by (packageId, inferenceId) so that two packages
+    /// that both define an inference with id "pitch" keep independent speaker
+    /// tables (ARCH-06 cross-package stage sharing).
+    ///
     /// \see 01-target-architecture.md section 3.2
     class DSINFER_EXPORT SpeakerMapper {
     public:
         SpeakerMapper();
         ~SpeakerMapper();
 
-        /// Install (or replace) the speaker mapping for the given inference id.
-        void setMapping(const std::string &inferenceId, SpeakerMapping mapping);
+        /// Install (or replace) the speaker mapping for the given
+        /// (packageId, inferenceId). The packageId isolates same-id inferences
+        /// that originate from different packages.
+        void setMapping(const std::string &packageId,
+                        const std::string &inferenceId,
+                        SpeakerMapping mapping);
 
         /// Build a speaker mapping from an InferenceInfo's
-        /// \c speakerEmbeddings table and install it for \p inferenceId.
-        /// Each embedding entry's key is treated as the singer speaker id and
-        /// the embedding path string is stored as the mapped value (real
-        /// embedding loading is deferred to the driver layer).
+        /// \c speakerEmbeddings table and install it for
+        /// (info.packageId, inferenceId). Each embedding entry's key is
+        /// treated as the singer speaker id and the embedding path string is
+        /// stored as the mapped value (real embedding loading is deferred to
+        /// the driver layer).
         void loadFromInferenceInfo(const std::string &inferenceId,
                                    const ds::bank::InferenceInfo &info);
 
         /// Resolve a singer speaker to the model speaker id for the given
-        /// inference. Returns an error when no mapping is registered for the
-        /// inference, or when the singer speaker is not present in the table.
-        srt::core::Expected<std::string> resolve(const std::string &inferenceId,
+        /// (packageId, inferenceId). Returns an error when no mapping is
+        /// registered for the key, or when the singer speaker is not present
+        /// in the table.
+        srt::core::Expected<std::string> resolve(const std::string &packageId,
+                                                 const std::string &inferenceId,
                                                  const std::string &singerSpeaker) const;
 
     private:
-        std::map<std::string, SpeakerMapping> m_mappings;
+        // Composite key: (packageId, inferenceId).
+        using Key = std::pair<std::string, std::string>;
+        std::map<Key, SpeakerMapping> m_mappings;
     };
 
 } // namespace ds::infer

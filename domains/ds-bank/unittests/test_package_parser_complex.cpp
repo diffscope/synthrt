@@ -214,6 +214,10 @@ TEST_CASE("PackageParser multi-inference: 4 stages with different levels", "[ds-
     // Verify each inference.
     bool foundDuration = false, foundPitch = false, foundAcoustic = false, foundVocoder = false;
     for (const auto &inf : result->inferences()) {
+        // BF-31: each InferenceInfo must carry the owning package's id so
+        // downstream ModelRegistry/SpeakerMapper can isolate same-id
+        // inferences across packages.
+        REQUIRE(inf.packageId == "pkg.full-pipeline");
         if (inf.id == "duration") {
             foundDuration = true;
             REQUIRE(inf.className == "ai.svs.DurationInference");

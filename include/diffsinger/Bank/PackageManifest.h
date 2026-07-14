@@ -18,6 +18,11 @@ namespace ds::bank {
     struct DSBANK_EXPORT InferenceInfo {
         std::string id;
         std::string className;
+        /// Package identity this inference belongs to. Set by PackageParser
+        /// from the owning PackageManifest's packageId. Used by ModelRegistry /
+        /// SpeakerMapper to isolate inferences that share the same id across
+        /// different packages (ARCH-06 cross-package stage sharing).
+        std::string packageId;
         std::filesystem::path configPath;
         int level = 0;
         std::vector<std::string> resourcePaths;

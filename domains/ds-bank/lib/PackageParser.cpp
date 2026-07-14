@@ -420,6 +420,12 @@ namespace ds::bank {
             for (const auto &ref : info.inferenceRefs()) {
                 auto inference = parseInferenceConfig(ref);
                 if (!inference.id.empty()) {
+                    // Stamp the owning package's identity so downstream
+                    // ModelRegistry/SpeakerMapper can isolate inferences
+                    // that share the same id across different packages
+                    // (ARCH-06). Mirrors the SingerManifest packageId stamp
+                    // applied below for singers.
+                    inference.packageId = info.packageId();
                     standardInferences.emplace_back(std::move(inference));
                 }
             }

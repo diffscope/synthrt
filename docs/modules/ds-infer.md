@@ -222,7 +222,7 @@ ds::infer::InferenceResult result = service.run(request);
 | InputParser | `InputParser/` | 5 个 stage 的输入解析器 |
 | WavFile | `WavFile/` | WAV 文件读写（使用 dr_wav） |
 
-Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorithm/TensorHelper/VersionUtils 以及 v4 新增的 `test_modelset_errors.cpp`（错误路径 + BF-24 回归）、`test_singer_resolver_ambiguity.cpp`（BF-23 回归）、`test_speaker_mapper.cpp`（BF-22 回归）。
+Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorithm/TensorHelper/VersionUtils 以及 v4 新增的 `test_modelset_errors.cpp`（错误路径 + BF-24 回归）、`test_singer_resolver_ambiguity.cpp`（BF-23 回归）、`test_speaker_mapper.cpp`（BF-22 + BF-31 跨包隔离回归）、`test_model_registry.cpp`（BF-31 跨包同 id 推理隔离）、`test_package_isolation.cpp`（BF-29/BF-30 多版本隔离与跨包声明）。
 
 ---
 
@@ -243,3 +243,4 @@ Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorith
 | BF-28 | AcousticInference speedup 钳制最小值 1，防止除零 |
 | BF-29 | Runtime::loadPackage 检测重复 spec 加载（id+packageId+version 严格匹配） |
 | BF-30 | SingerImport 支持显式跨包声明（package+version，ARCH-06 跨包 stage 共享） |
+| BF-31 | ModelRegistry/SpeakerMapper 按 (packageId, inferenceId) 复合键隔离，避免跨包同 id 推理冲突；InferenceInfo 新增 packageId 字段由 PackageParser 注入 |
