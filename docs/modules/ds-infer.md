@@ -66,7 +66,7 @@ public:
 
     // 从 Runtime 解析。收集所有匹配 singerId 的 SingerSpec 候选：
     // - 单个候选：直接使用（忽略 packageId/version，兼容 CLI 单包场景）
-    // - 多个候选 + packageId/version 非空：通过 spec->path() 包含 packageId 做尽力消歧
+    // - 多个候选 + packageId 非空：按 spec->packageId() 精确字符串匹配消歧
     // - 多个候选 + packageId/version 均空：返回 ambiguity 错误（不静默取第一个）
     Expected<StageSet> resolve(
         srt::core::Runtime &runtime,
@@ -79,7 +79,7 @@ public:
 };
 ```
 
-**注意**: `SingerSpec` 不直接暴露 packageId/version，多候选消歧通过 `spec->path()` 的路径目录名组件逐一匹配 packageId（BF-23 修复，不再用子串搜索避免误匹配），version 仅用于决定是否需要消歧。错误码使用 `ErrorCode::SvsSingerNotFound`/`SvsStageResolveFailed`。
+**注意**: `SingerSpec` 通过 `packageId()`/`packageVersion()` 暴露包标识（由 `Runtime::loadPackage` 从 `desc.json` 注入）。多候选消歧按 `spec->packageId()` 精确字符串匹配（BF-23 v2 修复，不再依赖路径目录名）。`SingerImport` 支持显式跨包声明：import JSON 中声明 `"package"` + `"version"` 时跨包解析（ARCH-06），version 支持 `"*"` 通配或精确匹配；未声明时严格同包隔离。错误码使用 `ErrorCode::SvsSingerNotFound`/`SvsStageResolveFailed`，重复加载使用 `ErrorCode::PackageDuplicate`。
 
 ### ModelSet
 
@@ -237,7 +237,9 @@ Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorith
 | BF-15 | AcousticInference 除零保护（steps=0） |
 | BF-17 | ModelSet::unloadAll 继续卸载剩余阶段（首次失败不中断） |
 | BF-22 | SpeakerMapper::resolve() 返回 Expected，不再静默返回空字符串 |
-| BF-23 | SingerStageResolver 使用路径目录名组件匹配，不再用子串搜索 |
+| BF-23 | SingerStageResolver 按 packageId 字符串精确匹配，不再依赖路径目录名 |
 | BF-24 | ModelSet::stop() 检查 state() != Running，已停止模型不报错 |
 | BF-27 | InferenceService::run() 在 11 个错误传播点追加 appendTrace |
 | BF-28 | AcousticInference speedup 钳制最小值 1，防止除零 |
+| BF-29 | Runtime::loadPackage 检测重复 spec 加载（id+packageId+version 严格匹配） |
+| BF-30 | SingerImport 支持显式跨包声明（package+version，ARCH-06 跨包 stage 共享） |
