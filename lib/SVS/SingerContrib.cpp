@@ -6,10 +6,13 @@
 #include <synthrt/Core/Core/Runtime.h>
 #include <synthrt/Core/Module/Module.h>
 #include <synthrt/Core/Support/DisplayText.h>
+#include <synthrt/Core/Support/Logging.h>
 
 #include "../Core/Module/Module_p.h"
 
 namespace srt::svs {
+
+    static core::LogCategory SVSLog("svs.singer");
 
     // ============================================================================
     // SingerImport
@@ -264,15 +267,28 @@ namespace srt::svs {
                     if (inferenceId.empty()) {
                         continue;
                     }
+                    // Strict isolation: resolve only within the same package
+                    // identity (packageId + packageVersion). Multiple packages
+                    // can reuse inference ids like "pitch" safely.
                     InferenceSpec *found = nullptr;
                     for (auto *modSpec : inferenceSpecs) {
                         if (modSpec->id() == inferenceId) {
-                            found = modSpec->as<InferenceSpec>();
-                            break;
+                            auto *infSpec = modSpec->as<InferenceSpec>();
+                            if (infSpec->packageId() == impl.packageId &&
+                                infSpec->packageVersion() == impl.packageVersion) {
+                                found = infSpec;
+                                break;
+                            }
                         }
                     }
                     if (found) {
                         impl.imports[i]._inference = found;
+                    } else {
+                        return core::Error{
+                            core::Error::InvalidArgument,
+                            "singer '" + impl.id + "' import '" + inferenceId +
+                                "' not found in package " + impl.packageId + "[" +
+                                impl.packageVersion.toString() + "]"};
                     }
                 }
                 break;

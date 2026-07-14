@@ -134,6 +134,14 @@ namespace srt::core {
         return _impl->path;
     }
 
+    const std::string &ModuleSpec::packageId() const {
+        return _impl->packageId;
+    }
+
+    const stdc::VersionNumber &ModuleSpec::packageVersion() const {
+        return _impl->packageVersion;
+    }
+
     std::string ModuleSpec::configurationDisplayName(const std::string &configKey) const {
         // TODO: DisplayText not yet migrated; return raw string.
         auto it = _impl->configurationDisplayNames.find(configKey);
@@ -281,13 +289,20 @@ namespace srt::core {
     ModuleCategory::Impl::~Impl() = default;
 
     std::vector<ModuleSpec *> ModuleCategory::Impl::findModuleSpecs(const ModuleLocator &loc) const {
-        // Minimal implementation: linear scan.
+        // Minimal implementation: linear scan honoring the complete locator.
         // Full implementation uses the indexes map (requires PackageManager).
         std::vector<ModuleSpec *> result;
         for (auto *spec : modules) {
-            if (spec->id() == loc.id()) {
-                result.push_back(spec);
+            if (!loc.id().empty() && spec->id() != loc.id()) {
+                continue;
             }
+            if (!loc.package().empty() && spec->packageId() != loc.package()) {
+                continue;
+            }
+            if (!loc.version().isEmpty() && spec->packageVersion() != loc.version()) {
+                continue;
+            }
+            result.push_back(spec);
         }
         return result;
     }

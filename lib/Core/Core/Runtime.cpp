@@ -164,7 +164,27 @@ namespace srt::core {
         }
         const auto &obj = root.toObject();
 
-        // 4. Extract contributes.inferences and contributes.singers (file path arrays).
+        // 4. Extract package identity from desc.json id and version.
+        std::string pkgId;
+        stdc::VersionNumber pkgVersion;
+        {
+            auto it = obj.find("id");
+            if (it != obj.end() && it->second.isString()) {
+                pkgId = it->second.toString();
+            }
+            it = obj.find("version");
+            if (it != obj.end() && it->second.isString()) {
+                pkgVersion = stdc::VersionNumber::fromString(it->second.toString());
+            }
+        }
+        if (pkgId.empty()) {
+            return Error{Error::InvalidFormat, "package manifest id must be a non-empty string"};
+        }
+        if (pkgVersion.isEmpty()) {
+            return Error{Error::InvalidFormat, "package manifest version must be a non-empty version string"};
+        }
+
+        // 5. Extract contributes.inferences and contributes.singers (file path arrays).
         std::vector<fs::path> inferenceRefs;
         std::vector<fs::path> singerRefs;
         {
@@ -204,7 +224,7 @@ namespace srt::core {
             }
         }
 
-        // 5. Load inference specs FIRST (singers depend on them).
+        // 6. Load inference specs FIRST (singers depend on them).
         auto *infCat = moduleCategory("inference");
         if (!infCat) {
             return Error{
@@ -254,6 +274,8 @@ namespace srt::core {
                 return Error{parseResult.error()};
             }
             auto *spec = parseResult.value();
+            spec->_impl->packageId = pkgId;
+            spec->_impl->packageVersion = pkgVersion;
 
             auto initResult = infCat->loadSpec(spec, ModuleSpec::Initialized);
             if (!initResult) {
@@ -265,7 +287,7 @@ namespace srt::core {
             }
         }
 
-        // 6. Load singer specs.
+        // 7. Load singer specs.
         auto *singerCat = moduleCategory("singer");
         if (!singerCat) {
             return Error{
@@ -314,6 +336,8 @@ namespace srt::core {
                 return Error{parseResult.error()};
             }
             auto *spec = parseResult.value();
+            spec->_impl->packageId = pkgId;
+            spec->_impl->packageVersion = pkgVersion;
 
             auto initResult = singerCat->loadSpec(spec, ModuleSpec::Initialized);
             if (!initResult) {

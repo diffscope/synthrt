@@ -137,13 +137,24 @@ namespace ds::infer {
                                     "singer category cast failed");
         }
 
-        // Collect all singers matching singerId. A Runtime may hold multiple
-        // packages/versions that each define a singer with the same id.
+        // Collect singers matching the requested identity. A Runtime may hold
+        // multiple packages/versions that each define a singer with the same id,
+        // so packageId/version must be honored when supplied.
         std::vector<const srt::svs::SingerSpec *> candidates;
+        const auto requestedVersion = version.empty()
+                                          ? stdc::VersionNumber{}
+                                          : stdc::VersionNumber::fromString(version);
         for (const auto *singer : sc->singers()) {
-            if (singer->id() == singerId) {
-                candidates.push_back(singer);
+            if (singer->id() != singerId) {
+                continue;
             }
+            if (!packageId.empty() && singer->packageId() != packageId) {
+                continue;
+            }
+            if (!requestedVersion.isEmpty() && singer->packageVersion() != requestedVersion) {
+                continue;
+            }
+            candidates.push_back(singer);
         }
 
         if (candidates.empty()) {
@@ -158,56 +169,13 @@ namespace ds::infer {
 
         const srt::svs::SingerSpec *singerSpec = nullptr;
         if (candidates.size() == 1) {
-            // Backward-compatible: a single match is used directly, ignoring
-            // packageId/version (which are empty in the common CLI scenario).
             singerSpec = candidates.front();
-        } else if (!packageId.empty() || !version.empty()) {
-            // Multiple candidates with the same singerId. SingerSpec does not
-            // expose packageId/version directly, so attempt disambiguation
-            // via the spec's path(): the path contains the package directory,
-            // which is matched against packageId by exact directory name.
-            // version cannot be derived from the path and is only used to
-            // decide whether disambiguation is required.
-            for (const auto *cand : candidates) {
-                // BF-23: Match packageId against path directory names exactly
-                // rather than using substring search, which can false-match
-                // (e.g. packageId="opencpop" matching "notopencpop" in path).
-                bool packageMatches = packageId.empty();
-                if (!packageMatches) {
-                    for (const auto &component : cand->path()) {
-                        if (component.string() == packageId) {
-                            packageMatches = true;
-                            break;
-                        }
-                    }
-                }
-                if (!packageMatches) {
-                    continue;
-                }
-                if (singerSpec) {
-                    // Still ambiguous: more than one candidate matched.
-                    singerSpec = nullptr;
-                    break;
-                }
-                singerSpec = cand;
-            }
-            if (!singerSpec) {
-                return srt::core::Error::inferenceError(
-                    srt::core::ErrorCode::SvsSingerNotFound,
-                    "ambiguous singer: multiple singers with singerId=" +
-                        singerId + " loaded; cannot disambiguate by "
-                        "packageId/version (packageId=" + packageId +
-                        ", version=" + version + ")",
-                    singerId);
-            }
         } else {
-            // Multiple candidates but no packageId/version supplied to
-            // disambiguate. Preserve legacy behavior (first match) would be
-            // silently incorrect, so report the ambiguity instead.
             return srt::core::Error::inferenceError(
                 srt::core::ErrorCode::SvsSingerNotFound,
                 "ambiguous singer: multiple singers with singerId=" + singerId +
-                    " loaded; provide packageId/version to disambiguate",
+                    " loaded for packageId=" + packageId + ", version=" +
+                    version + "; provide packageId/version to disambiguate",
                 singerId);
         }
 

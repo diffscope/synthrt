@@ -113,6 +113,9 @@ namespace srt::core {
         NO<TaskConfiguration> configuration() const;
         const std::filesystem::path &path() const;
 
+        const std::string &packageId() const;
+        const stdc::VersionNumber &packageVersion() const;
+
         /// 获取配置键的显示名称（自动返回当前语言的本地化文本，无感调用）
         // TODO: returns localized text via DisplayText (not yet migrated)
         std::string configurationDisplayName(const std::string &configKey) const;
