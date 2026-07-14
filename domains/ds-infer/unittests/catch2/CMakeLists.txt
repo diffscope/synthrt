@@ -25,6 +25,7 @@ add_executable(tst-ds-infer-catch2
     test_modelset_errors.cpp
     test_speaker_mapper.cpp
     test_singer_resolver_ambiguity.cpp
+    test_package_isolation.cpp
 )
 
 # SpeakerMapper.h is a private header of srt-ds-infer (lives in lib/), so
