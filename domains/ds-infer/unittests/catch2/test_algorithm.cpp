@@ -286,3 +286,33 @@ TEST_CASE("fillRestMidi single rest between notes gets left value", "[algorithm]
     // Single-element rest: mid = start + 1 = end, so first loop fills left
     REQUIRE(midi[1] == 60.0);
 }
+
+TEST_CASE("fillRestMidi all rest returns true without crash", "[algorithm][fillrest][extreme]") {
+    // Every element is rest — no non-rest value to fill from.
+    // The function returns true (no error) and leaves midi unchanged.
+    std::vector<double> midi{0.0, 0.0, 0.0};
+    std::vector<uint8_t> isRest{1, 1, 1};
+    REQUIRE(fillRestMidiWithNearestInPlace(midi, isRest));
+    // All values should remain 0 (unchanged)
+    for (auto v : midi) {
+        REQUIRE(v == 0.0);
+    }
+}
+
+TEST_CASE("fillRestMidi single rest element returns true", "[algorithm][fillrest][extreme]") {
+    // Single element which is rest — no neighbors to fill from.
+    std::vector<double> midi{0.0};
+    std::vector<uint8_t> isRest{1};
+    REQUIRE(fillRestMidiWithNearestInPlace(midi, isRest));
+    REQUIRE(midi[0] == 0.0); // unchanged
+}
+
+TEST_CASE("fillRestMidi alternating rest and note", "[algorithm][fillrest][extreme]") {
+    // Alternating rest/note pattern — each single rest gets left neighbor.
+    std::vector<double> midi{60.0, 0.0, 62.0, 0.0, 64.0};
+    std::vector<uint8_t> isRest{0, 1, 0, 1, 0};
+    REQUIRE(fillRestMidiWithNearestInPlace(midi, isRest));
+    // Each rest is a single-element middle segment → gets left value
+    REQUIRE(midi[1] == 60.0);
+    REQUIRE(midi[3] == 62.0);
+}

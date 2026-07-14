@@ -247,3 +247,4 @@ Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorith
 | BF-32 | VersionRange 构造器在单算子分支之前增加空白分隔多约束解析：`">=1.0.0 <2.0.0"` 之前被首算子 `>=` 吞掉整个剩余串作为单个版本，上界 `<2.0.0` 被静默丢弃（3.0.0 错误命中）；现按空白拆分为多约束求交集 |
 | BF-34 | `preprocessSpeakerEmbeddingFrames` 在 resample 前校验 proportions 非空、多比例时 interval 非 0；之前 `proportions={}` 或 `interval=0 && size>1` 导致 resample 返回空向量，speaker 被静默跳过（ROBUST-05 违规） |
 | BF-35 | `AcousticInference::start` 增加 frameWidth 正值校验（`std::isfinite && > 0`），与 Duration/Pitch/Variance 对齐；之前 `hopSize=0` 或 `sampleRate=0` 导致 frameWidth=0/NaN，引发 `preprocessPhonemeDurations` 除零和 resample 静默跳过 |
+| BF-36 | `VarianceInference` 输出 dataType 校验对齐 Duration/Pitch：之前仅检查 `view.empty() && elementCount > 0`（只捕获类型不匹配），空输出（elementCount==0）被静默跳过，生成空 values 的 prediction；现先检查 `dataType != Float` 再检查 `view.empty()`，与 Duration/Pitch 完全一致 |

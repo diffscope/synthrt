@@ -576,12 +576,18 @@ namespace srt::svs {
                 if (outputName != std::string(prediction.name()) + "_pred") {
                     continue;
                 }
-                const auto view = output->view<float>();
-                if (view.empty() && output->elementCount() > 0) {
+                if (output->dataType() != srt::core::ITensor::Float) {
                     setState(Failed);
                     Log.srtCritical("[Variance] start: model output is not float");
                     return srt::core::Error(srt::core::ErrorCode::InferenceDataTypeMismatch,
                                       "[Variance] model output is not float");
+                }
+                const auto view = output->view<float>();
+                if (view.empty()) {
+                    setState(Failed);
+                    Log.srtCritical("[Variance] start: model output is empty");
+                    return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
+                                      "[Variance] model output is empty");
                 }
                 Co::InputParameterInfo inputParam{prediction};
                 inputParam.interval = frameWidth;
