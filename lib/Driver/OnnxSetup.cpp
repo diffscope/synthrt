@@ -89,9 +89,21 @@ namespace srt::driver {
         }
 
         if (auto exp = onnxDriver->initialize(onnxArgs); !exp) {
+            // Do not auto-fallback: report the error explicitly so the user
+            // knows the configured EP is unavailable. The host application is
+            // responsible for handling the failed initialization gracefully
+            // (e.g. showing a dialog) without crashing.
+            const auto epName =
+                (config.ep == srt::driver::onnx::ExecutionProvider::CUDAExecutionProvider)
+                    ? std::string("CUDA")
+                : (config.ep == srt::driver::onnx::ExecutionProvider::DMLExecutionProvider)
+                    ? std::string("DirectML")
+                    : std::string("CPU");
             return srt::core::Error(
                 srt::core::Error::SessionError,
-                "setupOnnxInferenceDriver: failed to initialize onnx driver: " +
+                "setupOnnxInferenceDriver: failed to initialize onnx driver (" +
+                    epName + " EP, runtime path: " +
+                    stdc::path::to_utf8(onnxArgs->runtimePath) + "): " +
                     exp.error().message());
         }
 
