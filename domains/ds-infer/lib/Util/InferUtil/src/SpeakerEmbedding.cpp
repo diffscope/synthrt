@@ -55,47 +55,58 @@ namespace ds::infer::inferutil {
 
             // mix speaker embedding
             for (const auto &speaker : std::as_const(speakers)) {
+                const std::vector<float> *embeddingPtr = nullptr;
+
+                // 1. Try voice bank lookup by name
                 if (auto it_speaker = embMap.find(speaker.name); it_speaker != embMap.end()) {
-                    const auto &embedding = it_speaker->second;
-                    if (embedding.size() != hiddenSize) {
-                        return srt::core::Error(
-                            srt::core::Error::SessionError,
-                            "speaker embedding vector length does not match hiddenSize");
-                    }
-                    // BF-34: Validate proportions before resampling. When
-                    // proportions is empty, or when interval is 0 with
-                    // multiple proportions, resample() silently returns an
-                    // empty vector and the speaker is skipped without error,
-                    // violating ROBUST-05. A single-element proportions with
-                    // interval 0 is valid (static speaker, broadcast to all
-                    // frames by resample).
-                    if (speaker.proportions.empty()) {
-                        return srt::core::Error(
-                            srt::core::Error::InvalidArgument,
-                            "speaker \"" + speaker.name +
-                                "\" has empty proportions");
-                    }
-                    if (speaker.interval == 0 && speaker.proportions.size() > 1) {
-                        return srt::core::Error(
-                            srt::core::Error::InvalidArgument,
-                            "speaker \"" + speaker.name +
-                                "\" has multiple proportions but interval is 0");
-                    }
-                    auto resampled = resample(speaker.proportions, speaker.interval, frameWidth,
-                                              targetLength, true);
-                    // After the guards above, resampled is non-empty as long
-                    // as targetLength > 0 and frameWidth > 0 (caller's
-                    // responsibility). If targetLength is 0 the loop is a
-                    // no-op, which is correct (empty output).
-                    for (size_t i = 0; i < resampled.size(); ++i) {
-                        for (size_t j = 0; j < embedding.size(); ++j) {
-                            float &val = buffer[i * embedding.size() + j];
-                            val = std::fmaf(static_cast<float>(resampled[i]), embedding[j], val);
-                        }
-                    }
+                    embeddingPtr = &it_speaker->second;
+                }
+                // 2. Fall back to inline embedding (allows custom/undefined speakers)
+                else if (!speaker.embedding.empty()) {
+                    embeddingPtr = &speaker.embedding;
                 } else {
-                    return srt::core::Error(srt::core::Error::InvalidArgument,
-                                      "invalid speaker name: " + speaker.name);
+                    return srt::core::Error(
+                        srt::core::Error::InvalidArgument,
+                        "speaker \"" + speaker.name +
+                            "\" not found in voice bank and no inline embedding provided");
+                }
+
+                const auto &embedding = *embeddingPtr;
+                if (embedding.size() != static_cast<size_t>(hiddenSize)) {
+                    return srt::core::Error(
+                        srt::core::Error::SessionError,
+                        "speaker embedding vector length does not match hiddenSize");
+                }
+                // BF-34: Validate proportions before resampling. When
+                // proportions is empty, or when interval is 0 with
+                // multiple proportions, resample() silently returns an
+                // empty vector and the speaker is skipped without error,
+                // violating ROBUST-05. A single-element proportions with
+                // interval 0 is valid (static speaker, broadcast to all
+                // frames by resample).
+                if (speaker.proportions.empty()) {
+                    return srt::core::Error(
+                        srt::core::Error::InvalidArgument,
+                        "speaker \"" + speaker.name +
+                            "\" has empty proportions");
+                }
+                if (speaker.interval == 0 && speaker.proportions.size() > 1) {
+                    return srt::core::Error(
+                        srt::core::Error::InvalidArgument,
+                        "speaker \"" + speaker.name +
+                            "\" has multiple proportions but interval is 0");
+                }
+                auto resampled = resample(speaker.proportions, speaker.interval, frameWidth,
+                                          targetLength, true);
+                // After the guards above, resampled is non-empty as long
+                // as targetLength > 0 and frameWidth > 0 (caller's
+                // responsibility). If targetLength is 0 the loop is a
+                // no-op, which is correct (empty output).
+                for (size_t i = 0; i < resampled.size(); ++i) {
+                    for (size_t j = 0; j < embedding.size(); ++j) {
+                        float &val = buffer[i * embedding.size() + j];
+                        val = std::fmaf(static_cast<float>(resampled[i]), embedding[j], val);
+                    }
                 }
             }
             return tensor;

@@ -248,3 +248,32 @@ Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorith
 | BF-34 | `preprocessSpeakerEmbeddingFrames` 在 resample 前校验 proportions 非空、多比例时 interval 非 0；之前 `proportions={}` 或 `interval=0 && size>1` 导致 resample 返回空向量，speaker 被静默跳过（ROBUST-05 违规） |
 | BF-35 | `AcousticInference::start` 增加 frameWidth 正值校验（`std::isfinite && > 0`），与 Duration/Pitch/Variance 对齐；之前 `hopSize=0` 或 `sampleRate=0` 导致 frameWidth=0/NaN，引发 `preprocessPhonemeDurations` 除零和 resample 静默跳过 |
 | BF-36 | `VarianceInference` 输出 dataType 校验对齐 Duration/Pitch：之前仅检查 `view.empty() && elementCount > 0`（只捕获类型不匹配），空输出（elementCount==0）被静默跳过，生成空 values 的 prediction；现先检查 `dataType != Float` 再检查 `view.empty()`，与 Duration/Pitch 完全一致 |
+| BF-37 | `DurationInference` speaker embedding 查找静默跳过修复（ROBUST-05）：之前 `config->speakers.find(speaker.name)` 找不到时无 else 分支，该 phoneme 的 embedding 全为 0（静默错误吞没）；现返回 `InferenceSpeakerNotFound` 错误。同时增加 `InputPhonemeInfo::Speaker.embedding` 内联向量支持 |
+
+## Speaker Embedding Inline API
+
+`InputSpeakerInfo` 和 `InputPhonemeInfo::Speaker` 新增可选的 `embedding` 字段（`std::vector<float>`），允许直接传入混合后的 embedding 向量，而不依赖声库预定义的 speaker name 查找。
+
+### 使用场景
+
+ds-editor-lite 的自定义音色混合机制允许：
+- 声库里未定义的 spk（自定义 speaker）
+- 混合后的 emb 数值（加权平均后的 embedding 向量）
+
+这些情况是合法的，不应被拦截。Inline embedding 字段让调用方可以绕过声库查找，直接提供 embedding 向量。
+
+### 查找优先级
+
+1. 先在声库的 `speakers` 映射中按 `name` 查找
+2. 找不到时，检查 `embedding` 字段是否非空
+3. 非空则直接使用传入的 embedding 向量（校验长度 == hiddenSize）
+4. 都不可用则返回错误
+
+### 两种混合模式
+
+| 模式 | 数据结构 | shape | 适用推理 |
+|------|---------|-------|---------|
+| Phoneme 级别 | `InputPhonemeInfo::Speaker{name, proportion, embedding}` | `{1, phoneCount, hiddenSize}` | Duration |
+| 帧级别 | `InputSpeakerInfo{name, interval, proportions, embedding}` | `{1, targetLength, hiddenSize}` | Acoustic/Pitch/Variance |
+
+Duration 每个 phoneme 有独立的 speaker 列表和比例；Acoustic/Pitch/Variance 使用顶层 speaker 列表，proportions 是时间序列。

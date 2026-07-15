@@ -56,6 +56,14 @@ namespace srt::svs::Api::Common::L1 {
         struct Speaker {
             std::string name;
             double proportion = 1;  // range: [0, 1]
+
+            /// Optional inline speaker embedding vector.
+            /// When non-empty, this vector is used directly instead of
+            /// looking up \p name in the voice bank's speaker table. This
+            /// allows callers to supply mixed or custom embeddings for
+            /// speakers that are not predefined in the voice bank.
+            /// The vector length must match the model's hiddenSize.
+            std::vector<float> embedding;
         };
 
         std::string token;
@@ -94,6 +102,14 @@ namespace srt::svs::Api::Common::L1 {
         std::string name;
         double interval = 0;  // seconds
         std::vector<double> proportions;
+
+        /// Optional inline speaker embedding vector.
+        /// When non-empty, this vector is used directly instead of
+        /// looking up \p name in the voice bank's speaker table. This
+        /// allows callers to supply mixed or custom embeddings for
+        /// speakers that are not predefined in the voice bank.
+        /// The vector length must match the model's hiddenSize.
+        std::vector<float> embedding;
     };
 
 }

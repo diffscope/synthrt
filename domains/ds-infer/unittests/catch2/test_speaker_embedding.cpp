@@ -325,3 +325,173 @@ TEST_CASE("BF-34 empty proportions among multiple speakers fails fast", "[speake
     REQUIRE(exp.error().message().find("s2") != std::string::npos);
     REQUIRE(exp.error().message().find("empty proportions") != std::string::npos);
 }
+
+// ---------------------------------------------------------------------------
+// Inline embedding tests: allows custom/undefined speakers with direct
+// embedding vectors, matching ds-editor-lite's custom voice mix mechanism.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("inline embedding for undefined speaker succeeds", "[speakerembedding][inline]") {
+    // Speaker not in embMap, but inline embedding provided.
+    // This is the primary use case: custom voice mix with arbitrary emb values.
+    int hiddenSize = 4;
+    int64_t targetLength = 5;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk = makeStaticSpeaker("custom_spk");
+    spk.embedding = makeEmbedding(hiddenSize, 0.7f); // inline embedding
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk};
+    auto embMap = std::map<std::string, std::vector<float>>{}; // empty: no voice bank speakers
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(exp.hasValue());
+    auto tensor = exp.take();
+    auto view = tensor->view<float>();
+    for (int64_t i = 0; i < targetLength; ++i) {
+        for (int j = 0; j < hiddenSize; ++j) {
+            REQUIRE(approxEqual(view[i * hiddenSize + j], 0.7f));
+        }
+    }
+}
+
+TEST_CASE("inline embedding with dynamic proportions", "[speakerembedding][inline]") {
+    // Custom speaker with time-varying proportions and inline embedding.
+    int hiddenSize = 2;
+    int64_t targetLength = 10;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk;
+    spk.name = "custom";
+    spk.interval = 0.1; // wide enough interval to cover all 10 frames
+    spk.proportions = {0.0, 1.0};
+    spk.embedding = makeEmbedding(hiddenSize, 1.0f);
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk};
+    auto embMap = std::map<std::string, std::vector<float>>{};
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(exp.hasValue());
+    auto tensor = exp.take();
+    auto view = tensor->view<float>();
+    // First frame should be 0 (proportion=0), last should be >0.5 (ramp up)
+    REQUIRE(view[0] < 0.1f);
+    REQUIRE(view[(targetLength - 1) * hiddenSize] > 0.5f);
+}
+
+TEST_CASE("voice bank speaker takes priority over inline embedding", "[speakerembedding][inline]") {
+    // When both embMap and inline embedding are available, embMap wins.
+    // This preserves backward compatibility for defined speakers.
+    int hiddenSize = 4;
+    int64_t targetLength = 3;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk = makeStaticSpeaker("s1");
+    spk.embedding = makeEmbedding(hiddenSize, 0.9f); // should be ignored
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk};
+    auto embMap = std::map<std::string, std::vector<float>>{
+        {"s1", makeEmbedding(hiddenSize, 0.3f)}
+    };
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(exp.hasValue());
+    auto tensor = exp.take();
+    auto view = tensor->view<float>();
+    // Should use embMap value (0.3), not inline (0.9)
+    for (int64_t i = 0; i < targetLength; ++i) {
+        for (int j = 0; j < hiddenSize; ++j) {
+            REQUIRE(approxEqual(view[i * hiddenSize + j], 0.3f));
+        }
+    }
+}
+
+TEST_CASE("undefined speaker without inline embedding returns error", "[speakerembedding][inline]") {
+    // Speaker not in embMap and no inline embedding → error (not silent skip)
+    int hiddenSize = 4;
+    int64_t targetLength = 5;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk = makeStaticSpeaker("unknown");
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk};
+    auto embMap = std::map<std::string, std::vector<float>>{
+        {"s1", makeEmbedding(hiddenSize, 1.0f)}
+    };
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(!exp.hasValue());
+    REQUIRE(exp.error().message().find("unknown") != std::string::npos);
+    REQUIRE(exp.error().message().find("no inline embedding") != std::string::npos);
+}
+
+TEST_CASE("inline embedding size mismatch returns error", "[speakerembedding][inline][extreme]") {
+    int hiddenSize = 4;
+    int64_t targetLength = 3;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk = makeStaticSpeaker("custom");
+    spk.embedding = makeEmbedding(3, 0.5f); // wrong size: 3 instead of 4
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk};
+    auto embMap = std::map<std::string, std::vector<float>>{};
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(!exp.hasValue());
+    REQUIRE(exp.error().message().find("hiddenSize") != std::string::npos);
+}
+
+TEST_CASE("mix of voice bank speaker and inline embedding speaker", "[speakerembedding][inline]") {
+    // Real-world: one defined speaker + one custom speaker with inline embedding
+    int hiddenSize = 2;
+    int64_t targetLength = 5;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk1 = makeStaticSpeaker("s1"); // from voice bank
+    Co::InputSpeakerInfo spk2 = makeStaticSpeaker("custom"); // not in voice bank
+    spk2.embedding = makeEmbedding(hiddenSize, 1.0f);
+    spk2.proportions = {0.5}; // half weight
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk1, spk2};
+    auto embMap = std::map<std::string, std::vector<float>>{
+        {"s1", makeEmbedding(hiddenSize, 1.0f)}
+    };
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(exp.hasValue());
+    auto tensor = exp.take();
+    auto view = tensor->view<float>();
+    // spk1: 1.0 * 1.0 = 1.0, spk2: 0.5 * 1.0 = 0.5, total = 1.5
+    for (int64_t i = 0; i < targetLength; ++i) {
+        for (int j = 0; j < hiddenSize; ++j) {
+            REQUIRE(approxEqual(view[i * hiddenSize + j], 1.5f));
+        }
+    }
+}
+
+TEST_CASE("empty name with inline embedding succeeds", "[speakerembedding][inline][extreme]") {
+    // Speaker with empty name but valid inline embedding — should work
+    // since embedding is provided directly.
+    int hiddenSize = 4;
+    int64_t targetLength = 3;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk;
+    spk.name = ""; // no name
+    spk.interval = 0;
+    spk.proportions = {1.0};
+    spk.embedding = makeEmbedding(hiddenSize, 0.5f);
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk};
+    auto embMap = std::map<std::string, std::vector<float>>{};
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(exp.hasValue());
+    auto tensor = exp.take();
+    auto view = tensor->view<float>();
+    for (int64_t i = 0; i < targetLength; ++i) {
+        for (int j = 0; j < hiddenSize; ++j) {
+            REQUIRE(approxEqual(view[i * hiddenSize + j], 0.5f));
+        }
+    }
+}

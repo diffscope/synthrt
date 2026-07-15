@@ -307,21 +307,44 @@ namespace srt::svs {
                                 stdc::formatN("[Duration] phoneme %1 missing speakers", phone.token));
                         }
                         for (const auto &speaker : phone.speakers) {
+                            const std::vector<float> *embeddingPtr = nullptr;
+
+                            // 1. Try voice bank lookup by name
                             if (auto it_speaker = config->speakers.find(speaker.name);
                                 it_speaker != config->speakers.end()) {
-                                const auto &embedding = it_speaker->second;
-                                if (embedding.size() != config->hiddenSize) {
-                                    setState(Failed);
-                                    Log.srtCritical("[Duration] start: speaker embedding vector length does not match hiddenSize");
-                                    return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
-                                                      "[Duration] speaker embedding vector length does not "
-                                                      "match hiddenSize");
-                                }
-                                for (size_t j = 0; j < embedding.size(); ++j) {
-                                    float &val = buffer[currPhoneIndex * embedding.size() + j];
-                                    val = std::fmaf(static_cast<float>(speaker.proportion),
-                                                    embedding[j], val);
-                                }
+                                embeddingPtr = &it_speaker->second;
+                            }
+                            // 2. Fall back to inline embedding (allows custom/undefined speakers)
+                            else if (!speaker.embedding.empty()) {
+                                embeddingPtr = &speaker.embedding;
+                            } else {
+                                // BF-37: Previously this was silently skipped
+                                // (no else branch), leaving the phoneme's
+                                // embedding as all-zeros. Now returns an error
+                                // per ROBUST-05.
+                                setState(Failed);
+                                Log.srtCritical("[Duration] start: speaker %1 not found for "
+                                                "phoneme %2 and no inline embedding provided",
+                                                speaker.name, phone.token);
+                                return srt::core::Error(
+                                    srt::core::ErrorCode::InferenceSpeakerNotFound,
+                                    stdc::formatN("[Duration] speaker %1 not found in voice bank "
+                                                  "and no inline embedding provided (phoneme %2)",
+                                                  speaker.name, phone.token));
+                            }
+
+                            const auto &embedding = *embeddingPtr;
+                            if (embedding.size() != static_cast<size_t>(config->hiddenSize)) {
+                                setState(Failed);
+                                Log.srtCritical("[Duration] start: speaker embedding vector length does not match hiddenSize");
+                                return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
+                                                  "[Duration] speaker embedding vector length does not "
+                                                  "match hiddenSize");
+                            }
+                            for (size_t j = 0; j < embedding.size(); ++j) {
+                                float &val = buffer[currPhoneIndex * embedding.size() + j];
+                                val = std::fmaf(static_cast<float>(speaker.proportion),
+                                                embedding[j], val);
                             }
                         }
                         ++currPhoneIndex;
