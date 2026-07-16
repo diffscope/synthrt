@@ -1,5 +1,6 @@
 #include <inferutil/SpeakerEmbedding.h>
 
+#include <cmath>
 #include <fstream>
 #include <utility>
 
@@ -43,6 +44,14 @@ namespace ds::infer::inferutil {
         const std::vector<srt::svs::Api::Common::L1::InputSpeakerInfo> &speakers,
         const std::map<std::string, std::vector<float>> &embMap, int hiddenSize,
         double frameWidth, int64_t targetLength) {
+
+        // BF-42: validate frameWidth (defense-in-depth — callers already
+        // check, but resample() now returns empty for non-positive
+        // targetTimestep, which would silently skip the speaker).
+        if (!std::isfinite(frameWidth) || frameWidth <= 0) {
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
+                                    "preprocessSpeakerEmbeddingFrames: frameWidth must be positive");
+        }
 
         std::vector<int64_t> shape = {1, targetLength, hiddenSize};
         if (auto exp = srt::core::Tensor::create(srt::core::ITensor::Float, shape); exp) {
@@ -90,11 +99,11 @@ namespace ds::infer::inferutil {
                         "speaker \"" + speaker.name +
                             "\" has empty proportions");
                 }
-                if (speaker.interval == 0 && speaker.proportions.size() > 1) {
+                if (speaker.interval <= 0 && speaker.proportions.size() > 1) {
                     return srt::core::Error(
                         srt::core::Error::InvalidArgument,
                         "speaker \"" + speaker.name +
-                            "\" has multiple proportions but interval is 0");
+                            "\" has multiple proportions but interval is not positive");
                 }
                 auto resampled = resample(speaker.proportions, speaker.interval, frameWidth,
                                           targetLength, true);

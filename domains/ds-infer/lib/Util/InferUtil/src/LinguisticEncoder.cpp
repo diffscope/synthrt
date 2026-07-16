@@ -53,6 +53,14 @@ namespace ds::infer::inferutil {
                                  const std::map<std::string, int> &languages, bool useLanguageId,
                                  double frameWidth) {
 
+        // BF-41: defense-in-depth — validate frameWidth before dividing at
+        // word_dur computation below. Callers already check but this util
+        // must not crash if reached via another path.
+        if (!std::isfinite(frameWidth) || frameWidth <= 0) {
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
+                                    "preprocessLinguisticWord: frameWidth must be positive");
+        }
+
         auto sessionInput = srt::core::NO<srt::driver::onnx::SessionStartInput>::create();
 
         if (auto exp = preprocessPhonemeTokens(words, tokens); exp) {

@@ -42,6 +42,13 @@ namespace ds::infer::inferutil {
         std::vector<T> interpolatedValues;
         interpolatedValues.reserve(samplePoints.size());
 
+        // BF-42: guard against empty reference arrays — front()/back() below
+        // would be UB. Return empty if referencePoints or referenceValues is
+        // empty (nothing to interpolate against).
+        if (referencePoints.empty() || referenceValues.empty()) {
+            return interpolatedValues;
+        }
+
         for (const auto &samplePoint : samplePoints) {
             if (samplePoint < referencePoints.front()) {
                 interpolatedValues.push_back(leftFillValue);
@@ -113,7 +120,12 @@ namespace ds::infer::inferutil {
             std::vector<double> result(targetLength, samples[0]);
             return result;
         }
-        if (timestep == 0 || targetTimestep == 0) {
+        // BF-42: reject non-positive timesteps. A negative timestep makes
+        // tMax negative, causing arange() to return an empty target time
+        // axis; interpolate() then returns an empty vector, and
+        // targetSamples.back() below would be UB (crash). The previous
+        // `== 0` check only caught zero, not negative values.
+        if (timestep <= 0 || targetTimestep <= 0) {
             return {};
         }
         if (targetLength == 1) {
@@ -142,7 +154,11 @@ namespace ds::infer::inferutil {
             targetSamples.resize(targetLength);
         } else if (actualLength < targetLength) {
             // Expand vector to target length, filling last value
-            double tailFillValue = fillLast ? targetSamples.back() : 0;
+            // BF-42: guard against empty targetSamples (defense-in-depth:
+            // interpolate() now also guards against empty reference arrays,
+            // but keep this check in case the function is reached with
+            // unexpected inputs).
+            double tailFillValue = (fillLast && !targetSamples.empty()) ? targetSamples.back() : 0;
             targetSamples.resize(targetLength, tailFillValue);
         }
         return targetSamples;

@@ -90,6 +90,14 @@ namespace ds::infer::inferutil {
         preprocessPhonemeDurations(const std::vector<Co::InputWordInfo> &words, double frameWidth,
                                    int64_t *outTargetLength) {
 
+        // BF-41: defense-in-depth — validate frameWidth even though callers
+        // (Duration/Pitch/Variance/Acoustic) already check. Prevents division
+        // by zero / NaN if this util is reached via another path.
+        if (!std::isfinite(frameWidth) || frameWidth <= 0) {
+            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
+                                    "preprocessPhonemeDurations: frameWidth must be positive");
+        }
+
         auto phoneCount = getPhoneCount(words);
         using TensorType = int64_t;
         auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);

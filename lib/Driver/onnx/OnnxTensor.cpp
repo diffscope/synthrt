@@ -5,6 +5,7 @@
 #include <limits>
 #include <numeric>
 #include <optional>
+#include <string>
 
 namespace srt::driver::onnx {
 
@@ -225,6 +226,16 @@ namespace srt::driver::onnx {
             return exp.takeError();
         }
         auto tensor = exp.take();
+
+        // Validate that data size matches the tensor buffer size to prevent buffer
+        // overflow (data larger than buffer) or uninitialized memory (data smaller).
+        if (data.size() != tensor->_bytesSize) {
+            return srt::core::Error(
+                srt::core::Error::InvalidArgument,
+                "createFromRawView: data size (" + std::to_string(data.size()) +
+                    ") does not match tensor buffer size (" +
+                    std::to_string(tensor->_bytesSize) + ")");
+        }
 
         // Copy data
         auto ortValueBuffer = static_cast<std::byte *>(tensor->_value.GetTensorMutableRawData());
