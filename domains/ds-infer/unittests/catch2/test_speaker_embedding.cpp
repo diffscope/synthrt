@@ -274,7 +274,30 @@ TEST_CASE("BF-34 multiple proportions with zero interval returns error", "[speak
 
     auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
     REQUIRE(!exp.hasValue());
-    REQUIRE(exp.error().message().find("interval is 0") != std::string::npos);
+    REQUIRE(exp.error().message().find("interval is not positive") != std::string::npos);
+}
+
+TEST_CASE("BF-42 multiple proportions with negative interval returns error", "[speakerembedding][extreme]") {
+    // BF-42 widened the BF-34 check from == 0 to <= 0. A negative
+    // interval makes resample() return empty (tMax < 0), which would
+    // silently skip the speaker without this guard.
+    int hiddenSize = 4;
+    int64_t targetLength = 10;
+    double frameWidth = 0.01;
+
+    Co::InputSpeakerInfo spk;
+    spk.name = "s1";
+    spk.interval = -0.01; // negative interval with multiple proportions
+    spk.proportions = {0.0, 0.5, 1.0};
+
+    auto speakers = std::vector<Co::InputSpeakerInfo>{spk};
+    auto embMap = std::map<std::string, std::vector<float>>{
+        {"s1", makeEmbedding(hiddenSize, 1.0f)}
+    };
+
+    auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth, targetLength);
+    REQUIRE(!exp.hasValue());
+    REQUIRE(exp.error().message().find("interval is not positive") != std::string::npos);
 }
 
 TEST_CASE("BF-34 single proportion with zero interval is valid", "[speakerembedding][extreme]") {
