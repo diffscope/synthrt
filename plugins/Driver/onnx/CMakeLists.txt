@@ -69,33 +69,55 @@ srt_driver_add_plugin(${PROJECT_NAME} inferencedrivers ${PROJECT_NAME} NO_EXPORT
     DEFINES ORT_API_MANUAL_INIT ${_onnxdriver_ep_macros}
 )
 
+# Resolve ONNX Runtime shared libraries at configure time.
+# We use file(GLOB ...) instead of bare glob pattern strings so that
+# install(FILES ...) receives actual file paths — install(FILES ...) does
+# not expand glob patterns itself.
 if(WIN32)
-    set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dll)
+    file(GLOB _ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dll)
 elseif(APPLE)
-    set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dylib)
+    file(GLOB _ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dylib)
 else()
-    set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.so ${_onnxruntime_default_dir}/lib/*.so.*)
+    file(GLOB _ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.so
+         ${_onnxruntime_default_dir}/lib/*.so.*)
 endif()
 
-# Copy onnxruntime shared libraries next to the plugin output.
-qm_add_copy_command(${PROJECT_NAME} # SKIP_INSTALL
-    SOURCES ${_ort_default_lib_files}
-    DESTINATION runtimes/onnx/default
-    INSTALL_DIR ${CMAKE_INSTALL_PREFIX}
-)
+# Build-phase copy: place runtimes next to the plugin output directory.
+# SKIP_INSTALL disables the install logic in qm_add_copy_command, whose
+# _rel_path computation breaks when vcpkg overrides
+# CMAKE_LIBRARY_OUTPUT_DIRECTORY (output goes to ${CMAKE_BINARY_DIR}/lib
+# instead of ${QMSETUP_BUILD_DIR}/lib, making _rel_path start with "../"
+# and resolve to the wrong install directory).
+#
+# Install-phase copy: use install(FILES ...) with a relative DESTINATION.
+# Relative DESTINATION is resolved against the install-time
+# CMAKE_INSTALL_PREFIX, which is correct for vcpkg multi-config installs
+# where Debug and Release use different install prefixes.
+if(_ort_default_lib_files)
+    qm_add_copy_command(${PROJECT_NAME} SKIP_INSTALL
+        SOURCES ${_ort_default_lib_files}
+        DESTINATION runtimes/onnx/default
+    )
+    install(FILES ${_ort_default_lib_files}
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/plugins/srt-driver/inferencedrivers/${PROJECT_NAME}/runtimes/onnx/default
+    )
+endif()
 
 if(EXISTS ${_onnxruntime_cuda_dir} AND IS_DIRECTORY ${_onnxruntime_cuda_dir})
     if(WIN32)
-        set(_ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.dll)
+        file(GLOB _ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.dll)
     else()
-        set(_ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.so ${_onnxruntime_cuda_dir}/lib/*.so.*)
+        file(GLOB _ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.so
+             ${_onnxruntime_cuda_dir}/lib/*.so.*)
     endif()
 
-    if(NOT APPLE)
-        qm_add_copy_command(${PROJECT_NAME} # SKIP_INSTALL
+    if(NOT APPLE AND _ort_cuda_lib_files)
+        qm_add_copy_command(${PROJECT_NAME} SKIP_INSTALL
             SOURCES ${_ort_cuda_lib_files}
             DESTINATION runtimes/onnx/cuda
-            INSTALL_DIR ${CMAKE_INSTALL_PREFIX}
+        )
+        install(FILES ${_ort_cuda_lib_files}
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/plugins/srt-driver/inferencedrivers/${PROJECT_NAME}/runtimes/onnx/cuda
         )
     endif()
 endif()

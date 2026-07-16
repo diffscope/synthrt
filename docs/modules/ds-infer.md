@@ -249,6 +249,8 @@ Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorith
 | BF-35 | `AcousticInference::start` 增加 frameWidth 正值校验（`std::isfinite && > 0`），与 Duration/Pitch/Variance 对齐；之前 `hopSize=0` 或 `sampleRate=0` 导致 frameWidth=0/NaN，引发 `preprocessPhonemeDurations` 除零和 resample 静默跳过 |
 | BF-36 | `VarianceInference` 输出 dataType 校验对齐 Duration/Pitch：之前仅检查 `view.empty() && elementCount > 0`（只捕获类型不匹配），空输出（elementCount==0）被静默跳过，生成空 values 的 prediction；现先检查 `dataType != Float` 再检查 `view.empty()`，与 Duration/Pitch 完全一致 |
 | BF-37 | `DurationInference` speaker embedding 查找静默跳过修复（ROBUST-05）：之前 `config->speakers.find(speaker.name)` 找不到时无 else 分支，该 phoneme 的 embedding 全为 0（静默错误吞没）；现返回 `InferenceSpeakerNotFound` 错误。同时增加 `InputPhonemeInfo::Speaker.embedding` 内联向量支持 |
+| BF-38 | `proxy_map::iterator_base` 的 `std::optional<_Ref>` 在 MSVC Debug 模式崩溃（`_ITERATOR_DEBUG_LEVEL != 0` 时 `operator->()` 触发 `_STL_VERIFY`）。`_Ref` 含引用成员（`const std::string &first`, `_Ty &second`），导致 optional 状态不可靠。修复：替换为手动对齐存储（`alignas(_Ref) char[]` + `bool _ref_valid`）+ placement new 构造，拷贝/移动不传递缓存（按需重建）。影响所有调用 `JsonValue::toJson()` 的位置（Core/G2P/ds-bank/dsinfer-cli） |
+| BF-39 | OnnxDriver 插件 `qm_add_copy_command` 安装逻辑在 vcpkg Debug 构建下断裂：`_rel_path` 相对 `QMSETUP_BUILD_DIR` 计算，当 vcpkg 覆盖 `CMAKE_LIBRARY_OUTPUT_DIRECTORY`（输出在 `${CMAKE_BINARY_DIR}/lib` 而非 `${QMSETUP_BUILD_DIR}/lib`）时，`_rel_path` 以 `../` 开头，解析到错误的安装目录（Debug runtime 落入 Release 树）。修复：`qm_add_copy_command` 改用 `SKIP_INSTALL`（仅构建阶段复制），安装阶段改用 `install(FILES ...)` + `file(GLOB ...)` 解析实际路径 + 相对 `DESTINATION` 正确解析到安装时 `CMAKE_INSTALL_PREFIX`。跨平台覆盖 Windows(dll)/macOS(dylib)/Linux(so) |
 
 ## Speaker Embedding Inline API
 

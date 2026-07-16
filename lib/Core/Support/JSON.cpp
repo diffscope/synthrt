@@ -1,5 +1,7 @@
 #include <synthrt/Core/Support/JSON.h>
 
+#include <new>
+
 #include <nlohmann/json.hpp>
 
 namespace {
@@ -286,7 +288,24 @@ namespace {
             };
 
             _It it;
-            mutable std::optional<_Ref> ref;
+            mutable alignas(_Ref) char _ref_storage[sizeof(_Ref)];
+            mutable bool _ref_valid = false;
+
+            _Ref &_ref_get() const noexcept {
+                return *reinterpret_cast<_Ref *>(_ref_storage);
+            }
+            void _ref_destroy() const noexcept {
+                if (_ref_valid) {
+                    _ref_get().~_Ref();
+                    _ref_valid = false;
+                }
+            }
+            _Ref &_ref_construct(const std::string &first, _Ty &second) const noexcept {
+                _ref_destroy();
+                ::new (static_cast<void *>(_ref_storage)) _Ref(first, second);
+                _ref_valid = true;
+                return _ref_get();
+            }
 
         public:
             using iterator_category = typename _It::iterator_category;
@@ -295,22 +314,37 @@ namespace {
             using pointer = std::conditional_t<_Const, const _Ref *, _Ref *>;
             using reference = std::conditional_t<_Const, const _Ref &, _Ref &>;
 
-            iterator_base() noexcept {
-            }
+            iterator_base() noexcept = default;
 
             iterator_base(_It it) noexcept : it(it) {
             }
 
-            iterator_base(const iterator_base &RHS) : it(RHS.it) {
-                ref.emplace(RHS.ref->first, RHS.ref->second);
+            iterator_base(const iterator_base &RHS) noexcept : it(RHS.it) {
+                // Cache is not copied; it is rebuilt on demand.
             }
 
-            iterator_base &operator=(const iterator_base &RHS) {
+            iterator_base(iterator_base &&RHS) noexcept : it(std::move(RHS.it)) {
+                // Cache is not moved; it is rebuilt on demand.
+            }
+
+            iterator_base &operator=(const iterator_base &RHS) noexcept {
                 if (this != &RHS) {
+                    _ref_destroy();
                     it = RHS.it;
-                    ref.emplace(RHS.ref->first, RHS.ref->second);
                 }
                 return *this;
+            }
+
+            iterator_base &operator=(iterator_base &&RHS) noexcept {
+                if (this != &RHS) {
+                    _ref_destroy();
+                    it = std::move(RHS.it);
+                }
+                return *this;
+            }
+
+            ~iterator_base() noexcept {
+                _ref_destroy();
             }
 
             reference operator*() const noexcept;
@@ -620,15 +654,13 @@ namespace {
     template <bool _Const>
     typename proxy_map<Key, T, _Mods...>::template iterator_base<_Const>::reference
         proxy_map<Key, T, _Mods...>::iterator_base<_Const>::operator*() const noexcept {
-        ref.emplace(it->first, JV::unpack(it->second));
-        return ref.value();
+        return _ref_construct(it->first, JV::unpack(it->second));
     }
     template <class Key, class T, class... _Mods>
     template <bool _Const>
     typename proxy_map<Key, T, _Mods...>::template iterator_base<_Const>::pointer
         proxy_map<Key, T, _Mods...>::iterator_base<_Const>::operator->() const noexcept {
-        ref.emplace(it->first, JV::unpack(it->second));
-        return &ref.value();
+        return &_ref_construct(it->first, JV::unpack(it->second));
     }
     template <class Key, class T, class... _Mods>
     template <bool _Const>
@@ -636,8 +668,7 @@ namespace {
         proxy_map<Key, T, _Mods...>::iterator_base<_Const>::operator[](
             const difference_type &n) const noexcept {
         auto &tmp = it[n];
-        ref.emplace(tmp.first, JV::unpack(tmp.second));
-        return ref.value();
+        return _ref_construct(tmp.first, JV::unpack(tmp.second));
     }
 
     template <class Key, class T, class... _Mods>
