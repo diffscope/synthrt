@@ -138,7 +138,11 @@ namespace ds::infer {
         if (!stagesExp) {
             auto err = stagesExp.takeError();
             err.appendTrace(std::source_location::current(), "InferenceService::run");
-            result.error = err;
+            // validateAllStagesSet constructs a bare Error without singerId;
+            // recover the context from the request so downstream diagnostics
+            // can attribute the failure to the singer being processed.
+            err.withContext(singer);
+            result.error = std::move(err);
             return result;
         }
 

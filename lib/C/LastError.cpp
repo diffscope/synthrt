@@ -95,6 +95,8 @@ srt_error mapErrorCode(srt::core::ErrorCode code) {
     case srt::core::ErrorCategory::Inference:
     case srt::core::ErrorCategory::G2P:
         switch (code) {
+        case srt::core::ErrorCode::G2pSuccess:
+            return SRT_OK; // fix success mapping to init failed (ER-02)
         case srt::core::ErrorCode::InferenceNotInitialized:
             return SRT_ERR_NOT_INIT;
         case srt::core::ErrorCode::G2pAlreadyInitialized:

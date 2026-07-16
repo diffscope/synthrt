@@ -61,21 +61,22 @@ namespace ds::infer {
         auto createExp = stage.spec->createInference(stage.options,
                                                       NO<RuntimeOptions>::create());
         if (!createExp) {
-            return srt::core::Error::inferenceError(
-                srt::core::ErrorCode::InferenceModelLoadFailed,
-                "ModelSet: failed to create " + std::string(stageName(stage.kind)) +
-                    " inference: " + createExp.error().message(),
-                {}, stageName(stage.kind));
+            // B-07: propagate the inner Error (preserving trace/code) and
+            // append the current layer instead of constructing a fresh Error
+            // from only the message string.
+            return std::move(createExp.takeError()
+                .withTrace(std::source_location::current(),
+                           "ModelSet::createAndInit(" + std::string(stageName(stage.kind)) + ")")
+                .withContext({}, stageName(stage.kind)));
         }
         inference = createExp.take();
 
         auto initExp = inference->initialize(NO<InitArgs>::create());
         if (!initExp) {
-            return srt::core::Error::inferenceError(
-                srt::core::ErrorCode::InferenceModelInitFailed,
-                "ModelSet: failed to initialize " + std::string(stageName(stage.kind)) +
-                    " inference: " + initExp.error().message(),
-                {}, stageName(stage.kind));
+            return std::move(initExp.takeError()
+                .withTrace(std::source_location::current(),
+                           "ModelSet::createAndInit(" + std::string(stageName(stage.kind)) + ")")
+                .withContext({}, stageName(stage.kind)));
         }
         return inference;
     }
@@ -128,9 +129,10 @@ namespace ds::infer {
                 case StageKind::Vocoder:
                     return createAndInit<Vo::VocoderInitArgs, Vo::VocoderRuntimeOptions>(stage);
             }
-            return srt::core::Error::inferenceError(
+            return std::move(srt::core::Error::inferenceError(
                 srt::core::ErrorCode::InferenceInputInvalid,
-                "ModelSet: unknown StageKind");
+                "ModelSet: unknown StageKind")
+                .withTrace(std::source_location::current(), "ModelSet::createForKind"));
         }
     };
 
@@ -150,16 +152,21 @@ namespace ds::infer {
 
         const auto &spec = _impl->stageSpec(kind);
         if (!spec.spec) {
-            return srt::core::Error::inferenceError(
+            return std::move(srt::core::Error::inferenceError(
                 srt::core::ErrorCode::InferenceInputInvalid,
                 "ModelSet::load: " + std::string(stageName(kind)) +
                     " stage spec is null",
-                {}, stageName(kind));
+                {}, stageName(kind))
+                .withTrace(std::source_location::current(),
+                           "ModelSet::load(" + std::string(stageName(kind)) + ")"));
         }
 
         auto infExp = Impl::createForKind(kind, spec);
         if (!infExp) {
-            return infExp.error();
+            return std::move(infExp.takeError()
+                .withTrace(std::source_location::current(),
+                           "ModelSet::load(" + std::string(stageName(kind)) + ")")
+                .withContext({}, stageName(kind)));
         }
         slot = infExp.take();
         return slot;
@@ -185,11 +192,13 @@ namespace ds::infer {
             return srt::core::Expected<void>();
         }
         if (!slot->stop()) {
-            return srt::core::Error::inferenceError(
+            return std::move(srt::core::Error::inferenceError(
                 srt::core::ErrorCode::InferenceRunFailed,
                 "ModelSet::stop: failed to stop " + std::string(stageName(kind)) +
                     " inference",
-                {}, stageName(kind));
+                {}, stageName(kind))
+                .withTrace(std::source_location::current(),
+                           "ModelSet::stop(" + std::string(stageName(kind)) + ")"));
         }
         return srt::core::Expected<void>();
     }
@@ -202,11 +211,13 @@ namespace ds::infer {
         // Stop first, then release.
         if (slot->state() == srt::core::ITask::Running) {
             if (!slot->stop()) {
-                return srt::core::Error::inferenceError(
+                return std::move(srt::core::Error::inferenceError(
                     srt::core::ErrorCode::InferenceRunFailed,
                     "ModelSet::unload: failed to stop " + std::string(stageName(kind)) +
                         " inference",
-                    {}, stageName(kind));
+                    {}, stageName(kind))
+                    .withTrace(std::source_location::current(),
+                               "ModelSet::unload(" + std::string(stageName(kind)) + ")"));
             }
         }
         slot.reset();

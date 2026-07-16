@@ -231,6 +231,30 @@ namespace srt::core {
         _diagnostic->trace.push_back(std::move(entry));
     }
 
+    // === Chainable helpers ===
+
+    Error &Error::withTrace(const std::source_location &loc, std::string note) {
+        appendTrace(loc, std::move(note));
+        return *this;
+    }
+
+    Error &Error::withContext(std::string singerId, std::string moduleId,
+                              std::string packageId, std::string language) {
+        if (!singerId.empty()) {
+            _diagnostic->singerId = std::move(singerId);
+        }
+        if (!moduleId.empty()) {
+            _diagnostic->moduleId = std::move(moduleId);
+        }
+        if (!packageId.empty()) {
+            _diagnostic->packageId = std::move(packageId);
+        }
+        if (!language.empty()) {
+            _diagnostic->language = std::move(language);
+        }
+        return *this;
+    }
+
     // === Factory functions ===
     Error Error::packageError(ErrorCode code, std::string msg, std::string packageId,
                               const std::source_location &loc) {
@@ -433,6 +457,7 @@ namespace srt::core {
                 }
             case ErrorCategory::G2P:
                 switch (code) {
+                    case ErrorCode::G2pSuccess:   return NoError;   // fix G2pSuccess slicing bug (ER-02)
                     case ErrorCode::G2pConfigError:
                     case ErrorCode::G2pValidationError:
                         return InvalidFormat;

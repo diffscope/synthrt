@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -8,6 +9,7 @@
 #include <diffsinger/Bank/ResolutionState.h>
 #include <diffsinger/Bank/LanguageInfo.h>
 #include <diffsinger/Bank/SpeakerInfo.h>
+#include <diffsinger/Bank/SingerCapabilityReport.h>
 #include <diffsinger/Bank/dsbank_global.h>
 
 namespace ds::bank {
@@ -34,6 +36,10 @@ namespace ds::bank {
         std::string defaultLanguage;
         std::vector<std::string> inferenceIds;  ///< Available inference capabilities
         std::string version;  ///< v2: version string (normalized, mirrors ref.version)
+
+        /// Parse-time mixable speakers / phonemes / languages analysis.
+        /// Empty for singers without inference (pure G2P packages).
+        std::optional<SingerCapabilityReport> capabilityReport;
     };
 
 } // namespace ds::bank

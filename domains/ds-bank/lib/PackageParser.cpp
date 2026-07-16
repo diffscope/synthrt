@@ -216,8 +216,37 @@ namespace ds::bank {
                         auto id = stringField(spkObj, "id");
                         auto name = nameField(spkObj);
                         if (!id.empty()) {
-                            speakers.emplace_back(std::move(id), std::move(name),
-                                                  singer.singerId());
+                            SpeakerInfo spk(std::move(id), std::move(name),
+                                            singer.singerId());
+                            // Parse toneRange as {min, max} MIDI note numbers.
+                            // Accepts "toneRange": [min, max] or toneMin/toneMax
+                            // pair. Format errors are silently skipped
+                            // (toneRange stays nullopt); loading is never blocked.
+                            if (const auto trIt = spkObj.find("toneRange");
+                                trIt != spkObj.end() && trIt->second.isArray()) {
+                                const auto &arr = trIt->second.toArray();
+                                if (arr.size() == 2 && arr[0].isInt() && arr[1].isInt()) {
+                                    const auto lo = static_cast<int>(arr[0].toInt());
+                                    const auto hi = static_cast<int>(arr[1].toInt());
+                                    // MIDI note numbers are 0-127; reject negative
+                                    // values as format errors (silently skipped).
+                                    if (lo >= 0 && lo <= hi) {
+                                        spk.setToneRange(std::make_pair(lo, hi));
+                                    }
+                                }
+                            } else {
+                                const auto tMin = spkObj.find("toneMin");
+                                const auto tMax = spkObj.find("toneMax");
+                                if (tMin != spkObj.end() && tMin->second.isInt() &&
+                                    tMax != spkObj.end() && tMax->second.isInt()) {
+                                    const auto lo = static_cast<int>(tMin->second.toInt());
+                                    const auto hi = static_cast<int>(tMax->second.toInt());
+                                    if (lo >= 0 && lo <= hi) {
+                                        spk.setToneRange(std::make_pair(lo, hi));
+                                    }
+                                }
+                            }
+                            speakers.emplace_back(std::move(spk));
                         }
                     }
                 }

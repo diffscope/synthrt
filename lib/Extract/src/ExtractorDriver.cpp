@@ -21,39 +21,44 @@ namespace srt::extract {
     srt::core::Expected<srt::core::NO<srt::driver::InferenceDriver>>
     getInferenceDriver(const srt::core::Runtime *runtime) {
         if (!runtime) {
-            return srt::core::Error(
+            return std::move(srt::core::Error(
                 srt::core::ErrorCode::InvalidArgument,
-                "getInferenceDriver: runtime is nullptr");
+                "getInferenceDriver: runtime is nullptr")
+                .withTrace(std::source_location::current(), "ExtractorDriver::getInferenceDriver"));
         }
 
         auto *cate = runtime->moduleCategory("inference");
         if (!cate) {
-            return srt::core::Error(
+            return std::move(srt::core::Error(
                 srt::core::ErrorCode::ExtractNotInitialized,
                 "getInferenceDriver: 'inference' module category not found; "
-                "runtime is not initialized with an inference module");
+                "runtime is not initialized with an inference module")
+                .withTrace(std::source_location::current(), "ExtractorDriver::getInferenceDriver"));
         }
 
         auto obj = cate->getFirstObject("dsdriver");
         if (!obj) {
-            return srt::core::Error(
+            return std::move(srt::core::Error(
                 srt::core::ErrorCode::DriverNotFound,
-                "getInferenceDriver: 'dsdriver' not registered in inference category");
+                "getInferenceDriver: 'dsdriver' not registered in inference category")
+                .withTrace(std::source_location::current(), "ExtractorDriver::getInferenceDriver"));
         }
 
         auto driver = obj.as<srt::driver::InferenceDriver>();
         if (!driver) {
-            return srt::core::Error(
+            return std::move(srt::core::Error(
                 srt::core::ErrorCode::DriverNotFound,
-                "getInferenceDriver: 'dsdriver' is not an InferenceDriver");
+                "getInferenceDriver: 'dsdriver' is not an InferenceDriver")
+                .withTrace(std::source_location::current(), "ExtractorDriver::getInferenceDriver"));
         }
 
         // Only check backend, not arch (extractors are not DiffSinger models).
         if (driver->backend() != srt::driver::onnx::API_NAME) {
-            return srt::core::Error(
+            return std::move(srt::core::Error(
                 srt::core::ErrorCode::DriverUnsupportedProvider,
                 "getInferenceDriver: dsdriver backend is '" + driver->backend() +
-                    "', expected '" + srt::driver::onnx::API_NAME + "'");
+                    "', expected '" + srt::driver::onnx::API_NAME + "'")
+                .withTrace(std::source_location::current(), "ExtractorDriver::getInferenceDriver"));
         }
 
         return driver;

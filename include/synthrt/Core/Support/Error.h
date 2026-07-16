@@ -129,6 +129,19 @@ namespace srt::core {
             const std::source_location &loc = std::source_location::current(),
             std::string note = {});
 
+        // === Chainable helpers (return *this for fluent propagation) ===
+
+        /// Chainable wrapper of appendTrace, returns *this.
+        SRT_CORE_EXPORT Error &withTrace(
+            const std::source_location &loc = std::source_location::current(),
+            std::string note = {});
+
+        /// Chainable context setter: only assigns non-empty fields.
+        SRT_CORE_EXPORT Error &withContext(std::string singerId = {},
+                                           std::string moduleId = {},
+                                           std::string packageId = {},
+                                           std::string language = {});
+
         // === Factory functions ===
         SRT_CORE_EXPORT static Error packageError(
             ErrorCode code, std::string msg, std::string packageId = {},

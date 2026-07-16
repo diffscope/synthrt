@@ -17,14 +17,20 @@
 #include <synthrt/Core/Support/Diagnostic.h>
 #include <synthrt/Core/Support/Error.h>
 #include <synthrt/Core/Support/Expected.h>
+#include <synthrt/Core/Support/Logging.h>
 
+#include <stdcorelib/str.h>
 #include <stdcorelib/support/versionnumber.h>
 
 #include <diffsinger/Bank/PackageManifest.h>
 #include <diffsinger/Bank/PackageParser.h>
 #include <diffsinger/Bank/SingerManifest.h>
 
+#include "SingerCapabilityAnalyzer.h"
+
 namespace ds::bank {
+
+    static srt::LogCategory Log("ds.bank");
 
     // Semantic version match: treats "1.0" == "1.0.0" == "1.0.0.0".
     // VersionNumber::toString() normalizes away trailing zeros (e.g. "1.0.0"
@@ -91,7 +97,11 @@ namespace ds::bank {
                 PackageStatus status;
                 status.rootPath = pkgPath;
                 status.valid = false;
-                status.error = packageResult.error().diagnostic();
+                // B-09: propagate the inner Error with a VoicebankScanner trace
+                // frame before extracting the Diagnostic for PackageStatus.
+                auto err = packageResult.takeError();
+                err.withTrace(std::source_location::current(), "VoicebankScanner::refresh");
+                status.error = err.diagnostic();
                 statuses.push_back(std::move(status));
                 return;
             }
@@ -127,6 +137,34 @@ namespace ds::bank {
 
                 for (const auto &inf : package.inferences()) {
                     snapshot.inferenceIds.push_back(inf.id);
+                }
+
+                // Parse-time capability analysis: mixable speakers / phonemes /
+                // languages across non-vocoder stages (03-dsbank-capability.md).
+                // Produces nullopt for pure G2P packages (no non-vocoder inference).
+                snapshot.capabilityReport = SingerCapabilityAnalyzer::analyze(
+                    singer.imports(), package.inferences());
+                if (snapshot.capabilityReport) {
+                    const auto &r = *snapshot.capabilityReport;
+                    // One-shot degradation summary per user preference: only log
+                    // once per singer here; lite hosts surface warnings in the
+                    // voicebank manager UI.
+                    if (r.phonemeConsistency == ConsistencyLevel::Degraded) {
+                        std::string missing;
+                        for (size_t i = 0; i < r.phonemeWarnings.size(); ++i) {
+                            if (i != 0) missing += "; ";
+                            missing += r.phonemeWarnings[i];
+                        }
+                        Log.srtInfo("singer '%1' phoneme degraded: %2",
+                                    snapshot.name, missing);
+                    }
+                    if (r.speakerConsistency == ConsistencyLevel::Inconsistent) {
+                        Log.srtInfo("singer '%1' speakers inconsistent: no mixable speakers",
+                                    snapshot.name);
+                    } else if (r.speakerConsistency == ConsistencyLevel::Degraded) {
+                        Log.srtInfo("singer '%1' speakers degraded: %2 mixable",
+                                    snapshot.name, r.mixableSpeakers.size());
+                    }
                 }
 
                 _impl->snapshots.push_back(std::move(snapshot));

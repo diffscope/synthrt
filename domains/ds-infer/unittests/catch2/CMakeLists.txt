@@ -23,6 +23,7 @@ add_executable(tst-ds-infer-catch2
     test_speaker_embedding.cpp
     test_modelset.cpp
     test_modelset_errors.cpp
+    test_modelset_trace.cpp
     test_speaker_mapper.cpp
     test_model_registry.cpp
     test_singer_resolver_ambiguity.cpp

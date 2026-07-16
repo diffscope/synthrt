@@ -56,7 +56,7 @@ namespace srt::g2p {
               const std::source_location &loc = std::source_location::current());
 
         // === Default constructor (uses ErrorCode, not deprecated) ===
-        Error() : Error(ErrorCode::G2pSuccess, std::string{}) {}
+        Error() : Error(ErrorCode::G2pSuccess, std::string{}) {} // DEPRECATED: use ErrorCode::None or Error::success() instead
 
         // === Legacy constructors (deprecated, map Type → ErrorCode) ===
 
@@ -73,8 +73,11 @@ namespace srt::g2p {
         /// Recover the G2P-specific error type (deprecated).
         [[deprecated]] Type g2pType() const { return static_cast<Type>(srt::core::Error::type()); }
 
-        /// G2P-specific ok check (G2pSuccess is semantically NoError).
-        bool ok() const { return code() == ErrorCode::G2pSuccess; }
+        /// G2P-specific ok check (unified with base class).
+        /// G2pSuccess is mapped to NoError by typeFromCode (ER-02 fix), so this
+        /// returns true for both G2pSuccess and ErrorCode::None, matching the
+        /// base class _type == NoError semantics.
+        bool ok() const { return srt::core::Error::ok(); }
 
         /// Suggestion accessor (returns empty string if no suggestion is set).
         const std::string &suggestion() const {
@@ -84,7 +87,7 @@ namespace srt::g2p {
 
         bool hasSuggestion() const { return _suggestion != nullptr; }
 
-        static Error success() { return Error(ErrorCode::G2pSuccess, std::string{}); }
+        static Error success() { return Error(ErrorCode::G2pSuccess, std::string{}); } // DEPRECATED: use ErrorCode::None or Error::success() instead
 
         [[deprecated]] static std::shared_ptr<std::string> defaultMessage(Type type);
 

@@ -235,8 +235,8 @@ namespace srt::g2p {
 
         // Phase 3: Load tasks for categories
         if (auto result = loadTasksForCategory(kG2pCategory); !result) {
-            return Error(ErrorCode::G2pRuntimeError,
-                         "Failed to load g2p tasks: " + result.error().message());
+            return std::move(result.takeError()
+                .withTrace(std::source_location::current(), "Manager::initialize"));
         }
 
         if (auto result = loadTasksForCategory(kDictCategory); !result) {

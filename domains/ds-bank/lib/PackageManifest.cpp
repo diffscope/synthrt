@@ -142,6 +142,14 @@ namespace ds::bank {
         _singerId = std::move(singerId);
     }
 
+    const std::optional<std::pair<int, int>> &SpeakerInfo::toneRange() const {
+        return _toneRange;
+    }
+
+    void SpeakerInfo::setToneRange(std::optional<std::pair<int, int>> toneRange) {
+        _toneRange = std::move(toneRange);
+    }
+
     // ---------------------------------------------------------------------------
     // SingerManifest
     // ---------------------------------------------------------------------------

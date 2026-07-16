@@ -277,7 +277,9 @@ namespace srt::core {
 
             auto parseResult = infCat->parseSpec(ref.parent_path(), configJson);
             if (!parseResult) {
-                return Error{parseResult.error()};
+                return std::move(parseResult.takeError()
+                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                    .withContext({}, {}, pkgId));
             }
             auto *spec = parseResult.value();
             spec->_impl->packageId = pkgId;
@@ -304,11 +306,15 @@ namespace srt::core {
 
             auto initResult = infCat->loadSpec(spec, ModuleSpec::Initialized);
             if (!initResult) {
-                return Error{initResult.error()};
+                return std::move(initResult.takeError()
+                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                    .withContext({}, {}, pkgId));
             }
             auto readyResult = infCat->loadSpec(spec, ModuleSpec::Ready);
             if (!readyResult) {
-                return Error{readyResult.error()};
+                return std::move(readyResult.takeError()
+                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                    .withContext({}, {}, pkgId));
             }
         }
 
@@ -358,7 +364,9 @@ namespace srt::core {
 
             auto parseResult = singerCat->parseSpec(ref.parent_path(), configJson);
             if (!parseResult) {
-                return Error{parseResult.error()};
+                return std::move(parseResult.takeError()
+                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                    .withContext({}, {}, pkgId));
             }
             auto *spec = parseResult.value();
             spec->_impl->packageId = pkgId;
@@ -382,11 +390,15 @@ namespace srt::core {
 
             auto initResult = singerCat->loadSpec(spec, ModuleSpec::Initialized);
             if (!initResult) {
-                return Error{initResult.error()};
+                return std::move(initResult.takeError()
+                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                    .withContext({}, {}, pkgId));
             }
             auto readyResult = singerCat->loadSpec(spec, ModuleSpec::Ready);
             if (!readyResult) {
-                return Error{readyResult.error()};
+                return std::move(readyResult.takeError()
+                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                    .withContext({}, {}, pkgId));
             }
         }
 
