@@ -64,10 +64,14 @@ namespace srt::g2p::plugins::ChainG2p
             // 查找字典
             auto phonemes = lookup(lookupKey);
             if (!phonemes.empty()) {
-                // 构建发音字符串
+                // 构建发音字符串（音素间用空格分隔，不含尾随空格，避免
+                // 下游 S2P DirectS2P::convert 切分出空 token 导致查表失败）
                 std::string pronStr;
-                for (const auto &phone : phonemes) {
-                    pronStr += phone + " ";
+                for (size_t i = 0; i < phonemes.size(); ++i) {
+                    if (i > 0) {
+                        pronStr += ' ';
+                    }
+                    pronStr += phonemes[i];
                 }
 
                 word.pronunciation = pronStr;

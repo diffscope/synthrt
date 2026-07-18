@@ -675,6 +675,75 @@ namespace srt::g2p {
         return result;
     }
 
+    srt::core::Expected<size_t>
+    PackageManager::removeContextsByPrefix(const std::string &prefix) {
+        // V3-16 hot reload: retire voicebank G2P contexts before re-registering.
+        // Empty prefix is rejected because it would match every context
+        // (including the default official-G2P context), which is never the
+        // caller's intent and would break G2P routing.
+        if (prefix.empty()) {
+            return Error(ErrorCode::G2pValidationError,
+                "removeContextsByPrefix: prefix must not be empty (empty prefix "
+                "would match all contexts)");
+        }
+
+        auto &impl = *static_cast<Impl *>(_impl.get());
+
+        // Collect matching ContextKeys and erase per-context state under su_mtx.
+        // A prefix match is on ctxKey.context only (e.g. prefix "pkg1__"
+        // matches "pkg1__singerA" and "pkg1__singerB" at every version).
+        std::vector<srt::core::ContextKey> matching;
+        size_t removed = 0;
+        {
+            std::unique_lock lock(impl.su_mtx);
+
+            if (impl.initialized) {
+                // Manager::initialize() has been called: contexts are immutable.
+                // Caller must restart the host process for G2P changes.
+                return Error(ErrorCode::G2pAlreadyInitialized,
+                    "removeContextsByPrefix: Manager::initialize() already "
+                    "called; contexts are immutable. Restart the host process "
+                    "for G2P changes.");
+            }
+
+            for (const auto &[ctxKey, _] : impl.contextPackagePaths) {
+                if (ctxKey.context.starts_with(prefix)) {
+                    matching.push_back(ctxKey);
+                }
+            }
+
+            removed = matching.size();
+            for (const auto &ctxKey : matching) {
+                impl.contextPackagePaths.erase(ctxKey);
+                impl.contextStates.erase(ctxKey);
+                impl.contextDependencyErrors.erase(ctxKey);
+                impl.contextModuleInfos.erase(ctxKey);
+                impl.contextDependencyResolved.erase(ctxKey);
+                impl.contextDependencyGraphs.erase(ctxKey);
+                impl.contextCachedIndexes.erase(ctxKey);
+            }
+
+            if (removed > 0) {
+                impl.packagePathsDirty = true;
+            }
+        }
+
+        // Clean up the tasks map under its own mutex. When !initialized this
+        // map is normally empty (tasks are created during initialize()), but
+        // we erase defensively. Acquired after su_mtx is released to avoid
+        // holding both locks simultaneously.
+        if (!matching.empty()) {
+            std::unique_lock<std::shared_mutex> tasksLock(impl.tasks_mtx);
+            for (auto &[category, ctxMap] : impl.tasks) {
+                for (const auto &ctxKey : matching) {
+                    ctxMap.erase(ctxKey);
+                }
+            }
+        }
+
+        return removed;
+    }
+
     ContextState PackageManager::contextState(const srt::core::ContextKey &ctxKey) const {
         auto &impl = *static_cast<Impl *>(_impl.get());
         std::shared_lock lock(impl.su_mtx);

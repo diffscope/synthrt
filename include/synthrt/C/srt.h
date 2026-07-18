@@ -208,6 +208,12 @@ typedef struct srt_SessionHandle srt_SessionHandle;
 typedef struct srt_ModelHandle srt_ModelHandle;
 typedef struct srt_TaskHandle srt_TaskHandle;
 
+// v3 (WP6): borrowed resource handles for srt_session_create_with_resources.
+// Both are caller-owned opaque pointers; the session created from them borrows
+// the underlying objects and must not outlive them.
+typedef struct srt_RuntimeHandle srt_RuntimeHandle;
+typedef struct srt_LanguageServiceHandle srt_LanguageServiceHandle;
+
 /* --- Session --- */
 
 /**
@@ -226,6 +232,61 @@ SRT_C_EXPORT srt_SessionHandle *srt_session_create_v2(void);
  * After destroy, the handle stably returns SRT_ERR_INVALID_HANDLE.
  */
 SRT_C_EXPORT srt_error srt_session_destroy_v2(srt_SessionHandle *handle);
+
+/**
+ * Creates a session with borrowed Runtime + LanguageService. Both handles
+ * must outlive the returned session. Equivalent to VoicebankSession(
+ * SessionResources{...}) in C++. Passing NULL for either resource returns
+ * NULL and sets last_error to InvalidArgument.
+ *
+ * The session borrows the underlying objects via a non-owning aliasing
+ * shared_ptr; it does not extend their lifetime. The caller must keep both
+ * handles valid until after the session is destroyed.
+ *
+ * \param runtime          Borrowed Runtime handle (non-null).
+ * \param languageService  Borrowed LanguageService handle (non-null).
+ * \return Non-NULL session handle on success; NULL on failure (the error is
+ *         available via srt_last_error()).
+ */
+SRT_C_EXPORT srt_SessionHandle *srt_session_create_with_resources(
+    srt_RuntimeHandle *runtime,
+    srt_LanguageServiceHandle *languageService);
+
+/* --- Runtime / LanguageService resource handles (v3 / WP6) --- */
+//
+// Caller-owned handles backing a Runtime / LanguageService instance. Created
+// explicitly, destroyed explicitly, and borrowed by sessions created via
+// srt_session_create_with_resources. destroy is idempotent: after destroy
+// the handle pointer decodes to an invalid id and subsequent calls return
+// SRT_ERR_INVALID_HANDLE.
+
+/**
+ * Creates a Runtime handle. The caller owns it; destroy with
+ * srt_runtime_destroy.
+ *
+ * \return Non-NULL on success; NULL on failure (see srt_last_error()).
+ */
+SRT_C_EXPORT srt_RuntimeHandle *srt_runtime_create(void);
+
+/**
+ * Destroys a Runtime handle. Passing NULL is a no-op.
+ * After destroy, the handle stably returns SRT_ERR_INVALID_HANDLE.
+ */
+SRT_C_EXPORT srt_error srt_runtime_destroy(srt_RuntimeHandle *handle);
+
+/**
+ * Creates a LanguageService handle. The caller owns it; destroy with
+ * srt_language_service_destroy.
+ *
+ * \return Non-NULL on success; NULL on failure (see srt_last_error()).
+ */
+SRT_C_EXPORT srt_LanguageServiceHandle *srt_language_service_create(void);
+
+/**
+ * Destroys a LanguageService handle. Passing NULL is a no-op.
+ * After destroy, the handle stably returns SRT_ERR_INVALID_HANDLE.
+ */
+SRT_C_EXPORT srt_error srt_language_service_destroy(srt_LanguageServiceHandle *handle);
 
 /**
  * Sets the voicebank roots (package search paths). Takes effect on the next

@@ -2,8 +2,8 @@
 //
 // Covers real-world package directory complexity:
 //   - Mixed directories: voicebank dirs containing non-voicebank subdirs
-//   - Duplicate packages across multiple search paths (last wins)
-//   - Multi-version voicebanks with same packageId (overwrites packageDirs)
+//   - Duplicate packages across multiple search paths (first wins for deprecated packageDirectory)
+//   - Multi-version voicebanks with same packageId (packageDirectories preserves all versions)
 //   - Invalid/corrupted desc.json
 //   - Empty directories and non-directory files
 //   - Search path that is itself a package (direct desc.json)
@@ -219,7 +219,7 @@ TEST_CASE("VoicebankScanner non-existent path ignored", "[ds-bank][complex][mixe
 // Duplicate packages across search paths
 // ===========================================================================
 
-TEST_CASE("VoicebankScanner duplicate package across paths: last wins packageDirs", "[ds-bank][complex][duplicate]") {
+TEST_CASE("VoicebankScanner duplicate package across paths: first wins packageDirectory (deprecated)", "[ds-bank][complex][duplicate]") {
     const auto root1 = makeTempDir("dup-path1");
     const auto root2 = makeTempDir("dup-path2");
 
@@ -235,11 +235,13 @@ TEST_CASE("VoicebankScanner duplicate package across paths: last wins packageDir
     // Both singers are in snapshots
     REQUIRE(scanner.singers().size() == 2);
 
-    // packageDirs maps packageId -> last seen path (root2)
+    // V3-01: deprecated packageDirectory(packageId) returns the first
+    // discovered entry (root1/pkg). Multi-version same-packageId callers
+    // should use packageDirectories(packageId) instead.
     auto dir = scanner.packageDirectory("pkg.dup");
     REQUIRE(!dir.empty());
-    // The last path wins (root2/pkg)
-    REQUIRE(dir.lexically_normal() == (root2 / "pkg").lexically_normal());
+    // The first path wins (root1/pkg)
+    REQUIRE(dir.lexically_normal() == (root1 / "pkg").lexically_normal());
 
     std::filesystem::remove_all(root1);
     std::filesystem::remove_all(root2);

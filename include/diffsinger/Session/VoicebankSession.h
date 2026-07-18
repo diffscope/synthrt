@@ -44,6 +44,18 @@ namespace ds::session {
         std::vector<std::string> reservedPhonemes;
         AvailabilitySummary availability;
         unsigned long long generation = 0;
+
+        // === V3-07 fingerprint (D-33) ===
+        std::string catalogFingerprint;    // Stable digest of package catalog content
+        std::string languageFingerprint;   // Stable digest of language route content
+    };
+
+    /// Resources borrowed by VoicebankSession (V3-06). Lifetime is owned by the
+    /// host (e.g. ds-editor-lite's SynthrtEngine). Session only borrows via
+    /// references; it does not extend lifetime. Host must outlive the session.
+    struct DSSESSION_EXPORT SessionResources {
+        srt::core::Runtime *runtime = nullptr;                        // Required for createModelSet
+        std::shared_ptr<srt::g2p::LanguageService> languageService;   // Required for convertG2p/convertS2p
     };
 
     /// PackageCoordinate - Stable coordinate identifying one installed package.
@@ -139,6 +151,11 @@ namespace ds::session {
     class DSSESSION_EXPORT VoicebankSession {
     public:
         VoicebankSession();
+        /// Resource-injected constructor: full functionality. Host owns Runtime
+        /// and LanguageService; session borrows them. Must not be called with
+        /// null runtime / null languageService (use default constructor for
+        /// discovery-only scenarios).
+        explicit VoicebankSession(SessionResources resources);
         ~VoicebankSession();
         VoicebankSession(const VoicebankSession &) = delete;
         VoicebankSession &operator=(const VoicebankSession &) = delete;
@@ -153,6 +170,7 @@ namespace ds::session {
         /// caller must initialize() it before invoking conversions. Passing
         /// nullptr disables G2P/S2P (subsequent convert calls return
         /// ErrorCode::G2pNotImplementedError).
+        [[deprecated("Use VoicebankSession(SessionResources) constructor. Will be removed in Level=3.")]]
         void setLanguageService(std::shared_ptr<srt::g2p::LanguageService> service);
         std::shared_ptr<srt::g2p::LanguageService> languageService() const;
 
@@ -210,6 +228,7 @@ namespace ds::session {
         /// createModelSet(). Passing nullptr disables ModelSet
         /// creation (subsequent createModelSet returns
         /// ErrorCode::InferenceNotInitialized).
+        [[deprecated("Use VoicebankSession(SessionResources) constructor. Will be removed in Level=3.")]]
         void setRuntime(srt::core::Runtime *runtime);
         srt::core::Runtime *runtime() const;
 
@@ -221,6 +240,21 @@ namespace ds::session {
         /// may still finish; load/stop/unload remain usable).
         srt::core::Expected<std::shared_ptr<ModelSetHandle>>
             createModelSet(const ds::bank::SingerRef &singerKey);
+
+        /// Ensure the language module (G2P + S2P) for a (packageId, version,
+        /// language) is loaded. Sync, blocking. Idempotent. Host must call this
+        /// before convertG2p/convertS2p on a fresh session or after a refresh
+        /// that removed the language module (V3-08).
+        srt::core::Expected<void> ensureLanguageReady(
+            const std::string &packageId,
+            const stdc::VersionNumber &version,
+            const std::string &language);
+
+        /// Ensure the ModelSet for a singer is loaded and return a handle bound
+        /// to the current snapshot generation. Thin wrapper over createModelSet
+        /// with explicit error categorization (V3-08).
+        srt::core::Expected<std::shared_ptr<ModelSetHandle>>
+            ensureModelSet(const ds::bank::SingerRef &singerKey);
 
     private:
         class Impl;

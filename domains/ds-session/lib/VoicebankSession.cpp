@@ -11,6 +11,8 @@
 #include <sstream>
 #include <utility>
 
+#include <stdcorelib/path.h>
+
 #include <synthrt/Core/Support/Error.h>
 #include <synthrt/Core/Core/Runtime.h>
 #include <synthrt/G2P/LanguageService.h>
@@ -106,7 +108,7 @@ std::string fingerprintPackage(const VoicebankSnapshot &snapshot,
                                const ds::bank::PackageStatus &package) {
     std::ostringstream stream;
     stream << package.packageId << '\n' << package.version.toString() << '\n'
-           << package.rootPath.generic_string() << '\n' << package.valid << '\n';
+           << stdc::path::to_utf8(package.rootPath) << '\n' << package.valid << '\n';
     for (const auto &dependency : package.dependencies) stream << dependency << '\n';
     stream << '\x1e';
     for (const auto &dependency : package.unresolvedDependencies) stream << dependency << '\n';
@@ -116,6 +118,66 @@ std::string fingerprintPackage(const VoicebankSnapshot &snapshot,
         if (coordinateOf(singer) == coordinateOf(package))
             stream << fingerprintSinger(singer) << '\x1f';
     }
+    return stream.str();
+}
+
+/// Serialize only the language-route-relevant fields of a package (V3-07 D-33
+/// languageFingerprint). Excludes manifest/speaker/capability data that does
+/// not affect G2P/S2P routing. Paths use stdc::path::to_utf8 for cross-platform
+/// stability (V3-15 §3.2).
+std::string fingerprintPackageLanguage(const VoicebankSnapshot &snapshot,
+                                       const ds::bank::PackageStatus &package) {
+    std::ostringstream stream;
+    stream << package.packageId << '\n' << package.version.toString() << '\n'
+           << stdc::path::to_utf8(package.rootPath) << '\n';
+    for (const auto &singer : snapshot.singers) {
+        if (coordinateOf(singer) == coordinateOf(package)) {
+            stream << singer.ref.singerId << '\n'
+                   << singer.ref.packageId << '\n'
+                   << singer.ref.version << '\n'
+                   << singer.defaultLanguage << '\n';
+            for (const auto &lang : singer.languages) stream << lang << '\n';
+            stream << '\x1e';
+        }
+    }
+    return stream.str();
+}
+
+/// Compute the catalog fingerprint: concatenate fingerprintPackage output for
+/// all packages sorted by (packageId, version). Content-stable: identical
+/// package sets produce identical fingerprints regardless of scan order.
+std::string computeCatalogFingerprint(const VoicebankSnapshot &snapshot) {
+    std::vector<const ds::bank::PackageStatus *> sorted;
+    sorted.reserve(snapshot.packages.size());
+    for (const auto &pkg : snapshot.packages) sorted.push_back(&pkg);
+    std::sort(sorted.begin(), sorted.end(),
+              [](const ds::bank::PackageStatus *a, const ds::bank::PackageStatus *b) {
+                  if (a->packageId != b->packageId)
+                      return a->packageId < b->packageId;
+                  return a->version.toString() < b->version.toString();
+              });
+    std::ostringstream stream;
+    for (const auto *pkg : sorted)
+        stream << fingerprintPackage(snapshot, *pkg) << '\x1f';
+    return stream.str();
+}
+
+/// Compute the language fingerprint: same sort order as catalog, but only
+/// language-route-relevant fields. Used by Lite for inference cache keys
+/// (V3-07 §2.4) — any change here invalidates cached G2P/S2P results.
+std::string computeLanguageFingerprint(const VoicebankSnapshot &snapshot) {
+    std::vector<const ds::bank::PackageStatus *> sorted;
+    sorted.reserve(snapshot.packages.size());
+    for (const auto &pkg : snapshot.packages) sorted.push_back(&pkg);
+    std::sort(sorted.begin(), sorted.end(),
+              [](const ds::bank::PackageStatus *a, const ds::bank::PackageStatus *b) {
+                  if (a->packageId != b->packageId)
+                      return a->packageId < b->packageId;
+                  return a->version.toString() < b->version.toString();
+              });
+    std::ostringstream stream;
+    for (const auto *pkg : sorted)
+        stream << fingerprintPackageLanguage(snapshot, *pkg) << '\x1f';
     return stream.str();
 }
 
@@ -381,12 +443,25 @@ public:
             for (const auto &singer : next->singers)
                 addAvailability(next->availability, availabilityOf(singer, next->reservedPhonemes));
 
+            // V3-07 D-33: compute stable fingerprints after building the
+            // snapshot content. These digests are content-stable (independent
+            // of scan order) and used both for change detection and as Lite
+            // inference cache keys. Paths are serialized via stdc::path::to_utf8
+            // for cross-platform stability (V3-15 §3.2).
+            next->catalogFingerprint = computeCatalogFingerprint(*next);
+            next->languageFingerprint = computeLanguageFingerprint(*next);
+
             // Compute whether the snapshot actually changed and assemble the
             // per-package delta relative to the previous snapshot. `changed`
             // reflects content difference, not just generation bump, so that
             // Lite can skip redundant UI work when a refresh produced no
-            // observable change.
-            const bool changed = !previous || !contentEqual(*previous, *next);
+            // observable change. Roots/reservedPhonemes are config-level inputs
+            // and must also trigger changed=true when they differ.
+            const bool changed = !previous ||
+                                 previous->roots != next->roots ||
+                                 previous->reservedPhonemes != next->reservedPhonemes ||
+                                 previous->catalogFingerprint != next->catalogFingerprint ||
+                                 previous->languageFingerprint != next->languageFingerprint;
 
             ChangeSummary changes;
             if (previous && changed)
@@ -402,6 +477,51 @@ public:
                 r.snapshot = std::move(previous);
                 r.diagnostics = std::move(diagnostics);
                 return finish(std::move(r));
+            }
+
+            // V3-16 WP8-session: update LanguageService metadata before
+            // publishing. Uses incremental updateMetadata() when the service
+            // is already initialized (hot-reload path), falling back to a full
+            // initializeMetadata() on first call or on updateMetadata failure.
+            // pluginSearchPaths and officialG2pPackagePaths are passed empty:
+            // VoicebankSession does not own those (host-managed); passing empty
+            // is correct for session-only voicebank discovery. Non-fatal: the
+            // snapshot is still published; language errors surface as Warning
+            // diagnostics and the caller can retry via ensureLanguageReady().
+            std::shared_ptr<srt::g2p::LanguageService> svc;
+            {
+                std::lock_guard lock(mutex);
+                svc = languageService;
+            }
+            if (svc) {
+                std::vector<srt::g2p::PackageDirectoryEntry> entries;
+                entries.reserve(next->packages.size());
+                for (const auto &pkg : next->packages) {
+                    if (pkg.valid) {
+                        entries.push_back({pkg.packageId, pkg.version, pkg.rootPath});
+                    }
+                }
+                srt::core::Expected<void> langExp;
+                if (svc->metadataReady()) {
+                    // Incremental update (V3-16). Fallback to full init on error.
+                    auto diffExp = svc->updateMetadata({}, {}, entries);
+                    if (!diffExp) {
+                        // updateMetadata failed (e.g. modelsReady already).
+                        // Try full init.
+                        langExp = svc->initializeMetadata({}, {}, entries);
+                    }
+                } else {
+                    // First-time full init.
+                    langExp = svc->initializeMetadata({}, {}, entries);
+                }
+                if (!langExp) {
+                    srt::core::Diagnostic d;
+                    d.code = srt::core::ErrorCode::G2pInitializationError;
+                    d.severity = srt::core::Severity::Warning;
+                    d.message = "LanguageService metadata update failed: " +
+                                langExp.error().message();
+                    diagnostics.push_back(std::move(d));
+                }
             }
 
             std::shared_ptr<const VoicebankSnapshot> published = next;
@@ -438,6 +558,13 @@ public:
 };
 
 VoicebankSession::VoicebankSession() : _impl(std::make_shared<Impl>()) {}
+
+VoicebankSession::VoicebankSession(SessionResources resources)
+    : _impl(std::make_shared<Impl>()) {
+    _impl->runtime = resources.runtime;
+    _impl->languageService = std::move(resources.languageService);
+}
+
 VoicebankSession::~VoicebankSession() = default;
 
 void VoicebankSession::setRoots(std::vector<std::filesystem::path> roots) {
@@ -579,10 +706,15 @@ srt::core::Expected<std::vector<srt::g2p::G2pRes>>
         return srt::core::Error(srt::core::ErrorCode::G2pNotImplementedError,
                                 "VoicebankSession::convertG2p: no LanguageService configured");
     }
-    // Delegate to LanguageService::convert(packageId, singerId, language, inputs).
-    // The service handles route resolution; per-lyric failures are surfaced
-    // via G2pRes::isFailed() rather than Expected (R6: don't lose details).
-    return svc->convert(singerKey.packageId, singerKey.singerId, language, inputs);
+    // V3-10: parse version from SingerRef and delegate to the version-aware
+    // LanguageService::convert overload. An empty version triggers
+    // G2pVersionAmbiguous inside LanguageService::resolveLanguageRoute when
+    // multiple versions of the packageId are registered; single-version
+    // scenarios route transparently (backward compat). Per-lyric failures are
+    // surfaced via G2pRes::isFailed() rather than Expected (R6: don't lose
+    // details).
+    const auto version = stdc::VersionNumber::fromString(singerKey.version);
+    return svc->convert(singerKey.packageId, version, singerKey.singerId, language, inputs);
 }
 
 srt::core::Expected<S2pResult>
@@ -606,6 +738,11 @@ srt::core::Expected<S2pResult>
                                 "VoicebankSession::convertS2p: no LanguageService configured");
     }
     // Resolve the cached S2P resource, then run the conversion.
+    // V3-10 note: resolveS2pResource has no version parameter; it routes via
+    // the single-version path internally. Multi-version same-packageId callers
+    // should call ensureLanguageReady(packageId, version, language) first and
+    // use resolveLanguageRoute() + construct LanguageResource directly. The
+    // single-version scenario (the common case) works transparently here.
     auto resExp = svc->resolveS2pResource(singerKey.packageId, singerKey.singerId, language);
     if (!resExp) {
         return resExp.takeError();
@@ -745,6 +882,89 @@ srt::core::Expected<std::shared_ptr<ModelSetHandle>>
     auto handle = std::shared_ptr<ModelSetHandle>(
         new ModelSetHandle(std::move(modelSet), gen, std::move(isCurrentGen)));
     return handle;
+}
+
+srt::core::Expected<std::shared_ptr<ModelSetHandle>>
+    VoicebankSession::ensureModelSet(const ds::bank::SingerRef &singerKey) {
+    // Thin wrapper over createModelSet with explicit error categorization.
+    // createModelSet already returns SvsSingerNotFound / InferenceNotInitialized
+    // / RuntimePackageNotLoaded / SvsStageResolveFailed as appropriate.
+    return createModelSet(singerKey);
+}
+
+srt::core::Expected<void> VoicebankSession::ensureLanguageReady(
+    const std::string &packageId,
+    const stdc::VersionNumber &version,
+    const std::string &language) {
+    const auto snap = snapshot();
+    if (!snap) {
+        return srt::core::Error(srt::core::ErrorCode::SessionError,
+                                "ensureLanguageReady: no snapshot available");
+    }
+    // 1. Check (packageId, version) exists in snapshot. Empty version matches
+    //    any version (backward compat); non-empty version must match exactly.
+    bool found = false;
+    int matchCount = 0;
+    for (const auto &pkg : snap->packages) {
+        if (pkg.packageId == packageId) {
+            ++matchCount;
+            if (version.isEmpty() || pkg.version == version) {
+                found = true;
+            }
+        }
+    }
+    // V3-10: caller omitted version while packageId has multiple versions
+    // registered — cannot pick one unambiguously. Checked before the
+    // single-match fallback so that two same-packageId entries don't get
+    // silently resolved to whichever one was iterated first.
+    if (version.isEmpty() && matchCount > 1) {
+        return srt::core::Error::g2pError(
+            srt::core::ErrorCode::G2pVersionAmbiguous,
+            "ensureLanguageReady: packageId=" + packageId +
+                " has multiple versions; provide a version to disambiguate",
+            language, packageId);
+    }
+    if (!found) {
+        return srt::core::Error::g2pError(
+            srt::core::ErrorCode::G2pPackageNotFound,
+            "ensureLanguageReady: package not found: packageId=" + packageId +
+                ", version=" + version.toString(),
+            language, packageId);
+    }
+    // 2. Check Runtime is configured (needed for ensureModelSet downstream,
+    //    and conceptually part of "language readiness" for inference chains).
+    srt::core::Runtime *rt = runtime();
+    if (!rt) {
+        return srt::core::Error::inferenceError(
+            srt::core::ErrorCode::RuntimePackageNotLoaded,
+            "ensureLanguageReady: no Runtime configured; call setRuntime() or "
+            "use VoicebankSession(SessionResources) constructor",
+            {});
+    }
+    // 3. Ensure LanguageService is initialized (lazy on first call).
+    auto svc = languageService();
+    if (!svc) {
+        return srt::core::Error(srt::core::ErrorCode::G2pNotImplementedError,
+                                "ensureLanguageReady: no LanguageService configured");
+    }
+    if (!svc->metadataReady()) {
+        return srt::core::Error::g2pError(
+            srt::core::ErrorCode::G2pInitializationError,
+            "ensureLanguageReady: LanguageService metadata not initialized; "
+            "call initializeMetadata() first",
+            language, packageId);
+    }
+    if (!svc->modelsReady()) {
+        auto exp = svc->initializeModels();
+        if (!exp) {
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::LoadFailed,
+                "ensureLanguageReady: LanguageService::initializeModels failed: " +
+                    exp.error().message(),
+                {});
+        }
+    }
+    return {};
 }
 
 } // namespace ds::session

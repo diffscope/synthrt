@@ -207,12 +207,20 @@ namespace {
 
 using srt::c_api::HandleId;
 using srt::c_api::kInvalidHandle;
+using srt::c_api::RuntimeData;
+using srt::c_api::LanguageServiceData;
 using srt::c_api::SessionData;
 using srt::c_api::ModelData;
 using srt::c_api::TaskData;
+using srt::c_api::runtimeTable;
+using srt::c_api::languageServiceTable;
 using srt::c_api::sessionTable;
 using srt::c_api::modelTable;
 using srt::c_api::taskTable;
+using srt::c_api::decodeRuntimeHandle;
+using srt::c_api::encodeRuntimeHandle;
+using srt::c_api::decodeLanguageServiceHandle;
+using srt::c_api::encodeLanguageServiceHandle;
 using srt::c_api::decodeSessionHandle;
 using srt::c_api::encodeSessionHandle;
 using srt::c_api::decodeModelHandle;
@@ -361,6 +369,61 @@ extern "C" srt_error srt_session_destroy_v2(srt_SessionHandle *handle) {
     }
 }
 
+// v3 (WP6): borrowed-resource session factory. The session borrows the Runtime
+// and LanguageService via the existing bare setters; WP3 will replace this
+// body with the SessionResources injection constructor. Resources are
+// caller-owned and must outlive the session.
+extern "C" srt_SessionHandle *srt_session_create_with_resources(
+    srt_RuntimeHandle *runtime, srt_LanguageServiceHandle *languageService) {
+    if (!runtime || !languageService) {
+        srt::c::detail::setLastError(
+            "srt_session_create_with_resources: null resource handle",
+            SRT_ERR_INVALID_ARG);
+        return nullptr;
+    }
+    try {
+        HandleId rtId = decodeRuntimeHandle(runtime);
+        auto rtData = runtimeTable().lookup(rtId);
+        if (!rtData) {
+            srt::c::detail::setLastError(
+                "srt_session_create_with_resources: invalid runtime handle",
+                SRT_ERR_INVALID_HANDLE);
+            return nullptr;
+        }
+        HandleId langId = decodeLanguageServiceHandle(languageService);
+        auto langData = languageServiceTable().lookup(langId);
+        if (!langData) {
+            srt::c::detail::setLastError(
+                "srt_session_create_with_resources: invalid language service handle",
+                SRT_ERR_INVALID_HANDLE);
+            return nullptr;
+        }
+        // Build SessionData with default-constructed VoicebankSession, then
+        // inject resources via the existing bare setters (WP3 will replace
+        // this with the SessionResources injection constructor).
+        auto data = std::make_shared<SessionData>();
+        // Aliasing shared_ptr: non-owning. Runtime/LanguageService outlive
+        // the session (caller-owned handles). This mirrors the ds-editor-lite
+        // pattern documented in 03-session-and-snapshot.md §1.1.
+        std::shared_ptr<srt::g2p::LanguageService> langAlias(
+            std::shared_ptr<srt::g2p::LanguageService>{}, &langData->languageService);
+        data->session.setLanguageService(langAlias);
+        data->session.setRuntime(&rtData->runtime);
+        HandleId id = sessionTable().create(data);
+        if (id == kInvalidHandle) {
+            srt::c::detail::setLastError(
+                "srt_session_create_with_resources: out of memory",
+                SRT_ERR_OUT_OF_MEM);
+            return nullptr;
+        }
+        return encodeSessionHandle(id);
+    } catch (const std::exception &e) {
+        srt::c::detail::setLastError(
+            std::string("srt_session_create_with_resources: ") + e.what());
+        return nullptr;
+    }
+}
+
 extern "C" srt_error srt_session_set_roots(srt_SessionHandle *handle,
                                            const char *const *roots, size_t count) {
     if (!handle) {
@@ -504,6 +567,86 @@ extern "C" const void *srt_session_snapshot(srt_SessionHandle *handle) {
     } catch (const std::exception &e) {
         srt::c::detail::setLastError(std::string("srt_session_snapshot: ") + e.what());
         return nullptr;
+    }
+}
+
+// --------------------------------------------------------------------------
+// Runtime / LanguageService resource handles (v3 / WP6)
+// --------------------------------------------------------------------------
+//
+// Caller-owned handles backing a Runtime / LanguageService instance. Borrowed
+// by sessions created via srt_session_create_with_resources. Each create
+// allocates a fresh entry in the corresponding table; destroy is idempotent
+// and stable (after destroy the handle decodes to an invalid id).
+
+extern "C" srt_RuntimeHandle *srt_runtime_create(void) {
+    try {
+        auto data = std::make_shared<RuntimeData>();
+        HandleId id = runtimeTable().create(data);
+        if (id == kInvalidHandle) {
+            srt::c::detail::setLastError("srt_runtime_create: out of memory",
+                                         SRT_ERR_OUT_OF_MEM);
+            return nullptr;
+        }
+        return encodeRuntimeHandle(id);
+    } catch (const std::exception &e) {
+        srt::c::detail::setLastError(std::string("srt_runtime_create: ") + e.what());
+        return nullptr;
+    }
+}
+
+extern "C" srt_error srt_runtime_destroy(srt_RuntimeHandle *handle) {
+    if (!handle) {
+        return SRT_OK; // no-op, matches the session destroy contract
+    }
+    try {
+        HandleId id = decodeRuntimeHandle(handle);
+        if (!runtimeTable().destroy(id)) {
+            srt::c::detail::setLastError("srt_runtime_destroy: invalid handle",
+                                         SRT_ERR_INVALID_HANDLE);
+            return SRT_ERR_INVALID_HANDLE;
+        }
+        return SRT_OK;
+    } catch (const std::exception &e) {
+        srt::c::detail::setLastError(std::string("srt_runtime_destroy: ") + e.what());
+        return SRT_ERR_GENERIC;
+    }
+}
+
+extern "C" srt_LanguageServiceHandle *srt_language_service_create(void) {
+    try {
+        auto data = std::make_shared<LanguageServiceData>();
+        HandleId id = languageServiceTable().create(data);
+        if (id == kInvalidHandle) {
+            srt::c::detail::setLastError("srt_language_service_create: out of memory",
+                                         SRT_ERR_OUT_OF_MEM);
+            return nullptr;
+        }
+        return encodeLanguageServiceHandle(id);
+    } catch (const std::exception &e) {
+        srt::c::detail::setLastError(
+            std::string("srt_language_service_create: ") + e.what());
+        return nullptr;
+    }
+}
+
+extern "C" srt_error srt_language_service_destroy(srt_LanguageServiceHandle *handle) {
+    if (!handle) {
+        return SRT_OK; // no-op, matches the session destroy contract
+    }
+    try {
+        HandleId id = decodeLanguageServiceHandle(handle);
+        if (!languageServiceTable().destroy(id)) {
+            srt::c::detail::setLastError(
+                "srt_language_service_destroy: invalid handle",
+                SRT_ERR_INVALID_HANDLE);
+            return SRT_ERR_INVALID_HANDLE;
+        }
+        return SRT_OK;
+    } catch (const std::exception &e) {
+        srt::c::detail::setLastError(
+            std::string("srt_language_service_destroy: ") + e.what());
+        return SRT_ERR_GENERIC;
     }
 }
 

@@ -54,7 +54,13 @@ namespace ds::bank {
     public:
         std::vector<std::filesystem::path> searchPaths;
         std::vector<SingerSnapshot> snapshots;
-        std::unordered_map<std::string, std::filesystem::path> packageDirs;
+        // Multi-version storage (V3-01 §1.6): all (packageId, version) pairs
+        // survive, in discovery order. The legacy packageDirs map collapsed
+        // same-packageId entries to the last seen; this map keeps one vector
+        // per packageId so multiple versions coexist. Within a packageId, the
+        // same version seen twice (e.g. across two search paths) updates the
+        // existing entry instead of appending a duplicate.
+        std::unordered_map<std::string, std::vector<PackageDirectoryResult>> packageDirs;
 
         const SingerSnapshot *findSnapshot(const SingerRef &ref) const {
             for (const auto &s : snapshots) {
@@ -110,9 +116,27 @@ namespace ds::bank {
             const auto packageId = package.packageId();
             const auto versionStr = package.version().toString();
 
-            // Store packageId -> packageDir so callers can open packages
-            // in Runtime and build the packageDirs map for LanguageService.
-            _impl->packageDirs[packageId] = pkgPath;
+            // Store (packageId, version) -> pkgDir so callers can open
+            // packages in Runtime and build the packageDirs vector for
+            // LanguageService. Multi-version same-packageId entries coexist
+            // (V3-01 §1.6). Same (packageId, version) seen again updates the
+            // existing entry (matches the legacy overwrite-on-same-packageId
+            // behavior for the single-version case).
+            {
+                auto &entries = _impl->packageDirs[packageId];
+                const auto version = package.version();
+                bool updated = false;
+                for (auto &entry : entries) {
+                    if (entry.version == version) {
+                        entry.path = pkgPath;
+                        updated = true;
+                        break;
+                    }
+                }
+                if (!updated) {
+                    entries.push_back(PackageDirectoryResult{version, pkgPath});
+                }
+            }
 
             for (const auto &singer : package.singers()) {
                 SingerSnapshot snapshot;
@@ -274,13 +298,25 @@ namespace ds::bank {
             srt::core::ErrorCode::FileNotFound, std::move(msg), packageId);
     }
 
-    std::filesystem::path VoicebankScanner::packageDirectory(
+    std::vector<PackageDirectoryResult> VoicebankScanner::packageDirectories(
         const std::string &packageId) const {
         const auto it = _impl->packageDirs.find(packageId);
         if (it == _impl->packageDirs.end()) {
             return {};
         }
         return it->second;
+    }
+
+    std::filesystem::path VoicebankScanner::packageDirectory(
+        const std::string &packageId) const {
+        // Legacy: return the first matching entry's path (single-version
+        // backward compat). Deprecated warning is emitted at the call site
+        // via the [[deprecated]] attribute in the header, not here.
+        const auto it = _impl->packageDirs.find(packageId);
+        if (it == _impl->packageDirs.end() || it->second.empty()) {
+            return {};
+        }
+        return it->second.front().path;
     }
 
 } // namespace ds::bank

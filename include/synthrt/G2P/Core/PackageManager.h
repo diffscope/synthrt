@@ -75,6 +75,18 @@ namespace srt::g2p {
                                                          const stdc::VersionNumber &version) const;
         std::vector<srt::core::ContextKey> contextKeys() const;
 
+        /// Remove all contexts whose name starts with \p prefix (V3-16 hot reload).
+        /// Used by LanguageService::updateMetadata to remove retired voicebank G2P
+        /// contexts before re-registering. Only removes contexts whose state is
+        /// Pending (i.e. Manager::initialize() has not been called); after
+        /// initialize() contexts are immutable and this function returns an error
+        /// for any non-Pending matching context.
+        ///
+        /// Returns the number of contexts actually removed. Errors:
+        ///   - G2pAlreadyInitialized: Manager::initialize() was already called;
+        ///     caller must restart the host process.
+        srt::core::Expected<size_t> removeContextsByPrefix(const std::string &prefix);
+
         /// Query initialization state for a context.
         /// Unregistered contexts (not in contexts()) return NotRegistered.
         ContextState contextState(const srt::core::ContextKey &ctxKey) const;

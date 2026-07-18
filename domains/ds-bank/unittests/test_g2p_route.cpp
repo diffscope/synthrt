@@ -344,9 +344,13 @@ TEST_CASE("LanguageRoute voicebank G2P: with g2pPackages and version", "[g2p][ro
     REQUIRE(routeExp.hasValue());
     const auto &route = *routeExp;
     REQUIRE(route.g2pId == "g2p-cmn-custom");
-    REQUIRE(route.g2pContext == "singer_vb");  // voicebank = singerId context (R7)
+    // V3-01: voicebank context = packageId + "__" + singerId (deprecated
+    // initialize(map) path; g2pContextVersion is empty because the map
+    // carries no voicebank version — callers must use the version-aware
+    // overload to get a non-empty version).
+    REQUIRE(route.g2pContext == "pkg.vb__singer_vb");
     REQUIRE(route.g2pSource == kG2pSourceVoicebank);  // voicebank source (R7)
-    REQUIRE(route.g2pContextVersion.toString() == "1.5");
+    REQUIRE(route.g2pContextVersion.toString() == "0.0");
 
     std::filesystem::remove_all(root);
 }
@@ -381,7 +385,8 @@ TEST_CASE("LanguageRoute multi-language singer with mixed G2P", "[g2p][route][re
     REQUIRE(routeEn.hasValue());
     REQUIRE(routeEn->g2pId == "g2p-en-custom");
     REQUIRE(routeEn->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
-    REQUIRE(routeEn->g2pContextVersion.toString() == "2.0");
+    // V3-01: deprecated path yields empty g2pContextVersion.
+    REQUIRE(routeEn->g2pContextVersion.toString() == "0.0");
 
     // jp = official
     auto routeJp = langSvc.resolveLanguageRoute("pkg.multi", "multi_singer", "jp");
@@ -527,17 +532,24 @@ TEST_CASE("LanguageRoute same singer different packages different G2P versions",
     auto route1 = langSvc.resolveLanguageRoute("pkg.conflict", "shared_singer", "cmn");
     REQUIRE(route1.hasValue());
     REQUIRE(route1->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
-    REQUIRE(route1->g2pContextVersion.toString() == "1.0");
+    // V3-01: deprecated path yields empty g2pContextVersion.
+    REQUIRE(route1->g2pContextVersion.toString() == "0.0");
 
     // Resolve via package 2 -> G2P version 2.0.0
     auto route2 = langSvc.resolveLanguageRoute("pkg.conflict2", "shared_singer", "cmn");
     REQUIRE(route2.hasValue());
     REQUIRE(route2->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
-    REQUIRE(route2->g2pContextVersion.toString() == "2.0");
+    // V3-01: deprecated path yields empty g2pContextVersion.
+    REQUIRE(route2->g2pContextVersion.toString() == "0.0");
 
-    // Both resolve to the same g2pContext (= singerId) but different G2P versions
-    REQUIRE(route1->g2pContext == route2->g2pContext);  // R7: was singerId
-    REQUIRE(route1->g2pContextVersion != route2->g2pContextVersion);
+    // V3-01: different packageIds produce different g2pContexts
+    // (packageId__singerId) so same-singerId voicebanks in different
+    // packages get isolated ContextKeys. Deprecated path yields empty
+    // g2pContextVersion for both.
+    REQUIRE(route1->g2pContext != route2->g2pContext);
+    REQUIRE(route1->g2pContext == "pkg.conflict__shared_singer");
+    REQUIRE(route2->g2pContext == "pkg.conflict2__shared_singer");
+    REQUIRE(route1->g2pContextVersion == route2->g2pContextVersion);
 
     std::filesystem::remove_all(root1);
     std::filesystem::remove_all(root2);

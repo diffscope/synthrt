@@ -215,14 +215,17 @@ TEST_CASE("Integration: scan voicebank G2P package and resolve route", "[integra
     REQUIRE(routeExp.hasValue());
     REQUIRE(routeExp->g2pId == "g2p-cmn-custom");
     REQUIRE(routeExp->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
-    REQUIRE(routeExp->g2pContextVersion.toString() == "1.5");
+    // V3-01: deprecated initialize(map) path yields empty g2pContextVersion
+    // (the map carries no voicebank version).
+    REQUIRE(routeExp->g2pContextVersion.toString() == "0.0");
 
-    // Step 4: Construct G2pInput with voicebank context (R7: g2pContext = singerId)
+    // Step 4: Construct G2pInput with voicebank context.
+    // V3-01: g2pContext = packageId + "__" + singerId.
     G2pInput input("ni hao", routeExp->g2pId,
-                   routeExp->g2pContext,        // g2pContext = singerId for voicebank
+                   routeExp->g2pContext,
                    routeExp->g2pContextVersion);
-    REQUIRE(input.g2pContext == "singer_vb");
-    REQUIRE(input.g2pContextVersion.toString() == "1.5");
+    REQUIRE(input.g2pContext == "pkg.vb__singer_vb");
+    REQUIRE(input.g2pContextVersion.toString() == "0.0");
 
     std::filesystem::remove_all(root);
 }
@@ -272,7 +275,8 @@ TEST_CASE("Integration: multi-package with mixed official and voicebank G2P", "[
     auto routeCus = langSvc.resolveLanguageRoute("pkg.custom", "singer_cus", "cmn");
     REQUIRE(routeCus.hasValue());
     REQUIRE(routeCus->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
-    REQUIRE(routeCus->g2pContextVersion.toString() == "1.0");
+    // V3-01: deprecated path yields empty g2pContextVersion.
+    REQUIRE(routeCus->g2pContextVersion.toString() == "0.0");
 
     std::filesystem::remove_all(root);
 }
@@ -329,11 +333,13 @@ TEST_CASE("Integration: same singer across paths with different G2P versions", "
 
     auto route1 = langSvc.resolveLanguageRoute("pkg.cross", "shared_singer", "cmn");
     REQUIRE(route1.hasValue());
-    REQUIRE(route1->g2pContextVersion.toString() == "1.0");
+    // V3-01: deprecated path yields empty g2pContextVersion.
+    REQUIRE(route1->g2pContextVersion.toString() == "0.0");
 
     auto route2 = langSvc.resolveLanguageRoute("pkg.cross2", "shared_singer", "cmn");
     REQUIRE(route2.hasValue());
-    REQUIRE(route2->g2pContextVersion.toString() == "2.0");
+    // V3-01: deprecated path yields empty g2pContextVersion.
+    REQUIRE(route2->g2pContextVersion.toString() == "0.0");
 
     std::filesystem::remove_all(root1);
     std::filesystem::remove_all(root2);
@@ -524,8 +530,10 @@ TEST_CASE("Integration: G2pInput context from voicebank route", "[integration][g
 
     G2pInput input("ni", route->g2pId, route->g2pContext, route->g2pContextVersion);
     REQUIRE(input.g2pId == "g2p-cmn-custom");
-    REQUIRE(input.g2pContext == "vb_singer");
-    REQUIRE(input.g2pContextVersion.toString() == "3.0");
+    // V3-01: g2pContext = packageId + "__" + singerId; deprecated path
+    // yields empty g2pContextVersion.
+    REQUIRE(input.g2pContext == "pkg.vb-in__vb_singer");
+    REQUIRE(input.g2pContextVersion.toString() == "0.0");
 
     std::filesystem::remove_all(root);
 }
@@ -624,7 +632,8 @@ TEST_CASE("Integration: realistic multi-singer multi-language voicebank director
     REQUIRE(routeCn.hasValue());
     REQUIRE(routeCn->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(routeCn->g2pId == "g2p-cmn-custom");
-    REQUIRE(routeCn->g2pContextVersion.toString() == "1.0");
+    // V3-01: deprecated path yields empty g2pContextVersion.
+    REQUIRE(routeCn->g2pContextVersion.toString() == "0.0");
 
     // EN singer: official G2P
     auto routeEn = langSvc.resolveLanguageRoute("vb.en", "en_singer", "en");
@@ -636,22 +645,24 @@ TEST_CASE("Integration: realistic multi-singer multi-language voicebank director
     auto routeBiCmn = langSvc.resolveLanguageRoute("vb.bi", "bi_singer", "cmn");
     REQUIRE(routeBiCmn.hasValue());
     REQUIRE(routeBiCmn->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
-    REQUIRE(routeBiCmn->g2pContextVersion.toString() == "2.0");
+    // V3-01: deprecated path yields empty g2pContextVersion.
+    REQUIRE(routeBiCmn->g2pContextVersion.toString() == "0.0");
 
     auto routeBiEn = langSvc.resolveLanguageRoute("vb.bi", "bi_singer", "en");
     REQUIRE(routeBiEn.hasValue());
     REQUIRE(routeBiEn->g2pSource == kG2pSourceOfficial);  // official (R7)
 
-    // Step 4: Construct G2pInputs (R7: g2pContext = singerId for voicebank, "" for official)
+    // Step 4: Construct G2pInputs.
+    // V3-01: voicebank g2pContext = packageId + "__" + singerId; official = "".
     std::vector<G2pInput> inputs;
     inputs.emplace_back("ni hao", routeCn->g2pId, routeCn->g2pContext, routeCn->g2pContextVersion);
     inputs.emplace_back("hello", routeEn->g2pId, routeEn->g2pContext, routeEn->g2pContextVersion);
     inputs.emplace_back("shi jie", routeBiCmn->g2pId, routeBiCmn->g2pContext, routeBiCmn->g2pContextVersion);
 
     REQUIRE(inputs.size() == 3);
-    REQUIRE(inputs[0].g2pContext == "cn_singer");   // voicebank: singerId
-    REQUIRE(inputs[1].g2pContext.empty());           // official: empty (R7, was "en_singer")
-    REQUIRE(inputs[2].g2pContext == "bi_singer");   // voicebank: singerId
+    REQUIRE(inputs[0].g2pContext == "vb.cn__cn_singer");   // voicebank: packageId__singerId
+    REQUIRE(inputs[1].g2pContext.empty());                  // official: empty (R7)
+    REQUIRE(inputs[2].g2pContext == "vb.bi__bi_singer");   // voicebank: packageId__singerId
 
     std::filesystem::remove_all(root);
 }
@@ -711,8 +722,8 @@ TEST_CASE("Integration: language with multiple G2P packages", "[integration][g2p
     auto route = langSvc.resolveLanguageRoute("pkg.mg2p2", "singer_mg2", "cmn");
     REQUIRE(route.hasValue());
     REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
-    // The route should carry the G2P version.
-    REQUIRE(route->g2pContextVersion.toString() == "1.0");
+    // V3-01: deprecated path yields empty g2pContextVersion.
+    REQUIRE(route->g2pContextVersion.toString() == "0.0");
 
     std::filesystem::remove_all(root);
 }

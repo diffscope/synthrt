@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <stdcorelib/support/versionnumber.h>
+
 #include <synthrt/Core/Support/Expected.h>
 
 #include <diffsinger/Bank/PackageStatus.h>
@@ -13,6 +15,15 @@
 #include <diffsinger/Bank/dsbank_global.h>
 
 namespace ds::bank {
+
+    /// One (version, path) entry returned by VoicebankScanner::packageDirectories().
+    /// Replaces the legacy single-path packageDirectory(packageId) API which
+    /// lost version info: multi-version same-packageId voicebanks can now
+    /// coexist (V3-01 §1.6, 5th layer discovered in reverse-verification).
+    struct DSBANK_EXPORT PackageDirectoryResult {
+        stdc::VersionNumber version;
+        std::filesystem::path path;
+    };
 
     /// VoicebankScanner — Scan voicebank directories, parse desc.json,
     /// build SingerSnapshot list.
@@ -58,9 +69,20 @@ namespace ds::bank {
             const std::string &packageId,
             const std::string &version) const;
 
-        /// Get the package directory for a packageId.
-        /// Needed by callers to open packages in Runtime and to
-        /// build the packageDirs map for LanguageService.
+        /// Get all (version, path) entries for a packageId. Multi-version
+        /// same-packageId voicebanks all survive in the returned vector, in the
+        /// order they were discovered during refresh(). Empty vector when the
+        /// packageId is unknown. This is the version-aware replacement for
+        /// packageDirectory(packageId) (V3-01 §1.6).
+        std::vector<PackageDirectoryResult> packageDirectories(
+            const std::string &packageId) const;
+
+        /// Legacy: get a single package directory for a packageId. Returns the
+        /// first matching entry discovered (or empty path when unknown).
+        /// Multi-version same-packageId voicebanks collapse to one entry here —
+        /// callers needing full version isolation must migrate to
+        /// packageDirectories(packageId).
+        [[deprecated("Use packageDirectories(packageId). Will be removed in Level=3.")]]
         std::filesystem::path packageDirectory(
             const std::string &packageId) const;
 

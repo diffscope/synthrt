@@ -1,6 +1,7 @@
 #include <synthrt/G2P/LanguageService.h>
 
 #include <algorithm>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -105,11 +106,38 @@ namespace srt::g2p {
             }
             return route;
         }
+
+        // Builds the voicebank G2P context name for (packageId, singerId).
+        // V3-01 §2.4: context = packageId + "__" + singerId (non-empty) so
+        // that multi-version same-packageId voicebanks get distinct
+        // ContextKeys when paired with the voicebank version. Composed only
+        // for voicebank private G2P; official G2P uses kOfficialContext.
+        //
+        // Separator choice: the spec originally proposed ":" but
+        // ContextUtils::validateContextName only allows [A-Za-z0-9_.-] because
+        // ":" is reserved for FQID separation ("context@version:moduleId").
+        // "__" (double underscore) is allowed, unlikely to appear at the
+        // boundary of packageId/singerId in practice, and keeps the context
+        // name parseable for diagnostics. The context name itself is opaque
+        // (never parsed back — isolation is driven by the (context, version)
+        // ContextKey pair, not by splitting the context name).
+        std::string voicebankContextName(const std::string &packageId,
+                                         const std::string &singerId) {
+            return packageId + "__" + singerId;
+        }
     } // namespace
 
     class LanguageService::Impl {
     public:
-        std::unordered_map<std::string, std::filesystem::path> packageDirs;
+        // Multi-version storage (V3-01). Key = (packageId, version), value =
+        // package directory path. std::map chosen for predictable iteration
+        // order (deterministic G2P context registration order, useful for
+        // diagnostics). The legacy unordered_map<string, path> collapsed
+        // same-packageId entries to the last seen; this map preserves all
+        // versions.
+        std::map<std::pair<std::string, stdc::VersionNumber>,
+                 std::filesystem::path>
+            packageDirs;
 
         // PackageManifest cache (R2+R3). Key = utf8-encoded packageDir path.
         // Avoids re-parsing desc.json on every resolveLanguageRoute() call;
@@ -118,7 +146,7 @@ namespace srt::g2p {
         mutable std::shared_mutex manifestCacheMutex;
         mutable std::unordered_map<std::string, ds::bank::PackageManifest> manifestCache;
 
-        // S2P resource cache (keyed by "packageId/singerId/languageId").
+        // S2P resource cache (V3-01: key now includes version.toString()).
         // LanguageResource is move-only, so we store shared_ptr for safe
         // shared access across threads.
         mutable std::shared_mutex s2pCacheMutex;
@@ -129,19 +157,61 @@ namespace srt::g2p {
         bool metadataReady = false;
         bool modelsReady = false;
 
-        /// Get or parse the PackageManifest for a packageId (thread-safe, cached).
-        /// Returns a non-owning pointer valid for the lifetime of this Impl
-        /// (the cache is never evicted). On parse failure returns the Error.
+        /// Find all (version, path) entries for a packageId, in map iteration
+        /// order (sorted by version). Empty vector when packageId is unknown.
+        std::vector<std::pair<stdc::VersionNumber, std::filesystem::path>>
+        findPackages(const std::string &packageId) const {
+            std::vector<std::pair<stdc::VersionNumber, std::filesystem::path>> result;
+            for (const auto &kv : packageDirs) {
+                if (kv.first.first == packageId) {
+                    result.emplace_back(kv.first.second, kv.second);
+                }
+            }
+            return result;
+        }
+
+        /// Find exact (packageId, version) -> path. Returns nullptr if missing.
+        const std::filesystem::path *
+        findPackage(const std::string &packageId,
+                    const stdc::VersionNumber &version) const {
+            const auto it = packageDirs.find({packageId, version});
+            if (it == packageDirs.end()) return nullptr;
+            return &it->second;
+        }
+
+        /// Get or parse the PackageManifest for a (packageId, version) tuple
+        /// (thread-safe, cached). Returns a non-owning pointer valid for the
+        /// lifetime of this Impl (the cache is never evicted). On parse
+        /// failure returns the Error.
         srt::core::Expected<const ds::bank::PackageManifest *>
-        getManifest(const std::string &packageId) const {
-            const auto dirIt = packageDirs.find(packageId);
-            if (dirIt == packageDirs.end()) {
+        getManifest(const std::string &packageId,
+                    const stdc::VersionNumber &version) const {
+            const auto *pathPtr = findPackage(packageId, version);
+            if (!pathPtr) {
                 return srt::core::Error::g2pError(
                     srt::core::ErrorCode::G2pPackageNotFound,
-                    "package directory not found for packageId: " + packageId,
+                    "package directory not found for packageId=" + packageId +
+                        ", version=" + version.toString(),
                     {}, packageId);
             }
-            const auto &packageDir = dirIt->second;
+            return getManifestByPath(*pathPtr);
+        }
+
+        /// Legacy: get manifest for packageId with empty version. Used by the
+        /// deprecated code paths where version is unknown. With multi-version
+        /// same-packageId entries this returns G2pPackageNotFound — callers
+        /// should migrate to the version-aware overload.
+        srt::core::Expected<const ds::bank::PackageManifest *>
+        getManifest(const std::string &packageId) const {
+            return getManifest(packageId, stdc::VersionNumber());
+        }
+
+        /// Get or parse manifest by exact directory path (cache key = utf8
+        /// path, unchanged from v2). Public on Impl because Impl is a private
+        /// inner class of LanguageService — its public surface is only
+        /// accessible to LanguageService members.
+        srt::core::Expected<const ds::bank::PackageManifest *>
+        getManifestByPath(const std::filesystem::path &packageDir) const {
             const auto dirKey = stdc::path::to_utf8(packageDir);
 
             // Check cache (read lock).
@@ -173,10 +243,25 @@ namespace srt::g2p {
     srt::core::Expected<void> LanguageService::initializeMetadata(
         const std::vector<std::filesystem::path> &pluginSearchPaths,
         const std::vector<std::filesystem::path> &officialG2pPackagePaths,
-        const std::unordered_map<std::string, std::filesystem::path> &packageDirs) {
+        const std::vector<PackageDirectoryEntry> &packageDirs) {
 
-        // Store packageDirs for later resolveLanguageRoute() / convert() calls.
-        _impl->packageDirs = packageDirs;
+        // Build the multi-version packageDirs map, detecting duplicate
+        // (packageId, version) entries (V3-01 §2.2 / §六). Duplicate detection
+        // is the caller's responsibility via VoicebankScanner/PackageCatalog;
+        // we still check here to fail fast and avoid silent overwrites.
+        _impl->packageDirs.clear();
+        for (const auto &entry : packageDirs) {
+            const auto key = std::make_pair(entry.packageId, entry.version);
+            if (_impl->packageDirs.find(key) != _impl->packageDirs.end()) {
+                return srt::core::Error::packageError(
+                    srt::core::ErrorCode::PackageDuplicate,
+                    "duplicate (packageId, version) in initializeMetadata: packageId=" +
+                        entry.packageId + ", version=" + entry.version.toString() +
+                        ", path=" + stdc::path::to_utf8(entry.path),
+                    entry.packageId);
+            }
+            _impl->packageDirs.emplace(key, entry.path);
+        }
 
         auto mgr = srt::g2p::Manager::instance();
 
@@ -219,10 +304,24 @@ namespace srt::g2p {
         // are reported via srtWarning but do not interrupt the loop (ER-03).
         // Uses the manifest cache (R3) so this shares parse work with
         // resolveLanguageRoute().
+        //
+        // V3-01 §2.4 context naming change:
+        //   - voicebank G2P: context = packageId + "__" + singerId (non-empty)
+        //     + version = voicebank package version (non-empty for the new
+        //     overload) → versioned ContextKey, satisfies PackageManager R-8/R-9.
+        //     ("__" instead of ":" because validateContextName forbids ":" —
+        //     reserved for FQID separation. See voicebankContextName() comment.)
+        //   - When voicebank version is empty (deprecated path): use the 2-arg
+        //     addPackagePath(context, path) overload → unversioned ContextKey
+        //     (non-empty context + empty version), also R-8/R-9 compliant.
+        //   - official G2P: unchanged (kOfficialContext + 2-arg addPackagePath
+        //     registered in Stage 1.2).
         for (const auto &kv : _impl->packageDirs) {
-            const auto &packageId = kv.first;
+            const auto &packageId = kv.first.first;
+            const auto &voicebankVersion = kv.first.second;
+            const auto &packageDir = kv.second;
 
-            auto manifestExp = _impl->getManifest(packageId);
+            auto manifestExp = _impl->getManifestByPath(packageDir);
             if (!manifestExp) {
                 langSvcLog.srtWarning("failed to parse package for G2P registration: %1: %2",
                                       packageId,
@@ -246,23 +345,26 @@ namespace srt::g2p {
                         continue;
                     }
 
-                    const auto version = route.g2pPackageVersion.empty()
-                        ? stdc::VersionNumber()
-                        : stdc::VersionNumber::fromString(route.g2pPackageVersion);
+                    const auto context = voicebankContextName(packageId, route.singerId);
                     for (const auto &g2pPath : route.g2pPackages) {
-                        if (version.isEmpty()) {
-                            auto addExp = mgr->addPackagePath(route.singerId, g2pPath);
+                        if (voicebankVersion.isEmpty()) {
+                            // Deprecated path (empty voicebank version):
+                            // unversioned context — non-empty context + empty
+                            // version via the 2-arg overload.
+                            auto addExp = mgr->addPackagePath(context, g2pPath);
                             if (!addExp) {
-                                langSvcLog.srtWarning("addPackagePath failed for singer %1, path %2: %3",
-                                                      route.singerId,
+                                langSvcLog.srtWarning("addPackagePath failed for context %1, path %2: %3",
+                                                      context,
                                                       stdc::path::to_utf8(g2pPath),
                                                       addExp.error().message());
                             }
                         } else {
-                            auto addExp = mgr->addPackagePath(route.singerId, version, g2pPath);
+                            // Version-aware path: versioned context — non-empty
+                            // context + non-empty voicebank version.
+                            auto addExp = mgr->addPackagePath(context, voicebankVersion, g2pPath);
                             if (!addExp) {
-                                langSvcLog.srtWarning("addPackagePath failed for singer %1, version %2, path %3: %4",
-                                                      route.singerId, route.g2pPackageVersion,
+                                langSvcLog.srtWarning("addPackagePath failed for context %1, version %2, path %3: %4",
+                                                      context, voicebankVersion.toString(),
                                                       stdc::path::to_utf8(g2pPath),
                                                       addExp.error().message());
                             }
@@ -274,6 +376,206 @@ namespace srt::g2p {
 
         _impl->metadataReady = true;
         return {};
+    }
+
+    srt::core::Expected<PackageDirectoryDiff> LanguageService::updateMetadata(
+        const std::vector<std::filesystem::path> &pluginSearchPaths,
+        const std::vector<std::filesystem::path> &officialG2pPackagePaths,
+        const std::vector<PackageDirectoryEntry> &packageDirs) {
+
+        // V3-16 hot reload: incremental metadata update. The plugin search
+        // paths and official G2P package paths are accepted for API symmetry
+        // with initializeMetadata() but are NOT applied here — changing them
+        // after the Manager singleton has seen them requires a process restart
+        // (documented hot-reload limitation). Only voicebank G2P contexts are
+        // updated incrementally.
+        (void)pluginSearchPaths;
+        (void)officialG2pPackagePaths;
+
+        // Guard: must be in metadata-only state (no initializeModels yet).
+        // Manager::initialize() makes contexts immutable; an incremental update
+        // after that would leave retired contexts in place and silently fail to
+        // register new ones, so we reject the call up front.
+        if (_impl->modelsReady) {
+            return srt::core::Error(
+                srt::core::ErrorCode::G2pAlreadyInitialized,
+                "updateMetadata: Manager::initialize() already called; "
+                "incremental update requires metadata-only state. "
+                "Restart the host process for G2P changes.");
+        }
+        if (!_impl->metadataReady) {
+            return srt::core::Error(
+                srt::core::ErrorCode::G2pInitializationError,
+                "updateMetadata: initializeMetadata() must be called first.");
+        }
+
+        // 1. Build the new packageDirs map with duplicate detection. Duplicate
+        //    (packageId, version) pairs in the input are a caller bug; fail
+        //    fast rather than silently overwriting.
+        std::map<std::pair<std::string, stdc::VersionNumber>, std::filesystem::path> next;
+        for (const auto &entry : packageDirs) {
+            const auto key = std::make_pair(entry.packageId, entry.version);
+            if (next.find(key) != next.end()) {
+                return srt::core::Error::packageError(
+                    srt::core::ErrorCode::PackageDuplicate,
+                    "duplicate (packageId, version) in updateMetadata: packageId=" +
+                        entry.packageId + ", version=" + entry.version.toString(),
+                    entry.packageId);
+            }
+            next.emplace(key, entry.path);
+        }
+
+        // 2. Compute the diff against the currently-registered packageDirs.
+        //    Map iteration order is deterministic (std::map keyed by
+        //    (string, VersionNumber)), so diff.added / diff.removed /
+        //    diff.unchanged are deterministic for diagnostics and tests.
+        PackageDirectoryDiff diff;
+        for (const auto &kv : next) {
+            if (_impl->packageDirs.find(kv.first) == _impl->packageDirs.end()) {
+                diff.added.push_back(
+                    {kv.first.first, kv.first.second, kv.second});
+            } else {
+                diff.unchanged.push_back(
+                    {kv.first.first, kv.first.second, kv.second});
+            }
+        }
+        for (const auto &kv : _impl->packageDirs) {
+            if (next.find(kv.first) == next.end()) {
+                diff.removed.push_back(
+                    {kv.first.first, kv.first.second, kv.second});
+            }
+        }
+
+        auto mgr = srt::g2p::Manager::instance();
+
+        // 3. Remove retired voicebank G2P contexts. The context name is
+        //    "packageId__singerId" (see voicebankContextName), so the prefix
+        //    "packageId__" matches every singer under that packageId at every
+        //    version. Failures here are non-fatal: a leftover context is
+        //    unused once packageDirs no longer references it, so we log and
+        //    continue with the remaining removals.
+        for (const auto &entry : diff.removed) {
+            const auto prefix = entry.packageId + "__";
+            auto rmExp = mgr->removeContextsByPrefix(prefix);
+            if (!rmExp) {
+                langSvcLog.srtWarning("removeContextsByPrefix failed for prefix %1: %2",
+                                      prefix, rmExp.error().message());
+            }
+        }
+
+        // 4. Invalidate manifest cache and S2P cache for removed entries.
+        //    Manifest cache key = utf8 package dir path; S2P cache key =
+        //    "packageId/version/singer/lang". Erasing forces a re-parse / re-
+        //    build on next access and prevents stale entries from surfacing
+        //    after a package is replaced or removed.
+        {
+            std::unique_lock<std::shared_mutex> lock(_impl->manifestCacheMutex);
+            for (const auto &entry : diff.removed) {
+                const auto key = stdc::path::to_utf8(entry.path);
+                _impl->manifestCache.erase(key);
+            }
+        }
+        {
+            std::unique_lock<std::shared_mutex> lock(_impl->s2pCacheMutex);
+            for (const auto &entry : diff.removed) {
+                const auto prefix =
+                    entry.packageId + "/" + entry.version.toString() + "/";
+                for (auto it = _impl->s2pCache.begin();
+                     it != _impl->s2pCache.end();) {
+                    if (it->first.size() >= prefix.size() &&
+                        it->first.compare(0, prefix.size(), prefix) == 0) {
+                        it = _impl->s2pCache.erase(it);
+                    } else {
+                        ++it;
+                    }
+                }
+            }
+        }
+
+        // 5. Register added voicebank G2P contexts (mirrors Stage 1.3 of
+        //    initializeMetadata). Per-package errors are logged and do not
+        //    interrupt the loop (ER-03: non-default-context failures only
+        //    mark the context Failed). The manifest cache is shared with
+        //    resolveLanguageRoute(), so added entries become immediately
+        //    resolvable once this call returns.
+        for (const auto &entry : diff.added) {
+            auto manifestExp = _impl->getManifestByPath(entry.path);
+            if (!manifestExp) {
+                langSvcLog.srtWarning("failed to parse package for G2P registration: %1: %2",
+                                      entry.packageId,
+                                      manifestExp.error().message());
+                continue;
+            }
+            const auto &package = **manifestExp;
+
+            for (const auto &singer : package.singers()) {
+                for (const auto &lang : singer.languages()) {
+                    auto routeExp = resolveG2pRoute(
+                        package, singer.singerId(), lang.languageId());
+                    if (!routeExp) {
+                        langSvcLog.srtWarning("failed to resolve G2P route for singer %1, lang %2: %3",
+                                              singer.singerId(), lang.languageId(),
+                                              routeExp.error().message());
+                        continue;
+                    }
+                    const auto &route = *routeExp;
+                    if (!route.voicebankContext) {
+                        continue;
+                    }
+
+                    const auto context =
+                        voicebankContextName(entry.packageId, route.singerId);
+                    for (const auto &g2pPath : route.g2pPackages) {
+                        if (entry.version.isEmpty()) {
+                            // Deprecated path (empty voicebank version):
+                            // unversioned context — non-empty context + empty
+                            // version via the 2-arg overload.
+                            auto addExp = mgr->addPackagePath(context, g2pPath);
+                            if (!addExp) {
+                                langSvcLog.srtWarning("addPackagePath failed for context %1, path %2: %3",
+                                                      context,
+                                                      stdc::path::to_utf8(g2pPath),
+                                                      addExp.error().message());
+                            }
+                        } else {
+                            // Version-aware path: versioned context — non-empty
+                            // context + non-empty voicebank version.
+                            auto addExp = mgr->addPackagePath(context, entry.version, g2pPath);
+                            if (!addExp) {
+                                langSvcLog.srtWarning("addPackagePath failed for context %1, version %2, path %3: %4",
+                                                      context, entry.version.toString(),
+                                                      stdc::path::to_utf8(g2pPath),
+                                                      addExp.error().message());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 6. Swap in the new packageDirs. From this point resolveLanguageRoute
+        //    / findPackages / findPackage observe the new set.
+        _impl->packageDirs = std::move(next);
+
+        return diff;
+    }
+
+    srt::core::Expected<void> LanguageService::initializeMetadata(
+        const std::vector<std::filesystem::path> &pluginSearchPaths,
+        const std::vector<std::filesystem::path> &officialG2pPackagePaths,
+        const std::unordered_map<std::string, std::filesystem::path> &packageDirs) {
+
+        // Deprecated path (V3-01 §2.2): build a vector<PackageDirectoryEntry>
+        // with empty version for each map entry and delegate to the new
+        // overload. Multi-version same-packageId callers have already
+        // collapsed to one entry in the map (last wins), so this is silently
+        // lossy — callers should migrate to the version-aware overload.
+        std::vector<PackageDirectoryEntry> entries;
+        entries.reserve(packageDirs.size());
+        for (const auto &kv : packageDirs) {
+            entries.push_back(PackageDirectoryEntry{kv.first, stdc::VersionNumber(), kv.second});
+        }
+        return initializeMetadata(pluginSearchPaths, officialG2pPackagePaths, entries);
     }
 
     srt::core::Expected<void> LanguageService::initializeModels() {
@@ -310,6 +612,11 @@ namespace srt::g2p {
         const std::vector<std::filesystem::path> &officialG2pPackagePaths,
         const std::unordered_map<std::string, std::filesystem::path> &packageDirs) {
 
+        // Delegate through the deprecated initializeMetadata overload; it
+        // forwards to the version-aware overload with empty version. This
+        // wrapper itself is not deprecated (legacy hosts call it), so the
+        // deprecation warning is intentionally emitted only at the direct
+        // call sites of initializeMetadata(map).
         auto exp1 = initializeMetadata(pluginSearchPaths, officialG2pPackagePaths, packageDirs);
         if (!exp1) {
             return exp1;
@@ -331,11 +638,56 @@ namespace srt::g2p {
 
     srt::core::Expected<LanguageRoute> LanguageService::resolveLanguageRoute(
         const std::string &packageId,
+        const stdc::VersionNumber &version,
         const std::string &singerId,
         const std::string &languageId) const {
 
+        // V3-01 §2.5 route resolution strategy.
+        // Resolve the package directory (and effective voicebank version)
+        // according to the requested version.
+        std::filesystem::path packageDir;
+        stdc::VersionNumber effectiveVersion = version;
+        if (version.isEmpty()) {
+            // Empty version: enumerate all entries for this packageId.
+            const auto candidates = _impl->findPackages(packageId);
+            if (candidates.empty()) {
+                return srt::core::Error::g2pError(
+                    srt::core::ErrorCode::G2pPackageNotFound,
+                    "package directory not found for packageId=" + packageId,
+                    {}, packageId);
+            }
+            if (candidates.size() > 1) {
+                // V3-10: ambiguous — list all candidate versions+paths.
+                std::string msg =
+                    "packageId=" + packageId + " has multiple versions; "
+                    "provide a version to disambiguate. Candidates: ";
+                for (size_t i = 0; i < candidates.size(); ++i) {
+                    if (i != 0) msg += ", ";
+                    msg += candidates[i].first.toString() + " (" +
+                           stdc::path::to_utf8(candidates[i].second) + ")";
+                }
+                return srt::core::Error::g2pError(
+                    srt::core::ErrorCode::G2pVersionAmbiguous,
+                    std::move(msg), {}, packageId);
+            }
+            // Single match — use it (backward compat with single-version).
+            packageDir = candidates.front().second;
+            effectiveVersion = candidates.front().first;
+        } else {
+            // Non-empty version: precise lookup.
+            const auto *pathPtr = _impl->findPackage(packageId, version);
+            if (!pathPtr) {
+                return srt::core::Error::g2pError(
+                    srt::core::ErrorCode::G2pPackageNotFound,
+                    "package directory not found for packageId=" + packageId +
+                        ", version=" + version.toString(),
+                    {}, packageId);
+            }
+            packageDir = *pathPtr;
+        }
+
         // Use the manifest cache (R2): parse once, reuse on subsequent calls.
-        auto manifestExp = _impl->getManifest(packageId);
+        auto manifestExp = _impl->getManifestByPath(packageDir);
         if (!manifestExp) {
             return manifestExp.takeError();
         }
@@ -385,12 +737,20 @@ namespace srt::g2p {
 
         LanguageRoute result;
         result.g2pId = languageIt->g2pId();
-        // g2pContext: empty (= kOfficialContext) for official G2P, singerId for
-        // voicebank private G2P (R7).
-        result.g2pContext = hasG2pPackages ? singerIt->singerId()
-                                          : srt::g2p::kOfficialContext;
-        result.g2pContextVersion = languageIt->hasG2pPackageVersion()
-            ? languageIt->g2pPackageVersion()
+        // V3-01 §2.4 context naming:
+        //   - voicebank private G2P: context = "packageId__singerId" (non-empty)
+        //     so multi-version same-packageId voicebanks get distinct
+        //     ContextKeys when paired with the voicebank version.
+        //   - official G2P: context = kOfficialContext (empty).
+        result.g2pContext = hasG2pPackages
+            ? voicebankContextName(packageId, singerIt->singerId())
+            : srt::g2p::kOfficialContext;
+        // V3-01 §2.4: g2pContextVersion = voicebank package version (NOT the
+        // G2P subpackage g2pPackageVersion, which is independent and could
+        // collide between voicebank versions). For official G2P the version
+        // is empty (kOfficialContext is unversioned).
+        result.g2pContextVersion = hasG2pPackages
+            ? effectiveVersion
             : stdc::VersionNumber();
         // g2pSource: "voicebank" when voicebank private G2P packages exist,
         // "official" otherwise (R7).
@@ -403,11 +763,29 @@ namespace srt::g2p {
         return result;
     }
 
+    srt::core::Expected<LanguageRoute> LanguageService::resolveLanguageRoute(
+        const std::string &packageId,
+        const std::string &singerId,
+        const std::string &languageId) const {
+        // Deprecated path (V3-01 §2.3): delegate to the version-aware overload
+        // with an empty version. Multi-version same-packageId scenarios return
+        // G2pVersionAmbiguous from the new overload.
+        return resolveLanguageRoute(packageId, stdc::VersionNumber(), singerId, languageId);
+    }
+
     srt::core::Expected<std::shared_ptr<srt::s2p::LanguageResource>>
     LanguageService::resolveS2pResource(const std::string &packageId,
                                         const std::string &singerId,
                                         const std::string &languageId) const {
-        const auto key = packageId + "/" + singerId + "/" + languageId;
+        // V3-01 §2.4: S2P cache key now includes version.toString() so that
+        // multi-version same-packageId voicebanks get independent cache slots.
+        // This overload has no version parameter — it routes via the
+        // single-version path internally (empty version), producing
+        // "pkg//singer/lang" which is fine for backward compat with the
+        // single-version scenario.
+        const stdc::VersionNumber version;
+        const auto key = packageId + "/" + version.toString() +
+                         "/" + singerId + "/" + languageId;
 
         // Check cache (read lock).
         {
@@ -418,8 +796,8 @@ namespace srt::g2p {
             }
         }
 
-        // Resolve route (reuses resolveLanguageRoute logic).
-        auto routeExp = resolveLanguageRoute(packageId, singerId, languageId);
+        // Resolve route (reuses resolveLanguageRoute logic, empty version).
+        auto routeExp = resolveLanguageRoute(packageId, version, singerId, languageId);
         if (!routeExp) {
             return routeExp.takeError();
         }
@@ -468,18 +846,40 @@ namespace srt::g2p {
 
     srt::core::Expected<std::vector<srt::g2p::G2pRes>> LanguageService::convert(
         const std::string &packageId,
+        const stdc::VersionNumber &version,
         const std::string &singerId,
         const std::string &languageId,
         const std::vector<srt::g2p::G2pInput> &inputs) const {
-        // Route resolution failure → propagate the error.
-        auto routeExp = resolveLanguageRoute(packageId, singerId, languageId);
+        // V3-01 §2.6: LanguageService is the route authority — fill each
+        // input's g2pId / g2pContext / g2pContextVersion from the resolved
+        // route, overwriting caller-supplied values, so Manager::convert can
+        // route to the correct context.
+        auto routeExp = resolveLanguageRoute(packageId, version, singerId, languageId);
         if (!routeExp) {
             return routeExp.takeError();
+        }
+        const auto &route = *routeExp;
+
+        std::vector<G2pInput> routed = inputs;
+        for (auto &in : routed) {
+            in.g2pId = route.g2pId;
+            in.g2pContext = route.g2pContext;
+            in.g2pContextVersion = route.g2pContextVersion;
         }
         // Conversion results may contain per-lyric errors (G2pRes::isFailed());
         // callers inspect each result rather than treating the whole call as
         // failed (R6: don't lose error details by collapsing to bool).
-        return convertLyric(inputs);
+        return convertLyric(routed);
+    }
+
+    srt::core::Expected<std::vector<srt::g2p::G2pRes>> LanguageService::convert(
+        const std::string &packageId,
+        const std::string &singerId,
+        const std::string &languageId,
+        const std::vector<srt::g2p::G2pInput> &inputs) const {
+        // Deprecated path (V3-01 §2.6): delegate to the version-aware overload
+        // with an empty version.
+        return convert(packageId, stdc::VersionNumber(), singerId, languageId, inputs);
     }
 
 } // namespace srt::g2p

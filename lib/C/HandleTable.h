@@ -28,6 +28,9 @@
 
 #include <synthrt/C/srt.h>
 
+#include <synthrt/Core/Core/Runtime.h>
+#include <synthrt/G2P/LanguageService.h>
+
 #include <diffsinger/Session/VoicebankSession.h>
 #include <diffsinger/Session/ModelSetHandle.h>
 
@@ -111,7 +114,24 @@ private:
 //
 // These are the concrete objects backing each opaque handle. WP8 connects
 // VoicebankSession (real C++ API) into SessionData, ModelSetHandle into
-// ModelData, and shared_future<RefreshResult> into TaskData.
+// ModelData, and shared_future<RefreshResult> into TaskData. WP6 (v3) adds
+// RuntimeData / LanguageServiceData for the borrowed-resource session factory.
+
+struct RuntimeData {
+    RuntimeData() = default;
+    ~RuntimeData() = default;
+
+    // Real Runtime — thread-safe (has its own internal mutex).
+    srt::core::Runtime runtime;
+};
+
+struct LanguageServiceData {
+    LanguageServiceData() = default;
+    ~LanguageServiceData() = default;
+
+    // Real LanguageService — thread-safe after initialize().
+    srt::g2p::LanguageService languageService;
+};
 
 struct SessionData {
     SessionData() = default;
@@ -183,6 +203,8 @@ struct TaskData {
 // Global handle table accessors (defined in HandleTable.cpp)
 // --------------------------------------------------------------------------
 
+HandleTable<RuntimeData> &runtimeTable();
+HandleTable<LanguageServiceData> &languageServiceTable();
 HandleTable<SessionData> &sessionTable();
 HandleTable<ModelData> &modelTable();
 HandleTable<TaskData> &taskTable();
@@ -194,6 +216,20 @@ HandleTable<TaskData> &taskTable();
 // The C ABI opaque pointer encodes the HandleId directly. This makes destroy
 // stable: after destroy the same pointer value maps to a missing entry and
 // the caller gets SRT_ERR_INVALID_HANDLE instead of a use-after-free.
+
+inline HandleId decodeRuntimeHandle(const srt_RuntimeHandle *h) {
+    return reinterpret_cast<HandleId>(h);
+}
+inline srt_RuntimeHandle *encodeRuntimeHandle(HandleId id) {
+    return reinterpret_cast<srt_RuntimeHandle *>(id);
+}
+
+inline HandleId decodeLanguageServiceHandle(const srt_LanguageServiceHandle *h) {
+    return reinterpret_cast<HandleId>(h);
+}
+inline srt_LanguageServiceHandle *encodeLanguageServiceHandle(HandleId id) {
+    return reinterpret_cast<srt_LanguageServiceHandle *>(id);
+}
 
 inline HandleId decodeSessionHandle(const srt_SessionHandle *h) {
     return reinterpret_cast<HandleId>(h);

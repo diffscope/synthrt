@@ -8,6 +8,16 @@
 
 namespace srt::c_api {
 
+HandleTable<RuntimeData> &runtimeTable() {
+    static HandleTable<RuntimeData> table;
+    return table;
+}
+
+HandleTable<LanguageServiceData> &languageServiceTable() {
+    static HandleTable<LanguageServiceData> table;
+    return table;
+}
+
 HandleTable<SessionData> &sessionTable() {
     static HandleTable<SessionData> table;
     return table;
