@@ -171,8 +171,15 @@ namespace ds::infer {
         if (candidates.size() == 1) {
             singerSpec = candidates.front();
         } else {
+            // Multiple singers match the (packageId, singerId, version)
+            // tuple — the caller must supply packageId/version to disambiguate.
+            // Per D-32/K-06: multi-version/multi-package ambiguity must be
+            // rejected explicitly, not silently resolved to one of them. Use
+            // SvsSingerAmbiguous (mirrors G2pVersionAmbiguous on the G2P side)
+            // rather than SvsSingerNotFound, since the singer WAS found — there
+            // are just too many matches.
             return srt::core::Error::inferenceError(
-                srt::core::ErrorCode::SvsSingerNotFound,
+                srt::core::ErrorCode::SvsSingerAmbiguous,
                 "ambiguous singer: multiple singers with singerId=" + singerId +
                     " loaded for packageId=" + packageId + ", version=" +
                     version + "; provide packageId/version to disambiguate",

@@ -303,3 +303,55 @@
 2. **Lite PackageCatalog 双源**：Lite 当前 `PackageCatalog` 是唯一的快照权威；Session snapshot 需提供完整超集才能逐步替代。Phase 2 处理。
 3. **`__has_include` 惰性分支**：Lite 中 `m_sessionV2` / `setVoicebankSession` 存在但 inert。必须确保 Session header 安装后不被意外激活。Phase 2 处理。
 4. **ModelSetHandle isStale()**：已实现 generation 比较，`StaleModelSet` 错误码已存在。Lite 重试逻辑在 Phase 2 adapter 实现。
+
+### D-40：Runtime::loadPackage 部分失败回滚
+
+**背景**: 结合 `ds-editor-lite` 实际调用模式扫描隐藏 bug 时发现，`Runtime::loadPackage` 在加载一个 voicebank 包的多个 ModuleSpec 时，若第 N 个 spec 加载失败，前 N-1 个已 `loadSpec(Ready)` 提交的 spec 会残留在对应 `ModuleCategory::Impl::modules` 列表中（raw pointer，`std::list<ModuleSpec *>`）。重试同一包时，`loadSpecBase(Initialized)` 的 duplicate-detection 会对残留 spec 触发 `PackageDuplicate`，导致用户必须重启进程才能恢复。附带 bug：duplicate-detection 错误路径上 `parseSpec` 已构造但未 `loadSpec(Deleted)` 的 spec 未被 `delete`，造成内存泄漏。
+
+**决策**: 在 `Runtime::loadPackage` 内引入 `CommittedSpec` 向量跟踪已 `loadSpec(Ready)` 提交的 spec，并定义 `rollbackCommitted` lambda 逆序调用 `loadSpec(Deleted)` + `delete`。每个 pending spec 由 `std::unique_ptr` 持有，失败路径统一调用 `rollbackCommitted()`。成功路径 `committed.push_back` 后 `spec.release()`。`loadSpec(Ready)` 失败时先调用 `loadSpec(Deleted)` 移除 spec 再让 `unique_ptr` 析构释放。
+
+**约束对齐**:
+- ROBUST-05（禁止隐式错误吞没）：所有失败路径显式回滚，不再 `continue` 跳过失败项
+- ROBUST-01（Expected 传播）：错误仍通过 `Expected<void>` 上抛
+- D-11（v3 不改动 v2 已定稿公共接口签名）：仅修改 `loadPackage` 内部实现，公共签名不变
+- ARCH-02（错误码仅追加不重排）：未新增错误码
+
+**实现**: commit `93c0c92`。`lib/Core/Core/Runtime.cpp` 添加 `<memory>`/`<utility>` 头文件，引入 `CommittedSpec` 结构与 `rollbackCommitted` lambda。验证：`tst-ds-infer-catch2` 的 `[isolation]` 标签 8 cases / 52 assertions 全部通过（multi-version 共存、duplicate 检测、cross-package 解析均无回归）。
+
+### D-41：SvsSingerAmbiguous 错误码
+
+**背景**: `SingerStageResolver::resolve` 在 `(packageId, singerId, version)` 元组匹配到多个 singer 时返回 `SvsSingerNotFound`。语义错误——singer 被找到了，只是有多个匹配。这与 `SvsSingerNotFound`（singer 完全不存在）混淆，调用方无法区分"补全 packageId/version 即可恢复"与"singer 根本未注册"。`ds-editor-lite` 在多版本同 packageId 场景下若收到 `SvsSingerNotFound` 会展示"singer 不存在"，误导用户。
+
+**决策**: 新增 `ErrorCode::SvsSingerAmbiguous`（位于 SVS segment 末尾，ARCH-02 仅追加不重排），替换 `SingerStageResolver` ambiguous 分支的错误码。镜像 G2P 侧已有的 `G2pVersionAmbiguous` (321)，保持两侧语义对称。
+
+**约束对齐**:
+- D-32/K-06（多版本路由歧义必须显式拒绝，不静默取最后一个）
+- ROBUST-05（出错必须显式报错，错误码语义准确）
+- ARCH-02（错误码仅追加不重排）：`SvsSingerAmbiguous` 追加在 `SvsCategoryNotFound` 之后，不重排已有值；`errorCodeCategory` 使用范围检查（`>=600` => SVS），无需修改
+- D-11（v3 不改动 v2 已定稿公共接口签名）：`SingerStageResolver::resolve` 签名不变
+
+**实现**: commit `637f8aa`。修改 4 文件：`Diagnostic.h` 新增枚举值；`Error.cpp` 添加字符串映射 `"SVS::SingerAmbiguous"`；`SingerStageResolver.cpp` 替换 ambiguous 分支错误码；`test_singer_resolver_ambiguity.cpp` 更新 3 个测试断言（ambiguous 路径 `== SvsSingerAmbiguous`，disambiguation 成功路径 `!= SvsSingerAmbiguous`）。验证：`tst-ds-infer-catch2` 的 `[singer_resolver]` 标签 8 cases / 25 assertions 全部通过。
+
+**附带修复**: commit `22d9757`。`test_speaker_embedding_extreme.cpp:448` 使用 `REQUIRE(!exp.hasValue() || exp.hasValue())`——(a) 恒真断言，(b) Catch2 不支持 `||` 在 REQUIRE 内，导致整个 `tst-ds-infer-catch2` 目标编译失败，掩盖所有 ds-infer 单元测试（包括 SingerStageResolver 测试）。修复为与同文件 zero-hiddenSize 用例一致的分支模式。此为预存在 bug，非 D-41 引入，但阻塞 D-41 验证，故一并修复。
+
+### D-42：VoicebankSession::findSinger 多版本歧义拒绝
+
+**背景**: `VoicebankSession.cpp` 匿名命名空间内的 `findSinger` 在 `singerKey.version` 为空且 snapshot 中存在多个同 `(packageId, singerId)` 但不同 `version` 的 singer 时，静默返回第一个匹配的 singer 指针。这违反 D-32/K-06（多版本路由歧义必须显式拒绝）和 ROBUST-05（禁止隐式错误吞没），并导致以下隐藏 bug：`capabilitySummary` 返回错误 singer 的能力信息；`validatePhonemes` 基于错误 singer 的 effective phonemes 验证；`createModelSet` 可能选择错误 singer 进入推理；`convertG2p`/`convertS2p` 虽只做存在性检查但错误码语义不准确（应返回歧义错误而非后续 G2P 错误）。D-41 已在 `SingerStageResolver` 层处理歧义，但 snapshot 层更早的静默选择让 D-41 的保护在 `createModelSet` 路径下被绕过（resolve 收到的 version 是 singer->version 而非 key.version，但此时 singer 已经是错误选择的那个）。
+
+**决策**: 修改 `findSinger` 签名为 `Expected<const SingerSnapshot *>`，根据匹配数返回不同结果：
+- 0 匹配 → `SvsSingerNotFound`
+- >1 匹配且 `key.version` 为空 → `SvsSingerAmbiguous`（复用 D-41 错误码，保持 snapshot 层与 stage 层语义对称）
+- 恰好 1 匹配 → 返回 singer 指针
+
+5 个调用点（`capabilitySummary` / `convertG2p` / `convertS2p` / `validatePhonemes` / `createModelSet`）全部改为处理 `Expected`，在错误时显式构造 `Diagnostic`（携带 `packageId` + `singerId`）或返回 `Expected<...>` 错误，禁止继续使用错误 singer。
+
+**约束对齐**:
+- D-32/K-06（多版本路由歧义必须显式拒绝）：snapshot 层与 stage 层一致
+- ROBUST-05（禁止隐式错误吞没）：所有错误路径显式报错
+- D-11（v3 不改动 v2 已定稿公共接口签名）：`findSinger` 是匿名命名空间内部函数，签名可改；5 个公开方法签名不变
+- D-24（多版本共存）：同 packageId 不同 version 的 singer 在 snapshot 中共存，findSinger 不再因为 version 字段缺失而合并它们
+- ARCH-02（错误码仅追加不重排）：复用 D-41 已新增的 `SvsSingerAmbiguous`，不引入新错误码
+
+**实现**: commit `4146e5f`。修改 2 文件：`VoicebankSession.cpp` 重写 `findSinger` 函数体并更新 5 个调用点；`test_voicebank_session.cpp` 新增 `makeMultiVersionPackage` fixture（同 packageId="session.test"、singerId="test"、不同 version="2.0.0"）和 6 个 `[d42]` 测试用例（capabilitySummary/convertG2p/convertS2p/validatePhonemes/createModelSet 歧义拒绝 + capabilitySummary 显式 version 解析）。验证：`tst-ds-session` 全部 29 cases / 113 assertions 通过，无回归。
+
+**与 D-41 的关系**: D-41 修复 `SingerStageResolver`（stage 层）的歧义错误码语义；D-42 修复 `VoicebankSession::findSinger`（snapshot 层）的静默选择。两者共同构成多版本歧义的两层防护：snapshot 层先拒绝，stage 层兜底。`createModelSet` 路径下 snapshot 层的拒绝尤为关键——否则 `resolver.resolve(*rt, singer->ref.packageId, singer->ref.singerId, version)` 收到的 singer 已经是错误选择的那个，stage 层的 version 参数即使正确也无法纠正 snapshot 层的错误。

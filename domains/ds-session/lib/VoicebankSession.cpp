@@ -309,10 +309,17 @@ Availability toAvailability(AvailabilityLevel level) {
 }
 
 /// Find a singer snapshot by SingerRef. Matches packageId + singerId; an empty
-/// version in the key matches any version (backward compat). Returns nullptr
-/// when no singer matches.
-const ds::bank::SingerSnapshot *findSinger(const VoicebankSnapshot &snap,
-                                           const ds::bank::SingerRef &key) {
+/// version in the key matches any version (backward compat).
+///
+/// D-42/K-06: when the key omits version (or packageId) and multiple singers
+/// match, returns SvsSingerAmbiguous instead of silently picking the first
+/// one. This mirrors SingerStageResolver's ambiguous branch at the snapshot
+/// layer, so callers receive a consistent disambiguation signal whether the
+/// conflict surfaces at snapshot resolution or Runtime stage resolution.
+srt::core::Expected<const ds::bank::SingerSnapshot *>
+findSinger(const VoicebankSnapshot &snap, const ds::bank::SingerRef &key) {
+    const ds::bank::SingerSnapshot *firstMatch = nullptr;
+    int matchCount = 0;
     for (const auto &s : snap.singers) {
         if (s.ref.singerId != key.singerId)
             continue;
@@ -320,9 +327,29 @@ const ds::bank::SingerSnapshot *findSinger(const VoicebankSnapshot &snap,
             continue;
         if (!key.version.empty() && s.ref.version != key.version)
             continue;
-        return &s;
+        ++matchCount;
+        if (matchCount == 1) {
+            firstMatch = &s;
+        }
     }
-    return nullptr;
+    if (matchCount == 0) {
+        return srt::core::Error::inferenceError(
+            srt::core::ErrorCode::SvsSingerNotFound,
+            "singer not found in snapshot: " + key.toString(),
+            key.singerId);
+    }
+    if (matchCount > 1) {
+        // D-32/K-06: multi-version/multi-package ambiguity must be rejected
+        // explicitly, not silently resolved to the first match. Mirrors
+        // SvsSingerAmbiguous at the SingerStageResolver layer.
+        return srt::core::Error::inferenceError(
+            srt::core::ErrorCode::SvsSingerAmbiguous,
+            "ambiguous singer: " + std::to_string(matchCount) +
+                " singers match " + key.toString() +
+                "; provide a non-empty version to disambiguate",
+            key.singerId);
+    }
+    return firstMatch;
 }
 
 } // namespace
@@ -672,18 +699,19 @@ SingerCapabilitySummary VoicebankSession::capabilitySummary(const ds::bank::Sing
         summary.availability = Availability::Disabled;
         return summary;
     }
-    const auto *singer = findSinger(*snap, singerKey);
-    if (!singer) {
+    auto singerExp = findSinger(*snap, singerKey);
+    if (!singerExp.hasValue()) {
         summary.availability = Availability::Disabled;
         srt::core::Diagnostic d;
-        d.code = srt::core::ErrorCode::SvsSingerNotFound;
+        d.code = singerExp.error().code();
         d.severity = srt::core::Severity::Error;
-        d.message = "singer not found in snapshot: " + singerKey.toString();
+        d.message = singerExp.error().message();
         d.packageId = singerKey.packageId;
         d.singerId = singerKey.singerId;
         summary.diagnostics.push_back(std::move(d));
         return summary;
     }
+    const auto *singer = *singerExp;
     summary.availability = toAvailability(availabilityOf(*singer, snap->reservedPhonemes));
     // Prefer capabilityReport data when present; otherwise fall back to the
     // singer's flat lists (backward compat with singers that have no report).
@@ -721,10 +749,11 @@ srt::core::Expected<std::vector<srt::g2p::G2pRes>>
         return srt::core::Error(srt::core::ErrorCode::SessionError,
                                 "VoicebankSession::convertG2p: no snapshot available");
     }
-    if (!findSinger(*snap, singerKey)) {
+    auto singerExp = findSinger(*snap, singerKey);
+    if (!singerExp.hasValue()) {
         return srt::core::Error::inferenceError(
-            srt::core::ErrorCode::SvsSingerNotFound,
-            "VoicebankSession::convertG2p: singer not found: " + singerKey.toString(),
+            singerExp.error().code(),
+            "VoicebankSession::convertG2p: " + singerExp.error().message(),
             singerKey.singerId);
     }
     const auto svc = languageService();
@@ -752,10 +781,11 @@ srt::core::Expected<S2pResult>
         return srt::core::Error(srt::core::ErrorCode::SessionError,
                                 "VoicebankSession::convertS2p: no snapshot available");
     }
-    if (!findSinger(*snap, singerKey)) {
+    auto singerExp = findSinger(*snap, singerKey);
+    if (!singerExp.hasValue()) {
         return srt::core::Error::inferenceError(
-            srt::core::ErrorCode::SvsSingerNotFound,
-            "VoicebankSession::convertS2p: singer not found: " + singerKey.toString(),
+            singerExp.error().code(),
+            "VoicebankSession::convertS2p: " + singerExp.error().message(),
             singerKey.singerId);
     }
     const auto svc = languageService();
@@ -799,13 +829,14 @@ srt::core::Expected<void>
         return srt::core::Error(srt::core::ErrorCode::SessionError,
                                 "VoicebankSession::validatePhonemes: no snapshot available");
     }
-    const auto *singer = findSinger(*snap, singerKey);
-    if (!singer) {
+    auto singerExp = findSinger(*snap, singerKey);
+    if (!singerExp.hasValue()) {
         return srt::core::Error::inferenceError(
-            srt::core::ErrorCode::SvsSingerNotFound,
-            "VoicebankSession::validatePhonemes: singer not found: " + singerKey.toString(),
+            singerExp.error().code(),
+            "VoicebankSession::validatePhonemes: " + singerExp.error().message(),
             singerKey.singerId);
     }
+    const auto *singer = *singerExp;
     if (!singer->capabilityReport) {
         // Without a capability report we cannot prove phoneme support; report
         // a validation error rather than silently accepting (ROBUST-05).
@@ -855,13 +886,14 @@ srt::core::Expected<std::shared_ptr<ModelSetHandle>>
         return srt::core::Error(srt::core::ErrorCode::SessionError,
                                 "VoicebankSession::createModelSet: no snapshot available");
     }
-    const auto *singer = findSinger(*snap, singerKey);
-    if (!singer) {
+    auto singerExp = findSinger(*snap, singerKey);
+    if (!singerExp.hasValue()) {
         return srt::core::Error::inferenceError(
-            srt::core::ErrorCode::SvsSingerNotFound,
-            "VoicebankSession::createModelSet: singer not found: " + singerKey.toString(),
+            singerExp.error().code(),
+            "VoicebankSession::createModelSet: " + singerExp.error().message(),
             singerKey.singerId);
     }
+    const auto *singer = *singerExp;
     if (singer->resolutionState != ds::bank::ResolutionState::Resolved) {
         return srt::core::Error::inferenceError(
             srt::core::ErrorCode::SvsSingerNotLoaded,

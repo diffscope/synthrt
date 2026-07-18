@@ -33,6 +33,16 @@ void makeSecondPackage(const std::filesystem::path &root) {
     writeFile(bank2 / "characters/other/config.json", R"({"id":"other","imports":[{"inferenceId":"duration2"}],"configuration":{"defaultLanguage":"cmn","languages":[{"id":"cmn"}]}})");
     writeFile(bank2 / "inferences/duration2/config.json", R"({"id":"duration2","class":"ai.svs.DurationInference","configuration":{}})");
 }
+/// Create a sibling package with the SAME packageId + singerId as makePackage
+/// but a DIFFERENT version. Used to exercise D-42/K-06 multi-version ambiguity
+/// rejection in VoicebankSession::findSinger (the snapshot layer must not
+/// silently pick the first match when key.version is empty).
+void makeMultiVersionPackage(const std::filesystem::path &root) {
+    const auto bank2 = root / "bank_v2";
+    writeFile(bank2 / "desc.json", R"({"id":"session.test","version":"2.0.0","contributes":{"singers":["characters/test/config.json"],"inferences":["inferences/duration_v2/config.json"]}})");
+    writeFile(bank2 / "characters/test/config.json", R"({"id":"test","imports":[{"inferenceId":"duration_v2"}],"configuration":{"defaultLanguage":"cmn","languages":[{"id":"cmn"}]}})");
+    writeFile(bank2 / "inferences/duration_v2/config.json", R"({"id":"duration_v2","class":"ai.svs.DurationInference","configuration":{}})");
+}
 }
 
 TEST_CASE("VoicebankSession refresh returns the same final result as asynchronous refresh", "[ds-session]") {
@@ -457,5 +467,148 @@ TEST_CASE("VoicebankSession createModelSet returns error when Runtime has no sin
     ds::bank::SingerRef ref("session.test", "test");
     auto exp = session.createModelSet(ref);
     REQUIRE_FALSE(exp.hasValue());
+    std::filesystem::remove_all(root);
+}
+
+// ---------------------------------------------------------------------------
+// D-42 / K-06: multi-version same-(packageId, singerId) ambiguity rejection.
+//
+// When the snapshot contains two singers that share packageId + singerId but
+// differ in version, findSinger MUST NOT silently pick the first match. An
+// empty key.version must trigger SvsSingerAmbiguous; a non-empty key.version
+// must resolve unambiguously to the matching singer.
+// ---------------------------------------------------------------------------
+
+TEST_CASE("VoicebankSession capabilitySummary returns SvsSingerAmbiguous for multi-version singer", "[ds-session][wp4][d42]") {
+    const auto root = makeRoot();
+    makePackage(root);
+    makeMultiVersionPackage(root);
+    ds::session::VoicebankSession session;
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    // Empty version + multiple matching singers -> ambiguous.
+    ds::bank::SingerRef ref("session.test", "test");
+    const auto summary = session.capabilitySummary(ref);
+    REQUIRE(summary.availability == ds::session::Availability::Disabled);
+    REQUIRE_FALSE(summary.diagnostics.empty());
+    bool foundAmbiguous = false;
+    for (const auto &d : summary.diagnostics) {
+        if (d.code == srt::core::ErrorCode::SvsSingerAmbiguous) {
+            foundAmbiguous = true;
+            break;
+        }
+    }
+    REQUIRE(foundAmbiguous);
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("VoicebankSession capabilitySummary resolves multi-version singer by explicit version", "[ds-session][wp4][d42]") {
+    const auto root = makeRoot();
+    makePackage(root);
+    makeMultiVersionPackage(root);
+    ds::session::VoicebankSession session;
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    // Read the actual version string from the snapshot rather than hardcoding
+    // "2.0.0" — VersionNumber may normalize the string form (e.g. trim
+    // trailing ".0"), and the test cares about disambiguation behavior, not
+    // the exact normalization rules.
+    const auto snap = session.snapshot();
+    REQUIRE(snap);
+    REQUIRE(snap->singers.size() >= 2);
+    std::string v2Version;
+    for (const auto &s : snap->singers) {
+        if (s.ref.packageId == "session.test" && s.ref.singerId == "test" &&
+            s.ref.version != "1.0.0") {  // makePackage uses 1.0.0
+            v2Version = s.ref.version;
+            break;
+        }
+    }
+    REQUIRE_FALSE(v2Version.empty());
+
+    // Non-empty version disambiguates and routes to the matching singer.
+    ds::bank::SingerRef ref("session.test", "test", v2Version);
+    const auto summary = session.capabilitySummary(ref);
+    // The singer is Resolved by VoicebankScanner; availability reflects the
+    // capability report (may be Available/Degraded/Disabled depending on the
+    // stub fixture's capabilityReport, but MUST NOT report SvsSingerAmbiguous
+    // nor SvsSingerNotFound).
+    bool foundAmbiguous = false;
+    for (const auto &d : summary.diagnostics) {
+        if (d.code == srt::core::ErrorCode::SvsSingerAmbiguous ||
+            d.code == srt::core::ErrorCode::SvsSingerNotFound) {
+            foundAmbiguous = true;
+            break;
+        }
+    }
+    REQUIRE_FALSE(foundAmbiguous);
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("VoicebankSession convertG2p returns SvsSingerAmbiguous for multi-version singer", "[ds-session][wp3][d42]") {
+    const auto root = makeRoot();
+    makePackage(root);
+    makeMultiVersionPackage(root);
+    ds::session::VoicebankSession session;
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    ds::bank::SingerRef ref("session.test", "test");
+    std::vector<srt::g2p::G2pInput> inputs{srt::g2p::G2pInput("la", "cmn")};
+    auto exp = session.convertG2p(ref, "cmn", inputs);
+    REQUIRE_FALSE(exp.hasValue());
+    REQUIRE(exp.isError(srt::core::ErrorCode::SvsSingerAmbiguous));
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("VoicebankSession convertS2p returns SvsSingerAmbiguous for multi-version singer", "[ds-session][wp3][d42]") {
+    const auto root = makeRoot();
+    makePackage(root);
+    makeMultiVersionPackage(root);
+    ds::session::VoicebankSession session;
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    ds::bank::SingerRef ref("session.test", "test");
+    auto exp = session.convertS2p(ref, "cmn", "ni3");
+    REQUIRE_FALSE(exp.hasValue());
+    REQUIRE(exp.isError(srt::core::ErrorCode::SvsSingerAmbiguous));
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("VoicebankSession validatePhonemes returns SvsSingerAmbiguous for multi-version singer", "[ds-session][wp3][d42]") {
+    const auto root = makeRoot();
+    makePackage(root);
+    makeMultiVersionPackage(root);
+    ds::session::VoicebankSession session;
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    ds::bank::SingerRef ref("session.test", "test");
+    auto exp = session.validatePhonemes(ref, {"a", "i"});
+    REQUIRE_FALSE(exp.hasValue());
+    REQUIRE(exp.isError(srt::core::ErrorCode::SvsSingerAmbiguous));
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("VoicebankSession createModelSet returns SvsSingerAmbiguous for multi-version singer", "[ds-session][wp4][d42]") {
+    const auto root = makeRoot();
+    makePackage(root);
+    makeMultiVersionPackage(root);
+    ds::session::VoicebankSession session;
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    // Even with a Runtime configured, findSinger must reject the ambiguous
+    // singer before stage resolution is attempted.
+    srt::core::Runtime runtime;
+    session.setRuntime(&runtime);
+
+    ds::bank::SingerRef ref("session.test", "test");
+    auto exp = session.createModelSet(ref);
+    REQUIRE_FALSE(exp.hasValue());
+    REQUIRE(exp.isError(srt::core::ErrorCode::SvsSingerAmbiguous));
     std::filesystem::remove_all(root);
 }

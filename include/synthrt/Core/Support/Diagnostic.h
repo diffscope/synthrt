@@ -129,6 +129,10 @@ namespace srt::core {
         SvsSingerNotLoaded,
         SvsStageResolveFailed,
         SvsCategoryNotFound,
+        // V3-21: multi-version singer ambiguity — mirrors G2pVersionAmbiguous
+        // for the SVS layer. Used when a singerId matches multiple loaded
+        // singers and the caller omitted packageId/version to disambiguate.
+        SvsSingerAmbiguous,
 
         // === Audio (700-799) ===
         AudioDecodeFailed = 700,

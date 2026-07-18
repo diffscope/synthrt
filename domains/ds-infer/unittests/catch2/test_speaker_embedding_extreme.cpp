@@ -444,6 +444,11 @@ TEST_CASE("preprocessSpeakerEmbedding negative hiddenSize returns error",
 
     auto exp = preprocessSpeakerEmbeddingFrames(speakers, embMap, hiddenSize, frameWidth,
                                                 targetLength);
-    // 不崩溃即可。
-    REQUIRE(!exp.hasValue() || exp.hasValue());
+    // 不崩溃即可。Catch2 不支持在 REQUIRE 内使用 ||；与 zero hiddenSize
+    // 用例保持一致：分支记录现状，不要求特定的成功/失败语义。
+    if (exp.hasValue()) {
+        auto tensor = exp.take();
+    } else {
+        REQUIRE(!exp.hasValue());
+    }
 }

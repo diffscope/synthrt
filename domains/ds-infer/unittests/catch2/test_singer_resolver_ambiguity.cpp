@@ -4,10 +4,13 @@
 //   a. resolve(nullptr) → InvalidArgument (directly testable).
 //   b. Singer not found → SvsSingerNotFound (integration, now executable).
 //   c. Ambiguous singers (same singerId, different packageId, no disambiguation)
-//      → SvsSingerNotFound (integration, now executable).
+//      → SvsSingerAmbiguous (integration, now executable). Per V3-21: the
+//      singer WAS found, so SvsSingerNotFound was semantically wrong; the
+//      new code mirrors G2pVersionAmbiguous on the G2P side.
 //   d. Disambiguation by packageId succeeds (integration, now executable —
 //      stage resolution fails due to no interpreter plugins, but the error
-//      is NOT SvsSingerNotFound, proving disambiguation worked).
+//      is NOT SvsSingerNotFound/SvsSingerAmbiguous, proving disambiguation
+//      worked).
 //   e. Stage resolution failures (InferenceStageMissing/SvsStageResolveFailed)
 //      remain as [.integration] TODOs — they require interpreter plugins to
 //      create import options, which are not available in unit tests.
@@ -132,7 +135,7 @@ TEST_CASE("SingerStageResolver empty singerId returns SvsSingerNotFound",
 // Ambiguity — multiple singers with same id, no disambiguation (BF-23)
 // ===========================================================================
 
-TEST_CASE("SingerStageResolver ambiguous singers without packageId returns SvsSingerNotFound",
+TEST_CASE("SingerStageResolver ambiguous singers without packageId returns SvsSingerAmbiguous",
           "[singer_resolver][bf-23][integration]") {
     const auto root = makeTempRoot("ambiguous");
     // Two packages with the same singerId "singer1" but different packageIds
@@ -144,10 +147,12 @@ TEST_CASE("SingerStageResolver ambiguous singers without packageId returns SvsSi
     REQUIRE(runtime.loadPackage(root / "pkg-b").hasValue());
 
     SingerStageResolver resolver;
-    // No packageId supplied → both candidates match → ambiguous
+    // No packageId supplied → both candidates match → ambiguous.
+    // Per V3-21: SvsSingerAmbiguous (not SvsSingerNotFound) because the
+    // singer was found — there are just too many matches.
     auto exp = resolver.resolve(runtime, {}, "singer1");
     REQUIRE_FALSE(exp.hasValue());
-    CHECK(exp.error().code() == srt::core::ErrorCode::SvsSingerNotFound);
+    CHECK(exp.error().code() == srt::core::ErrorCode::SvsSingerAmbiguous);
     CHECK(exp.error().message().find("ambiguous") != std::string::npos);
 
     fs::remove_all(root);
@@ -168,11 +173,12 @@ TEST_CASE("SingerStageResolver disambiguates by packageId",
     // packageId="com.test.A" → selects A's singer (disambiguation succeeds)
     auto exp = resolver.resolve(runtime, "com.test.A", "singer1");
     REQUIRE_FALSE(exp.hasValue());
-    // Disambiguation worked: error is NOT SvsSingerNotFound (ambiguous).
+    // Disambiguation worked: error is NOT SvsSingerNotFound/SvsSingerAmbiguous.
     // Stage resolution fails (no interpreter plugins → InferenceStageMissing
     // or SvsStageResolveFailed), but the key point is that the singer was
     // found and selected correctly.
     CHECK(exp.error().code() != srt::core::ErrorCode::SvsSingerNotFound);
+    CHECK(exp.error().code() != srt::core::ErrorCode::SvsSingerAmbiguous);
 
     fs::remove_all(root);
 }
@@ -189,15 +195,17 @@ TEST_CASE("SingerStageResolver disambiguates by version",
     REQUIRE(runtime.loadPackage(root / "pkg-v2").hasValue());
 
     SingerStageResolver resolver;
-    // Without version → ambiguous (2 candidates for same packageId)
+    // Without version → ambiguous (2 candidates for same packageId).
+    // Per V3-21: SvsSingerAmbiguous (not SvsSingerNotFound).
     auto expAmbiguous = resolver.resolve(runtime, "com.test.A", "singer1");
     REQUIRE_FALSE(expAmbiguous.hasValue());
-    CHECK(expAmbiguous.error().code() == srt::core::ErrorCode::SvsSingerNotFound);
+    CHECK(expAmbiguous.error().code() == srt::core::ErrorCode::SvsSingerAmbiguous);
 
     // With version="1.0.0" → selects v1 (disambiguation succeeds)
     auto expV1 = resolver.resolve(runtime, "com.test.A", "singer1", "1.0.0");
     REQUIRE_FALSE(expV1.hasValue());
     CHECK(expV1.error().code() != srt::core::ErrorCode::SvsSingerNotFound);
+    CHECK(expV1.error().code() != srt::core::ErrorCode::SvsSingerAmbiguous);
 
     fs::remove_all(root);
 }

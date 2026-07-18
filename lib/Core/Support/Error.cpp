@@ -127,6 +127,7 @@ namespace srt::core {
             case ErrorCode::SvsSingerNotLoaded:    return "SVS::SingerNotLoaded";
             case ErrorCode::SvsStageResolveFailed: return "SVS::StageResolveFailed";
             case ErrorCode::SvsCategoryNotFound:   return "SVS::CategoryNotFound";
+            case ErrorCode::SvsSingerAmbiguous:    return "SVS::SingerAmbiguous";
 
             // Audio (700-799)
             case ErrorCode::AudioDecodeFailed:       return "Audio::DecodeFailed";
