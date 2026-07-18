@@ -53,6 +53,39 @@ public:
 3. `loadPackage()` — 加载声库包，创建 spec
 4. `initialize()` — 一次性初始化（当前为 no-op Stage 2）
 
+### Runtime::loadPackage 部分失败回滚 (D-40)
+
+`loadPackage` 内部按 `inferences → singers` 顺序解析每个 `ModuleSpec`，每个 spec 由 `parseSpec` 构造、`loadSpec(Initialized)` → `loadSpec(Ready)` 推进。D-40 修复前若第 N 个 spec 失败，前 N-1 个已 `loadSpec(Ready)` 的 spec 残留在 `ModuleCategory::Impl::modules` 列表（raw pointer，`std::list<ModuleSpec *>`）；重试同一包时 `loadSpecBase(Initialized)` 的 duplicate-detection 会对残留 spec 触发 `PackageDuplicate`，用户必须重启进程才能恢复。附带 bug：duplicate-detection 错误路径上 `parseSpec` 已构造但未 `loadSpec(Deleted)` 的 spec 未被 `delete`，造成内存泄漏。
+
+D-40 修复方案（commit 93c0c92）：
+
+```cpp
+struct CommittedSpec { ModuleCategory *cat; ModuleSpec *spec; };
+std::vector<CommittedSpec> committed;
+auto rollbackCommitted = [&committed]() {
+    for (auto it = committed.rbegin(); it != committed.rend(); ++it) {
+        (void) it->cat->loadSpec(it->spec, ModuleSpec::Deleted);
+        delete it->spec;
+    }
+    committed.clear();
+};
+
+for (const auto &ref : inferenceRefs) {
+    auto spec = std::make_unique<InferenceSpec>(...);   // pending 由 unique_ptr 持有
+    auto loadExp = infCat->loadSpec(spec.get(), ModuleSpec::Initialized);
+    if (!loadExp) { rollbackCommitted(); return loadExp.takeError(); }
+    loadExp = infCat->loadSpec(spec.get(), ModuleSpec::Ready);
+    if (!loadExp) {
+        infCat->loadSpec(spec.get(), ModuleSpec::Deleted);  // 移除 spec
+        return loadExp.takeError();                          // unique_ptr 析构释放
+    }
+    committed.push_back({infCat, spec.get()});
+    spec.release();   // 成功：移交所有权给 category
+}
+```
+
+所有失败路径统一调用 `rollbackCommitted()` 逆序回滚，符合 ROBUST-05（禁止隐式错误吞没）、ROBUST-01（Expected 传播）、D-11（公共签名不变）、ARCH-02（未新增错误码）。
+
 ### ITask
 
 ```cpp
@@ -161,13 +194,38 @@ enum class ErrorCode {
     SvsSingerNotFound = 600, ..., SvsCategoryNotFound,             // SVS (600-699)
 };
 
-enum class ErrorCategory { None, General, Package, Inference, G2P, Driver, S2P, SVS };
+enum class ErrorCategory { None, General, Package, Inference, G2P, Driver, S2P, SVS, Audio, Extract };
 
 ErrorCategory errorCodeCategory(ErrorCode code) noexcept;
 const char *errorCodeToString(ErrorCode code) noexcept;   // "Inference::ModelLoadFailed"
 ```
 
+V3-09/V3-10 在 Inference 段追加 `LoadFailed` (217) / `RuntimePackageNotLoaded` (218)；在 G2P 段追加 `G2pVersionAmbiguous` (321)；V3-21 在 SVS 段追加 `SvsSingerAmbiguous` (601)。`Audio` (700-799) / `Extract` (800-899) 是 v4 新增的两个段。`ErrorCategory` 也对应追加 `Audio` / `Extract`，`errorCodeCategory` 使用范围检查（如 `>=600` => SVS），无需修改。
+
 枚举值只追加不重排（ARCH-02），保证 ABI 稳定性。
+
+### LevelCompatibilityChecker::ValidationResult 嵌套类型导出 (D-45)
+
+```cpp
+// include/synthrt/Core/Dependency/LevelCompatibilityChecker.h
+class SRT_CORE_EXPORT LevelCompatibilityChecker {
+public:
+    struct LevelConfig { ... };
+
+    // D-45：嵌套 struct 必须独立标记 SRT_CORE_EXPORT
+    struct SRT_CORE_EXPORT ValidationResult {
+        bool isCompatible;
+        int pluginLevel, systemMinimum, systemMaximum;
+        std::string message, suggestion;
+        bool isInSupportedRange() const;
+    };
+
+    static ValidationResult checkCorePlugin(int pluginLevel, const LevelConfig &config);
+    // ...
+};
+```
+
+MSVC 的 `dllexport` 语义与 GCC/Clang visibility 不同：外层类标记 `SRT_CORE_EXPORT` 只导出外层类自身的成员，**不传播到嵌套类型的成员**（GCC/Clang 的 visibility 会传播）。D-45 修复前 `test_dependency_graph_extreme.cpp` 链接失败：LNK2019 未解析 `LevelCompatibilityChecker::ValidationResult::isInSupportedRange`。修复方案是给嵌套 struct 显式添加 `SRT_CORE_EXPORT`（commit c5e14a0）。这一约束对 GCC/Clang 是 no-op（已可见的类型再标记 visibility 属性不会改变行为），但对 MSVC 是强制的。所有跨 DLL 边界使用的嵌套类型必须显式标记 `SRT_CORE_EXPORT`（INFRA-01）。
 
 ### Error 类
 

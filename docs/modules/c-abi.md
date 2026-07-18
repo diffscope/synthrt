@@ -57,6 +57,26 @@ void srt_free_string_array(char **arr, size_t count);
 
 `srt_last_error()` 返回 `[Category::Code] message\n  at file:line:function` 格式的完整错误描述（不仅是纯消息）。`srt_last_error_code()` 返回映射后的 `srt_error` 枚举值。
 
+### setLastError 双通道错误码 (D-44)
+
+`setLastError` 提供单参/双参两个重载：
+
+```cpp
+// lib/C/LastError.h
+namespace srt::c::detail {
+    void setLastError(std::string message);                              // 旧：code 固定 SRT_ERR_GENERIC
+    void setLastError(std::string message, srt_error code);              // D-44：显式 code
+    void setLastError(const srt::core::Error &error);                    // 从 Error 提取 toString + mapError
+}
+```
+
+D-44 修复前，`srt_v4.cpp` 中 13 处调用单参数 `setLastError(message)`，TLS 错误码固定为 `SRT_ERR_GENERIC`，但函数实际返回 `SRT_ERR_INVALID_ARG` 或 `SRT_ERR_OUT_OF_MEM`，违反 ROBUST-05 双通道错误报告契约。修复后 13 处全部改为双参数：
+
+- 10 处 `SRT_ERR_INVALID_ARG`（null session/handle、null paths/roots/phonemes 数组、null entry、null packageId/singerId）
+- 3 处 `SRT_ERR_OUT_OF_MEM`（`new(std::nothrow)` 返回 nullptr 的 create 函数）
+
+返回值与 TLS 错误码现在保证一致。
+
 ### 错误码
 
 ```c
@@ -166,11 +186,13 @@ C 调用方 (Python/Rust/C#)
 
 `unittests/C/test_c_abi.cpp` — C ABI 单元测试，覆盖 `srt_last_error`/`srt_last_error_code` 生命周期、错误码映射、BF-25/BF-29/BF-30 回归。
 
+`unittests/C/test_c_abi_input_validation.cpp` — D-44 修复前因零大小数组（C2466）和按值实例化不透明类型（C2079）在 MSVC 上无法编译，掩盖了 3 个运行时测试失败。D-44 改用 `{"/tmp"}` + `count=0` 触发 INVALID_ARG 路径、`reinterpret_cast<...>(0xDEADBEEF)` 从整数构造指针值触发 INVALID_HANDLE 路径，恢复编译并暴露真实测试结果。修复后 `synthrt-unittest-c` 63 cases / 144 assertions 全通过。
+
 ---
 
-## vnext: session/model/task 句柄 API (WP7 + WP8)
+## vnext: session/model/task 句柄 API (WP6 + WP7 + WP8)
 
-参考 `docs/refactoring-vnext/04-diagnostics-degradation-and-migration.md` "最小 C ABI"。vnext 在原 ABI 之上追加（不替换）三种新句柄：`srt_SessionHandle`、`srt_ModelHandle`、`srt_TaskHandle`，分别绑定 `ds::session::VoicebankSession`、`ds::session::ModelSetHandle` 与 `shared_future<RefreshResult>`。
+参考 `docs/refactoring-vnext/04-diagnostics-degradation-and-migration.md` "最小 C ABI"。vnext 在原 ABI 之上追加（不替换）三种新句柄：`srt_SessionHandle`、`srt_ModelHandle`、`srt_TaskHandle`，分别绑定 `ds::session::VoicebankSession`、`ds::session::ModelSetHandle` 与 `shared_future<RefreshResult>`。WP6 又新增 `srt_RuntimeHandle` / `srt_LanguageServiceHandle` 两种资源句柄，支持 `srt_session_create_with_resources` 资源注入构造（D-27/K-01）。
 
 ### 句柄类型与任务状态
 
@@ -179,6 +201,10 @@ C 调用方 (Python/Rust/C#)
 typedef struct srt_SessionHandle srt_SessionHandle;
 typedef struct srt_ModelHandle srt_ModelHandle;
 typedef struct srt_TaskHandle srt_TaskHandle;
+
+// v3 / WP6：借入式资源句柄。caller 拥有，session 通过 create_with_resources 借入。
+typedef struct srt_RuntimeHandle srt_RuntimeHandle;
+typedef struct srt_LanguageServiceHandle srt_LanguageServiceHandle;
 
 typedef enum {
     SRT_TASK_STATE_PENDING = 0,
@@ -189,10 +215,10 @@ typedef enum {
 } srt_TaskState;
 ```
 
-### Session / Model / Task API（14 个 vnext 函数）
+### Session / Model / Task API（18 个 vnext 函数：14 WP7+WP8 + 4 WP6）
 
 ```c
-// Session
+// Session（WP7）
 srt_SessionHandle *srt_session_create_v2(void);
 srt_error          srt_session_destroy_v2(srt_SessionHandle *handle);
 srt_error          srt_session_set_roots(srt_SessionHandle *handle,
@@ -202,23 +228,44 @@ srt_error          srt_session_set_reserved_phonemes(srt_SessionHandle *handle,
 srt_TaskHandle    *srt_session_refresh_async(srt_SessionHandle *handle);
 const void        *srt_session_snapshot(srt_SessionHandle *handle);
 
-// Model
+// Session with resources（WP6 / D-27）
+srt_SessionHandle *srt_session_create_with_resources(
+    srt_RuntimeHandle *runtime,
+    srt_LanguageServiceHandle *languageService);
+
+// Resource handles（WP6）
+srt_RuntimeHandle         *srt_runtime_create(void);
+srt_error                  srt_runtime_destroy(srt_RuntimeHandle *handle);
+srt_LanguageServiceHandle *srt_language_service_create(void);
+srt_error                  srt_language_service_destroy(srt_LanguageServiceHandle *handle);
+
+// Model（WP7）
 srt_ModelHandle   *srt_model_create(srt_SessionHandle *session,
                                     const char *packageId,
                                     const char *singerId,
                                     const char *version);
 srt_error          srt_model_destroy(srt_ModelHandle *handle);
 
-// Task
+// Task（WP7）
 srt_TaskState      srt_task_state(srt_TaskHandle *handle);
 srt_error          srt_task_wait(srt_TaskHandle *handle, int timeout_ms);
 srt_error          srt_task_cancel(srt_TaskHandle *handle);
 void               srt_task_destroy(srt_TaskHandle *handle);
 const char        *srt_task_result_json(srt_TaskHandle *handle, size_t *out_size);
 
-// Buffer
+// Buffer（WP7）
 void               srt_free_buffer(void *ptr);
 ```
+
+### WP6: 资源注入式 session (D-27 / D-36)
+
+`srt_session_create_with_resources(runtime, languageService)` 等价于 C++ 的 `VoicebankSession(SessionResources{...})`。两个 handle 必须非空且必须由调用方保活到 session 销毁之后：
+
+- `runtime` / `languageService` 任一为 NULL → 返回 NULL，`srt_last_error` 设为 `InvalidArgument`。
+- session 通过非拥有 aliasing `shared_ptr` 借用底层对象，不延长其生命周期。
+- 默认构造的 `srt_session_create_v2()` 仅走 discovery 路径（D-36/K-10），调用 `convertG2p` / `createModelSet` 会返回 `G2pNotImplementedError` / `InferenceNotInitialized`。
+
+资源句柄自己管理 `Runtime` / `LanguageService` 实例的生命周期（`create` / `destroy` 显式配对），可被多个 session 共享借用。`destroy` 是幂等的：销毁后同一指针值仍可传回库，decode 为缺失表项返回 `SRT_ERR_INVALID_HANDLE`（与 session/model/task 一致）。
 
 ### 函数语义与错误路径
 

@@ -50,10 +50,29 @@ public:
                                    const std::string &packageId,
                                    const std::string &version) const;
 
-    // 获取 packageId 对应的包目录
+    // 获取 packageId 对应的包目录（已弃用，仅返回首个匹配）
+    [[deprecated("Use packageDirectories(packageId). Will be removed in Level=3.")]]
     std::filesystem::path packageDirectory(const std::string &packageId) const;
+
+    // V3-01 §1.6：返回 (version, path) 列表，多版本同 packageId 全部保留
+    std::vector<PackageDirectoryResult> packageDirectories(
+        const std::string &packageId) const;
 };
 ```
+
+### PackageDirectoryResult (V3-01)
+
+```cpp
+// include/diffsinger/Bank/VoicebankScanner.h
+namespace ds::bank;
+
+struct PackageDirectoryResult {
+    stdc::VersionNumber version;
+    std::filesystem::path path;
+};
+```
+
+`packageDirectories(packageId)` 返回所有匹配条目，按发现顺序排列；`packageId` 未知时返回空 vector。这是 `packageDirectory(packageId)` 的版本感知替代——后者只返回首个匹配，多版本同 packageId 会合并到一条，调用方需迁移到 `packageDirectories` 以获得完整版本隔离（V3-01 第 5 层）。`packageDirectory` 已标记 `[[deprecated]]`，将在 Level=3 移除。
 
 ### SingerRef
 

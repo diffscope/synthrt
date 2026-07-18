@@ -1,6 +1,6 @@
 # SynthRT 模块调用文档总览
 
-日期: 2026-07-17
+日期: 2026-07-18
 
 定位: 本文档提供 synthrt 各模块的调用关系总览。各模块详细 API 见同目录下的独立文档。文档详略得当：核心调用路径详述，边缘场景略述。
 
@@ -47,15 +47,18 @@
 ```cpp
 #include <diffsinger/Session/VoicebankSession.h>
 
-// 1. 创建 session 并注入依赖（session 不负责它们的生命周期）
-ds::session::VoicebankSession session;
+// 1. 创建 session 并注入依赖（D-27/K-01：session 借入 Runtime + LanguageService，
+//    不拥有其生命周期；调用方需先 initialize()/loadPackage()）
+ds::session::VoicebankSession session(
+    ds::session::SessionResources{
+        .runtime = &runtime,
+        .languageService = langSvc,        // shared_ptr<LanguageService>
+    });
 session.setRoots(voicebankPaths);
 session.setReservedPhonemes({"SP", "AP"});
-session.setLanguageService(langSvc);   // 调用方先 initialize()
-session.setRuntime(&runtime);            // 调用方先 loadPackage()
 
-// 2. 刷新声库（同 session 并发 refreshAsync 合并为一个 task）
-auto result = session.refreshAsync().get();
+// 2. 刷新声库。Lite worker 走同步 refresh()（D-29/K-03）；CLI/tests/C ABI 用 refreshAsync()
+auto result = session.refresh();
 if (!result.succeeded) {
     // result.snapshot 仍是旧快照（或空），result.errorMessage 说明原因
     return;
@@ -69,7 +72,7 @@ if (summary.availability != ds::session::Availability::Ready) {
     // 查 summary.diagnostics 看降级原因
 }
 
-// 4. G2P / S2P 转换（C++ 同步 Expected；Lite 自行决定异步调度）
+// 4. G2P / S2P 转换（V3-10：通过 version-aware LanguageService 路由；C++ 同步 Expected）
 auto g2p = session.convertG2p(ref, "cmn", inputs);
 auto s2p = session.convertS2p(ref, "cmn", "ni3");
 
@@ -105,12 +108,17 @@ ds::bank::VoicebankScanner scanner;
 scanner.setSearchPaths(voicebankPaths);
 scanner.refresh();
 
-// 3. 初始化语言服务
+// 3. 初始化语言服务（V3-01 version-aware：传入 PackageDirectoryEntry 向量）
 ds::lang::LanguageService langSvc;
-langSvc.initialize(g2pPluginPaths, officialG2pPaths, packageDirs);
+std::vector<srt::g2p::PackageDirectoryEntry> pkgDirs;
+for (const auto &e : scanner.packageDirectories(packageId)) {
+    pkgDirs.push_back({packageId, e.version, e.path});
+}
+langSvc.initializeMetadata(g2pPluginPaths, officialG2pPaths, pkgDirs);
+langSvc.initializeModels();
 
 // 4. 加载声库包
-runtime.loadPackage(scanner.packageDirectory(packageId));
+runtime.loadPackage(scanner.packageDirectories(packageId).front().path);
 
 // 5. 解析 stage
 ds::infer::SingerStageResolver resolver;

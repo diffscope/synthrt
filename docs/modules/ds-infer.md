@@ -79,7 +79,11 @@ public:
 };
 ```
 
-**注意**: `SingerSpec` 通过 `packageId()`/`packageVersion()` 暴露包标识（由 `Runtime::loadPackage` 从 `desc.json` 注入）。多候选消歧按 `spec->packageId()` 精确字符串匹配（BF-23 v2 修复，不再依赖路径目录名）。`SingerImport` 支持显式跨包声明：import JSON 中声明 `"package"` + `"version"` 时跨包解析（ARCH-06），version 支持 `"*"` 通配或精确匹配；未声明时严格同包隔离。错误码使用 `ErrorCode::SvsSingerNotFound`/`SvsStageResolveFailed`，重复加载使用 `ErrorCode::PackageDuplicate`。
+**注意**: `SingerSpec` 通过 `packageId()`/`packageVersion()` 暴露包标识（由 `Runtime::loadPackage` 从 `desc.json` 注入）。多候选消歧按 `spec->packageId()` 精确字符串匹配（BF-23 v2 修复，不再依赖路径目录名）。`SingerImport` 支持显式跨包声明：import JSON 中声明 `"package"` + `"version"` 时跨包解析（ARCH-06），version 支持 `"*"` 通配或精确匹配；未声明时严格同包隔离。
+
+**多版本歧义错误码 (D-41)**: 当 `(packageId, singerId, version)` 元组匹配多个 `SingerSpec` 时返回 `ErrorCode::SvsSingerAmbiguous`（V3-21，601），不再使用 `SvsSingerNotFound`。镜像 G2P 侧 `G2pVersionAmbiguous` (321)，保持两侧语义对称。错误创建使用 `Error::inferenceError()`，包含 `singerId` 上下文。重复加载使用 `ErrorCode::PackageDuplicate`，stage 缺失使用 `InferenceStageMissing`，未找到使用 `SvsSingerNotFound`。
+
+**D-41 与 D-42 的关系**: D-41 修复 `SingerStageResolver`（stage 层）的歧义错误码语义；D-42 修复 `VoicebankSession::findSinger`（snapshot 层）的静默选择（见 [ds-session.md](ds-session.md#findsinger-多版本歧义拒绝-d-42)）。两者共同构成多版本歧义的两层防护：snapshot 层先拒绝、stage 层兜底。
 
 ### ModelSet
 
@@ -254,6 +258,7 @@ Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorith
 | BF-40 | `OnnxTensor::createFromRawView` 在 `std::memcpy` 前未校验 `data.size() == tensor->_bytesSize`：`data.size() > _bytesSize` 导致堆缓冲区溢出（OOB 写），`data.size() < _bytesSize` 导致张量缓冲区部分未初始化。修复：在拷贝前增加显式大小匹配校验，不匹配时返回 `InvalidArgument` 错误（包含两边字节数） |
 | BF-41 | `preprocessPhonemeDurations`（InputWord.cpp）和 `preprocessLinguisticWord`（LinguisticEncoder.cpp）除以 `frameWidth` 时无本地校验。四个推理插件（Duration/Pitch/Variance/Acoustic）在调用前已校验 `frameWidth > 0`，但工具函数本身无防御性检查（defense-in-depth）。修复：在两个函数入口增加 `std::isfinite && > 0` 校验，返回 `InvalidArgument`，与插件侧模式一致 |
 | BF-42 | `resample()`/`interpolate()`（Algorithm.h）三处崩溃与静默错误：(1) `interpolate()` 在 `referencePoints.front()/back()` 前未校验非空，空引用数组触发 UB；(2) `resample()` timestep 校验为 `== 0` 漏掉负值，负 timestep 使 `arange()` 返回空 → `interpolate()` 返回空 → `targetSamples.back()` 在空 vector 上崩溃；(3) `preprocessSpeakerEmbeddingFrames` 未校验 `frameWidth > 0`，且 BF-34 的 `interval == 0` 校验漏掉负值，导致 `resample()` 返回空后 speaker 被静默跳过（ROBUST-05）。修复：`interpolate()` 增加空引用数组早返回；`resample()` timestep 校验改为 `<= 0`，并在 `.back()` 前增加 `!empty()` 防御；`preprocessSpeakerEmbeddingFrames` 入口校验 `frameWidth > 0`，BF-34 interval 校验改为 `<= 0` |
+| D-46 | `Algorithm.h::arange()` 对 NaN/inf 输入无防护——`static_cast<size_t>(std::ceil(NaN))` 是 UB（MSVC x64 上通常为 0 或 SIZE_MAX），`ceil(inf)` 产生 inf 同样 UB；subnormal step 使 `(stop-start)/step` 极大，`reserve()` 抛 `bad_alloc`。`resample()` 的 `timestep <= 0` 检查无法拦截 NaN（`NaN <= 0` 为 false），inf 会触发 `arange(0, inf, targetTimestep)` 的巨大分配。修复：`arange()` 添加 `!std::isfinite` 检查 + 100M 大小上限；`resample()` 添加 `!std::isfinite(timestep/targetTimestep)` 前置检查。同时修正 9 个测试错误期望（arange 负步长对称性、fillRestMidi 紧邻值填充、preprocessPhonemeDurations 帧分配、DynamicMix 线性插值、DictionaryS2P 空格容忍）以对齐实现实际行为 |
 
 ## Speaker Embedding Inline API
 
