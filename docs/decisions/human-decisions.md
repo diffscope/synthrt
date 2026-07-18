@@ -277,6 +277,8 @@
 2. **中期**：若需要版本安全隔离，需从 `LanguageService` API 开始到底层 cache 全链路改造
 3. **当前不行动**：不修复不存在的 Bug，用原则性拒绝代替猜测
 
+**注**：V3-01 已推翻"当前不行动"结论。`LanguageService` 实现了 version-aware overloads：`initializeMetadata` 接收 `std::vector<PackageDirectoryEntry>`（含 version 字段）、`resolveLanguageRoute(packageId, version, singerId, languageId)`、`convert(packageId, version, singerId, languageId, inputs)`。多版本同 packageId voicebank 可在 entry / route / Manager-context / S2P-cache / convert 五层隔离。D-39 条目 1 已更新。
+
 ### D-38：关键约束速查
 
 | # | 约束 | 来源 |
@@ -291,13 +293,13 @@
 | K-08 | ensure* 同步 + 结构化错误 | D-34 |
 | K-09 | Config 变更下次 refresh 生效 | D-35 |
 | K-10 | C ABI 默认构造保留 | D-36 |
-| K-11 | LanguageService 版本隔离当前不做 | D-37 |
+| K-11 | LanguageService 版本隔离 V3-01 已实现 | D-37, V3-01 |
 
 ### D-39：已知一致性问题清单
 
 以下为已识别但本轮不处理的遗留问题：
 
-1. **G2P 版本歧义**：LanguageService 底层无 version 维，Session 路由拒绝多版本包。见 D-37。
+1. **G2P 版本隔离遗留**：V3-01 已在 `LanguageService` 实现 version-aware overloads（`initializeMetadata` 接收 `std::vector<PackageDirectoryEntry>`、`resolveLanguageRoute(packageId, version, singerId, languageId)`、`convert(packageId, version, singerId, languageId, inputs)`），多版本同 packageId voicebank 在 entry / route / Manager-context / S2P-cache / convert 五层隔离。遗留：`resolveS2pResource` 仍为 legacy 3-arg 签名（无 version 参数），`VoicebankSession::convertS2p` 在多版本场景下路由不精确。Phase 2 处理。见 D-37、V3-01。
 2. **Lite PackageCatalog 双源**：Lite 当前 `PackageCatalog` 是唯一的快照权威；Session snapshot 需提供完整超集才能逐步替代。Phase 2 处理。
 3. **`__has_include` 惰性分支**：Lite 中 `m_sessionV2` / `setVoicebankSession` 存在但 inert。必须确保 Session header 安装后不被意外激活。Phase 2 处理。
 4. **ModelSetHandle isStale()**：已实现 generation 比较，`StaleModelSet` 错误码已存在。Lite 重试逻辑在 Phase 2 adapter 实现。
