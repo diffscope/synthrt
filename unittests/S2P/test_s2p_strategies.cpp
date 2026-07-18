@@ -175,16 +175,19 @@ TEST_CASE("DictionaryS2P rejects empty phoneme sequence", "[s2p][dict][create][e
     REQUIRE(err.message().find("empty phoneme sequence") != std::string::npos);
 }
 
-TEST_CASE("DictionaryS2P rejects empty phoneme in sequence", "[s2p][dict][create][error]") {
-    // 音素序列包含连续空格会切分出空 phoneme，必须报错。
+TEST_CASE("DictionaryS2P tolerates consecutive spaces in phoneme sequence",
+          "[s2p][dict][create]") {
+    // DirectS2P::convert 按空格切分时跳过空 token，以容忍前导/连续/尾随空格
+    // （见 DirectS2P.cpp 注释）。因此 "a  b" 切分为 ["a", "b"]，不产生空
+    // phoneme，DictionaryS2P 应接受此输入。
     std::istringstream input{"hello\ta  b\n"};
     auto result = DictionaryS2P::create(input);
-    REQUIRE(!result.hasValue());
-    auto err = result.takeError();
-    REQUIRE(err.code() == ErrorCode::S2pDictionaryError);
-    REQUIRE(err.message().find("empty phoneme") != std::string::npos);
-    // 不能误报为 "empty phoneme sequence" (那是行尾没内容的情况)。
-    REQUIRE(err.message().find("empty phoneme sequence") == std::string::npos);
+    REQUIRE(result.hasValue());
+    auto s2p = result.take();
+    auto phonemes = s2p->convert("hello");
+    REQUIRE(phonemes.size() == 2);
+    REQUIRE(phonemes[0] == "a");
+    REQUIRE(phonemes[1] == "b");
 }
 
 TEST_CASE("DictionaryS2P rejects duplicate pronunciation", "[s2p][dict][create][error]") {

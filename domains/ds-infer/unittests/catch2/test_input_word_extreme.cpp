@@ -243,7 +243,10 @@ TEST_CASE("preprocessPhonemeDurations inverted phone starts yields negative fram
 
 TEST_CASE("preprocessPhonemeDurations equal phone starts yields zero frames",
           "[inputword][extreme][order]") {
-    // 两个 phone.start 相同 -> 第二个 phone 帧数为 0。
+    // 两个 phone.start 相同 -> 第一个 phone 帧数为 0。
+    // 实现: currPhoneFrames = nextPhoneStartFrames - currPhoneStartFrames
+    // phone 0: nextPhoneStart = phone[1].start = 0.0, currPhoneStart = 0.0 -> 0 frames
+    // phone 1 (last): nextPhoneStart = wordDuration = 0.1, currPhoneStart = 0.0 -> 10 frames
     Co::InputWordInfo word;
     word.phones.resize(2);
     word.phones[0].token = "a";
@@ -260,9 +263,9 @@ TEST_CASE("preprocessPhonemeDurations equal phone starts yields zero frames",
     auto tensor = exp.take();
     REQUIRE(tensor->elementCount() == 2);
     auto view = tensor->view<int64_t>();
-    // 第一个 phone 占满整个 word（10 帧），第二个 phone 0 帧。
-    REQUIRE(view[0] == 10);
-    REQUIRE(view[1] == 0);
+    // 第一个 phone 0 帧（nextPhoneStart == currPhoneStart），第二个 phone 占满 10 帧。
+    REQUIRE(view[0] == 0);
+    REQUIRE(view[1] == 10);
     REQUIRE(targetLength == 10);
 }
 

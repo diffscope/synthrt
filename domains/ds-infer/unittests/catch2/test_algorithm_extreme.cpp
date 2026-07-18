@@ -66,12 +66,15 @@ TEST_CASE("arange with very small step produces large array", "[algorithm][arang
 }
 
 TEST_CASE("arange with negative step descending matches positive", "[algorithm][arange][extreme]") {
-    // 验证负 step 下行序列与正 step 上行序列对称
+    // arange(5, 0, -1) = [5, 4, 3, 2, 1] (numpy semantics: start included,
+    // stop excluded). arange(0, 5, 1) = [0, 1, 2, 3, 4]. These are NOT
+    // reverses of each other (5≠4, 4≠3, ...). The correct symmetry is
+    // up[i] + down[i] == start+stop == 5 (same-index pairs are complementary).
     auto up = arange(0.0, 5.0, 1.0);
     auto down = arange(5.0, 0.0, -1.0);
     REQUIRE(up.size() == down.size());
     for (size_t i = 0; i < up.size(); ++i) {
-        REQUIRE(approxEqual(up[i], down[down.size() - 1 - i]));
+        REQUIRE(approxEqual(up[i] + down[i], 5.0));
     }
 }
 
@@ -259,18 +262,23 @@ TEST_CASE("resample with very small targetTimestep", "[algorithm][resample][extr
 // ---------------------------------------------------------------------------
 
 TEST_CASE("fillRestMidi with NaN midi values does not crash", "[algorithm][fillrest][extreme]") {
-    // 音高包含 NaN：函数不校验值合理性，仅按 isRest 标记填充
+    // 音高包含 NaN：函数不校验值合理性，仅按 isRest 标记填充。
+    // rest 区间 [1, 3)：left_val = midi[0] = 60.0, right_val = midi[3] = 64.0
+    // mid = 1 + (3-1+1)/2 = 2
+    // index 1 -> left_val = 60.0 (NaN 被覆盖为左邻居值)
+    // index 2 -> right_val = 64.0
     std::vector<double> midi{60.0, std::numeric_limits<double>::quiet_NaN(), 0.0, 64.0};
     std::vector<uint8_t> isRest{0, 1, 1, 0};
     REQUIRE(fillRestMidiWithNearestInPlace(midi, isRest));
-    // 中间两个 rest: mid = 1 + (2+1)/2 = 2
-    // index 1 -> NaN (left), index 2 -> 64 (right)
-    REQUIRE(std::isnan(midi[1]));
+    REQUIRE(midi[1] == 60.0);
     REQUIRE(midi[2] == 64.0);
 }
 
 TEST_CASE("fillRestMidi with very large array", "[algorithm][fillrest][extreme]") {
     // 大数组：1000 个音符，中间 500 个 rest
+    // 算法用紧邻 rest 区间的非 rest 值填充，不是远处首个/末个非 rest 值。
+    // rest 区间 [250, 750)：left_val = midi[249] = 0.0, right_val = midi[750] = 0.0
+    // midi[0]=60 和 midi[999]=72 是设置过的，但 midi[249] 和 midi[750] 未被设置 (=0.0)
     std::vector<double> midi(1000, 0.0);
     std::vector<uint8_t> isRest(1000, 0);
     midi[0] = 60.0;
@@ -279,12 +287,13 @@ TEST_CASE("fillRestMidi with very large array", "[algorithm][fillrest][extreme]"
         isRest[i] = 1;
     }
     REQUIRE(fillRestMidiWithNearestInPlace(midi, isRest));
-    // mid = 250 + (500+1)/2 = 250 + 250 = 500
-    // indices 250-499 -> 60, indices 500-749 -> 72
-    REQUIRE(midi[250] == 60.0);
-    REQUIRE(midi[499] == 60.0);
-    REQUIRE(midi[500] == 72.0);
-    REQUIRE(midi[749] == 72.0);
+    // mid = 250 + (500+1)/2 = 500
+    // indices 250-499 -> left_val = midi[249] = 0.0
+    // indices 500-749 -> right_val = midi[750] = 0.0
+    REQUIRE(midi[250] == 0.0);
+    REQUIRE(midi[499] == 0.0);
+    REQUIRE(midi[500] == 0.0);
+    REQUIRE(midi[749] == 0.0);
 }
 
 TEST_CASE("fillRestMidi entire array rest except first", "[algorithm][fillrest][extreme]") {

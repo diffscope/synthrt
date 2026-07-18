@@ -71,7 +71,10 @@ TEST_CASE("srt_session_set_package_paths accepts empty path list",
     srt_session s = srt_session_create();
     REQUIRE(s != nullptr);
 
-    const char *paths[] = {};
+    // MSVC rejects zero-size arrays (`const char *paths[] = {};` → C2466).
+    // Pass a 1-element array with count=0 to exercise the same "empty list"
+    // code path (non-null paths pointer + count=0).
+    const char *paths[] = {"/tmp"};
     srt_clear_last_error();
     auto err = srt_session_set_package_paths(s, paths, 0);
     REQUIRE(err == SRT_OK);
@@ -279,10 +282,18 @@ TEST_CASE("srt_session_create_with_resources rejects both null",
 TEST_CASE("srt_session_create_with_resources rejects invalid handles",
           "[c_abi][vnext][input-validation]") {
     srt_clear_last_error();
-    // 用伪造的非空指针（无效 handle id）测试
-    srt_RuntimeHandle fakeRt{};
-    srt_LanguageServiceHandle fakeLang{};
-    auto session = srt_session_create_with_resources(&fakeRt, &fakeLang);
+    // srt_RuntimeHandle / srt_LanguageServiceHandle are opaque structs
+    // (forward-declared in srt.h, defined only inside lib/C/srt_v4.cpp).
+    // The C ABI encodes a HandleId directly as the pointer value via
+    // reinterpret_cast (see lib/C/HandleTable.h:encodeRuntimeHandle).
+    // A non-null pointer that doesn't come from srt_runtime_create() /
+    // srt_language_service_create() decodes to a HandleId not in the
+    // HandleTable, which must be rejected with SRT_ERR_INVALID_HANDLE.
+    // We must not instantiate the opaque struct by value (C2079); use
+    // reinterpret_cast from a non-zero integer instead.
+    auto fakeRt = reinterpret_cast<srt_RuntimeHandle *>(0xDEADBEEF);
+    auto fakeLang = reinterpret_cast<srt_LanguageServiceHandle *>(0xDEADBEEF);
+    auto session = srt_session_create_with_resources(fakeRt, fakeLang);
     REQUIRE(session == nullptr);
     REQUIRE(srt_last_error_code() == SRT_ERR_INVALID_HANDLE);
 }

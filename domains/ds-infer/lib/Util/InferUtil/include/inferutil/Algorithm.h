@@ -92,11 +92,23 @@ namespace ds::infer::inferutil {
         if (step == 0) {
             return {};
         }
+        // Guard against NaN/inf inputs: ceil(NaN) is NaN, and
+        // static_cast<size_t>(NaN) is undefined behavior (typically 0 or
+        // SIZE_MAX on MSVC x64). ceil(inf) produces inf, which also yields
+        // UB on cast. A subnormal step (e.g. denorm_min) makes
+        // (stop-start)/step astronomically large, causing reserve() to
+        // throw bad_alloc. Return empty for any non-finite input or
+        // unreasonably large result (ROBUST-05: fail fast, don't crash).
+        if (!std::isfinite(start) || !std::isfinite(stop) || !std::isfinite(step)) {
+            return {};
+        }
         if ((stop < start) && (step > 0)) {
             return {};
         }
         auto size = static_cast<size_t>(std::ceil((stop - start) / step));
-        if (size == 0) {
+        // Cap at a reasonable upper bound (100M elements ~800MB for double)
+        // to prevent OOM from subnormal/tiny steps.
+        if (size == 0 || size > 100000000) {
             return {};
         }
 
@@ -125,7 +137,13 @@ namespace ds::infer::inferutil {
         // axis; interpolate() then returns an empty vector, and
         // targetSamples.back() below would be UB (crash). The previous
         // `== 0` check only caught zero, not negative values.
-        if (timestep <= 0 || targetTimestep <= 0) {
+        // Also reject NaN/inf: NaN <= 0 is false (passes the check), then
+        // arange(0, NaN, targetTimestep) returns empty (after the arange
+        // NaN guard), but inf <= 0 is also false, and arange(0, inf,
+        // targetTimestep) would attempt a huge allocation. Fail fast
+        // (ROBUST-05).
+        if (!std::isfinite(timestep) || !std::isfinite(targetTimestep) ||
+            timestep <= 0 || targetTimestep <= 0) {
             return {};
         }
         if (targetLength == 1) {

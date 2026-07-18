@@ -29,7 +29,7 @@ namespace srt::dependency {
         };
 
         /// 验证结果
-        struct ValidationResult {
+        struct SRT_CORE_EXPORT ValidationResult {
             bool isCompatible;  /// 是否兼容
             int pluginLevel;    /// 插件 Level
             int systemMinimum;  /// 系统最小 Level

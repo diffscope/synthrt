@@ -242,11 +242,15 @@ TEST_CASE("custom voice mix: DynamicMix two speakers crossfade",
     REQUIRE(exp.hasValue());
     auto tensor = exp.take();
     auto view = tensor->view<float>();
-    // 第 0 帧：1.0*1 + 0.0*2 = 1.0
-    // 第 4 帧：0.0*1 + 1.0*2 = 2.0
-    // 中间帧：p1*1 + p2*2，p1+p2=1 -> p1 + 2*(1-p1) = 2-p1
+    // resample 从 interval=0.05 重采样到 frameWidth=0.01，前 5 帧对应时间
+    // [0, 0.01, 0.02, 0.03, 0.04]，在 inputTimeAxis [0, 0.05, 0.10, 0.15, 0.20]
+    // 上线性插值。p1 插值结果 = [1.0, 0.95, 0.90, 0.85, 0.80]，
+    // p2 = 1-p1 = [0.0, 0.05, 0.10, 0.15, 0.20]。
+    // view[i] = p1[i]*1 + p2[i]*2 = 2 - p1[i]:
+    //   view[0] = 2 - 1.0 = 1.0
+    //   view[4] = 2 - 0.80 = 1.20
     REQUIRE(approxEqual(view[0], 1.0f));
-    REQUIRE(approxEqual(view[4], 2.0f));
+    REQUIRE(approxEqual(view[4], 1.2f));
     // 单调递增
     REQUIRE(view[0] < view[2]);
     REQUIRE(view[2] < view[4]);
@@ -275,10 +279,15 @@ TEST_CASE("custom voice mix: DynamicMix three speakers weighted",
     REQUIRE(exp.hasValue());
     auto tensor = exp.take();
     auto view = tensor->view<float>();
+    // resample 从 interval=0.04 重采样到 frameWidth=0.01，前 4 帧对应时间
+    // [0, 0.01, 0.02, 0.03]，全部落在第一个源区间 [0, 0.04] 内。
+    // p1 插值结果 = [0.5, 0.475, 0.45, 0.425]
+    // p2 恒为 0.3
+    // p3 插值结果 = [0.2, 0.225, 0.25, 0.275]
     // 第 0 帧：0.5*1 + 0.3*2 + 0.2*3 = 0.5 + 0.6 + 0.6 = 1.7
     REQUIRE(approxEqual(view[0], 1.7f));
-    // 第 3 帧：0.2*1 + 0.3*2 + 0.5*3 = 0.2 + 0.6 + 1.5 = 2.3
-    REQUIRE(approxEqual(view[3], 2.3f));
+    // 第 3 帧：0.425*1 + 0.3*2 + 0.275*3 = 0.425 + 0.6 + 0.825 = 1.85
+    REQUIRE(approxEqual(view[3], 1.85f));
 }
 
 TEST_CASE("custom voice mix: DynamicMix single frame proportion broadcasts",
@@ -437,10 +446,15 @@ TEST_CASE("custom voice mix: DynamicMix N-1 explicit weights with fallback per f
     REQUIRE(exp.hasValue());
     auto tensor = exp.take();
     auto view = tensor->view<float>();
+    // resample 从 interval=0.03 重采样到 frameWidth=0.01，前 3 帧对应时间
+    // [0, 0.01, 0.02]，全部落在第一个源区间 [0, 0.03] 内。
+    // s1 插值结果 = [0.2, 0.3, 0.4] (0.2 + t/0.03 * (0.5-0.2))
+    // s2 恒为 0.3
+    // s3 插值结果 = [0.5, 0.4, 0.3] (0.5 + t/0.03 * (0.2-0.5))
     // 第 0 帧：0.2*1 + 0.3*2 + 0.5*3 = 0.2 + 0.6 + 1.5 = 2.3
     REQUIRE(approxEqual(view[0], 2.3f));
-    // 第 2 帧：0.8*1 + 0.1*2 + 0.1*3 = 0.8 + 0.2 + 0.3 = 1.3
-    REQUIRE(approxEqual(view[2], 1.3f));
+    // 第 2 帧：0.4*1 + 0.3*2 + 0.3*3 = 0.4 + 0.6 + 0.9 = 1.9
+    REQUIRE(approxEqual(view[2], 1.9f));
 }
 
 // ---------------------------------------------------------------------------
@@ -474,10 +488,13 @@ TEST_CASE("custom voice mix: crossfade preserves monotonic interpolation",
     REQUIRE(exp.hasValue());
     auto tensor = exp.take();
     auto view = tensor->view<float>();
-    // 第 0 帧：1.0*0 + 0.0*10 = 0
+    // resample 从 interval=0.1 重采样到 frameWidth=0.01，前 11 帧对应时间
+    // [0, 0.01, 0.02, ..., 0.10]，全部落在第一个源区间 [0, 0.1] 内。
+    // 第 0 帧 (t=0.00)：p1=1.0, p2=0.0 -> 1.0*0 + 0.0*10 = 0
     REQUIRE(approxEqual(view[0], 0.0f));
-    // 第 10 帧：0.0*0 + 1.0*10 = 10
-    REQUIRE(approxEqual(view[10], 10.0f));
+    // 第 10 帧 (t=0.10)：恰好命中 inputTimeAxis[1]=0.1，
+    // p1=0.9, p2=0.1 -> 0.9*0 + 0.1*10 = 1.0
+    REQUIRE(approxEqual(view[10], 1.0f));
     // 中间帧应单调递增
     for (int i = 1; i < 11; ++i) {
         REQUIRE(view[i] >= view[i - 1] - 1e-3f);

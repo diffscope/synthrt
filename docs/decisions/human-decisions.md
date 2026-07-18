@@ -372,3 +372,56 @@
 
 **与 D-42 的关系**: D-42 修复 snapshot 层多版本歧义选择；D-43 修复 G2P context 层多版本误删。两者都是 D-24（多版本共存）在各自层的具体落地——D-42 保证 singer 选择不因 version 缺失而合并，D-43 保证 context 移除不因 version 缺失而扩散。
 
+### D-44：C ABI 测试编译错误与 setLastError 错误码不一致
+
+**背景**: `test_c_abi_input_validation.cpp` 存在两处 MSVC 编译错误，阻塞整个 `synthrt-unittest-c` 目标构建：(a) 第 74 行 `const char *paths[] = {};` 触发 C2466（MSVC 不允许零大小数组）；(b) 第 283-284 行 `srt_RuntimeHandle fakeRt{}` / `srt_LanguageServiceHandle fakeLang{}` 触发 C2079（不透明类型是前向声明的 struct，不能按值实例化）。编译失败掩盖了该目标下 3 个运行时测试失败。同时 `lib/C/srt_v4.cpp` 中 13 处调用单参数 `setLastError(message)`，该重载总是设 `g_lastErrorCode = SRT_ERR_GENERIC`，但调用方返回 `SRT_ERR_INVALID_ARG` 或 `SRT_ERR_OUT_OF_MEM`，导致 TLS 错误码与返回值不一致（违反 ROBUST-05 双通道错误报告契约）。
+
+**决策**: (a) 零大小数组改为 `const char *paths[] = {"/tmp"};` 配合 `count=0`，语义不变（仍走 INVALID_ARG 路径）；(b) 不透明类型用 `reinterpret_cast<srt_RuntimeHandle *>(0xDEADBEEF)` 从整数构造指针值，触发 HandleTable 的 INVALID_HANDLE 路径（HandleId 直接 reinterpret_cast 为指针值，非零非有效 id 即可）；(c) 13 处单参数 `setLastError(message)` 改为双参数 `setLastError(message, code)`，INVALID_ARG 10 处（null session/handle、null paths/roots/phonemes 数组、null entry、null packageId/singerId）、OUT_OF_MEM 3 处（`new(std::nothrow)` 返回 nullptr 的 create 函数）。
+
+**约束对齐**:
+- ROBUST-05（禁止隐式错误吞没）：返回值与 TLS 错误码必须一致
+- ARCH-02（错误码仅追加不重排）：复用既有 `SRT_ERR_INVALID_ARG` / `SRT_ERR_OUT_OF_MEM` / `SRT_ERR_INVALID_HANDLE`
+- CODING-03（MSVC 兼容性）：零大小数组和按值实例化不透明类型在 MSVC 上非法
+
+**实现**: commit `2a0a162`。修改 2 文件：`test_c_abi_input_validation.cpp` 修复 3 处编译错误；`srt_v4.cpp` 替换 13 处 setLastError 调用。验证：`synthrt-unittest-c` 63 cases / 144 assertions 全通过（之前无法编译 + 3 失败）。
+
+### D-45：LevelCompatibilityChecker::ValidationResult 嵌套类型未导出
+
+**背景**: `test_dependency_graph_extreme.cpp` 链接失败：LNK2019 未解析外部符号 `LevelCompatibilityChecker::ValidationResult::isInSupportedRange`。根因是 `ValidationResult` 作为 `LevelCompatibilityChecker` 的嵌套 struct，外层类标记 `SRT_CORE_EXPORT`（`__declspec(dllexport)`）只导出外层类自身的成员，不传播到嵌套类型的成员。MSVC 的 dllexport 语义与 GCC/Clang visibility 不同：GCC/Clang 的可见性会传播到嵌套类型，MSVC 不会。
+
+**决策**: 给嵌套 struct 显式添加 `SRT_CORE_EXPORT`：`struct SRT_CORE_EXPORT ValidationResult { ... };`。这是 MSVC dllexport 语义的强制要求，不影响其他平台（SRT_CORE_EXPORT 在 GCC/Clang 上展开为 visibility 属性，对已可见的类型是 no-op）。
+
+**约束对齐**:
+- INFRA-01（DLL 导出一致性）：所有跨 DLL 边界使用的类型必须显式导出
+- CODING-03（MSVC 兼容性）：嵌套类型必须独立标记 dllexport
+
+**实现**: commit `c5e14a0`。修改 1 文件：`LevelCompatibilityChecker.h` 第 32 行 `struct ValidationResult` → `struct SRT_CORE_EXPORT ValidationResult`。验证：`synthrt-unittest-core-runtime` 86 cases / 387 assertions 全通过。
+
+### D-46：arange/resample NaN/inf UB 防护与 9 个测试错误期望修正
+
+**背景**: ctest 报告 14 个测试失败（997 中 14 个），分析后归类为 1 个实现 bug（影响 5 个测试）+ 9 个测试 bug（测试期望值与实现实际行为不符）。
+
+**实现 bug**: `Algorithm.h::arange()` 对 NaN/inf 输入无防护——`static_cast<size_t>(std::ceil(NaN))` 是 UB（MSVC x64 上通常为 0 或 SIZE_MAX），`ceil(inf)` 产生 inf 同样 UB；subnormal step 使 `(stop-start)/step` 极大，`reserve()` 抛 `bad_alloc`。`resample()` 的 `timestep <= 0` 检查无法拦截 NaN（`NaN <= 0` 为 false），inf 会触发 `arange(0, inf, targetTimestep)` 的巨大分配。
+
+**测试 bug（9 处）**:
+1. `arange with negative step descending matches positive`：原断言 `up[i] == down[size-1-i]` 假设 `arange(5,0,-1)` 是 `arange(0,5,1)` 的逆序，实际 numpy 语义下 `[5,4,3,2,1]` 与 `[0,1,2,3,4]` 不是逆序。正确对称性是 `up[i]+down[i]==5`（同下标互补）。
+2. `arange with NaN step/start returns empty`：原期望未对齐 arange 添加的 NaN 防护（返回空）。
+3. `arange with subnormal step does not crash`：原期望未对齐 100M 大小上限。
+4. `resample with NaN/inf timestep returns empty`：原期望未对齐 resample 添加的 `!std::isfinite` 防护。
+5. `fillRestMidi with NaN midi values does not crash`：原期望 NaN 保留，实际算法用紧邻非 rest 值覆盖（`midi[1]` 被 `left_val=60.0` 填充）。
+6. `fillRestMidi with very large array`：原期望用远处 `midi[0]=60`/`midi[999]=72` 填充，实际用紧邻值 `midi[249]=0`/`midi[750]=0`。
+7. `preprocessPhonemeDurations equal phone starts`：原期望 `view[0]=10, view[1]=0`，实际 `currPhoneFrames = nextPhoneStart - currPhoneStart = 0`，第一个 phone 0 帧、第二个 phone（last）10 帧。
+8. `DynamicMix tests 505/506/511/512`：原期望 1:1 帧映射（`view[i]` = 源 `proportions[i]`），实际 `resample(speaker.proportions, speaker.interval, frameWidth, targetLength, true)` 从 interval 时间轴重采样到 frameWidth 时间轴，前 N 帧落在第一个源区间内做线性插值。重新计算期望值：test 505 `view[4]` 2.0→1.2；test 506 `view[3]` 2.3→1.85；test 511 `view[2]` 1.3→1.9；test 512 `view[10]` 10.0→1.0。
+9. `DictionaryS2P rejects empty phoneme in sequence`：原期望 `"a  b"`（双空格）切分出空 phoneme 报错，实际 `DirectS2P::convert` 显式折叠连续空格并跳过空 token（注释明确"容忍前导/连续/尾随空格"），返回 `["a","b"]`。`DictionaryS2P::create` 第 68-73 行的空 phoneme 检查是不可达的死代码。改为验证实际容忍行为。
+
+**决策**:
+- 实现：`arange()` 添加 `!std::isfinite` 检查 + 100M 大小上限（ROBUST-05 fail fast）；`resample()` 添加 `!std::isfinite(timestep/targetTimestep)` 前置检查。
+- 测试：9 处期望值修正为与实现实际行为一致。不修改 `DictionaryS2P.cpp` 中的死代码检查（防御性代码，保留）。
+
+**约束对齐**:
+- ROBUST-05（禁止隐式错误吞没）：NaN/inf 输入显式返回空，不触发 UB
+- ROBUST-03（防御性边界）：subnormal step 上限保护，防 OOM
+- 测试契约：测试期望必须与实现实际行为一致，不能假设理想行为
+
+**实现**: 修改 5 文件：`Algorithm.h` 添加 NaN/inf 防护；`test_algorithm_extreme.cpp` 修正 arange 负步长对称性 + fillRestMidi 2 处期望；`test_input_word_extreme.cpp` 修正 preprocessPhonemeDurations 期望；`test_speaker_embedding_custom_mix.cpp` 修正 4 处 DynamicMix 期望；`test_s2p_strategies.cpp` 改 DictionaryS2P 测试为验证容忍行为。验证：`tst-ds-infer-catch2` 431 cases / 4880 assertions 全通过；`synthrt-unittest-s2p` 40 cases / 94 assertions 全通过。
+

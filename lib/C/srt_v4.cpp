@@ -121,7 +121,8 @@ extern "C" srt_session srt_session_create(void) {
     try {
         auto *session = new (std::nothrow) SrtSession();
         if (!session) {
-            srt::c::detail::setLastError("srt_session_create: out of memory");
+            srt::c::detail::setLastError("srt_session_create: out of memory",
+                                         SRT_ERR_OUT_OF_MEM);
             return nullptr;
         }
         return fromSession(session);
@@ -133,7 +134,8 @@ extern "C" srt_session srt_session_create(void) {
 
 extern "C" srt_error srt_session_destroy(srt_session session) {
     if (!session) {
-        srt::c::detail::setLastError("srt_session_destroy: session handle is null");
+        srt::c::detail::setLastError("srt_session_destroy: session handle is null",
+                                     SRT_ERR_INVALID_ARG);
         return SRT_ERR_INVALID_ARG;
     }
     try {
@@ -149,11 +151,13 @@ extern "C" srt_error srt_session_set_package_paths(srt_session session,
                                                     const char *const *paths,
                                                     int count) {
     if (!session) {
-        srt::c::detail::setLastError("srt_session_set_package_paths: session handle is null");
+        srt::c::detail::setLastError("srt_session_set_package_paths: session handle is null",
+                                     SRT_ERR_INVALID_ARG);
         return SRT_ERR_INVALID_ARG;
     }
     if (count > 0 && !paths) {
-        srt::c::detail::setLastError("srt_session_set_package_paths: paths is null");
+        srt::c::detail::setLastError("srt_session_set_package_paths: paths is null",
+                                     SRT_ERR_INVALID_ARG);
         return SRT_ERR_INVALID_ARG;
     }
 
@@ -162,7 +166,8 @@ extern "C" srt_error srt_session_set_package_paths(srt_session session,
         pathVec.reserve(static_cast<size_t>(count));
         for (int i = 0; i < count; ++i) {
             if (!paths[i]) {
-                srt::c::detail::setLastError("srt_session_set_package_paths: path entry is null");
+                srt::c::detail::setLastError("srt_session_set_package_paths: path entry is null",
+                                             SRT_ERR_INVALID_ARG);
                 return SRT_ERR_INVALID_ARG;
             }
             pathVec.emplace_back(std::filesystem::path(paths[i]));
@@ -178,7 +183,8 @@ extern "C" srt_error srt_session_set_package_paths(srt_session session,
 
 extern "C" srt_error srt_session_refresh(srt_session session) {
     if (!session) {
-        srt::c::detail::setLastError("srt_session_refresh: session handle is null");
+        srt::c::detail::setLastError("srt_session_refresh: session handle is null",
+                                     SRT_ERR_INVALID_ARG);
         return SRT_ERR_INVALID_ARG;
     }
     try {
@@ -341,7 +347,8 @@ extern "C" srt_SessionHandle *srt_session_create_v2(void) {
         auto data = std::make_shared<SessionData>();
         HandleId id = sessionTable().create(data);
         if (id == kInvalidHandle) {
-            srt::c::detail::setLastError("srt_session_create_v2: out of memory");
+            srt::c::detail::setLastError("srt_session_create_v2: out of memory",
+                                         SRT_ERR_OUT_OF_MEM);
             return nullptr;
         }
         return encodeSessionHandle(id);
@@ -432,7 +439,8 @@ extern "C" srt_error srt_session_set_roots(srt_SessionHandle *handle,
         return SRT_ERR_INVALID_HANDLE;
     }
     if (count > 0 && !roots) {
-        srt::c::detail::setLastError("srt_session_set_roots: roots is null");
+        srt::c::detail::setLastError("srt_session_set_roots: roots is null",
+                                     SRT_ERR_INVALID_ARG);
         return SRT_ERR_INVALID_ARG;
     }
     try {
@@ -447,7 +455,8 @@ extern "C" srt_error srt_session_set_roots(srt_SessionHandle *handle,
         pathVec.reserve(count);
         for (size_t i = 0; i < count; ++i) {
             if (!roots[i]) {
-                srt::c::detail::setLastError("srt_session_set_roots: null entry");
+                srt::c::detail::setLastError("srt_session_set_roots: null entry",
+                                             SRT_ERR_INVALID_ARG);
                 return SRT_ERR_INVALID_ARG;
             }
             pathVec.emplace_back(std::filesystem::path(roots[i]));
@@ -470,7 +479,8 @@ extern "C" srt_error srt_session_set_reserved_phonemes(srt_SessionHandle *handle
         return SRT_ERR_INVALID_HANDLE;
     }
     if (count > 0 && !phonemes) {
-        srt::c::detail::setLastError("srt_session_set_reserved_phonemes: phonemes is null");
+        srt::c::detail::setLastError("srt_session_set_reserved_phonemes: phonemes is null",
+                                     SRT_ERR_INVALID_ARG);
         return SRT_ERR_INVALID_ARG;
     }
     try {
@@ -485,7 +495,8 @@ extern "C" srt_error srt_session_set_reserved_phonemes(srt_SessionHandle *handle
         tmp.reserve(count);
         for (size_t i = 0; i < count; ++i) {
             if (!phonemes[i]) {
-                srt::c::detail::setLastError("srt_session_set_reserved_phonemes: null entry");
+                srt::c::detail::setLastError("srt_session_set_reserved_phonemes: null entry",
+                                             SRT_ERR_INVALID_ARG);
                 return SRT_ERR_INVALID_ARG;
             }
             tmp.emplace_back(phonemes[i]);
@@ -529,7 +540,8 @@ extern "C" srt_TaskHandle *srt_session_refresh_async(srt_SessionHandle *handle) 
         std::thread(runRefreshWatcher, weak).detach();
         HandleId tid = taskTable().create(task);
         if (tid == kInvalidHandle) {
-            srt::c::detail::setLastError("srt_session_refresh_async: out of memory");
+            srt::c::detail::setLastError("srt_session_refresh_async: out of memory",
+                                         SRT_ERR_OUT_OF_MEM);
             return nullptr;
         }
         return encodeTaskHandle(tid);
@@ -663,7 +675,8 @@ extern "C" srt_ModelHandle *srt_model_create(srt_SessionHandle *session,
         return nullptr;
     }
     if (!packageId || !singerId) {
-        srt::c::detail::setLastError("srt_model_create: packageId/singerId is null");
+        srt::c::detail::setLastError("srt_model_create: packageId/singerId is null",
+                                     SRT_ERR_INVALID_ARG);
         return nullptr;
     }
     try {
