@@ -419,25 +419,33 @@ public:
             std::vector<srt::core::Diagnostic> diagnostics;
             collectDiagnostics(packages.value(), diagnostics);
 
-            // Per the contract, a single invalid package aborts the refresh so
-            // that Lite never sees a half-built snapshot. The diagnostics
-            // collected above are still returned to the caller.
-            for (const auto &package : packages.value()) {
-                if (!package.valid) {
-                    RefreshResult r;
-                    r.succeeded = false;
-                    r.coalesced = false;
-                    r.snapshot = std::move(previous);
-                    r.diagnostics = std::move(diagnostics);
-                    r.errorMessage = package.error.message;
-                    return finish(std::move(r));
-                }
-            }
-
+            // D-31: Discovery stage partial success. Valid packages are
+            // published in the snapshot; invalid packages contribute
+            // diagnostics only. The refresh fails only when packages were
+            // scanned but none were valid.
             auto next = std::make_shared<VoicebankSnapshot>();
             next->roots = std::move(refreshRoots);
             next->reservedPhonemes = refreshReserved;
-            next->packages = packages.value();
+            next->packages.clear();
+            next->packages.reserve(packages.value().size());
+            for (const auto &pkg : packages.value()) {
+                if (pkg.valid)
+                    next->packages.push_back(pkg);
+            }
+            if (next->packages.empty() && !packages.value().empty()) {
+                RefreshResult r;
+                r.succeeded = false;
+                r.coalesced = false;
+                r.snapshot = std::move(previous);
+                r.diagnostics = std::move(diagnostics);
+                for (const auto &pkg : packages.value()) {
+                    if (!pkg.valid) {
+                        r.errorMessage = pkg.error.message;
+                        break;
+                    }
+                }
+                return finish(std::move(r));
+            }
             next->singers = scanner.singers();
             next->generation = nextGeneration;
             for (const auto &singer : next->singers)
@@ -737,13 +745,15 @@ srt::core::Expected<S2pResult>
         return srt::core::Error(srt::core::ErrorCode::G2pNotImplementedError,
                                 "VoicebankSession::convertS2p: no LanguageService configured");
     }
-    // Resolve the cached S2P resource, then run the conversion.
-    // V3-10 note: resolveS2pResource has no version parameter; it routes via
-    // the single-version path internally. Multi-version same-packageId callers
-    // should call ensureLanguageReady(packageId, version, language) first and
-    // use resolveLanguageRoute() + construct LanguageResource directly. The
-    // single-version scenario (the common case) works transparently here.
-    auto resExp = svc->resolveS2pResource(singerKey.packageId, singerKey.singerId, language);
+    // V3-10: parse version from SingerRef and delegate to the version-aware
+    // LanguageService::resolveS2pResource overload. An empty version triggers
+    // G2pVersionAmbiguous inside LanguageService::resolveLanguageRoute when
+    // multiple versions of the packageId are registered; single-version
+    // scenarios route transparently (backward compat). Mirrors convertG2p's
+    // pattern so multi-version same-packageId S2P conversion is routed
+    // precisely.
+    const auto version = stdc::VersionNumber::fromString(singerKey.version);
+    auto resExp = svc->resolveS2pResource(singerKey.packageId, version, singerKey.singerId, language);
     if (!resExp) {
         return resExp.takeError();
     }

@@ -134,7 +134,7 @@ TEST_CASE("VoicebankSession refresh subscription may reset itself", "[ds-session
     std::filesystem::remove_all(root);
 }
 
-TEST_CASE("VoicebankSession preserves previous snapshot after invalid package", "[ds-session]") {
+TEST_CASE("VoicebankSession publishes valid packages alongside invalid ones", "[ds-session]") {
     const auto root = makeRoot();
     makePackage(root);
     ds::session::VoicebankSession session;
@@ -143,8 +143,13 @@ TEST_CASE("VoicebankSession preserves previous snapshot after invalid package", 
     REQUIRE(initial.succeeded);
     writeFile(root / "broken" / "desc.json", "not json");
     const auto failed = session.refreshAsync().get();
-    REQUIRE_FALSE(failed.succeeded);
-    REQUIRE(session.snapshot() == initial.snapshot);
+    // D-31: the valid package keeps the refresh successful even when an
+    // invalid package is present; the snapshot still carries the valid one.
+    REQUIRE(failed.succeeded);
+    REQUIRE(failed.snapshot != nullptr);
+    REQUIRE(failed.snapshot->packages.size() == 1);
+    REQUIRE(failed.snapshot->packages[0].packageId == "session.test");
+    REQUIRE(failed.snapshot->packages[0].valid);
     std::filesystem::remove_all(root);
 }
 
@@ -207,7 +212,12 @@ TEST_CASE("VoicebankSession refresh collects diagnostics for invalid packages", 
     ds::session::VoicebankSession session;
     session.setRoots({root});
     const auto result = session.refreshAsync().get();
-    REQUIRE_FALSE(result.succeeded);
+    // D-31: the valid package keeps the refresh successful; the broken
+    // package surfaces as a diagnostic.
+    REQUIRE(result.succeeded);
+    REQUIRE(result.snapshot != nullptr);
+    REQUIRE(result.snapshot->packages.size() == 1);
+    REQUIRE(result.snapshot->packages[0].valid);
     // Diagnostics should mention the broken package.
     REQUIRE_FALSE(result.diagnostics.empty());
     bool foundBroken = false;

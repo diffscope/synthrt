@@ -181,15 +181,30 @@ namespace srt::g2p {
 
         // === Per-singer S2P resource ===
         //
-        // Resolves and caches the S2P LanguageResource for a singer+language.
-        // Returns a shared_ptr so the host can call convert() directly.
-        // The resource is cached per (packageId, singerId, languageId) tuple;
-        // subsequent calls with the same key return the cached resource.
-        // Note: this overload has no version parameter — it routes via the
-        // single-version path internally. Multi-version callers should use
-        // resolveLanguageRoute() + construct LanguageResource directly.
+        // Legacy 3-arg resolution (deprecated). Resolves and caches the S2P
+        // LanguageResource for a singer+language. Returns a shared_ptr so the
+        // host can call convert() directly. The resource is cached per
+        // (packageId, version, singerId, languageId) tuple — this overload
+        // passes an empty version, producing "pkg//singer/lang" cache keys
+        // (backward compat with single-version scenarios). Multi-version same-
+        // packageId callers will hit G2pVersionAmbiguous inside route
+        // resolution; migrate to the version-aware overload below.
+        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
         srt::core::Expected<std::shared_ptr<srt::s2p::LanguageResource>>
         resolveS2pResource(const std::string &packageId,
+                           const std::string &singerId,
+                           const std::string &languageId) const;
+
+        // Version-aware S2P resource resolution (V3-01). Routes via the
+        // version-aware resolveLanguageRoute and caches the resource per
+        // (packageId, version, singerId, languageId) tuple, so multi-version
+        // same-packageId voicebanks get independent cache slots. Empty
+        // version + multiple packageId matches returns G2pVersionAmbiguous
+        // (mirrors resolveLanguageRoute's contract); non-empty version routes
+        // precisely. Requires metadataReady() (no ONNX models needed).
+        srt::core::Expected<std::shared_ptr<srt::s2p::LanguageResource>>
+        resolveS2pResource(const std::string &packageId,
+                           const stdc::VersionNumber &version,
                            const std::string &singerId,
                            const std::string &languageId) const;
 

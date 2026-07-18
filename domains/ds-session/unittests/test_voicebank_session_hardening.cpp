@@ -22,6 +22,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <synthrt/Core/Core/Runtime.h>
+#include <synthrt/G2P/LanguageService.h>
 #include <diffsinger/Session/VoicebankSession.h>
 
 namespace {
@@ -192,8 +193,10 @@ TEST_CASE("RefreshResult diagnostics include invalid package errors",
     ds::session::VoicebankSession session;
     session.setRoots({root});
     const auto result = session.refreshAsync().get();
-    // A single invalid package aborts the refresh (no half-built snapshot).
-    REQUIRE_FALSE(result.succeeded);
+    // D-31: a valid package is still published even when an invalid one is
+    // present; the refresh succeeds and the invalid package surfaces as a
+    // diagnostic.
+    REQUIRE(result.succeeded);
     REQUIRE_FALSE(result.diagnostics.empty());
     bool foundBroken = false;
     for (const auto &d : result.diagnostics) {
@@ -204,8 +207,11 @@ TEST_CASE("RefreshResult diagnostics include invalid package errors",
         }
     }
     REQUIRE(foundBroken);
-    // Failed refresh must preserve the previous snapshot (none here -> empty).
-    REQUIRE(result.snapshot == nullptr);
+    // The snapshot must contain the valid package, not the broken one.
+    REQUIRE(result.snapshot != nullptr);
+    REQUIRE(result.snapshot->packages.size() == 1);
+    REQUIRE(result.snapshot->packages[0].packageId == "session.test");
+    REQUIRE(result.snapshot->packages[0].valid);
 
     std::filesystem::remove_all(root);
 }
@@ -240,7 +246,7 @@ TEST_CASE("Snapshot pointer is stable across concurrent readers",
     std::filesystem::remove_all(root);
 }
 
-TEST_CASE("Failed refresh preserves previous snapshot pointer",
+TEST_CASE("Refresh with added invalid package preserves previous snapshot pointer",
           "[ds-session][hardening]") {
     const auto root = makeRoot();
     makePackage(root);
@@ -251,13 +257,16 @@ TEST_CASE("Failed refresh preserves previous snapshot pointer",
     const auto snap1 = session.snapshot();
     REQUIRE(snap1 != nullptr);
 
-    // Introduce a broken package so the next refresh fails.
+    // D-31: adding a broken package alongside the valid one does not abort
+    // the refresh. The valid package is unchanged, so the snapshot content
+    // is identical and the published pointer is preserved (no-op refresh).
     writeFile(root / "broken" / "desc.json", "not json");
-    const auto failed = session.refreshAsync().get();
-    REQUIRE_FALSE(failed.succeeded);
+    const auto refreshed = session.refreshAsync().get();
+    REQUIRE(refreshed.succeeded);
+    REQUIRE_FALSE(refreshed.diagnostics.empty());
     const auto snap2 = session.snapshot();
-    REQUIRE(snap2 == snap1);               // session still serves the old snapshot
-    REQUIRE(failed.snapshot == snap1);     // RefreshResult also carries the old snapshot
+    REQUIRE(snap2 == snap1);                 // session still serves the old snapshot
+    REQUIRE(refreshed.snapshot == snap1);    // RefreshResult also carries the old snapshot
 
     std::filesystem::remove_all(root);
 }
@@ -779,6 +788,113 @@ TEST_CASE("convertG2p with explicit version routes to that version",
     // full convert path (needs ONNX-backed G2P plugin loaded by the
     // LanguageService).
     SKIP("L2: needs Runtime + LanguageService with loaded G2P plugin");
+}
+
+TEST_CASE("convertS2p returns G2pVersionAmbiguous for multi-version packageId without version",
+          "[ds-session][v3]") {
+    // Contract (V3-10): when a packageId has multiple versions in snapshot
+    // and the caller omits version, convertS2p routes through the version-
+    // aware LanguageService::resolveS2pResource → resolveLanguageRoute, which
+    // returns G2pVersionAmbiguous for multi-version same-packageId routes.
+    //
+    // Unlike convertG2p, S2P resource resolution only needs metadata (Stage 1,
+    // no ONNX models), so L1 can exercise the ambiguity path with a real
+    // LanguageService initialized via initializeMetadata.
+    const auto root = makeRoot();
+    makeSamePackageIdTwoVersions(root);
+    ds::session::VoicebankSession session;
+    session.setRoots({root / "bank", root / "bank2"});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    // Verify the snapshot actually contains two versions of the same package.
+    const auto snap = session.snapshot();
+    REQUIRE(snap);
+    int dupCount = 0;
+    for (const auto &pkg : snap->packages) {
+        if (pkg.packageId == "session.dup") ++dupCount;
+    }
+    REQUIRE(dupCount == 2);
+
+    // Initialize a LanguageService with the same multi-version packages so
+    // resolveS2pResource can route through resolveLanguageRoute. Stage 1 only
+    // (no ONNX models) — sufficient for route resolution and S2P cache lookup.
+    auto langSvc = std::make_shared<srt::g2p::LanguageService>();
+    std::vector<srt::g2p::PackageDirectoryEntry> entries = {
+        {"session.dup", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
+        {"session.dup", stdc::VersionNumber::fromString("2.0.0"), root / "bank2"},
+    };
+    REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
+    session.setLanguageService(langSvc);
+
+    // Empty version + multi-version → G2pVersionAmbiguous from
+    // resolveLanguageRoute, surfaced through resolveS2pResource.
+    ds::bank::SingerRef ref("session.dup", "v1");  // empty version
+    auto exp = session.convertS2p(ref, "cmn", "ni");
+    REQUIRE_FALSE(exp.hasValue());
+    REQUIRE(exp.isError(srt::core::ErrorCode::G2pVersionAmbiguous));
+
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("convertS2p with explicit version routes to that version",
+          "[ds-session][v3]") {
+    // Contract (V3-10): caller provides version → convertS2p delegates to the
+    // version-aware resolveS2pResource, which routes to the exact
+    // (packageId, version) entry via resolveLanguageRoute. With explicit
+    // version the ambiguity check is bypassed.
+    //
+    // The makeSamePackageIdTwoVersions fixture has no S2P data (no s2pMode /
+    // dict), so resolveS2pResource fails at the S2P resource construction
+    // step with S2pResourceNotFound — but crucially NOT with
+    // G2pVersionAmbiguous, proving the route was resolved to the requested
+    // version. L1 cannot exercise the actual S2P conversion (needs a dict
+    // file or ONNX model); see test_resolve_s2p_resource.cpp for convert()
+    // coverage.
+    const auto root = makeRoot();
+    makeSamePackageIdTwoVersions(root);
+    ds::session::VoicebankSession session;
+    session.setRoots({root / "bank", root / "bank2"});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    auto langSvc = std::make_shared<srt::g2p::LanguageService>();
+    std::vector<srt::g2p::PackageDirectoryEntry> entries = {
+        {"session.dup", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
+        {"session.dup", stdc::VersionNumber::fromString("2.0.0"), root / "bank2"},
+    };
+    REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
+    session.setLanguageService(langSvc);
+
+    // Explicit version → route resolves to the exact (packageId, version)
+    // entry, then S2P resource lookup fails (no s2pMode configured in the
+    // fixture). The SingerRef.version string must match the snapshot's
+    // singer version string (VersionNumber normalizes "1.0.0" to "1.0"), so
+    // we read it from the snapshot to stay robust against normalization.
+    const auto snap = session.snapshot();
+    REQUIRE(snap);
+    std::string v1Version, v2Version;
+    for (const auto &s : snap->singers) {
+        if (s.ref.singerId == "v1") v1Version = s.ref.version;
+        if (s.ref.singerId == "v2") v2Version = s.ref.version;
+    }
+    REQUIRE_FALSE(v1Version.empty());
+    REQUIRE_FALSE(v2Version.empty());
+    REQUIRE(v1Version != v2Version);
+
+    // v1: explicit version routes past the ambiguity check.
+    ds::bank::SingerRef ref("session.dup", "v1", v1Version);
+    auto exp = session.convertS2p(ref, "cmn", "ni");
+    REQUIRE_FALSE(exp.hasValue());
+    // S2pResourceNotFound (not G2pVersionAmbiguous) proves the version-aware
+    // route resolved successfully before reaching the S2P resource step.
+    REQUIRE(exp.isError(srt::core::ErrorCode::S2pResourceNotFound));
+
+    // v2: explicit version routes to the v2 package.
+    ds::bank::SingerRef ref2("session.dup", "v2", v2Version);
+    auto exp2 = session.convertS2p(ref2, "cmn", "ni");
+    REQUIRE_FALSE(exp2.hasValue());
+    REQUIRE(exp2.isError(srt::core::ErrorCode::S2pResourceNotFound));
+
+    std::filesystem::remove_all(root);
 }
 
 // ---------------------------------------------------------------------------

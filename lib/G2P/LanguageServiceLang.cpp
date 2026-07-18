@@ -777,13 +777,23 @@ namespace srt::g2p {
     LanguageService::resolveS2pResource(const std::string &packageId,
                                         const std::string &singerId,
                                         const std::string &languageId) const {
-        // V3-01 §2.4: S2P cache key now includes version.toString() so that
+        // Deprecated path (V3-01 §2.4): delegate to the version-aware
+        // overload with an empty version. Multi-version same-packageId
+        // scenarios return G2pVersionAmbiguous from the new overload's call
+        // to resolveLanguageRoute.
+        return resolveS2pResource(packageId, stdc::VersionNumber(),
+                                  singerId, languageId);
+    }
+
+    srt::core::Expected<std::shared_ptr<srt::s2p::LanguageResource>>
+    LanguageService::resolveS2pResource(const std::string &packageId,
+                                        const stdc::VersionNumber &version,
+                                        const std::string &singerId,
+                                        const std::string &languageId) const {
+        // V3-01 §2.4: S2P cache key includes version.toString() so that
         // multi-version same-packageId voicebanks get independent cache slots.
-        // This overload has no version parameter — it routes via the
-        // single-version path internally (empty version), producing
-        // "pkg//singer/lang" which is fine for backward compat with the
-        // single-version scenario.
-        const stdc::VersionNumber version;
+        // Empty version produces "pkg//singer/lang" (backward compat with
+        // single-version scenarios via the deprecated overload).
         const auto key = packageId + "/" + version.toString() +
                          "/" + singerId + "/" + languageId;
 
@@ -796,7 +806,9 @@ namespace srt::g2p {
             }
         }
 
-        // Resolve route (reuses resolveLanguageRoute logic, empty version).
+        // Resolve route via the version-aware resolveLanguageRoute. Empty
+        // version + multiple matches returns G2pVersionAmbiguous; non-empty
+        // version routes precisely (V3-01 §2.5).
         auto routeExp = resolveLanguageRoute(packageId, version, singerId, languageId);
         if (!routeExp) {
             return routeExp.takeError();
