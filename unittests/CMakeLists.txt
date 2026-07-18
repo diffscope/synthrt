@@ -4,28 +4,11 @@ endif()
 
 include(Catch)
 
-# Common precompiled header for all test targets — heavy headers that
-# every test file includes. Reduces per-TU compile time significantly.
-set(SYNTHRT_TEST_PCH_HEADERS
-    <catch2/catch_test_macros.hpp>
-    <string>
-    <vector>
-    <memory>
-    <filesystem>
-)
-
-function(synthrt_add_unittest target)
-    # Accept one or more source files after the target name.
-    set(sources ${ARGN})
-    add_executable(${target} ${sources})
-    target_link_libraries(${target} PRIVATE Catch2::Catch2WithMain)
-    set_target_properties(${target} PROPERTIES FOLDER "Tests")
-    # Precompiled header — every test TU includes Catch2 + STL.
-    target_precompile_headers(${target} PRIVATE ${SYNTHRT_TEST_PCH_HEADERS})
-    # Discover tests for CTest. Set PROCESSORS=1 so ctest -j can pack
-    # multiple test binaries onto the same core when I/O bound.
-    catch_discover_tests(${target} PROPERTIES PROCESSORS 1)
-endfunction()
+# synthrt_add_unittest() and SYNTHRT_TEST_PCH_HEADERS are defined in
+# cmake/synthrt_unittest.cmake, which is include()d once from the root
+# CMakeLists.txt (inside the SYNTHRT_BUILD_TESTS guard, before any
+# add_subdirectory that contains a unittests/ folder). The definition is
+# shared with per-domain test directories such as domains/ds-session/unittests.
 
 add_subdirectory(Core)
 add_subdirectory(Driver)

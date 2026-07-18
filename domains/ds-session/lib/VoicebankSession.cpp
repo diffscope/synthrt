@@ -250,6 +250,24 @@ void computeChanges(const VoicebankSnapshot &prev, const VoicebankSnapshot &next
         if (availabilityOf(s, prev.reservedPhonemes) != AvailabilityLevel::Unavailable)
             out.disabled.push_back(coordinateOf(s));
     }
+
+    // Deduplicate disabled entries: multiple singers under the same package
+    // coordinate (e.g. several singerIds in one package, or a singer that was
+    // both degraded and removed during the refresh) can each push the same
+    // PackageCoordinate. Collapse to unique coordinates, preserving first-seen
+    // order so callers observe a stable list. coordinateKey produces a string
+    // key, avoiding the need for operator< on PackageCoordinate.
+    {
+        std::set<std::string> seen;
+        std::vector<PackageCoordinate> unique;
+        unique.reserve(out.disabled.size());
+        for (const auto &c : out.disabled) {
+            if (seen.insert(coordinateKey(c)).second) {
+                unique.push_back(c);
+            }
+        }
+        out.disabled = std::move(unique);
+    }
 }
 
 /// Collect per-package parse diagnostics from the scanned PackageStatus list.

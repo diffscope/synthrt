@@ -85,6 +85,15 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+# Make synthrt_add_unittest available to all test subdirectories. Loaded
+# early (before any add_subdirectory that contains a unittests/ folder) so
+# domain test directories (e.g. domains/ds-session/unittests) can use it
+# even though the top-level unittests/ dir is processed last. The function
+# only references Catch2 at call time, so defining it here is safe.
+if(SYNTHRT_BUILD_TESTS)
+    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/synthrt_unittest.cmake)
+endif()
+
 # ----------------------------------
 # Add source modules
 # ----------------------------------

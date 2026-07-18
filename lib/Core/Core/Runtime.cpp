@@ -3,7 +3,9 @@
 
 #include <filesystem>
 #include <fstream>
+#include <memory>
 #include <sstream>
+#include <utility>
 
 #include <stdcorelib/path.h>
 #include <stdcorelib/3rdparty/llvm/smallvector.h>
@@ -238,8 +240,31 @@ namespace srt::core {
                 "inference module category is not registered",
             };
         }
+
+        // Track specs committed during this loadPackage call. On failure, they
+        // are rolled back via loadSpec(Deleted) + delete to avoid leaving
+        // partial state in the category's modules list (which would cause
+        // PackageDuplicate on the next retry). Per ROBUST-05: errors must not
+        // silently corrupt state. The pending spec (parseSpec'd but not yet
+        // committed) is held by a unique_ptr so it is freed on early return.
+        struct CommittedSpec {
+            ModuleCategory *cat;
+            ModuleSpec *spec;
+        };
+        std::vector<CommittedSpec> committed;
+        auto rollbackCommitted = [&committed]() {
+            // Roll back in reverse order (singers were appended after inferences,
+            // so they roll back first — matching the dependency direction).
+            for (auto it = committed.rbegin(); it != committed.rend(); ++it) {
+                (void) it->cat->loadSpec(it->spec, ModuleSpec::Deleted);
+                delete it->spec;
+            }
+            committed.clear();
+        };
+
         for (const auto &ref : inferenceRefs) {
             if (!fs::exists(ref, ec)) {
+                rollbackCommitted();
                 return Error{
                     Error::FileNotFound,
                     "inference config referenced in desc.json not found: " + stdc::path::to_utf8(ref),
@@ -250,6 +275,7 @@ namespace srt::core {
             try {
                 std::ifstream ifs(ref);
                 if (!ifs.is_open()) {
+                    rollbackCommitted();
                     return Error{
                         Error::FileNotOpen,
                         "failed to open inference config: " + stdc::path::to_utf8(ref),
@@ -259,6 +285,7 @@ namespace srt::core {
                 ss << ifs.rdbuf();
                 configText = ss.str();
             } catch (const std::exception &e) {
+                rollbackCommitted();
                 return Error{
                     Error::FileNotOpen,
                     "failed to read inference config: " + stdc::path::to_utf8(ref) +
@@ -269,6 +296,7 @@ namespace srt::core {
             std::string cfgErr;
             auto configJson = JsonValue::fromJson(configText, true, &cfgErr);
             if (!cfgErr.empty() || !configJson.isObject()) {
+                rollbackCommitted();
                 return Error{
                     Error::InvalidFormat,
                     "invalid inference config at " + stdc::path::to_utf8(ref) + ": " + cfgErr,
@@ -277,11 +305,15 @@ namespace srt::core {
 
             auto parseResult = infCat->parseSpec(ref.parent_path(), configJson);
             if (!parseResult) {
+                rollbackCommitted();
                 return std::move(parseResult.takeError()
                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
                     .withContext({}, {}, pkgId));
             }
-            auto *spec = parseResult.value();
+            // unique_ptr frees spec on early return (e.g. duplicate detection,
+            // loadSpec failure) — plug the previous leak where parseSpec'd specs
+            // were not deleted on the duplicate-detection error path.
+            std::unique_ptr<ModuleSpec> spec(parseResult.value());
             spec->_impl->packageId = pkgId;
             spec->_impl->packageVersion = pkgVersion;
 
@@ -296,6 +328,7 @@ namespace srt::core {
                 if (existing->id() == spec->id() &&
                     existing->packageId() == pkgId &&
                     existing->packageVersion() == pkgVersion) {
+                    rollbackCommitted();
                     return Error::packageError(
                         ErrorCode::PackageDuplicate,
                         "duplicate inference spec already loaded: id='" + spec->id() +
@@ -304,23 +337,37 @@ namespace srt::core {
                 }
             }
 
-            auto initResult = infCat->loadSpec(spec, ModuleSpec::Initialized);
+            auto initResult = infCat->loadSpec(spec.get(), ModuleSpec::Initialized);
             if (!initResult) {
+                // loadSpecBase only adds to modules on success, so spec is NOT
+                // in the list here — unique_ptr will free it.
+                rollbackCommitted();
                 return std::move(initResult.takeError()
                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
                     .withContext({}, {}, pkgId));
             }
-            auto readyResult = infCat->loadSpec(spec, ModuleSpec::Ready);
+            auto readyResult = infCat->loadSpec(spec.get(), ModuleSpec::Ready);
             if (!readyResult) {
+                // Initialized succeeded, so spec IS in the modules list —
+                // remove it before unique_ptr frees the memory.
+                (void) infCat->loadSpec(spec.get(), ModuleSpec::Deleted);
+                rollbackCommitted();
                 return std::move(readyResult.takeError()
                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
                     .withContext({}, {}, pkgId));
             }
+            // Success: commit (release ownership — category now holds the raw
+            // pointer in its modules list, matching the existing ownership model).
+            committed.push_back({infCat, spec.get()});
+            (void) spec.release();
         }
 
         // 7. Load singer specs.
         auto *singerCat = moduleCategory("singer");
         if (!singerCat) {
+            // Roll back the inferences committed above — singer category is
+            // required for a coherent package load.
+            rollbackCommitted();
             return Error{
                 Error::FeatureNotSupported,
                 "singer module category is not registered",
@@ -328,6 +375,7 @@ namespace srt::core {
         }
         for (const auto &ref : singerRefs) {
             if (!fs::exists(ref, ec)) {
+                rollbackCommitted();
                 return Error{
                     Error::FileNotFound,
                     "singer config referenced in desc.json not found: " + stdc::path::to_utf8(ref),
@@ -337,6 +385,7 @@ namespace srt::core {
             try {
                 std::ifstream ifs(ref);
                 if (!ifs.is_open()) {
+                    rollbackCommitted();
                     return Error{
                         Error::FileNotOpen,
                         "failed to open singer config: " + stdc::path::to_utf8(ref),
@@ -346,6 +395,7 @@ namespace srt::core {
                 ss << ifs.rdbuf();
                 configText = ss.str();
             } catch (const std::exception &e) {
+                rollbackCommitted();
                 return Error{
                     Error::FileNotOpen,
                     "failed to read singer config: " + stdc::path::to_utf8(ref) +
@@ -356,6 +406,7 @@ namespace srt::core {
             std::string cfgErr;
             auto configJson = JsonValue::fromJson(configText, true, &cfgErr);
             if (!cfgErr.empty() || !configJson.isObject()) {
+                rollbackCommitted();
                 return Error{
                     Error::InvalidFormat,
                     "invalid singer config at " + stdc::path::to_utf8(ref) + ": " + cfgErr,
@@ -364,11 +415,12 @@ namespace srt::core {
 
             auto parseResult = singerCat->parseSpec(ref.parent_path(), configJson);
             if (!parseResult) {
+                rollbackCommitted();
                 return std::move(parseResult.takeError()
                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
                     .withContext({}, {}, pkgId));
             }
-            auto *spec = parseResult.value();
+            std::unique_ptr<ModuleSpec> spec(parseResult.value());
             spec->_impl->packageId = pkgId;
             spec->_impl->packageVersion = pkgVersion;
 
@@ -380,6 +432,7 @@ namespace srt::core {
                 if (existing->id() == spec->id() &&
                     existing->packageId() == pkgId &&
                     existing->packageVersion() == pkgVersion) {
+                    rollbackCommitted();
                     return Error::packageError(
                         ErrorCode::PackageDuplicate,
                         "duplicate singer spec already loaded: id='" + spec->id() +
@@ -388,18 +441,23 @@ namespace srt::core {
                 }
             }
 
-            auto initResult = singerCat->loadSpec(spec, ModuleSpec::Initialized);
+            auto initResult = singerCat->loadSpec(spec.get(), ModuleSpec::Initialized);
             if (!initResult) {
+                rollbackCommitted();
                 return std::move(initResult.takeError()
                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
                     .withContext({}, {}, pkgId));
             }
-            auto readyResult = singerCat->loadSpec(spec, ModuleSpec::Ready);
+            auto readyResult = singerCat->loadSpec(spec.get(), ModuleSpec::Ready);
             if (!readyResult) {
+                (void) singerCat->loadSpec(spec.get(), ModuleSpec::Deleted);
+                rollbackCommitted();
                 return std::move(readyResult.takeError()
                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
                     .withContext({}, {}, pkgId));
             }
+            committed.push_back({singerCat, spec.get()});
+            (void) spec.release();
         }
 
         return Expected<void>();

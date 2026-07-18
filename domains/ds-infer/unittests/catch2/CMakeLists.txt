@@ -15,15 +15,23 @@ include(Catch)
 add_executable(tst-ds-infer-catch2
     test_algorithm.cpp
     test_algorithm_realworld.cpp
+    test_algorithm_extreme.cpp
     test_tensor_helper.cpp
     test_version_utils.cpp
     test_version_utils_complex.cpp
     test_input_word.cpp
     test_input_word_realworld.cpp
+    test_input_word_extreme.cpp
+    test_linguistic_encoder.cpp
     test_speaker_embedding.cpp
+    test_speaker_embedding_extreme.cpp
+    test_speaker_embedding_custom_mix.cpp
     test_modelset.cpp
     test_modelset_errors.cpp
     test_modelset_trace.cpp
+    test_modelset_stale_retry.cpp
+    test_inference_service.cpp
+    test_error_collector.cpp
     test_speaker_mapper.cpp
     test_model_registry.cpp
     test_singer_resolver_ambiguity.cpp
