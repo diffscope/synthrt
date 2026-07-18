@@ -113,6 +113,9 @@ add_subdirectory(lib/G2P)
 # DiffSinger inference domain
 set(CMAKE_FOLDER "Domains")
 add_subdirectory(domains/ds-infer)
+# VoicebankSession composes ds-bank, G2P and ds-infer, so it must be
+# configured only after all three exported targets exist.
+add_subdirectory(domains/ds-session)
 
 # C ABI (composes VoicebankScanner + LanguageService + Runtime)
 set(CMAKE_FOLDER "Libraries")
@@ -133,7 +136,7 @@ if(NOT TARGET synthrt-synthrt)
     add_library(synthrt-synthrt INTERFACE)
     add_library(synthrt::synthrt ALIAS synthrt-synthrt)
     target_link_libraries(synthrt-synthrt INTERFACE
-        srt::core srt::driver srt::s2p srt::svs srt-ds::bank)
+        srt::core srt::driver srt::s2p srt::svs srt-ds::bank srt-ds::session)
     set_target_properties(synthrt-synthrt PROPERTIES FOLDER "Domains")
 endif()
 
@@ -142,7 +145,7 @@ if(NOT TARGET srt-diffsinger)
     add_library(srt-diffsinger INTERFACE)
     add_library(srt::diffsinger ALIAS srt-diffsinger)
     target_link_libraries(srt-diffsinger INTERFACE
-        srt::g2p srt-ds::bank srt-ds::infer)
+        srt::g2p srt-ds::bank srt-ds::infer srt-ds::session)
     set_target_properties(srt-diffsinger PROPERTIES FOLDER "Domains")
 endif()
 

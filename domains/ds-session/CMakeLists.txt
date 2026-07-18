@@ -1,0 +1,5 @@
+project(dssession LANGUAGES CXX VERSION 0.0.1)
+add_subdirectory(lib)
+if(SYNTHRT_BUILD_TESTS)
+    add_subdirectory(unittests)
+endif()

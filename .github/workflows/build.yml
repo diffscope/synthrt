@@ -53,57 +53,37 @@ jobs:
         run: |
           brew install nasm yasm pkg-config
 
-      # Use the pre-installed vcpkg on GitHub-hosted runners.
-      # GitHub-hosted runners expose VCPKG_INSTALLATION_ROOT (not VCPKG_ROOT),
-      # so we detect the installation path and export VCPKG_ROOT for subsequent
-      # steps. This avoids the lukka/run-vcpkg action which sets up an isolated
-      # environment that may not inherit the system PATH (where nasm/yasm were
-      # installed), causing vcpkg_find_acquire_program to fail finding nasm.
+      # Pin the vcpkg client to the same revision as builtin-baseline. Runner
+      # images ship a moving (and sometimes shallow) vcpkg clone, which cannot
+      # reliably resolve a manifest baseline.
+      - name: Check out vcpkg
+        uses: actions/checkout@v4
+        with:
+          repository: microsoft/vcpkg
+          ref: 97b19caab97ab0c8d36c93230046c8c45fcd41d0
+          path: .vcpkg
+
       - name: Set up vcpkg
         shell: bash
         run: |
-          # Detect vcpkg root: prefer VCPKG_ROOT, then VCPKG_INSTALLATION_ROOT
-          # (set by GitHub-hosted runners), then OS-specific default paths.
-          if [ -n "${VCPKG_ROOT}" ] && [ -d "${VCPKG_ROOT}" ]; then
-            : # VCPKG_ROOT already set and valid
-          elif [ -n "${VCPKG_INSTALLATION_ROOT}" ] && [ -d "${VCPKG_INSTALLATION_ROOT}" ]; then
-            VCPKG_ROOT="${VCPKG_INSTALLATION_ROOT}"
-          else
-            case "${RUNNER_OS}" in
-              Windows) VCPKG_ROOT="C:/vcpkg" ;;
-              Linux)   VCPKG_ROOT="/usr/local/share/vcpkg" ;;
-              macOS)   VCPKG_ROOT="/usr/local/share/vcpkg" ;;
-              *)       VCPKG_ROOT="" ;;
-            esac
-          fi
+          echo "VCPKG_ROOT=${GITHUB_WORKSPACE}/.vcpkg" >> "$GITHUB_ENV"
+          git -C "${GITHUB_WORKSPACE}/.vcpkg" cat-file -e \
+            97b19caab97ab0c8d36c93230046c8c45fcd41d0^{commit}
 
-          if [ -z "${VCPKG_ROOT}" ] || [ ! -d "${VCPKG_ROOT}" ]; then
-            echo "Error: vcpkg directory not found."
-            echo "  VCPKG_ROOT=${VCPKG_ROOT}"
-            echo "  VCPKG_INSTALLATION_ROOT=${VCPKG_INSTALLATION_ROOT}"
-            echo "  RUNNER_OS=${RUNNER_OS}"
-            exit 1
-          fi
+      - name: Bootstrap vcpkg (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: .vcpkg\bootstrap-vcpkg.bat -disableMetrics
 
-          # Export VCPKG_ROOT for subsequent steps (e.g. Configure CMake).
-          echo "VCPKG_ROOT=${VCPKG_ROOT}" >> "$GITHUB_ENV"
-          echo "VCPKG_ROOT=${VCPKG_ROOT}"
+      - name: Bootstrap vcpkg (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: ./.vcpkg/bootstrap-vcpkg.sh -disableMetrics
 
-          # Ensure vcpkg executable exists (bootstrap if missing).
-          if [ ! -x "${VCPKG_ROOT}/vcpkg" ] && [ ! -x "${VCPKG_ROOT}/vcpkg.exe" ]; then
-            echo "Bootstrapping vcpkg..."
-            if [ "${RUNNER_OS}" = "Windows" ]; then
-              "${VCPKG_ROOT}/bootstrap-vcpkg.bat" -disableMetrics
-            else
-              "${VCPKG_ROOT}/bootstrap-vcpkg.sh" -disableMetrics
-            fi
-          fi
-          echo "vcpkg version:"
-          if [ "${RUNNER_OS}" = "Windows" ]; then
-            "${VCPKG_ROOT}/vcpkg.exe" version || true
-          else
-            "${VCPKG_ROOT}/vcpkg" version || true
-          fi
+      - name: Show vcpkg version
+        shell: bash
+        run: |
+          "${VCPKG_ROOT}/vcpkg" version
 
       - name: Cache ONNX Runtime
         id: cache-ort
@@ -129,9 +109,7 @@ jobs:
             -DSYNTHRT_BUILD_TESTS=ON \
             -DSYNTHRT_ORT_DIR="${{ github.workspace }}/build/onnxruntime" \
             -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
-            -DVCPKG_MANIFEST_DIR="${{ github.workspace }}/scripts/vcpkg-manifest" \
-            -DVCPKG_OVERLAY_PORTS="${{ github.workspace }}/scripts/vcpkg/ports" \
-            -DVCPKG_OVERLAY_TRIPLETS="${{ github.workspace }}/scripts/vcpkg/triplets"
+            -DVCPKG_MANIFEST_DIR="${{ github.workspace }}/scripts/vcpkg-manifest"
 
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel

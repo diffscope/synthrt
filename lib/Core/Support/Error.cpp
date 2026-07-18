@@ -79,6 +79,8 @@ namespace srt::core {
             case ErrorCode::InferenceOutputEmpty:         return "Inference::OutputEmpty";
             case ErrorCode::InferenceDataTypeMismatch:   return "Inference::DataTypeMismatch";
             case ErrorCode::InferenceSampleRateMismatch: return "Inference::SampleRateMismatch";
+            case ErrorCode::ModelBusy:                   return "Inference::ModelBusy";
+            case ErrorCode::StaleModelSet:               return "Inference::StaleModelSet";
 
             // G2P (300-399)
             case ErrorCode::G2pSuccess:              return "G2P::Success";

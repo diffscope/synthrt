@@ -1,0 +1,217 @@
+#pragma once
+
+#include <filesystem>
+#include <functional>
+#include <future>
+#include <memory>
+#include <string>
+#include <vector>
+
+#include <stdcorelib/support/versionnumber.h>
+
+#include <synthrt/Core/Support/Diagnostic.h>
+#include <synthrt/Core/Support/Expected.h>
+#include <synthrt/G2P/Base/LangCommon.h>
+#include <diffsinger/Bank/PackageStatus.h>
+#include <diffsinger/Bank/SingerRef.h>
+#include <diffsinger/Bank/SingerSnapshot.h>
+#include <diffsinger/Session/dssession_global.h>
+
+namespace srt::g2p {
+    class LanguageService;
+}
+
+namespace srt::core {
+    class Runtime;
+}
+
+namespace ds::session {
+
+    class ModelSetHandle;
+
+    enum class AvailabilityLevel { Available, Degraded, Unavailable };
+
+    struct AvailabilitySummary {
+        size_t available = 0;
+        size_t degraded = 0;
+        size_t unavailable = 0;
+    };
+
+    struct VoicebankSnapshot {
+        std::vector<ds::bank::SingerSnapshot> singers;
+        std::vector<ds::bank::PackageStatus> packages;
+        std::vector<std::filesystem::path> roots;
+        std::vector<std::string> reservedPhonemes;
+        AvailabilitySummary availability;
+        unsigned long long generation = 0;
+    };
+
+    /// PackageCoordinate - Stable coordinate identifying a package by id + version.
+    /// Used by ChangeSummary and updatesAvailable to report per-package deltas.
+    struct DSSESSION_EXPORT PackageCoordinate {
+        std::string packageId;
+        stdc::VersionNumber version;
+
+        bool operator==(const PackageCoordinate &) const = default;
+    };
+
+    /// ChangeSummary - Per-package delta produced by refresh().
+    /// Each list holds PackageCoordinate entries that were added/removed/changed
+    /// or became disabled relative to the previous snapshot.
+    struct DSSESSION_EXPORT ChangeSummary {
+        std::vector<PackageCoordinate> added;
+        std::vector<PackageCoordinate> removed;
+        std::vector<PackageCoordinate> changed;
+        std::vector<PackageCoordinate> disabled;
+    };
+
+    /// RefreshResult - Result of a refresh() call. On success carries the new
+    /// snapshot plus a change summary and diagnostics; on failure carries the
+    /// previous snapshot (unchanged) and an error message.
+    struct DSSESSION_EXPORT RefreshResult {
+        bool succeeded = false;
+        bool coalesced = false;
+        bool changed = false;                              ///< Whether the new snapshot differs from the previous one
+        std::shared_ptr<const VoicebankSnapshot> snapshot;
+        ChangeSummary changes;                             ///< Per-package delta (added/removed/changed/disabled)
+        std::vector<srt::core::Diagnostic> diagnostics;    ///< Diagnostics collected during refresh
+        std::vector<PackageCoordinate> updatesAvailable;    ///< Same-coordinate content updates (future use)
+        std::string errorMessage;                          ///< Short message on failure
+    };
+
+    /// Availability - Per-singer availability verdict consumed by Lite.
+    /// Ready: full inference chain can be built.
+    /// Warning: usable but with capability reduction or unprovable items.
+    /// Disabled: cannot infer (missing required stage/resource/G2P).
+    enum class Availability { Ready, Warning, Disabled };
+
+    /// SingerCapabilitySummary - Lite-facing summary of a singer's capability.
+    /// Maps the internal SingerCapabilityReport to the three-state Availability
+    /// plus the language/phoneme/speaker lists Lite needs for UI display.
+    struct DSSESSION_EXPORT SingerCapabilitySummary {
+        Availability availability = Availability::Disabled;
+        std::vector<std::string> languages;
+        std::vector<std::string> phonemes;
+        std::vector<std::string> mixableSpeakers;
+        std::vector<srt::core::Diagnostic> diagnostics;
+    };
+
+    /// S2pResult - Output of session-level S2P conversion.
+    /// phonemes and onsets are parallel arrays: onsets[i] is true when
+    /// phonemes[i] belongs to the onset of syllable i.
+    struct DSSESSION_EXPORT S2pResult {
+        std::vector<std::string> phonemes;
+        std::vector<bool> onsets;
+    };
+
+    /// RAII handle for a refresh completion subscription. Destroying or resetting
+    /// the handle prevents any later notification. It does not cancel refreshes.
+    class DSSESSION_EXPORT RefreshSubscription {
+    public:
+        RefreshSubscription() = default;
+        ~RefreshSubscription();
+        RefreshSubscription(const RefreshSubscription &) = delete;
+        RefreshSubscription &operator=(const RefreshSubscription &) = delete;
+        RefreshSubscription(RefreshSubscription &&other) noexcept;
+        RefreshSubscription &operator=(RefreshSubscription &&other) noexcept;
+
+        /// Stop receiving future refresh completion notifications. Safe to call
+        /// from the callback itself.
+        void reset();
+        explicit operator bool() const noexcept;
+
+        class State;
+
+    private:
+        explicit RefreshSubscription(std::shared_ptr<State> state);
+
+        std::shared_ptr<State> _state;
+
+        friend class VoicebankSession;
+    };
+
+    /// Thread-safe owner of an atomically published, immutable voicebank view.
+    class DSSESSION_EXPORT VoicebankSession {
+    public:
+        VoicebankSession();
+        ~VoicebankSession();
+        VoicebankSession(const VoicebankSession &) = delete;
+        VoicebankSession &operator=(const VoicebankSession &) = delete;
+
+        void setRoots(std::vector<std::filesystem::path> roots);
+        std::vector<std::filesystem::path> roots() const;
+        void setReservedPhonemes(std::vector<std::string> phonemes);
+        std::vector<std::string> reservedPhonemes() const;
+
+        /// Inject the LanguageService used by convertG2p/convertS2p. The
+        /// session does not own initialization lifecycle of the service; the
+        /// caller must initialize() it before invoking conversions. Passing
+        /// nullptr disables G2P/S2P (subsequent convert calls return
+        /// ErrorCode::G2pNotImplementedError).
+        void setLanguageService(std::shared_ptr<srt::g2p::LanguageService> service);
+        std::shared_ptr<srt::g2p::LanguageService> languageService() const;
+
+        std::shared_future<RefreshResult> refreshAsync();
+
+        /// Subscribe to refresh publications and final failures. The callback is
+        /// called once for each refresh that publishes changed content or fails;
+        /// concurrent refreshAsync callers share a refresh and therefore one
+        /// notification. Callbacks run outside internal locks and may reset
+        /// their own handle.
+        RefreshSubscription subscribeRefresh(std::function<void(const RefreshResult &)> callback);
+
+        std::shared_ptr<const VoicebankSnapshot> snapshot() const;
+        AvailabilitySummary availability() const;
+
+        /// Per-singer capability summary derived from the current snapshot's
+        /// SingerCapabilityReport. Unknown singers are Disabled. A resolved
+        /// legacy singer without a report remains Ready, but phoneme validation
+        /// will reject requests because support cannot be proven.
+        SingerCapabilitySummary capabilitySummary(const ds::bank::SingerRef &singerKey) const;
+
+        /// G2P conversion via the injected LanguageService. Does not copy
+        /// fallback and does not write empty phonemes; on failure returns an
+        /// Expected error that Lite must surface (vnext 04 migration rules).
+        srt::core::Expected<std::vector<srt::g2p::G2pRes>>
+            convertG2p(const ds::bank::SingerRef &singerKey,
+                       const std::string &language,
+                       const std::vector<srt::g2p::G2pInput> &inputs) const;
+
+        /// S2P conversion: resolves the per-singer S2P resource via the
+        /// injected LanguageService and runs LanguageResource::convert().
+        srt::core::Expected<S2pResult>
+            convertS2p(const ds::bank::SingerRef &singerKey,
+                       const std::string &language,
+                       const std::string &pronunciation) const;
+
+        /// Final phoneme validation against the singer's effective phonemes.
+        /// Missing or unsupported phonemes return an Expected error and must
+        /// block downstream inference (no silent replacement).
+        srt::core::Expected<void>
+            validatePhonemes(const ds::bank::SingerRef &singerKey,
+                             const std::vector<std::string> &phonemes) const;
+
+        /// Inject the Runtime used by createModelSet to resolve inference
+        /// stages. The session does not own the Runtime lifecycle; the caller
+        /// must loadPackage() the singer's package before calling
+        /// createModelSet(). Passing nullptr disables ModelSet
+        /// creation (subsequent createModelSet returns
+        /// ErrorCode::InferenceNotInitialized).
+        void setRuntime(srt::core::Runtime *runtime);
+        srt::core::Runtime *runtime() const;
+
+        /// Create a ModelSetHandle bound to the current snapshot generation.
+        /// singerKey must exist in the current snapshot and be Resolved. The
+        /// Runtime must be set and have the singer's package loaded. After a
+        /// successful refresh() that publishes changed content, the returned
+        /// handle's start() returns ErrorCode::StaleModelSet (running tasks
+        /// may still finish; load/stop/unload remain usable).
+        srt::core::Expected<std::shared_ptr<ModelSetHandle>>
+            createModelSet(const ds::bank::SingerRef &singerKey);
+
+    private:
+        class Impl;
+        std::shared_ptr<Impl> _impl;
+    };
+
+} // namespace ds::session

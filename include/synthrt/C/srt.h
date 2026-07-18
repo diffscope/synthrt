@@ -55,6 +55,9 @@ typedef enum {
     SRT_ERR_DEPENDENCY_CYCLE,
     SRT_ERR_LEVEL_MISMATCH,
     SRT_ERR_GENERIC,
+    // vnext: appended handle-table error codes (ARCH-02: append-only within Level).
+    SRT_ERR_INVALID_HANDLE, ///< Handle destroyed or never created.
+    SRT_ERR_MODEL_BUSY,     ///< Model is busy with another task.
 } srt_error;
 
 /* ===== Opaque handle types ===== */
@@ -185,6 +188,143 @@ SRT_C_EXPORT srt_error srt_session_set_package_paths(srt_session session,
  *         SRT_ERR_FILE_IO on filesystem or manifest parse errors.
  */
 SRT_C_EXPORT srt_error srt_session_refresh(srt_session session);
+
+/* ===== vnext: session/model/task handles ===== */
+//
+// The vnext C ABI surface exposes three handle kinds: session, model, task.
+// Session owns the bank scanner / G2P / runtime composition; model is created
+// from a singer key and runs a single stage; task represents an async request
+// (refresh, G2P, S2P, or stage) and can be polled/waited/cancelled.
+//
+// destroy is idempotent and stable: after destroy the handle pointer still
+// decodes to an invalid id and subsequent calls return SRT_ERR_INVALID_HANDLE.
+// Internal cleanup is performed by the library; running tasks that hold a
+// shared_ptr to the session continue until they complete.
+//
+// \see docs/refactoring-vnext/04-diagnostics-degradation-and-migration.md
+//     section "最小 C ABI".
+
+typedef struct srt_SessionHandle srt_SessionHandle;
+typedef struct srt_ModelHandle srt_ModelHandle;
+typedef struct srt_TaskHandle srt_TaskHandle;
+
+/* --- Session --- */
+
+/**
+ * Creates a new vnext session handle.
+ *
+ * The session owns the (stub in WP7) VoicebankScanner + LanguageService +
+ * Runtime composition. The caller must release the handle with
+ * srt_session_destroy().
+ *
+ * \return Non-NULL on success; NULL on failure (see srt_last_error()).
+ */
+SRT_C_EXPORT srt_SessionHandle *srt_session_create_v2(void);
+
+/**
+ * Destroys a vnext session handle. Passing NULL is a no-op.
+ * After destroy, the handle stably returns SRT_ERR_INVALID_HANDLE.
+ */
+SRT_C_EXPORT srt_error srt_session_destroy_v2(srt_SessionHandle *handle);
+
+/**
+ * Sets the voicebank roots (package search paths). Takes effect on the next
+ * refresh. \p roots may be NULL when \p count is 0.
+ */
+SRT_C_EXPORT srt_error srt_session_set_roots(srt_SessionHandle *handle,
+                                              const char *const *roots,
+                                              size_t count);
+
+/**
+ * Sets the reserved phoneme tokens. Takes effect on the next refresh.
+ * \p phonemes may be NULL when \p count is 0.
+ */
+SRT_C_EXPORT srt_error srt_session_set_reserved_phonemes(
+    srt_SessionHandle *handle, const char *const *phonemes, size_t count);
+
+/**
+ * Starts an asynchronous refresh. Returns a task handle the caller can
+ * poll/wait/cancel, or NULL on failure (the session handle is invalid or
+ * another refresh is in flight).
+ */
+SRT_C_EXPORT srt_TaskHandle *srt_session_refresh_async(srt_SessionHandle *handle);
+
+/**
+ * Returns a pointer to the current snapshot, or NULL if no snapshot exists.
+ * The pointer is valid only until the next session mutation; callers must not
+ * hold it across tasks. (Actual snapshot type is connected in WP8.)
+ */
+SRT_C_EXPORT const void *srt_session_snapshot(srt_SessionHandle *handle);
+
+/* --- Model --- */
+
+/**
+ * Creates a model handle bound to \p session for the given singer key
+ * (packageId, singerId, version). Returns NULL on failure.
+ */
+SRT_C_EXPORT srt_ModelHandle *srt_model_create(srt_SessionHandle *session,
+                                                const char *packageId,
+                                                const char *singerId,
+                                                const char *version);
+
+/**
+ * Destroys a model handle. Passing NULL is a no-op.
+ */
+SRT_C_EXPORT srt_error srt_model_destroy(srt_ModelHandle *handle);
+
+/* --- Task --- */
+
+typedef enum {
+    SRT_TASK_STATE_PENDING = 0,
+    SRT_TASK_STATE_RUNNING = 1,
+    SRT_TASK_STATE_SUCCEEDED = 2,
+    SRT_TASK_STATE_FAILED = 3,
+    SRT_TASK_STATE_CANCELLED = 4,
+} srt_TaskState;
+
+/**
+ * Returns the current task state. An invalid handle returns SRT_TASK_STATE_FAILED.
+ */
+SRT_C_EXPORT srt_TaskState srt_task_state(srt_TaskHandle *handle);
+
+/**
+ * Waits for the task to reach a terminal state.
+ *
+ * \param timeout_ms Max wait in milliseconds; a negative value waits forever.
+ * \return SRT_OK when the task reached a terminal state;
+ *         SRT_ERR_TIMEOUT when \p timeout_ms elapsed;
+ *         SRT_ERR_INVALID_HANDLE when \p handle is invalid.
+ */
+SRT_C_EXPORT srt_error srt_task_wait(srt_TaskHandle *handle, int timeout_ms);
+
+/**
+ * Requests cooperative cancellation. The task transitions to
+ * SRT_TASK_STATE_CANCELLED only after the running work acknowledges it
+ * ("取消协作完成后才终态").
+ */
+SRT_C_EXPORT srt_error srt_task_cancel(srt_TaskHandle *handle);
+
+/**
+ * Destroys a task handle. Passing NULL is a no-op.
+ * The underlying object is released once all shared_ptr references are gone.
+ */
+SRT_C_EXPORT void srt_task_destroy(srt_TaskHandle *handle);
+
+/**
+ * Reads the task result as a versioned UTF-8 JSON buffer.
+ *
+ * \param out_size Receives the byte length (excluding NUL) on success.
+ * \return Newly allocated buffer the caller must free with srt_free_buffer,
+ *         or NULL when the task has not produced a result.
+ */
+SRT_C_EXPORT const char *srt_task_result_json(srt_TaskHandle *handle,
+                                               size_t *out_size);
+
+/**
+ * Frees a buffer previously allocated by an srt API function.
+ * Passing NULL is a no-op.
+ */
+SRT_C_EXPORT void srt_free_buffer(void *ptr);
 
 #ifdef __cplusplus
 } // extern "C"

@@ -101,6 +101,8 @@ srt_error mapErrorCode(srt::core::ErrorCode code) {
             return SRT_ERR_NOT_INIT;
         case srt::core::ErrorCode::G2pAlreadyInitialized:
             return SRT_ERR_ALREADY_INIT;
+        case srt::core::ErrorCode::ModelBusy:
+            return SRT_ERR_MODEL_BUSY;
         default:
             return SRT_ERR_INIT_FAILED;
         }

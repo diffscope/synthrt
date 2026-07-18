@@ -237,10 +237,15 @@ namespace srt::g2p {
     }
 
     PackageManager::Impl::~Impl() {
-        closeAllLoadedPackages();
+        // Tasks retain non-owning ModuleSpec pointers owned by loaded packages.
+        // Release every task reference before the corresponding packages.
+        tasks.clear();
         for (const auto &[_, cate] : categories) {
             delete cate;
         }
+        categories.clear();
+        cateKeyMap.clear();
+        closeAllLoadedPackages();
     }
 
     void PackageManager::Impl::refreshPackageIndexes(const srt::core::ContextKey &ctxKey) {

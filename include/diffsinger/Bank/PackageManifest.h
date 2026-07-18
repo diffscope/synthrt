@@ -8,6 +8,8 @@
 
 #include <stdcorelib/support/versionnumber.h>
 
+#include <synthrt/Core/Support/Diagnostic.h>
+
 #include <diffsinger/Bank/dsbank_global.h>
 #include <diffsinger/Bank/LanguageInfo.h>
 #include <diffsinger/Bank/SingerManifest.h>
@@ -93,6 +95,10 @@ namespace ds::bank {
         const std::vector<InferenceInfo> &inferences() const;
         void setInferences(std::vector<InferenceInfo> inferences);
 
+        /// Non-fatal issues encountered while parsing in relaxed mode.
+        const std::vector<srt::core::Diagnostic> &diagnostics() const;
+        void addDiagnostic(srt::core::Diagnostic diagnostic);
+
     protected:
         std::string _packageId;
         std::filesystem::path _rootPath;
@@ -109,6 +115,7 @@ namespace ds::bank {
         std::vector<SpeakerInfo> _speakers;
         std::vector<LanguageInfo> _languages;
         std::vector<InferenceInfo> _inferences;
+        std::vector<srt::core::Diagnostic> _diagnostics;
     };
 
 }

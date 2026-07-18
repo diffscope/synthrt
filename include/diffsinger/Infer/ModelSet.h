@@ -17,9 +17,11 @@ namespace ds::infer {
     /// objects. Constructed from a StageSet produced by
     /// SingerStageResolver::resolve().
     ///
-    /// Lite holds ModelSet and owns the final state storage.
-    /// ModelSet does not include thread locking; the caller (lite) protects
-    /// concurrency.
+    /// Operations are synchronized and non-reentrant: a concurrent operation
+    /// returns ErrorCode::ModelBusy. load() and start() reject a stale set with
+    /// ErrorCode::StaleModelSet. Existing model() remains a compatibility escape
+    /// hatch; callers using it must synchronize direct Inference access.
+
     ///
     /// \see docs/refactoring-v2/02-target-api.md section 6
     class DSINFER_EXPORT ModelSet {
@@ -33,9 +35,26 @@ namespace ds::infer {
         ModelSet &operator=(ModelSet &&) noexcept;
 
         /// Lazily load the specified stage. If the model is already loaded,
-        /// returns the existing pointer. Default RuntimeOptions/InitArgs are
-        /// constructed from spec->configuration().
+        /// returns the existing pointer. Rejects stale sets.
         srt::core::Expected<srt::core::NO<srt::svs::Inference>> load(StageKind kind);
+
+        /// Start a loaded stage. A successful task result is retained and can
+        /// be read repeatedly via result(). Failed or stopped stages require
+        /// reset() before another start(). Rejects stale sets.
+        srt::core::Expected<srt::core::NO<srt::core::TaskResult>> start(
+            StageKind kind, const srt::core::NO<srt::core::TaskStartInput> &input);
+
+        /// Return the last result for a stage, or an empty NO when none exists.
+        srt::core::NO<srt::core::TaskResult> result(StageKind kind) const;
+
+        /// Stop and release one stage, clearing its retained result. This is
+        /// the required transition after a failed/cancelled task before retry.
+        srt::core::Expected<void> reset(StageKind kind);
+
+        /// Mark this set obsolete after its bound resource snapshot changes.
+        /// Running work may finish; future load()/start() calls are rejected.
+        void markStale() noexcept;
+        bool isStale() const noexcept;
 
         /// Get the loaded model NO reference. Returns an empty NO if not loaded.
         srt::core::NO<srt::svs::Inference> &model(StageKind kind) noexcept;

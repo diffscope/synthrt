@@ -110,9 +110,41 @@ TEST_CASE("BF-24 stop is idempotent on non-loaded model", "[modelset][bf-24]") {
 // To exercise this, a loaded Inference (via createInference + initialize) is
 // required, which needs ONNX runtime and a valid model file.
 
-// ---------------------------------------------------------------------------
-// c. unload error handling
-// ---------------------------------------------------------------------------
+TEST_CASE("ModelSet stale set rejects load and start", "[modelset][lifecycle]") {
+    auto stages = makeEmptyStageSet();
+    ModelSet modelSet(std::move(stages));
+
+    REQUIRE(!modelSet.isStale());
+    modelSet.markStale();
+    REQUIRE(modelSet.isStale());
+
+    auto loadExp = modelSet.load(StageKind::Duration);
+    REQUIRE(!loadExp.hasValue());
+    REQUIRE(loadExp.isError(ErrorCode::StaleModelSet));
+
+    auto startExp = modelSet.start(StageKind::Duration, {});
+    REQUIRE(!startExp.hasValue());
+    REQUIRE(startExp.isError(ErrorCode::StaleModelSet));
+}
+
+TEST_CASE("ModelSet result is empty before start and reset is safe", "[modelset][lifecycle]") {
+    auto stages = makeEmptyStageSet();
+    ModelSet modelSet(std::move(stages));
+
+    REQUIRE(!modelSet.result(StageKind::Duration));
+    REQUIRE(modelSet.reset(StageKind::Duration).hasValue());
+    REQUIRE(!modelSet.result(StageKind::Duration));
+}
+
+TEST_CASE("ModelSet start requires a loaded stage", "[modelset][lifecycle]") {
+    auto stages = makeEmptyStageSet();
+    ModelSet modelSet(std::move(stages));
+
+    auto exp = modelSet.start(StageKind::Duration, {});
+    REQUIRE(!exp.hasValue());
+    REQUIRE(exp.isError(ErrorCode::InferenceNotInitialized));
+}
+
 
 TEST_CASE("ModelSet unload on non-existent model returns success", "[modelset][error]") {
     auto stages = makeEmptyStageSet();

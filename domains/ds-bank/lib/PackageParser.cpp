@@ -7,6 +7,7 @@
 #include <synthrt/Core/Support/JSON.h>
 
 #include <diffsinger/Bank/PackageParser.h>
+#include <diffsinger/Bank/PackagePathResolver.h>
 
 using srt::core::Error;
 using srt::core::Expected;
@@ -65,20 +66,37 @@ namespace ds::bank {
         return {};
     }
 
-    static std::filesystem::path resolvePath(const std::filesystem::path &basePath,
-                                             const std::string &value) {
+    static std::filesystem::path resolvePath(const std::filesystem::path &packageRoot,
+                                             const std::filesystem::path &basePath,
+                                             const std::string &value, Error &err,
+                                             std::string *errorPointer = nullptr,
+                                             std::string_view pointer = {}) {
         if (value.empty()) {
             return {};
         }
-        const std::filesystem::path path(value);
-        if (path.is_absolute()) {
-            return path.lexically_normal();
+        auto result = PackagePathResolver::resolve(packageRoot, basePath, value);
+        if (!result.hasValue()) {
+            err = result.error();
+            if (errorPointer) {
+                *errorPointer = pointer;
+            }
+            return {};
         }
-        return (basePath / path).lexically_normal();
+        return result.value();
     }
 
+    static void addRelaxedDiagnostic(PackageManifest &manifest, const Error &error,
+                                     const std::filesystem::path &file, std::string_view pointer) {
+        auto diagnostic = error.diagnostic();
+        diagnostic.location = stdc::formatN("%1#/%2", file.generic_string(), pointer);
+        manifest.addDiagnostic(std::move(diagnostic));
+    }
+
+
     static LanguageInfo parseLanguageObject(const JsonObject &obj,
-                                            const std::filesystem::path &basePath) {
+                                             const std::filesystem::path &packageRoot,
+                                             const std::filesystem::path &basePath, Error &err,
+                                             std::string &errorPointer) {
         LanguageInfo lang;
 
         auto languageId = stringField(obj, "languageId");
@@ -104,21 +122,26 @@ namespace ds::bank {
             lang.setG2pPackageVersion(stdc::VersionNumber::fromString(g2pPackageVersion));
         }
 
-        lang.setDict(resolvePath(basePath, stringField(obj, "dict")));
+        lang.setDict(resolvePath(packageRoot, basePath, stringField(obj, "dict"), err,
+                                 &errorPointer, "configuration/languages/dict"));
         lang.setS2pMode(stringField(obj, "s2pMode"));
         lang.setOnsetMode(stringField(obj, "onsetMode"));
-        lang.setS2pFile(resolvePath(basePath, stringField(obj, "s2pFile")));
-        lang.setOnsetFile(resolvePath(basePath, stringField(obj, "onsetFile")));
+        lang.setS2pFile(resolvePath(packageRoot, basePath, stringField(obj, "s2pFile"), err,
+                                    &errorPointer, "configuration/languages/s2pFile"));
+        lang.setOnsetFile(resolvePath(packageRoot, basePath, stringField(obj, "onsetFile"), err,
+                                      &errorPointer, "configuration/languages/onsetFile"));
 
         auto packagesIt = obj.find("g2pPackages");
         if (packagesIt != obj.end()) {
             std::vector<std::filesystem::path> packages;
             if (packagesIt->second.isString()) {
-                packages.emplace_back(resolvePath(basePath, packagesIt->second.toString()));
+                packages.emplace_back(resolvePath(packageRoot, basePath, packagesIt->second.toString(), err,
+                                                  &errorPointer, "configuration/languages/g2pPackages"));
             } else if (packagesIt->second.isArray()) {
                 for (const auto &item : packagesIt->second.toArray()) {
                     if (item.isString()) {
-                        packages.emplace_back(resolvePath(basePath, item.toString()));
+                        packages.emplace_back(resolvePath(packageRoot, basePath, item.toString(), err,
+                                                          &errorPointer, "configuration/languages/g2pPackages"));
                     }
                 }
             }
@@ -131,8 +154,10 @@ namespace ds::bank {
     // Parse a singer config file. On read/parse failure, \p err is set and the
     // returned SingerManifest has an empty singerId (so callers can skip it in
     // Relaxed mode or report the error in Strict mode).
-    static void parseSingerConfig(const std::filesystem::path &filePath, SingerManifest &singer,
-                                 std::vector<LanguageInfo> &languages, Error &err) {
+    static void parseSingerConfig(const std::filesystem::path &packageRoot,
+                                  const std::filesystem::path &filePath, SingerManifest &singer,
+                                   std::vector<LanguageInfo> &languages, Error &err,
+                                   std::string &errorPointer) {
         Error readErr;
         auto text = readAll(filePath, readErr);
         if (readErr.type() != Error::NoError) {
@@ -200,7 +225,11 @@ namespace ds::bank {
                     if (!item.isObject()) {
                         continue;
                     }
-                    auto lang = parseLanguageObject(item.toObject(), filePath.parent_path());
+                    auto lang = parseLanguageObject(item.toObject(), packageRoot, filePath.parent_path(), err,
+                                                    errorPointer);
+                    if (err.type() != Error::NoError) {
+                        return;
+                    }
                     if (!lang.languageId().empty()) {
                         langs.emplace_back(lang);
                     }
@@ -255,7 +284,9 @@ namespace ds::bank {
         }
     }
 
-    static InferenceInfo parseInferenceConfig(const std::filesystem::path &filePath, Error &err) {
+    static InferenceInfo parseInferenceConfig(const std::filesystem::path &packageRoot,
+                                               const std::filesystem::path &filePath, Error &err,
+                                               std::string &errorPointer) {
         InferenceInfo info;
         info.configPath = filePath.lexically_normal();
         Error readErr;
@@ -289,7 +320,11 @@ namespace ds::bank {
                                       key == "phonemes" || key == "languages" ||
                                       (key.size() >= 5 && key.substr(key.size() - 5) == "Model");
                 if (pathLike && value.isString()) {
-                    const auto resolved = resolvePath(filePath.parent_path(), value.toString());
+                    const auto resolved = resolvePath(packageRoot, filePath.parent_path(), value.toString(), err,
+                                                      &errorPointer, "configuration/" + key);
+                    if (err.type() != Error::NoError) {
+                        return info;
+                    }
                     info.resourcePaths.emplace_back(stdc::path::to_utf8(resolved));
                     if (key == "phonemes") {
                         info.phonemesPath = resolved;
@@ -302,7 +337,11 @@ namespace ds::bank {
                 if (key == "speakers" && value.isObject()) {
                     for (const auto &[speakerId, emb] : value.toObject()) {
                         if (emb.isString()) {
-                            const auto resolved = resolvePath(filePath.parent_path(), emb.toString());
+                            const auto resolved = resolvePath(packageRoot, filePath.parent_path(), emb.toString(), err,
+                                                              &errorPointer, "configuration/speakers/" + speakerId);
+                            if (err.type() != Error::NoError) {
+                                return info;
+                            }
                             info.resourcePaths.emplace_back(stdc::path::to_utf8(resolved));
                             info.speakerEmbeddings.emplace(speakerId, resolved);
                         }
@@ -337,7 +376,13 @@ namespace ds::bank {
 
     Expected<PackageManifest> PackageParser::parsePackage(const std::filesystem::path &packageDir,
                                                           ParseMode mode) const {
-        const auto manifestPath = packageDir / "desc.json";
+        std::error_code rootError;
+        const auto packageRoot = std::filesystem::weakly_canonical(packageDir, rootError);
+        if (rootError || !std::filesystem::is_directory(packageRoot)) {
+            return Error{srt::core::ErrorCode::PackageManifestInvalid,
+                         stdc::formatN(R"(%1: package root is not a readable directory)", packageDir)};
+        }
+        const auto manifestPath = packageRoot / "desc.json";
 
         // Read manifest text
         Error readErr;
@@ -364,7 +409,7 @@ namespace ds::bank {
         const auto &obj = root.toObject();
 
         PackageManifest info;
-        info.setRootPath(packageDir.lexically_normal());
+        info.setRootPath(packageRoot);
         {
             auto it = obj.find("id");
             if (it == obj.end() || !it->second.isString()) {
@@ -447,26 +492,48 @@ namespace ds::bank {
 
         if (auto it = obj.find("contributes"); it != obj.end() && it->second.isObject()) {
             const auto &contrib = it->second.toObject();
-            auto parseRefs = [&](const char *key) {
+            auto parseRefs = [&](const char *key) -> Expected<std::vector<std::filesystem::path>> {
                 std::vector<std::filesystem::path> refs;
                 if (auto refIt = contrib.find(key); refIt != contrib.end() && refIt->second.isArray()) {
-                    for (const auto &item : refIt->second.toArray()) {
+                    const auto &items = refIt->second.toArray();
+                    for (size_t index = 0; index < items.size(); ++index) {
+                        const auto &item = items[index];
                         if (item.isString()) {
-                            refs.emplace_back(resolvePath(packageDir, item.toString()));
+                            Error pathError;
+                            auto path = resolvePath(packageRoot, packageRoot, item.toString(), pathError);
+                            if (pathError.type() != Error::NoError) {
+                                if (mode == ParseMode::Relaxed) {
+                                    addRelaxedDiagnostic(
+                                        info, pathError, manifestPath,
+                                        stdc::formatN("contributes/%1/%2", key, index));
+                                    continue;
+                                }
+                                return pathError;
+                            }
+                            refs.emplace_back(std::move(path));
                         }
                     }
                 }
                 return refs;
             };
-            auto singerRefs = parseRefs("singers");
-            auto inferenceRefs = parseRefs("inferences");
+            auto singerRefsResult = parseRefs("singers");
+            if (!singerRefsResult.hasValue()) {
+                return singerRefsResult.error();
+            }
+            auto inferenceRefsResult = parseRefs("inferences");
+            if (!inferenceRefsResult.hasValue()) {
+                return inferenceRefsResult.error();
+            }
+            auto singerRefs = singerRefsResult.take();
+            auto inferenceRefs = inferenceRefsResult.take();
             info.setSingerRefs(singerRefs);
             info.setInferenceRefs(std::move(inferenceRefs));
 
             std::vector<InferenceInfo> standardInferences;
             for (const auto &ref : info.inferenceRefs()) {
                 Error cfgErr;
-                auto inference = parseInferenceConfig(ref, cfgErr);
+                std::string errorPointer;
+                auto inference = parseInferenceConfig(packageRoot, ref, cfgErr, errorPointer);
                 if (cfgErr.type() != Error::NoError) {
                     // BF-33: Strict mode must report corrupted/missing inference
                     // configs instead of silently skipping them. Relaxed mode
@@ -474,6 +541,7 @@ namespace ds::bank {
                     if (mode == ParseMode::Strict) {
                         return cfgErr;
                     }
+                    addRelaxedDiagnostic(info, cfgErr, ref, errorPointer);
                     continue;
                 }
                 if (!inference.id.empty()) {
@@ -493,7 +561,8 @@ namespace ds::bank {
             for (const auto &ref : singerRefs) {
                 SingerManifest singer;
                 Error cfgErr;
-                parseSingerConfig(ref, singer, standardLanguages, cfgErr);
+                std::string errorPointer;
+                parseSingerConfig(packageRoot, ref, singer, standardLanguages, cfgErr, errorPointer);
                 if (cfgErr.type() != Error::NoError) {
                     // BF-33: Strict mode must report corrupted/missing singer
                     // configs instead of silently skipping them. Relaxed mode
@@ -501,6 +570,7 @@ namespace ds::bank {
                     if (mode == ParseMode::Strict) {
                         return cfgErr;
                     }
+                    addRelaxedDiagnostic(info, cfgErr, ref, errorPointer);
                     continue;
                 }
                 if (!singer.singerId().empty()) {

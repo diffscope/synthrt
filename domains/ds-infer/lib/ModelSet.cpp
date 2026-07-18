@@ -7,9 +7,13 @@
 
 #include <diffsinger/Infer/ModelSet.h>
 
+#include <atomic>
+#include <cstdint>
 #include <cstdlib>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <type_traits>
 #include <utility>
 
 #include <synthrt/Core/Support/Error.h>
@@ -83,12 +87,29 @@ namespace ds::infer {
 
     class ModelSet::Impl {
     public:
+        mutable std::mutex mutex;
+        std::atomic_bool stale = false;
         StageSet stages;
         NO<srt::svs::Inference> duration;
         NO<srt::svs::Inference> pitch;
         NO<srt::svs::Inference> variance;
         NO<srt::svs::Inference> acoustic;
         NO<srt::svs::Inference> vocoder;
+        NO<srt::core::TaskResult> durationResult;
+        NO<srt::core::TaskResult> pitchResult;
+        NO<srt::core::TaskResult> varianceResult;
+        NO<srt::core::TaskResult> acousticResult;
+        NO<srt::core::TaskResult> vocoderResult;
+        bool durationStarted = false;
+        bool pitchStarted = false;
+        bool varianceStarted = false;
+        bool acousticStarted = false;
+        bool vocoderStarted = false;
+        std::uint64_t durationEpoch = 0;
+        std::uint64_t pitchEpoch = 0;
+        std::uint64_t varianceEpoch = 0;
+        std::uint64_t acousticEpoch = 0;
+        std::uint64_t vocoderEpoch = 0;
 
         explicit Impl(StageSet s) : stages(std::move(s)) {}
 
@@ -113,6 +134,59 @@ namespace ds::infer {
                 case StageKind::Vocoder:  return stages.vocoder;
             }
             std::abort();
+        }
+
+        NO<srt::core::TaskResult> &resultSlot(StageKind kind) {
+            return const_cast<NO<srt::core::TaskResult> &>(
+                std::as_const(*this).resultSlot(kind));
+        }
+
+        const NO<srt::core::TaskResult> &resultSlot(StageKind kind) const {
+            switch (kind) {
+                case StageKind::Duration: return durationResult;
+                case StageKind::Pitch:    return pitchResult;
+                case StageKind::Variance: return varianceResult;
+                case StageKind::Acoustic: return acousticResult;
+                case StageKind::Vocoder:  return vocoderResult;
+            }
+            std::abort();
+        }
+
+        bool &startedSlot(StageKind kind) {
+            switch (kind) {
+                case StageKind::Duration: return durationStarted;
+                case StageKind::Pitch:    return pitchStarted;
+                case StageKind::Variance: return varianceStarted;
+                case StageKind::Acoustic: return acousticStarted;
+                case StageKind::Vocoder:  return vocoderStarted;
+            }
+            std::abort();
+        }
+
+        std::uint64_t &epochSlot(StageKind kind) {
+            switch (kind) {
+                case StageKind::Duration: return durationEpoch;
+                case StageKind::Pitch:    return pitchEpoch;
+                case StageKind::Variance: return varianceEpoch;
+                case StageKind::Acoustic: return acousticEpoch;
+                case StageKind::Vocoder:  return vocoderEpoch;
+            }
+            std::abort();
+        }
+
+        static srt::core::Error busyError(StageKind kind, const char *operation) {
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::ModelBusy,
+                "ModelSet::" + std::string(operation) + ": " +
+                    std::string(stageName(kind)) + " stage is busy",
+                {}, stageName(kind));
+        }
+
+        static srt::core::Error staleError(StageKind kind, const char *operation) {
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::StaleModelSet,
+                "ModelSet::" + std::string(operation) + ": model set is stale",
+                {}, stageName(kind));
         }
 
         static srt::core::Expected<NO<srt::svs::Inference>>
@@ -145,6 +219,14 @@ namespace ds::infer {
     ModelSet &ModelSet::operator=(ModelSet &&) noexcept = default;
 
     srt::core::Expected<NO<srt::svs::Inference>> ModelSet::load(StageKind kind) {
+        std::unique_lock lock(_impl->mutex, std::try_to_lock);
+        if (!lock.owns_lock()) {
+            return Impl::busyError(kind, "load");
+        }
+        if (_impl->stale.load(std::memory_order_acquire)) {
+            return Impl::staleError(kind, "load");
+        }
+
         auto &slot = _impl->slot(kind);
         if (slot) {
             return slot;
@@ -172,6 +254,84 @@ namespace ds::infer {
         return slot;
     }
 
+    srt::core::Expected<NO<srt::core::TaskResult>>
+        ModelSet::start(StageKind kind, const NO<srt::core::TaskStartInput> &input) {
+        NO<srt::svs::Inference> inference;
+        std::uint64_t epoch = 0;
+        {
+            std::unique_lock lock(_impl->mutex, std::try_to_lock);
+            if (!lock.owns_lock()) {
+                return Impl::busyError(kind, "start");
+            }
+            if (_impl->stale.load(std::memory_order_acquire)) {
+                return Impl::staleError(kind, "start");
+            }
+            auto &slot = _impl->slot(kind);
+            if (!slot) {
+                return srt::core::Error::inferenceError(
+                    srt::core::ErrorCode::InferenceNotInitialized,
+                    "ModelSet::start: " + std::string(stageName(kind)) + " stage is not loaded",
+                    {}, stageName(kind));
+            }
+            if (_impl->startedSlot(kind) || slot->state() == srt::core::ITask::Running) {
+                return Impl::busyError(kind, "start");
+            }
+            _impl->startedSlot(kind) = true;
+            epoch = _impl->epochSlot(kind);
+            inference = slot;
+        }
+
+        // Do not hold ModelSet's state mutex while executing the synchronous
+        // plugin call: stop() must remain able to request cancellation.
+        auto resultExp = inference->start(input);
+        // A failed start still requires reset() before another attempt: the
+        // plugin may have entered a terminal state with partially consumed input.
+        if (!resultExp) {
+            return std::move(resultExp.takeError());
+        }
+        {
+            std::lock_guard lock(_impl->mutex);
+            // reset()/unload() may have invalidated this run while it was
+            // stopping. Do not resurrect an obsolete result.
+            if (_impl->epochSlot(kind) == epoch) {
+                _impl->resultSlot(kind) = resultExp.value();
+            }
+        }
+        return resultExp.take();
+    }
+
+    NO<srt::core::TaskResult> ModelSet::result(StageKind kind) const {
+        std::lock_guard lock(_impl->mutex);
+        return _impl->resultSlot(kind);
+    }
+
+    srt::core::Expected<void> ModelSet::reset(StageKind kind) {
+        std::unique_lock lock(_impl->mutex, std::try_to_lock);
+        if (!lock.owns_lock()) {
+            return Impl::busyError(kind, "reset");
+        }
+        auto &slot = _impl->slot(kind);
+        ++_impl->epochSlot(kind);
+        if (slot && slot->state() == srt::core::ITask::Running && !slot->stop()) {
+            return srt::core::Error::inferenceError(
+                srt::core::ErrorCode::InferenceRunFailed,
+                "ModelSet::reset: failed to stop " + std::string(stageName(kind)) + " inference",
+                {}, stageName(kind));
+        }
+        slot.reset();
+        _impl->resultSlot(kind).reset();
+        _impl->startedSlot(kind) = false;
+        return srt::core::Expected<void>();
+    }
+
+    void ModelSet::markStale() noexcept {
+        _impl->stale.store(true, std::memory_order_release);
+    }
+
+    bool ModelSet::isStale() const noexcept {
+        return _impl->stale.load(std::memory_order_acquire);
+    }
+
     NO<srt::svs::Inference> &ModelSet::model(StageKind kind) noexcept {
         return _impl->slot(kind);
     }
@@ -181,6 +341,10 @@ namespace ds::infer {
     }
 
     srt::core::Expected<void> ModelSet::stop(StageKind kind) {
+        std::unique_lock lock(_impl->mutex, std::try_to_lock);
+        if (!lock.owns_lock()) {
+            return Impl::busyError(kind, "stop");
+        }
         auto &slot = _impl->slot(kind);
         if (!slot) {
             return srt::core::Expected<void>();
@@ -204,8 +368,15 @@ namespace ds::infer {
     }
 
     srt::core::Expected<void> ModelSet::unload(StageKind kind) {
+        std::unique_lock lock(_impl->mutex, std::try_to_lock);
+        if (!lock.owns_lock()) {
+            return Impl::busyError(kind, "unload");
+        }
         auto &slot = _impl->slot(kind);
+        ++_impl->epochSlot(kind);
         if (!slot) {
+            _impl->resultSlot(kind).reset();
+            _impl->startedSlot(kind) = false;
             return srt::core::Expected<void>();
         }
         // Stop first, then release.
@@ -221,21 +392,43 @@ namespace ds::infer {
             }
         }
         slot.reset();
+        _impl->resultSlot(kind).reset();
+        _impl->startedSlot(kind) = false;
         return srt::core::Expected<void>();
     }
 
     srt::core::Expected<void> ModelSet::unloadAll() {
-        // Continue unloading all remaining stages even if one fails, so that
-        // a single stop() failure does not leak the other stages. Return the
-        // first error encountered.
+        std::unique_lock lock(_impl->mutex, std::try_to_lock);
+        if (!lock.owns_lock()) {
+            return Impl::busyError(StageKind::Vocoder, "unloadAll");
+        }
+
+        // Continue unloading remaining stages after a stop failure. Avoid
+        // calling unload() here because it independently acquires the lock.
         srt::core::Error firstError;
         bool hadError = false;
         for (auto kind : kReverseOrder) {
-            auto exp = unload(kind);
-            if (!exp && !hadError) {
-                firstError = exp.error();
-                hadError = true;
+            auto &slot = _impl->slot(kind);
+            ++_impl->epochSlot(kind);
+            if (!slot) {
+                _impl->resultSlot(kind).reset();
+                _impl->startedSlot(kind) = false;
+                continue;
             }
+            if (slot->state() == srt::core::ITask::Running && !slot->stop()) {
+                if (!hadError) {
+                    firstError = srt::core::Error::inferenceError(
+                        srt::core::ErrorCode::InferenceRunFailed,
+                        "ModelSet::unloadAll: failed to stop " +
+                            std::string(stageName(kind)) + " inference",
+                        {}, stageName(kind));
+                    hadError = true;
+                }
+                continue;
+            }
+            slot.reset();
+            _impl->resultSlot(kind).reset();
+            _impl->startedSlot(kind) = false;
         }
         if (hadError) {
             return firstError;
@@ -244,6 +437,7 @@ namespace ds::infer {
     }
 
     bool ModelSet::isLoaded(StageKind kind) const noexcept {
+        std::lock_guard lock(_impl->mutex);
         return static_cast<bool>(_impl->slot(kind));
     }
 

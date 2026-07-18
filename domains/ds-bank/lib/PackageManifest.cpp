@@ -357,4 +357,12 @@ namespace ds::bank {
         _inferences = std::move(inferences);
     }
 
+    const std::vector<srt::core::Diagnostic> &PackageManifest::diagnostics() const {
+        return _diagnostics;
+    }
+
+    void PackageManifest::addDiagnostic(srt::core::Diagnostic diagnostic) {
+        _diagnostics.emplace_back(std::move(diagnostic));
+    }
+
 }

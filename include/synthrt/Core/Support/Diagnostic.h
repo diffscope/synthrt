@@ -77,6 +77,8 @@ namespace srt::core {
         InferenceOutputEmpty,
         InferenceDataTypeMismatch,
         InferenceSampleRateMismatch,
+        ModelBusy,
+        StaleModelSet,
 
         // === G2P (300-399) ===
         G2pSuccess = 300,

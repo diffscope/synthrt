@@ -11,7 +11,7 @@
 
 #include <synthrt/Core/Support/JSON.h>
 
-#include <diffsinger/Bank/PackageParser.h>
+#include <diffsinger/Bank/PackagePathResolver.h>
 #include <diffsinger/Bank/PackageValidator.h>
 
 using srt::core::JsonArray;
@@ -199,22 +199,6 @@ namespace ds::bank {
             return !value.empty() && value.find_first_of(R"(/\[]:;'" )") == std::string::npos;
         }
 
-        std::filesystem::path resolvePath(const std::filesystem::path &base,
-                                          const std::string &text) {
-            std::filesystem::path p(text);
-            if (!p.is_absolute()) {
-                p = base / p;
-            }
-            return p.lexically_normal();
-        }
-
-        bool pathEscapesRoot(const std::filesystem::path &root,
-                             const std::filesystem::path &target) {
-            const auto rootStr = root.lexically_normal().generic_string();
-            const auto targetStr = target.lexically_normal().generic_string();
-            return targetStr != rootStr && targetStr.rfind(rootStr + "/", 0) != 0;
-        }
-
         void validatePathValue(ValidationReport &report, const std::filesystem::path &packageRoot,
                                const std::filesystem::path &baseDir, const std::filesystem::path &file,
                                const std::string &ptr, const JsonValue &value,
@@ -223,12 +207,13 @@ namespace ds::bank {
                 addTypeError(report, file, ptr, value, "string path");
                 return;
             }
-            const auto resolved = resolvePath(baseDir, value.toString());
-            if (pathEscapesRoot(packageRoot, resolved)) {
-                report.add(Error, "path escapes package root", jsonPath(file, ptr),
-                           value.toString(), "Use a relative path inside this dspk package.");
+            auto result = PackagePathResolver::resolve(packageRoot, baseDir, value.toString());
+            if (!result.hasValue()) {
+                report.add(Error, "invalid package resource path", jsonPath(file, ptr),
+                           value.toString(), result.error().message());
                 return;
             }
+            const auto resolved = result.value();
             if (mustExist && !std::filesystem::exists(resolved)) {
                 report.add(Error, "referenced path does not exist", jsonPath(file, ptr),
                            value.toString(), "Create this file or update the relative path.");
@@ -520,7 +505,12 @@ namespace ds::bank {
                                                        SchemaVersion version) const {
         (void) version;
         ValidationReport report;
-        const auto packageRoot = packageDir.lexically_normal();
+        std::error_code rootError;
+        const auto packageRoot = std::filesystem::weakly_canonical(packageDir, rootError);
+        if (rootError || !std::filesystem::is_directory(packageRoot)) {
+            report.add(Error, "package root is not a readable directory", packageDir.generic_string());
+            return report;
+        }
         const auto descPath = packageRoot / "desc.json";
 
         auto root = parseJsonFile(report, descPath);
@@ -583,13 +573,15 @@ namespace ds::bank {
                         const auto ptr = stdc::formatN("contributes/%1/%2", entry, i);
                         validatePathValue(report, packageRoot, packageRoot, descPath, ptr, array[i], true, false);
                         if (array[i].isString()) {
-                            auto resolved = resolvePath(packageRoot, array[i].toString());
-                            if (!pathEscapesRoot(packageRoot, resolved)) {
-                                if (entry == "inferences") {
-                                    inferenceFiles.push_back(std::move(resolved));
-                                } else {
-                                    singerFiles.push_back(std::move(resolved));
-                                }
+                            auto result = PackagePathResolver::resolve(packageRoot, packageRoot, array[i].toString());
+                            if (!result.hasValue()) {
+                                continue;
+                            }
+                            auto resolved = result.value();
+                            if (entry == "inferences") {
+                                inferenceFiles.push_back(std::move(resolved));
+                            } else {
+                                singerFiles.push_back(std::move(resolved));
                             }
                         }
                     }
