@@ -79,6 +79,10 @@ namespace srt::core {
         InferenceSampleRateMismatch,
         ModelBusy,
         StaleModelSet,
+        // V3-09: ensure* API failure codes (values verified to avoid collisions
+        // with the existing Inference segment ending at StaleModelSet=216).
+        LoadFailed,                ///< 217 — ONNX session creation / load failure
+        RuntimePackageNotLoaded,  ///< 218 — Runtime::loadPackage not called for singer's package
 
         // === G2P (300-399) ===
         G2pSuccess = 300,
@@ -102,6 +106,9 @@ namespace srt::core {
         G2pSessionError,
         G2pContextNotFound,
         G2pTaskNotFound,
+        // V3-09 / V3-10: multi-version routing ambiguity (value verified to
+        // avoid collision with G2pTaskNotFound=320).
+        G2pVersionAmbiguous,      ///< 321 — caller omitted version while packageId has multiple versions
 
         // === Driver (400-499) ===
         DriverNotFound = 400,

@@ -81,6 +81,8 @@ namespace srt::core {
             case ErrorCode::InferenceSampleRateMismatch: return "Inference::SampleRateMismatch";
             case ErrorCode::ModelBusy:                   return "Inference::ModelBusy";
             case ErrorCode::StaleModelSet:               return "Inference::StaleModelSet";
+            case ErrorCode::LoadFailed:                  return "Inference::LoadFailed";
+            case ErrorCode::RuntimePackageNotLoaded:     return "Inference::RuntimePackageNotLoaded";
 
             // G2P (300-399)
             case ErrorCode::G2pSuccess:              return "G2P::Success";
@@ -104,6 +106,7 @@ namespace srt::core {
             case ErrorCode::G2pSessionError:         return "G2P::SessionError";
             case ErrorCode::G2pContextNotFound:      return "G2P::ContextNotFound";
             case ErrorCode::G2pTaskNotFound:         return "G2P::TaskNotFound";
+            case ErrorCode::G2pVersionAmbiguous:     return "G2P::VersionAmbiguous";
 
             // Driver (400-499)
             case ErrorCode::DriverNotFound:             return "Driver::NotFound";
@@ -453,6 +456,8 @@ namespace srt::core {
                     case ErrorCode::InferenceDataTypeMismatch:
                     case ErrorCode::InferenceSampleRateMismatch:
                     case ErrorCode::InferenceAlreadyRunning:
+                    case ErrorCode::LoadFailed:
+                    case ErrorCode::RuntimePackageNotLoaded:
                         return SessionError;
                     default:
                         return SessionError;
@@ -484,6 +489,7 @@ namespace srt::core {
                     case ErrorCode::G2pSessionError:
                     case ErrorCode::G2pContextNotFound:
                     case ErrorCode::G2pTaskNotFound:
+                    case ErrorCode::G2pVersionAmbiguous:
                         return SessionError;
                     default:
                         return SessionError;

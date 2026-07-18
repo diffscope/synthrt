@@ -35,6 +35,23 @@ void makeSecondPackage(const std::filesystem::path &root) {
 }
 }
 
+TEST_CASE("VoicebankSession refresh returns the same final result as asynchronous refresh", "[ds-session]") {
+    const auto root = makeRoot();
+    makePackage(root);
+    ds::session::VoicebankSession session;
+    session.setRoots({root});
+
+    const auto first = session.refresh();
+    REQUIRE(first.succeeded);
+    REQUIRE(first.changed);
+
+    const auto second = session.refresh();
+    REQUIRE(second.succeeded);
+    REQUIRE_FALSE(second.changed);
+    REQUIRE(second.snapshot == first.snapshot);
+    std::filesystem::remove_all(root);
+}
+
 TEST_CASE("VoicebankSession publishes immutable snapshot from concurrent refresh calls", "[ds-session]") {
     const auto root = makeRoot();
     makePackage(root);
@@ -205,14 +222,24 @@ TEST_CASE("VoicebankSession refresh collects diagnostics for invalid packages", 
     std::filesystem::remove_all(root);
 }
 
-TEST_CASE("VoicebankSession refresh keeps updatesAvailable empty (future capability)", "[ds-session]") {
+TEST_CASE("VoicebankSession reports same-coordinate content updates", "[ds-session]") {
     const auto root = makeRoot();
     makePackage(root);
     ds::session::VoicebankSession session;
     session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    // Keep package id/version stable while changing observable singer metadata.
+    writeFile(root / "bank" / "characters/test/config.json",
+              R"({"id":"test","name":"Updated singer","imports":[{"inferenceId":"duration"}],"configuration":{"defaultLanguage":"cmn","languages":[{"id":"cmn"}]}})");
     const auto result = session.refreshAsync().get();
     REQUIRE(result.succeeded);
-    REQUIRE(result.updatesAvailable.empty());
+    REQUIRE(result.changed);
+    REQUIRE(result.changes.added.empty());
+    REQUIRE(result.changes.removed.empty());
+    REQUIRE(result.changes.changed.size() == 1);
+    REQUIRE(result.updatesAvailable == result.changes.changed);
+    REQUIRE(result.updatesAvailable.front().packageId == "session.test");
     std::filesystem::remove_all(root);
 }
 

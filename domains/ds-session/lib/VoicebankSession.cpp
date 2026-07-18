@@ -8,6 +8,7 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <sstream>
 #include <utility>
 
 #include <synthrt/Core/Support/Error.h>
@@ -71,50 +72,107 @@ PackageCoordinate coordinateOf(const ds::bank::SingerSnapshot &singer) {
     return c;
 }
 
+std::string coordinateKey(const PackageCoordinate &coordinate) {
+    return coordinate.packageId + "\n" + coordinate.version.toString();
+}
+
+std::string fingerprintSinger(const ds::bank::SingerSnapshot &singer) {
+    std::ostringstream stream;
+    stream << singer.ref.packageId << '\n' << singer.ref.singerId << '\n'
+           << singer.ref.version << '\n' << singer.name << '\n'
+           << static_cast<int>(singer.resolutionState) << '\n'
+           << singer.phonemeLength << '\n' << singer.defaultLanguage << '\n';
+    for (const auto &item : singer.languages) stream << item << '\n';
+    stream << '\x1e';
+    for (const auto &item : singer.speakerIds) stream << item << '\n';
+    stream << '\x1e';
+    for (const auto &item : singer.inferenceIds) stream << item << '\n';
+    if (singer.capabilityReport) {
+        const auto &report = *singer.capabilityReport;
+        stream << '\x1e' << static_cast<int>(report.phonemeConsistency)
+               << static_cast<int>(report.speakerConsistency)
+               << static_cast<int>(report.languageConsistency)
+               << report.phonemeDegraded << '\n';
+        for (const auto &item : report.effectivePhonemes) stream << item << '\n';
+        stream << '\x1e';
+        for (const auto &item : report.effectiveLanguages) stream << item << '\n';
+        stream << '\x1e';
+        for (const auto &item : report.mixableSpeakers) stream << item << '\n';
+    }
+    return stream.str();
+}
+
+std::string fingerprintPackage(const VoicebankSnapshot &snapshot,
+                               const ds::bank::PackageStatus &package) {
+    std::ostringstream stream;
+    stream << package.packageId << '\n' << package.version.toString() << '\n'
+           << package.rootPath.generic_string() << '\n' << package.valid << '\n';
+    for (const auto &dependency : package.dependencies) stream << dependency << '\n';
+    stream << '\x1e';
+    for (const auto &dependency : package.unresolvedDependencies) stream << dependency << '\n';
+    stream << '\x1e' << static_cast<int>(package.error.code) << '\n'
+           << package.error.message << '\n';
+    for (const auto &singer : snapshot.singers) {
+        if (coordinateOf(singer) == coordinateOf(package))
+            stream << fingerprintSinger(singer) << '\x1f';
+    }
+    return stream.str();
+}
+
+std::map<std::string, std::string> packageFingerprints(const VoicebankSnapshot &snapshot) {
+    std::map<std::string, std::string> fingerprints;
+    for (const auto &package : snapshot.packages) {
+        const auto coordinate = coordinateOf(package);
+        fingerprints.emplace(coordinateKey(coordinate), fingerprintPackage(snapshot, package));
+    }
+    return fingerprints;
+}
+
 /// Compare two snapshots by package set and singer availability, filling the
 /// supplied ChangeSummary. added/removed/changed describe package deltas;
 /// disabled lists packages whose singers transitioned from Resolved to a
 /// non-Resolved state or became Unavailable after being Available.
 void computeChanges(const VoicebankSnapshot &prev, const VoicebankSnapshot &next,
                     ChangeSummary &out) {
-    // Index previous packages by (packageId, version).
-    std::map<std::string, stdc::VersionNumber> prevPkgs;
-    for (const auto &p : prev.packages)
-        prevPkgs.emplace(p.packageId, p.version);
-    std::map<std::string, stdc::VersionNumber> nextPkgs;
-    for (const auto &p : next.packages)
-        nextPkgs.emplace(p.packageId, p.version);
+    const auto prevFingerprints = packageFingerprints(prev);
+    const auto nextFingerprints = packageFingerprints(next);
 
     // added: in next but not in prev.
     for (const auto &p : next.packages) {
-        if (prevPkgs.find(p.packageId) == prevPkgs.end())
+        const auto coordinate = coordinateOf(p);
+        if (prevFingerprints.find(coordinateKey(coordinate)) == prevFingerprints.end())
             out.added.push_back(coordinateOf(p));
     }
     // removed: in prev but not in next.
     for (const auto &p : prev.packages) {
-        if (nextPkgs.find(p.packageId) == nextPkgs.end())
+        const auto coordinate = coordinateOf(p);
+        if (nextFingerprints.find(coordinateKey(coordinate)) == nextFingerprints.end())
             out.removed.push_back(coordinateOf(p));
     }
-    // changed: same packageId present in both but with a different version.
+    // changed: same coordinate with different visible package or singer data.
     for (const auto &p : next.packages) {
-        const auto it = prevPkgs.find(p.packageId);
-        if (it != prevPkgs.end() && !(it->second == p.version))
+        const auto coordinate = coordinateOf(p);
+        const auto key = coordinateKey(coordinate);
+        const auto it = prevFingerprints.find(key);
+        if (it != prevFingerprints.end() && it->second != nextFingerprints.at(key))
             out.changed.push_back(coordinateOf(p));
     }
 
     // disabled: singers that were Available/Degraded before but are now
     // Unavailable (e.g. their package was removed or their resolution state
     // degraded). Report at the package coordinate level.
-    auto findPrevSinger = [&](const ds::bank::SingerRef &ref)
+    auto findSingerByExactRef = [](const VoicebankSnapshot &snapshot,
+                                   const ds::bank::SingerRef &ref)
         -> const ds::bank::SingerSnapshot * {
-        for (const auto &s : prev.singers) {
-            if (s.ref.packageId == ref.packageId && s.ref.singerId == ref.singerId)
+        for (const auto &s : snapshot.singers) {
+            if (s.ref.packageId == ref.packageId && s.ref.singerId == ref.singerId &&
+                s.ref.version == ref.version)
                 return &s;
         }
         return nullptr;
     };
     for (const auto &s : next.singers) {
-        const auto *prevSinger = findPrevSinger(s.ref);
+        const auto *prevSinger = findSingerByExactRef(prev, s.ref);
         if (!prevSinger)
             continue;
         const auto prevLevel = availabilityOf(*prevSinger, prev.reservedPhonemes);
@@ -123,6 +181,12 @@ void computeChanges(const VoicebankSnapshot &prev, const VoicebankSnapshot &next
             nextLevel == AvailabilityLevel::Unavailable) {
             out.disabled.push_back(coordinateOf(s));
         }
+    }
+    for (const auto &s : prev.singers) {
+        if (findSingerByExactRef(next, s.ref))
+            continue;
+        if (availabilityOf(s, prev.reservedPhonemes) != AvailabilityLevel::Unavailable)
+            out.disabled.push_back(coordinateOf(s));
     }
 }
 
@@ -150,23 +214,7 @@ void collectDiagnostics(const std::vector<ds::bank::PackageStatus> &packages,
 bool contentEqual(const VoicebankSnapshot &a, const VoicebankSnapshot &b) {
     if (a.roots != b.roots) return false;
     if (a.reservedPhonemes != b.reservedPhonemes) return false;
-    if (a.packages.size() != b.packages.size()) return false;
-    for (size_t i = 0; i < a.packages.size(); ++i) {
-        if (a.packages[i].packageId != b.packages[i].packageId) return false;
-        if (!(a.packages[i].version == b.packages[i].version)) return false;
-        if (a.packages[i].valid != b.packages[i].valid) return false;
-    }
-    if (a.singers.size() != b.singers.size()) return false;
-    for (size_t i = 0; i < a.singers.size(); ++i) {
-        const auto &x = a.singers[i];
-        const auto &y = b.singers[i];
-        if (x.ref.packageId != y.ref.packageId) return false;
-        if (x.ref.singerId != y.ref.singerId) return false;
-        if (x.ref.version != y.ref.version) return false;
-        if (x.resolutionState != y.resolutionState) return false;
-        if (x.inferenceIds != y.inferenceIds) return false;
-    }
-    return true;
+    return packageFingerprints(a) == packageFingerprints(b);
 }
 
 /// Map the internal AvailabilityLevel (per-singer availability computed from
@@ -275,7 +323,7 @@ public:
         }
     }
 
-    RefreshResult refresh() {
+    RefreshResult performRefresh() {
         std::vector<std::filesystem::path> refreshRoots;
         std::vector<std::string> refreshReserved;
         unsigned long long nextGeneration;
@@ -367,9 +415,9 @@ public:
             r.coalesced = false;
             r.changed = changed;
             r.snapshot = std::move(published);
+            r.updatesAvailable = changes.changed;
             r.changes = std::move(changes);
             r.diagnostics = std::move(diagnostics);
-            // updatesAvailable intentionally left empty (future capability).
             return finish(std::move(r));
         } catch (const std::exception &e) {
             RefreshResult r;
@@ -418,8 +466,12 @@ std::shared_future<RefreshResult> VoicebankSession::refreshAsync() {
         _impl->inFlight.wait_for(std::chrono::seconds(0)) != std::future_status::ready)
         return _impl->inFlight;
     const auto impl = _impl;
-    _impl->inFlight = std::async(std::launch::async, [impl] { return impl->refresh(); }).share();
+    _impl->inFlight = std::async(std::launch::async, [impl] { return impl->performRefresh(); }).share();
     return _impl->inFlight;
+}
+
+RefreshResult VoicebankSession::refresh() {
+    return refreshAsync().get();
 }
 
 RefreshSubscription VoicebankSession::subscribeRefresh(

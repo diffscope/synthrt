@@ -42,6 +42,15 @@ TEST_CASE("errorCodeCategory maps codes to categories", "[error][category]") {
         REQUIRE(errorCodeCategory(ErrorCode::G2pSuccess) == ErrorCategory::G2P);
         REQUIRE(errorCodeCategory(ErrorCode::G2pDependencyError) == ErrorCategory::G2P);
         REQUIRE(errorCodeCategory(ErrorCode::G2pTaskNotFound) == ErrorCategory::G2P);
+        REQUIRE(errorCodeCategory(ErrorCode::G2pVersionAmbiguous) == ErrorCategory::G2P);
+    }
+    SECTION("V3-09 ensure* failure codes map to Inference") {
+        REQUIRE(errorCodeCategory(ErrorCode::LoadFailed) == ErrorCategory::Inference);
+        REQUIRE(errorCodeCategory(ErrorCode::RuntimePackageNotLoaded) == ErrorCategory::Inference);
+        // Values must match V3-09 spec (verified against Diagnostic.h).
+        REQUIRE(static_cast<int>(ErrorCode::LoadFailed) == 217);
+        REQUIRE(static_cast<int>(ErrorCode::RuntimePackageNotLoaded) == 218);
+        REQUIRE(static_cast<int>(ErrorCode::G2pVersionAmbiguous) == 321);
     }
     SECTION("Driver/S2P/SVS codes map to their categories") {
         REQUIRE(errorCodeCategory(ErrorCode::DriverNotFound) == ErrorCategory::Driver);
@@ -62,6 +71,12 @@ TEST_CASE("errorCodeToString returns human-readable names", "[error][string]") {
     REQUIRE(std::string(errorCodeToString(ErrorCode::PackageManifestInvalid)) ==
             "Package::ManifestInvalid");
     REQUIRE(std::string(errorCodeToString(ErrorCode::SvsSingerNotFound)) == "SVS::SingerNotFound");
+    // V3-09 / V3-10 new codes
+    REQUIRE(std::string(errorCodeToString(ErrorCode::LoadFailed)) == "Inference::LoadFailed");
+    REQUIRE(std::string(errorCodeToString(ErrorCode::RuntimePackageNotLoaded)) ==
+            "Inference::RuntimePackageNotLoaded");
+    REQUIRE(std::string(errorCodeToString(ErrorCode::G2pVersionAmbiguous)) ==
+            "G2P::VersionAmbiguous");
 }
 
 TEST_CASE("errorCategoryToString returns human-readable names", "[error][string]") {

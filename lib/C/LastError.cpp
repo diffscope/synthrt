@@ -98,9 +98,16 @@ srt_error mapErrorCode(srt::core::ErrorCode code) {
         case srt::core::ErrorCode::G2pSuccess:
             return SRT_OK; // fix success mapping to init failed (ER-02)
         case srt::core::ErrorCode::InferenceNotInitialized:
+        case srt::core::ErrorCode::RuntimePackageNotLoaded:
             return SRT_ERR_NOT_INIT;
+        case srt::core::ErrorCode::LoadFailed:
+            return SRT_ERR_INIT_FAILED;
         case srt::core::ErrorCode::G2pAlreadyInitialized:
             return SRT_ERR_ALREADY_INIT;
+        case srt::core::ErrorCode::G2pVersionAmbiguous:
+            // Ambiguous version is effectively an invalid argument from the
+            // caller's perspective — they must provide an explicit version.
+            return SRT_ERR_INVALID_ARG;
         case srt::core::ErrorCode::ModelBusy:
             return SRT_ERR_MODEL_BUSY;
         default:

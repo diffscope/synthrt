@@ -186,3 +186,118 @@
 ### D-25：v1 文档废弃
 
 **决策**: v1 文档（`docs/refactoring-v1/`，7 文件）已于 2026-07-09 删除，v2 取代。v1 Phase 1+2 已落地成果保留（SVS namespace、Contribute.h 删除等），v2 文档不再重复记录。
+
+---
+
+## 六、v4 ds-session 重构决策（2026-07-18）
+
+### D-26：ds-session 恢复并重定位为两阶段加载后端
+
+**决策**: 恢复 `ds-session` 作为稳定、Lite-friendly 的后端，采用 Discovery/On-demand 两阶段加载：
+- **Phase 1 (Discovery)**：扫目录、解析包清单、校验完整性（仅元数据，不加载 G2P 字典/模型权重）
+- **Phase 2 (On-demand)**：`ensureLanguageReady()` / `ensureModelSet()` 同步加载重资源
+
+**否决**: 一次性全部加载（违反 Lite 懒加载需求）；继续抛弃 ds-session（C ABI CLI 等 headless host 需统一入口）
+
+### D-27：Runtime/LanguageService 所有权归 Lite
+
+**决策**: Session **借入** Runtime 和 LanguageService（通过 `SessionResources(Runtime&, LanguageService&)` 构造绑定），不做生命周期管理。无 bare setter。
+
+**理由**: Lite 是这两个资源的所有者和生命周期管理器；Session 只是消费者。`setRuntime()` / `setLanguageService()` 立即删除。
+
+**例外**: C ABI / CLI 等 headless host 使用默认构造函数，仅走 discovery 路径，不绑定 Runtime/LanguageService。
+
+### D-28：Lite 生产路径本轮不碰
+
+**决策**: 本轮完成 SynthRT 侧的契约和兼容性（快照结构、`ensure*` API、错误码），Lite 适配器调用迁移留到下一轮（Phase 2）。
+
+**理由**: 保持 Lite 主分支稳定，分离接口定义和集成调试风险。
+
+### D-29：refresh 同步为主，异步为辅
+
+**决策**:
+- Lite worker 调用 sync `refresh()`（阻塞扫描，完成后通知 UI）
+- `refreshAsync()` 保留仅用于非 Qt host（CLI 等）
+
+**理由**: Qt host 需要确定性的完成回调来刷新 UI；异步只在需要非阻塞的场景使用。
+
+### D-30：Stale ModelSet 重试：一次 + 一次
+
+**决策**: 检测到 stale ModelSet 时：重建一次 → 重试一次 → 失败报 `StaleModelSet`，不取消正在运行的任务。
+
+### D-31：Discovery 阶段部分成功
+
+**决策**: 一次 refresh 扫描多个包，各自独立：
+- **合法包**：发布完整元数据
+- **损坏包**：发布带 diagnostics 的包记录
+- 不做"全 or 全不"的原子性拒绝
+
+### D-32：同一 packageId 多版本同时存在
+
+**决策**:
+- 元数据层面：所有版本都发布到 snapshot（`PackageRecord` 包含 `version` 字段）
+- G2P/S2P 路由层面：遇到同一 packageId 对应多个版本时，返回**显式版本歧义错误**（`G2PVersionAmbiguous`）
+- 不搞"静默取最后一个"
+
+**理由**: `LanguageService` 底层初始化 key 为 `packageId`（无 version 维），无法安全区分版本。Session 不能猜测用户意图。
+
+### D-33：快照包含指纹，支持 Lite 缓存失效
+
+**决策**: `VoicebankSnapshot` 新增：
+- `catalogFingerprint`：全量目录哈希（匹配 Lite `PackageCatalog::generation`）
+- `languageFingerprint`：G2P/S2P 路由元数据哈希
+
+### D-34：ensure* API 同步 + 结构化错误
+
+**决策**:
+- `ensureLanguageReady(packageId, language)`：无 Future，同步加载
+- `ensureModelSet(packageId, ...)`：同步加载，前提 `ensureRuntimePackageLoaded()`
+- 错误类型：`VersionAmbiguous`、`NotFound`、`LoadFailed`、`StaleModelSet`、`RuntimePackageNotLoaded`
+
+### D-35：Config 变更延迟生效
+
+**决策**: 配置变更（如添加/删除扫描目录）调用方设置后，**下次 `refresh()` 调用**才生效。无自动 watch / auto-refresh。
+
+### D-36：C ABI Phase 1 保持默认构造
+
+**决策**: `srt_session_create` 保持默认构造函数（discovery only）。资源完备的 session 需要新增 `srt_session_create_with_resources`。
+
+**否决**: 修改现有 C ABI 签名（向后兼容约束）。
+
+### D-37：LanguageService 版本隔离分析结论
+
+**分析**: 当前 `LanguageService` 无法安全添加 version 参数，原因：
+- `initializeMetadata()` 签名：`unordered_map<packageId, path>` — 无 version 维
+- 内部索引：G2P `Manager` context key、S2P 缓存键均以 `packageId` 为唯一标识
+- Lite 调用链：按 `packageId` 打包路径，无法表达 version
+- 风险：仅改公开签名而不审计内部隔离，会导致"接口带 version、内部仍按 singerId 覆盖"的伪隔离
+
+**决策路径**:
+1. **短期**：Session 路由层做版本歧义检测，拒绝多版本歧义，由调用方（用户/Lite）选择后通过配置排除旧版本
+2. **中期**：若需要版本安全隔离，需从 `LanguageService` API 开始到底层 cache 全链路改造
+3. **当前不行动**：不修复不存在的 Bug，用原则性拒绝代替猜测
+
+### D-38：关键约束速查
+
+| # | 约束 | 来源 |
+|---|---|---|
+| K-01 | Session 不拥有 Runtime/LanguageService | D-27 |
+| K-02 | Phase 2 不碰 Lite 生产路径 | D-28 |
+| K-03 | refresh 同步为主（Lite） | D-29 |
+| K-04 | Stale ModelSet: 重建一次 + 重试一次 | D-30 |
+| K-05 | Discovery 部分成功 | D-31 |
+| K-06 | 多版本元数据全发布，路由歧义拒绝 | D-32 |
+| K-07 | 快照含指纹 | D-33 |
+| K-08 | ensure* 同步 + 结构化错误 | D-34 |
+| K-09 | Config 变更下次 refresh 生效 | D-35 |
+| K-10 | C ABI 默认构造保留 | D-36 |
+| K-11 | LanguageService 版本隔离当前不做 | D-37 |
+
+### D-39：已知一致性问题清单
+
+以下为已识别但本轮不处理的遗留问题：
+
+1. **G2P 版本歧义**：LanguageService 底层无 version 维，Session 路由拒绝多版本包。见 D-37。
+2. **Lite PackageCatalog 双源**：Lite 当前 `PackageCatalog` 是唯一的快照权威；Session snapshot 需提供完整超集才能逐步替代。Phase 2 处理。
+3. **`__has_include` 惰性分支**：Lite 中 `m_sessionV2` / `setVoicebankSession` 存在但 inert。必须确保 Session header 安装后不被意外激活。Phase 2 处理。
+4. **ModelSetHandle isStale()**：已实现 generation 比较，`StaleModelSet` 错误码已存在。Lite 重试逻辑在 Phase 2 adapter 实现。

@@ -46,7 +46,7 @@ namespace ds::session {
         unsigned long long generation = 0;
     };
 
-    /// PackageCoordinate - Stable coordinate identifying a package by id + version.
+    /// PackageCoordinate - Stable coordinate identifying one installed package.
     /// Used by ChangeSummary and updatesAvailable to report per-package deltas.
     struct DSSESSION_EXPORT PackageCoordinate {
         std::string packageId;
@@ -61,6 +61,8 @@ namespace ds::session {
     struct DSSESSION_EXPORT ChangeSummary {
         std::vector<PackageCoordinate> added;
         std::vector<PackageCoordinate> removed;
+        /// Installed packages whose coordinate stayed the same but whose
+        /// observable metadata or singer capabilities changed.
         std::vector<PackageCoordinate> changed;
         std::vector<PackageCoordinate> disabled;
     };
@@ -75,7 +77,10 @@ namespace ds::session {
         std::shared_ptr<const VoicebankSnapshot> snapshot;
         ChangeSummary changes;                             ///< Per-package delta (added/removed/changed/disabled)
         std::vector<srt::core::Diagnostic> diagnostics;    ///< Diagnostics collected during refresh
-        std::vector<PackageCoordinate> updatesAvailable;    ///< Same-coordinate content updates (future use)
+        /// Same-coordinate updates. This mirrors changed so hosts can offer an
+        /// explicit reload/migration action without treating it as a version
+        /// change.
+        std::vector<PackageCoordinate> updatesAvailable;
         std::string errorMessage;                          ///< Short message on failure
     };
 
@@ -151,6 +156,14 @@ namespace ds::session {
         void setLanguageService(std::shared_ptr<srt::g2p::LanguageService> service);
         std::shared_ptr<srt::g2p::LanguageService> languageService() const;
 
+        /// Refresh and return the final result. Concurrent calls share one scan.
+        /// This is the preferred API for CLI, tests, and hosts that already run
+        /// package discovery on a worker thread.
+        RefreshResult refresh();
+
+        /// Start one background scan. Concurrent callers share the in-flight
+        /// operation and its result. Use this only when the host needs to own
+        /// scheduling rather than calling refresh() from its worker.
         std::shared_future<RefreshResult> refreshAsync();
 
         /// Subscribe to refresh publications and final failures. The callback is
