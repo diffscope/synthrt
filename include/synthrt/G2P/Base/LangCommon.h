@@ -102,11 +102,17 @@ namespace srt::g2p {
             g2pContextVersion(std::move(g2pContextVersion)), g2pSource(std::move(g2pSource)),
             pronunciation(std::move(pronunciation)), candidates(std::move(candidates)),
             mode(std::move(mode)), errorType(errorType) {
-            if (this->candidates.empty() && !this->pronunciation.empty())
-                this->candidates.push_back(this->pronunciation);
-
+            // Order matters: apply the lyric fallback BEFORE seeding
+            // candidates from pronunciation. Otherwise when pronunciation
+            // is empty the candidates push_back is skipped (pronunciation
+            // is still empty at that point), and the later fallback sets
+            // pronunciation=lyric but leaves candidates empty, breaking
+            // callers that iterate candidates uniformly.
             if (this->pronunciation.empty())
                 this->pronunciation = this->lyric;
+
+            if (this->candidates.empty() && !this->pronunciation.empty())
+                this->candidates.push_back(this->pronunciation);
         }
     };
 

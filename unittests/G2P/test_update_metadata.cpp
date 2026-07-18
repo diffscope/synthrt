@@ -405,3 +405,110 @@ TEST_CASE("updateMetadata clears Manager context via removeContextsByPrefix",
 
     std::filesystem::remove_all(root);
 }
+
+// ===========================================================================
+// 7. D-43: multi-version same-packageId hot reload. When two versions of the
+//    same packageId coexist, removing one version must NOT retire the other
+//    version's voicebank G2P context. The single-arg removeContextsByPrefix
+//    overload matched every version and corrupted coexisting versions
+//    (D-24 violation); the version-aware overload (D-43) fixes this.
+// ===========================================================================
+
+TEST_CASE("updateMetadata multi-version hot reload preserves coexisting version context",
+          "[g2p][update-metadata][d43]") {
+    const auto root = makeTempDir("multi-ver");
+    const std::string pkgA = "upd.mv.a";
+    const std::string singerA = "mv_singer_a";
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v2 = stdc::VersionNumber::fromString("2.0.0");
+
+    // Two on-disk packages sharing packageId+singerId but different versions.
+    createPackage(root / "pkg_a_v1", pkgA, "1.0.0", singerA, "cmn", {
+        {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
+         {"g2p/g2p-cmn-custom"}, "1.5.0"},
+    });
+    createPackage(root / "pkg_a_v2", pkgA, "2.0.0", singerA, "cmn", {
+        {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
+         {"g2p/g2p-cmn-custom"}, "1.5.0"},
+    });
+
+    LanguageService langSvc;
+    REQUIRE(langSvc.initializeMetadata(
+        {}, {}, makeEntries({{pkgA, v1, root / "pkg_a_v1"},
+                             {pkgA, v2, root / "pkg_a_v2"}})).hasValue());
+
+    const auto ctxA = pkgA + "__" + singerA;
+    // Both versions' contexts must be registered.
+    REQUIRE(managerHasContext(ctxA, v1));
+    REQUIRE(managerHasContext(ctxA, v2));
+
+    // Hot reload: retire v1 only. v2 must remain untouched.
+    auto updExp = langSvc.updateMetadata(
+        {}, {}, makeEntries({{pkgA, v2, root / "pkg_a_v2"}}));
+    REQUIRE(updExp.hasValue());
+    const auto &diff = *updExp;
+
+    REQUIRE(diff.removed.size() == 1);
+    REQUIRE(diff.removed[0].packageId == pkgA);
+    REQUIRE(diff.removed[0].version == v1);
+
+    REQUIRE(diff.unchanged.size() == 1);
+    REQUIRE(diff.unchanged[0].packageId == pkgA);
+    REQUIRE(diff.unchanged[0].version == v2);
+
+    // D-43 core assertion: v1 context retired, v2 context preserved.
+    // The pre-fix single-arg removeContextsByPrefix(prefix) would have
+    // retired BOTH versions, leaving v2 unavailable for G2P routing.
+    REQUIRE_FALSE(managerHasContext(ctxA, v1));
+    REQUIRE(managerHasContext(ctxA, v2));
+
+    std::filesystem::remove_all(root);
+}
+
+// ===========================================================================
+// 8. D-43 inverse: hot reload that retires v2 (the higher version) must
+//    equally preserve v1's context. Verifies the version filter is not
+//    accidentally keyed on ordering.
+// ===========================================================================
+
+TEST_CASE("updateMetadata multi-version hot reload retires higher version preserves lower",
+          "[g2p][update-metadata][d43]") {
+    const auto root = makeTempDir("multi-ver-inv");
+    const std::string pkgB = "upd.mv.b";
+    const std::string singerB = "mv_singer_b";
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v2 = stdc::VersionNumber::fromString("2.0.0");
+
+    createPackage(root / "pkg_b_v1", pkgB, "1.0.0", singerB, "cmn", {
+        {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
+         {"g2p/g2p-cmn-custom"}, "1.5.0"},
+    });
+    createPackage(root / "pkg_b_v2", pkgB, "2.0.0", singerB, "cmn", {
+        {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
+         {"g2p/g2p-cmn-custom"}, "1.5.0"},
+    });
+
+    LanguageService langSvc;
+    REQUIRE(langSvc.initializeMetadata(
+        {}, {}, makeEntries({{pkgB, v1, root / "pkg_b_v1"},
+                             {pkgB, v2, root / "pkg_b_v2"}})).hasValue());
+
+    const auto ctxB = pkgB + "__" + singerB;
+    REQUIRE(managerHasContext(ctxB, v1));
+    REQUIRE(managerHasContext(ctxB, v2));
+
+    // Retire v2; v1 must remain.
+    auto updExp = langSvc.updateMetadata(
+        {}, {}, makeEntries({{pkgB, v1, root / "pkg_b_v1"}}));
+    REQUIRE(updExp.hasValue());
+    const auto &diff = *updExp;
+
+    REQUIRE(diff.removed.size() == 1);
+    REQUIRE(diff.removed[0].packageId == pkgB);
+    REQUIRE(diff.removed[0].version == v2);
+
+    REQUIRE(managerHasContext(ctxB, v1));
+    REQUIRE_FALSE(managerHasContext(ctxB, v2));
+
+    std::filesystem::remove_all(root);
+}

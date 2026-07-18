@@ -224,12 +224,15 @@ TEST_CASE("G2pRes preserves explicit candidates", "[g2p][route][res]") {
 }
 
 TEST_CASE("G2pRes empty pronunciation falls back to lyric", "[g2p][route][res]") {
-    // When pronunciation is empty, it is set to the lyric.
+    // When pronunciation is empty, it is set to the lyric. The constructor
+    // also seeds candidates with [lyric] so consumers iterating candidates
+    // uniformly (e.g. ds-editor-lite G2pInputAdapter) see at least one
+    // entry. This mirrors the explicit fallback paths in Manager.cpp
+    // (lines 382/389/430/445/465/473) which all pass {lyric} as candidates.
     G2pRes res("hello", "g2p-en", "", {}, "");
     REQUIRE(res.pronunciation == "hello");
-    // candidates is empty (not auto-filled since pronunciation was empty at
-    // construction time, then set to lyric afterward).
-    REQUIRE(res.candidates.empty());
+    REQUIRE(res.candidates.size() == 1);
+    REQUIRE(res.candidates[0] == "hello");
 }
 
 TEST_CASE("G2pRes g2pSource defaults to empty", "[g2p][route][res]") {

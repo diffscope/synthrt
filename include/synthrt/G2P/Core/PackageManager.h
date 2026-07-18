@@ -87,6 +87,23 @@ namespace srt::g2p {
         ///     caller must restart the host process.
         srt::core::Expected<size_t> removeContextsByPrefix(const std::string &prefix);
 
+        /// Version-aware overload (V3-01 §2.4 / D-43): removes contexts whose
+        /// name starts with \p prefix AND whose version matches \p version
+        /// exactly. Required for multi-version same-packageId hot reload:
+        /// removing one version of a packageId must not retire contexts
+        /// belonging to other versions of the same packageId (D-24 multi-version
+        /// coexistence, ROBUST-05 no implicit error swallowing).
+        ///
+        /// An empty \p version matches only unversioned contexts (those
+        /// registered via the 2-arg addPackagePath overload). This is rarely
+        /// the intended behavior for hot reload; callers should pass the
+        /// concrete version being retired.
+        ///
+        /// Returns the number of contexts actually removed. Errors mirror the
+        /// single-arg overload.
+        srt::core::Expected<size_t> removeContextsByPrefix(
+            const std::string &prefix, const stdc::VersionNumber &version);
+
         /// Query initialization state for a context.
         /// Unregistered contexts (not in contexts()) return NotRegistered.
         ContextState contextState(const srt::core::ContextKey &ctxKey) const;

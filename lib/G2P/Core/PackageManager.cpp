@@ -744,6 +744,70 @@ namespace srt::g2p {
         return removed;
     }
 
+    srt::core::Expected<size_t>
+    PackageManager::removeContextsByPrefix(const std::string &prefix,
+                                           const stdc::VersionNumber &version) {
+        // D-43: version-aware overload. Multi-version same-packageId hot reload
+        // must retire only the contexts belonging to the retired version, not
+        // every context under the prefix. The single-arg overload retires
+        // every version, which corrupts coexisting versions (D-24 violation).
+        if (prefix.empty()) {
+            return Error(ErrorCode::G2pValidationError,
+                "removeContextsByPrefix: prefix must not be empty (empty prefix "
+                "would match all contexts)");
+        }
+
+        auto &impl = *static_cast<Impl *>(_impl.get());
+
+        std::vector<srt::core::ContextKey> matching;
+        size_t removed = 0;
+        {
+            std::unique_lock lock(impl.su_mtx);
+
+            if (impl.initialized) {
+                return Error(ErrorCode::G2pAlreadyInitialized,
+                    "removeContextsByPrefix: Manager::initialize() already "
+                    "called; contexts are immutable. Restart the host process "
+                    "for G2P changes.");
+            }
+
+            // Match ctxKey.context prefix AND ctxKey.version exactly. Empty
+            // version matches only unversioned contexts (those registered via
+            // the 2-arg addPackagePath overload).
+            for (const auto &[ctxKey, _] : impl.contextPackagePaths) {
+                if (ctxKey.context.starts_with(prefix) && ctxKey.version == version) {
+                    matching.push_back(ctxKey);
+                }
+            }
+
+            removed = matching.size();
+            for (const auto &ctxKey : matching) {
+                impl.contextPackagePaths.erase(ctxKey);
+                impl.contextStates.erase(ctxKey);
+                impl.contextDependencyErrors.erase(ctxKey);
+                impl.contextModuleInfos.erase(ctxKey);
+                impl.contextDependencyResolved.erase(ctxKey);
+                impl.contextDependencyGraphs.erase(ctxKey);
+                impl.contextCachedIndexes.erase(ctxKey);
+            }
+
+            if (removed > 0) {
+                impl.packagePathsDirty = true;
+            }
+        }
+
+        if (!matching.empty()) {
+            std::unique_lock<std::shared_mutex> tasksLock(impl.tasks_mtx);
+            for (auto &[category, ctxMap] : impl.tasks) {
+                for (const auto &ctxKey : matching) {
+                    ctxMap.erase(ctxKey);
+                }
+            }
+        }
+
+        return removed;
+    }
+
     ContextState PackageManager::contextState(const srt::core::ContextKey &ctxKey) const {
         auto &impl = *static_cast<Impl *>(_impl.get());
         std::shared_lock lock(impl.su_mtx);

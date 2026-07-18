@@ -355,3 +355,20 @@
 **实现**: commit `4146e5f`。修改 2 文件：`VoicebankSession.cpp` 重写 `findSinger` 函数体并更新 5 个调用点；`test_voicebank_session.cpp` 新增 `makeMultiVersionPackage` fixture（同 packageId="session.test"、singerId="test"、不同 version="2.0.0"）和 6 个 `[d42]` 测试用例（capabilitySummary/convertG2p/convertS2p/validatePhonemes/createModelSet 歧义拒绝 + capabilitySummary 显式 version 解析）。验证：`tst-ds-session` 全部 29 cases / 113 assertions 通过，无回归。
 
 **与 D-41 的关系**: D-41 修复 `SingerStageResolver`（stage 层）的歧义错误码语义；D-42 修复 `VoicebankSession::findSinger`（snapshot 层）的静默选择。两者共同构成多版本歧义的两层防护：snapshot 层先拒绝，stage 层兜底。`createModelSet` 路径下 snapshot 层的拒绝尤为关键——否则 `resolver.resolve(*rt, singer->ref.packageId, singer->ref.singerId, version)` 收到的 singer 已经是错误选择的那个，stage 层的 version 参数即使正确也无法纠正 snapshot 层的错误。
+
+### D-43：updateMetadata 版本感知 context 移除
+
+**背景**: `LanguageServiceLang.cpp` 的 `updateMetadata` 在 `diff.removed` 阶段调用 `PackageManager::removeContextsByPrefix(prefix)` 移除退役 voicebank 的 G2P context。原单参数重载只按 `ctxKey.context.starts_with(prefix)` 匹配，不区分 version——其注释明确写道"matches at every version"。在多版本同 `packageId` 共存场景下（D-24），hot reload 移除其中一个版本会误删所有版本的 context，导致保留版本的 G2P 路由失败。这违反 D-24（多版本共存）和 ROBUST-05（隐式错误吞没——保留版本被静默退役，调用方收到 `G2pContextNotFound` 而非原始错误）。
+
+**决策**: 在 `PackageManager` 新增版本感知重载 `removeContextsByPrefix(prefix, version)`，匹配条件改为 `ctxKey.context.starts_with(prefix) && ctxKey.version == version`。`updateMetadata` 改为传退役 entry 的 `version` 调用新重载。空 `version` 仅匹配未版本化 context（通过 2 参数 `addPackagePath` 注册的那些），这在 hot reload 路径下不是预期行为——调用方应传具体退役 version。
+
+**约束对齐**:
+- D-24（多版本共存）：移除一个版本不影响其他版本
+- D-11（v3 不改动 v2 已定稿公共接口签名）：保留原单参数重载不变，新增重载
+- ROBUST-05（禁止隐式错误吞没）：保留版本的 context 不再被静默退役
+- ARCH-02（错误码仅追加不重排）：复用 `G2pValidationError` / `G2pAlreadyInitialized`，不引入新错误码
+
+**实现**: 修改 3 文件 + 1 测试文件：`PackageManager.h` 新增版本感知重载声明；`PackageManager.cpp` 实现新重载（匹配 `ctxKey.context.starts_with(prefix) && ctxKey.version == version`，清理 7 个 per-context map：`contextPackagePaths`/`contextStates`/`contextDependencyErrors`/`contextModuleInfos`/`contextDependencyResolved`/`contextDependencyGraphs`/`contextCachedIndexes`，以及 `tasks` map 中对应条目）；`LanguageServiceLang.cpp` 改为调用版本感知重载，日志带上 version；`test_update_metadata.cpp` 新增 2 个 `[d43]` 测试用例（移除 v1 保留 v2 + 移除 v2 保留 v1，验证 version filter 不依赖排序）。验证：`synthrt-unittest-g2p` 8 个 `[update-metadata]` 测试通过（59 assertions），`[d43]` 2 cases / 21 assertions 通过，全套 53 cases / 267 assertions 通过。
+
+**与 D-42 的关系**: D-42 修复 snapshot 层多版本歧义选择；D-43 修复 G2P context 层多版本误删。两者都是 D-24（多版本共存）在各自层的具体落地——D-42 保证 singer 选择不因 version 缺失而合并，D-43 保证 context 移除不因 version 缺失而扩散。
+

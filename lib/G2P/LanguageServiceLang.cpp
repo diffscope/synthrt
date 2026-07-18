@@ -450,16 +450,21 @@ namespace srt::g2p {
 
         // 3. Remove retired voicebank G2P contexts. The context name is
         //    "packageId__singerId" (see voicebankContextName), so the prefix
-        //    "packageId__" matches every singer under that packageId at every
-        //    version. Failures here are non-fatal: a leftover context is
-        //    unused once packageDirs no longer references it, so we log and
-        //    continue with the remaining removals.
+        //    "packageId__" matches every singer under that packageId.
+        //    D-43: pass the retired entry's version to the version-aware
+        //    removeContextsByPrefix overload so coexisting versions of the
+        //    same packageId are NOT retired. The single-arg overload would
+        //    match every version, corrupting multi-version coexistence
+        //    (D-24 violation). Failures here are non-fatal: a leftover
+        //    context is unused once packageDirs no longer references it, so
+        //    we log and continue with the remaining removals.
         for (const auto &entry : diff.removed) {
             const auto prefix = entry.packageId + "__";
-            auto rmExp = mgr->removeContextsByPrefix(prefix);
+            auto rmExp = mgr->removeContextsByPrefix(prefix, entry.version);
             if (!rmExp) {
-                langSvcLog.srtWarning("removeContextsByPrefix failed for prefix %1: %2",
-                                      prefix, rmExp.error().message());
+                langSvcLog.srtWarning("removeContextsByPrefix failed for prefix %1, version %2: %3",
+                                      prefix, entry.version.toString(),
+                                      rmExp.error().message());
             }
         }
 

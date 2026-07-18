@@ -21,6 +21,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <synthrt/G2P/Base/LangCommon.h>
+#include <synthrt/G2P/LanguageRoute.h>
 
 using namespace srt::g2p;
 
