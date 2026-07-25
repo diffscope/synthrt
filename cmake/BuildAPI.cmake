@@ -158,7 +158,7 @@ endif()
         <configure_options...>
     )
 ]] #
-macro(${_CUR_MACRO_PREFIX}_add_executable _target)
+function(${_CUR_MACRO_PREFIX}_add_executable _target)
     set(options SYNC_INCLUDE NO_SYNC_INCLUDE NO_WIN_RC NO_EXPORT NO_INSTALL QT_AUTOGEN)
     set(oneValueArgs SYNC_INCLUDE_PREFIX RC_NAME RC_DESCRIPTION RC_COPYRIGHT)
     set(multiValueArgs SYNC_INCLUDE_OPTIONS)
@@ -237,7 +237,7 @@ macro(${_CUR_MACRO_PREFIX}_add_executable _target)
         )
         target_include_directories(${_target} PUBLIC ${_CUR_GENERATED_INCLUDE_DIR}>)
     endif()
-endmacro()
+endfunction()
 
 #[[
     Add library target.
@@ -258,7 +258,7 @@ endmacro()
         <configure_options...>
     )
 ]] #
-macro(${_CUR_MACRO_PREFIX}_add_library _target)
+function(${_CUR_MACRO_PREFIX}_add_library _target)
     set(options SHARED STATIC INTERFACE)
     set(oneValueArgs)
     set(multiValueArgs)
@@ -279,7 +279,7 @@ macro(${_CUR_MACRO_PREFIX}_add_library _target)
     endif()
 
     _cur_add_library_internal(${_target} ${_type} ${FUNC_UNPARSED_ARGUMENTS})
-endmacro()
+endfunction()
 
 #[[
     Add plugin target.
@@ -299,7 +299,7 @@ endmacro()
         <configure_options...>
     )
 ]] #
-macro(${_CUR_MACRO_PREFIX}_add_plugin _target _category _plugin_folder)
+function(${_CUR_MACRO_PREFIX}_add_plugin _target _category _plugin_folder)
     set(_plugin_dir plugins/${_CUR_INSTALL_NAME}/${_category}/${_plugin_folder})
     _cur_add_library_internal(${_target} SHARED
         BUILD_RUNTIME_DIR "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/${_plugin_dir}"
@@ -312,7 +312,7 @@ macro(${_CUR_MACRO_PREFIX}_add_plugin _target _category _plugin_folder)
         ${ARGN}
     )
     _cur_add_desc_internal(${_target})
-endmacro()
+endfunction()
 
 #[[
     Install targets, CMake configuration files and include files.
@@ -492,6 +492,15 @@ macro(_cur_add_library_internal _target _type)
 
     set(_install_options)
 
+    # NO_INSTALL is a legitimate opt-out for the "sub-library aggregated export
+    # set" pattern: a sub-library that should NOT be installed into its own
+    # <prefix>Targets export set (the default behavior below), but instead be
+    # attached to a parent aggregate export set by the caller via a hand-written
+    # install(TARGETS <target> EXPORT <parent>Targets). The caller is then
+    # responsible for emit'ing INSTALL_INTERFACE include paths and EXPORT_NAME,
+    # since this block is skipped. See domains/ds-session/lib/CMakeLists.txt for
+    # the canonical usage (srt-ds-session aggregated into synthrtTargets) and
+    # cmake/synthrtAggregate.cmake for the aggregate-side registration.
     if(_CUR_INSTALL AND NOT FUNC_NO_INSTALL)
         # Install directories
         qm_set_value(_install_runtime_dir FUNC_INSTALL_RUNTIME_DIR "${CMAKE_INSTALL_BINDIR}")

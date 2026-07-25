@@ -10,26 +10,26 @@
 # layer (lib/S2P/, namespace srt::s2p) in v9; ds-infer now links srt::s2p.
 # LuaJIT detection also moved to lib/S2P/CMakeLists.txt.
 #
-# The util sublibraries under Util/ are built separately via add_subdirectory(Util);
+# The util sublibraries under util/ are built separately via add_subdirectory(util);
 # they remain standalone static targets (inferutil, inputparser, wavfile) consumed
 # by plugins and tools.
 #
-# The Util/ sublibs use the ds::infer::inferutil namespace (v9: renamed from
+# The util/ sublibs use the ds::infer::inferutil namespace (v9: renamed from
 # legacy srt::svs::inferutil).
 file(GLOB _src "*.cpp")
 
 find_package(stdcorelib CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
-dsinfer_add_library(srt-ds-infer SHARED PREFIX dsinfer
+synthrt_add_library(srt-ds-infer SHARED PREFIX dsinfer
     SOURCES ${_src}
-    LINKS srt::core srt::driver srt-ds::bank srt::s2p synthrt::svs
+    LINKS srt::core srt::driver srt-ds::bank srt::s2p srt::svs
     LINKS_PRIVATE nlohmann_json::nlohmann_json
     INCLUDE_PRIVATE ../../../include/diffsinger/Infer/** **
 )
 target_compile_definitions(srt-ds-infer PRIVATE DSINFER_LIBRARY)
 
-find_path(SPARSEPP_INCLUDE_DIRS "sparsepp/spp.h")
+find_package(SparsePP REQUIRED)
 # Expose include/diffsinger/Infer/ as PUBLIC so consumers (CLI, lite) can
 # resolve <dsinfer/...> headers transitively included by public headers such as
 # InferenceRequest.h -> CommonApiL1.h -> <dsinfer/Core/ParamTag.h>.
@@ -42,6 +42,6 @@ if(NOT TARGET srt-ds::infer)
     add_library(srt-ds::infer ALIAS srt-ds-infer)
 endif()
 
-# Util sublibraries relocated from domains/ds-infer/util/ (v4 Phase 7).
+# util sublibraries relocated from domains/ds-infer/util/ (v4 Phase 7).
 # Added after srt-ds-infer so they can link srt-ds::infer.
-add_subdirectory(Util)
+add_subdirectory(util)

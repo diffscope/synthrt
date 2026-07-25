@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_SUPPORT_JSON_H
-#define SRT_CORE_SUPPORT_JSON_H
+#pragma once
 
 #include <cstdint>
 #include <string>
@@ -170,5 +169,3 @@ namespace srt::core {
     };
 
 }
-
-#endif // SRT_CORE_SUPPORT_JSON_H

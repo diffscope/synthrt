@@ -1,5 +1,4 @@
-#ifndef SRT_S2P_RULEONSETMARKER_H
-#define SRT_S2P_RULEONSETMARKER_H
+#pragma once
 
 #include <iosfwd>
 #include <memory>
@@ -44,5 +43,3 @@ namespace srt::s2p {
     };
 
 }
-
-#endif // SRT_S2P_RULEONSETMARKER_H

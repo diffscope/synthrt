@@ -1,7 +1,6 @@
 #include <synthrt/Audio/Slicer.h>
 
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <iterator>
 #include <numeric>
@@ -18,19 +17,30 @@ namespace srt::audio {
      * @tparam Iterator Forward iterator type
      * @param begin Start of range (inclusive)
      * @param end End of range (exclusive)
-     * @return Distance from `begin` to the minimum element
-     * @pre `[begin, end)` must be non-empty (assert enforced)
-     * @note For equivalent elements, returns the first occurrence
+     * @return Distance from `begin` to the minimum element; 0 if range is empty
+     * @note For equivalent elements, returns the first occurrence.
+     *       TD-10: 空区间时显式返回 0（即 std::distance(begin, begin)）作为
+     *       最小危害哨兵值，避免 Release 模式下 assert 消失导致的 UB（ROBUST-05）。
+     *       调用方（slice 内）不检查返回值，返回 -1 会与 silence_start 相加得到
+     *       -1 导致越界；返回 0 得到 silence_start 至少是合法索引。配合 TD-11 对
+     *       m_maxSilKept 的非负 clamp，正常流程下调用方传入区间均非空。
      */
     template <typename Iterator>
     static inline int64_t argmin(const Iterator &begin, const Iterator &end) {
-        assert(begin != end && "Empty iterator range");
+        if (begin == end) {
+            return 0;
+        }
         return std::distance(begin, std::min_element(begin, end));
     }
 
     static inline std::vector<double> get_rms_impl_basic(const std::vector<float> &samples, const int frame_length,
                                                          const int hop_length) {
         std::vector<double> output;
+        // BUG-AUDIO-05: guard against zero/negative parameters which would
+        // cause division by zero below (ROBUST-05).
+        if (frame_length <= 0 || hop_length <= 0) {
+            return output;
+        }
         const size_t output_size = samples.size() / hop_length;
         output.reserve(output_size);
 
@@ -81,6 +91,11 @@ namespace srt::audio {
     static inline std::vector<double> get_rms_impl_xsimd(const std::vector<float> &samples, const int frame_length,
                                                          const int hop_length) {
         std::vector<double> output;
+        // BUG-AUDIO-05: guard against zero/negative parameters which would
+        // cause division by zero below (ROBUST-05).
+        if (frame_length <= 0 || hop_length <= 0) {
+            return output;
+        }
         const size_t output_size = samples.size() / hop_length;
         output.reserve(output_size);
 
@@ -100,9 +115,19 @@ namespace srt::audio {
 
     // https://github.com/stakira/OpenUtau/blob/master/OpenUtau.Core/Analysis/Some.cs
     Slicer::Slicer(int sampleRate, float threshold, int hopSize, int winSize, int minLength, int minInterval,
-                   int maxSilKept) :
-        m_sampleRate(sampleRate), m_threshold(threshold), m_hopSize(hopSize), m_winSize(winSize), m_minLength(minLength),
-        m_minInterval(minInterval), m_maxSilKept(maxSilKept) {}
+                   int maxSilKept) {
+        // TD-11: 校验 int 参数非负并 clamp 到合理范围（ROBUST-05）。
+        // 负值会导致 slice() 中 size_t 运算下溢、argmin 区间为空（i - m_maxSilKept
+        // 越界）等问题。sampleRate/hopSize/winSize 为 0 时 slice() 已有 guard
+        // 返回整段；此处仅保证非负，不强制下限 1 以保留 "禁用切片" 的合法配置。
+        m_sampleRate = std::max(0, sampleRate);
+        m_threshold = threshold;
+        m_hopSize = std::max(0, hopSize);
+        m_winSize = std::max(0, winSize);
+        m_minLength = std::max(0, minLength);
+        m_minInterval = std::max(0, minInterval);
+        m_maxSilKept = std::max(0, maxSilKept);
+    }
 
     std::vector<double> Slicer::getRms(const std::vector<float> &samples, const int frame_length,
                                        const int hop_length) {
@@ -114,6 +139,12 @@ namespace srt::audio {
     }
 
     MarkerList Slicer::slice(const std::vector<float> &samples) const {
+        // BUG-AUDIO-05: guard against zero/negative hop/window sizes which
+        // would cause division by zero in the RMS computation and the
+        // leading `(size + hop - 1) / hop` estimate (ROBUST-05).
+        if (m_hopSize <= 0 || m_winSize <= 0) {
+            return {{0, static_cast<int64_t>(samples.size())}};
+        }
         if ((samples.size() + m_hopSize - 1) / m_hopSize <= m_minLength) {
             return {{0, samples.size()}};
         }

@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_CORE_NAMEDOBJECT_P_H
-#define SRT_CORE_CORE_NAMEDOBJECT_P_H
+#pragma once
 
 #include <map>
 
@@ -11,26 +10,24 @@ namespace srt::core {
 
     class NamedObject::Impl {
     public:
-        explicit Impl(NamedObject *decl) : _decl(decl) {
+        explicit Impl(NamedObject *q) : m_q(q) {
         }
         virtual ~Impl() = default;
 
-        NamedObject *_decl;
+        NamedObject *m_q;
 
-        std::string name;
-        std::map<std::string, std::any, std::less<>> properties;
+        std::string m_name;
+        std::map<std::string, std::any, std::less<>> m_properties;
     };
 
     class ObjectPool::Impl : public NamedObject::Impl {
     public:
-        explicit Impl(ObjectPool *decl) : NamedObject::Impl(decl) {
+        explicit Impl(ObjectPool *q) : NamedObject::Impl(q) {
         }
         virtual ~Impl();
 
         std::map<std::string, stdc::linked_map<const NamedObject *, NO<NamedObject>>, std::less<>>
-            objects;
+            m_objects;
     };
 
 }
-
-#endif // SRT_CORE_CORE_NAMEDOBJECT_P_H

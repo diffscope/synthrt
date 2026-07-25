@@ -136,9 +136,13 @@ namespace ds::bank {
             const InferenceInfo *info;
         };
         std::vector<ResolvedStage> stages;
+        std::vector<std::string> unresolvedWarnings;
         for (const auto &imp : imports) {
             const auto it = infById.find(imp.inferenceId);
             if (it == infById.end() || it->second == nullptr) {
+                // HB-03: record unresolved import instead of silent skip.
+                unresolvedWarnings.push_back(stdc::formatN(
+                    "unresolved import: inferenceId=\"%1\"", imp.inferenceId));
                 continue;  // unresolved import; nothing to analyze
             }
             if (isVocoderStage(it->second->className)) {
@@ -153,6 +157,11 @@ namespace ds::bank {
         }
 
         SingerCapabilityReport report;
+        // HB-03: surface unresolved import warnings on the report so callers
+        // can diagnose missing stages. Pure-G2P (stages empty) still returns
+        // nullopt to preserve the existing contract (tst_capability_analyzer
+        // "empty imports -> nullopt" / "only vocoder -> nullopt").
+        report.speakerWarnings = std::move(unresolvedWarnings);
 
         // ---- Speaker analysis (§3.1) ----
         // Collect per-stage singer-domain speaker sets for constraining stages

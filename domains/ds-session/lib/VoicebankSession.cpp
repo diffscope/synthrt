@@ -5,6 +5,7 @@
 #include <chrono>
 #include <exception>
 #include <functional>
+#include <future>
 #include <map>
 #include <mutex>
 #include <set>
@@ -14,6 +15,7 @@
 #include <stdcorelib/path.h>
 
 #include <synthrt/Core/Support/Error.h>
+#include <synthrt/Core/Support/Logging.h>
 #include <synthrt/Core/Core/Runtime.h>
 #include <synthrt/G2P/LanguageService.h>
 #include <synthrt/S2P/LanguageResource.h>
@@ -25,6 +27,8 @@
 
 namespace ds::session {
 namespace {
+
+static srt::core::LogCategory SessionLog("ds.session");
 
 AvailabilityLevel availabilityOf(const ds::bank::SingerSnapshot &singer,
                                  const std::vector<std::string> &reserved) {
@@ -402,6 +406,19 @@ public:
     std::shared_future<RefreshResult> inFlight;
     std::vector<std::weak_ptr<RefreshSubscription::State>> refreshSubscriptions;
     unsigned long long generation = 0;
+    // S1: G2P plugin paths from SessionResources, used by performRefresh
+    // to self-initialize LanguageService without host intervention.
+    std::vector<std::filesystem::path> g2pPluginPaths;
+    std::vector<std::filesystem::path> officialG2pPackages;
+    // S2: Loaded package tracking for explicit load/unload API.
+    // Key: packageId + "\n" + version.toString()
+    struct LoadedPackageEntry {
+        std::filesystem::path normalizedPath;
+        unsigned long long loadedGeneration = 0;
+        int activeHandleCount = 0;   // Mutex-protected (see createModelSet deleter)
+        bool pendingUnload = false;   // Mutex-protected; set by unloadVoicebank, checked by deleter
+    };
+    std::map<std::string, LoadedPackageEntry> loadedPackages;
 
     void notifyRefresh(const RefreshResult &result) {
         std::vector<std::shared_ptr<RefreshSubscription::State>> subscribers;
@@ -423,9 +440,14 @@ public:
                 continue;
             try {
                 subscription->callback(result);
+            } catch (const std::exception &e) {
+                // BUG-11: 调用方回调抛异常表示其代码有 bug，必须记录而非静默吞没
+                // (ROBUST-05)。RefreshResult 已通过 future 可观察，但异常本身
+                // 仍需显式记录以便排查。
+                SessionLog.srtWarning("VoicebankSession: refresh callback threw: %1",
+                                      e.what());
             } catch (...) {
-                // Refresh completion remains observable through the future even
-                // when a client callback throws.
+                SessionLog.srtWarning("VoicebankSession: refresh callback threw unknown exception");
             }
         }
     }
@@ -492,6 +514,12 @@ public:
                 return finish(std::move(r));
             }
             next->singers = scanner.singers();
+            // TD-01 (D-39 #2): expose full manifests so lite PackageManager
+            // can read author/description/license/singer/speaker/language
+            // detail directly from the snapshot without a separate catalog.
+            // Only valid packages contribute manifests; invalid ones are
+            // already represented in next->packages via PackageStatus.error.
+            next->manifests = scanner.manifests();
             next->generation = nextGeneration;
             for (const auto &singer : next->singers)
                 addAvailability(next->availability, availabilityOf(singer, next->reservedPhonemes));
@@ -536,16 +564,22 @@ public:
             // publishing. Uses incremental updateMetadata() when the service
             // is already initialized (hot-reload path), falling back to a full
             // initializeMetadata() on first call or on updateMetadata failure.
-            // pluginSearchPaths and officialG2pPackagePaths are passed empty:
-            // VoicebankSession does not own those (host-managed); passing empty
-            // is correct for session-only voicebank discovery. Non-fatal: the
-            // snapshot is still published; language errors surface as Warning
-            // diagnostics and the caller can retry via ensureLanguageReady().
+            // S1: When SessionResources.g2pPluginPaths is non-empty, pass them
+            // so the session can self-initialize G2P without host intervention.
+            // When empty (legacy behavior), the host must have already called
+            // initializeMetadata. Non-fatal: the snapshot is still published;
+            // language errors surface as Warning diagnostics and the caller can
+            // retry via ensureLanguageReady().
             std::shared_ptr<srt::g2p::LanguageService> svc;
+            std::vector<std::filesystem::path> pluginPaths;
+            std::vector<std::filesystem::path> g2pPaths;
             {
                 std::lock_guard lock(mutex);
                 svc = languageService;
+                pluginPaths = g2pPluginPaths;
+                g2pPaths = officialG2pPackages;
             }
+            bool languageReady = false;
             if (svc) {
                 std::vector<srt::g2p::PackageDirectoryEntry> entries;
                 entries.reserve(next->packages.size());
@@ -557,15 +591,15 @@ public:
                 srt::core::Expected<void> langExp;
                 if (svc->metadataReady()) {
                     // Incremental update (V3-16). Fallback to full init on error.
-                    auto diffExp = svc->updateMetadata({}, {}, entries);
+                    auto diffExp = svc->updateMetadata(pluginPaths, g2pPaths, entries);
                     if (!diffExp) {
                         // updateMetadata failed (e.g. modelsReady already).
                         // Try full init.
-                        langExp = svc->initializeMetadata({}, {}, entries);
+                        langExp = svc->initializeMetadata(pluginPaths, g2pPaths, entries);
                     }
                 } else {
                     // First-time full init.
-                    langExp = svc->initializeMetadata({}, {}, entries);
+                    langExp = svc->initializeMetadata(pluginPaths, g2pPaths, entries);
                 }
                 if (!langExp) {
                     srt::core::Diagnostic d;
@@ -574,7 +608,15 @@ public:
                     d.message = "LanguageService metadata update failed: " +
                                 langExp.error().message();
                     diagnostics.push_back(std::move(d));
+                } else {
+                    languageReady = true;
                 }
+                // HB-14: drain addPackagePath failure diagnostics recorded
+                // inside initializeMetadata()/updateMetadata() so they surface
+                // in RefreshResult.diagnostics for the host.
+                auto pending = svc->drainPendingDiagnostics();
+                for (auto &pd : pending)
+                    diagnostics.push_back(std::move(pd));
             }
 
             std::shared_ptr<const VoicebankSnapshot> published = next;
@@ -591,6 +633,7 @@ public:
             r.updatesAvailable = changes.changed;
             r.changes = std::move(changes);
             r.diagnostics = std::move(diagnostics);
+            r.languageReady = languageReady;
             return finish(std::move(r));
         } catch (const std::exception &e) {
             RefreshResult r;
@@ -616,9 +659,37 @@ VoicebankSession::VoicebankSession(SessionResources resources)
     : _impl(std::make_shared<Impl>()) {
     _impl->runtime = resources.runtime;
     _impl->languageService = std::move(resources.languageService);
+    _impl->g2pPluginPaths = std::move(resources.g2pPluginPaths);
+    _impl->officialG2pPackages = std::move(resources.officialG2pPackages);
 }
 
-VoicebankSession::~VoicebankSession() = default;
+VoicebankSession::~VoicebankSession() {
+    // BUG-28 / ARCH-05: 析构需等待 in-flight refresh 完成，避免后台任务在
+    // 宿主对象销毁后仍访问对外接口而触发 UB。shared_future::wait() 线程安全
+    // 且可多次调用；这里不调用 get()，因为其他线程可能已经 get 过。
+    // 不在持有 _impl->mutex 的情况下 wait() —— performRefresh() 内会请求
+    // 同一把锁，持锁等待会死锁。先在锁内拷贝 shared_future（拷贝线程安全，
+    // 共享同一共享状态），释放锁后再 wait()。
+    if (!_impl) {
+        // Moved-from state: nothing to clean up.
+        return;
+    }
+    std::shared_future<RefreshResult> pending;
+    {
+        std::lock_guard lock(_impl->mutex);
+        pending = _impl->inFlight;
+    }
+    if (pending.valid()) {
+        pending.wait();
+    }
+}
+
+// Move-only: shared_ptr<Impl> moves cheaply; moved-from session has empty
+// _impl and is safe to destruct (guarded above). Required by ds-editor-lite
+// SynthrtEngine::initialize() which reassigns m_session after pluginRoot()
+// becomes available (B1a).
+VoicebankSession::VoicebankSession(VoicebankSession &&) noexcept = default;
+VoicebankSession &VoicebankSession::operator=(VoicebankSession &&) noexcept = default;
 
 void VoicebankSession::setRoots(std::vector<std::filesystem::path> roots) {
     std::lock_guard lock(_impl->mutex);
@@ -814,10 +885,18 @@ srt::core::Expected<S2pResult>
         return out;
     } catch (const std::exception &e) {
         return srt::core::Error(srt::core::ErrorCode::S2pConversionFailed,
-                                std::string("VoicebankSession::convertS2p: ") + e.what());
+                                std::string("VoicebankSession::convertS2p: ") + e.what())
+                .withExtraContext({{"packageId", singerKey.packageId},
+                                   {"singerId", singerKey.singerId},
+                                   {"version", singerKey.version},
+                                   {"language", language}});
     } catch (...) {
         return srt::core::Error(srt::core::ErrorCode::S2pConversionFailed,
-                                "VoicebankSession::convertS2p: unknown S2P conversion failure");
+                                "VoicebankSession::convertS2p: unknown S2P conversion failure")
+                .withExtraContext({{"packageId", singerKey.packageId},
+                                   {"singerId", singerKey.singerId},
+                                   {"version", singerKey.version},
+                                   {"language", language}});
     }
 }
 
@@ -915,6 +994,26 @@ srt::core::Expected<std::shared_ptr<ModelSetHandle>>
             "VoicebankSession::createModelSet: no Runtime configured; "
             "call setRuntime() first");
     }
+    // S3: Auto-fallback — ensure the singer's package is loaded in Runtime.
+    // If not explicitly loaded via loadVoicebank(), do it automatically.
+    // This lets lite call createModelSet without a separate load step.
+    {
+        const std::string verStr = !singer->version.empty()
+                                       ? singer->version
+                                       : singer->ref.version;
+        stdc::VersionNumber ver;
+        if (!verStr.empty()) {
+            ver = stdc::VersionNumber::fromString(verStr);
+        }
+        auto loadExp = loadVoicebank(singer->ref.packageId, ver);
+        if (!loadExp) {
+            auto err = loadExp.takeError();
+            err.withContext(singerKey.singerId, {}, singer->ref.packageId, {});
+            err.withExtraContext({{"stage", "createModelSet"}});
+            return std::move(err);
+        }
+        // AlreadyLoaded or NewlyLoaded — both are fine
+    }
     // Resolve the 5 inference stages from the singer's package in the Runtime.
     // The Runtime must have the singer's package loaded via loadPackage().
     ds::infer::SingerStageResolver resolver;
@@ -939,8 +1038,57 @@ srt::core::Expected<std::shared_ptr<ModelSetHandle>>
         std::lock_guard lock(sp->mutex);
         return sp->generation == gen;
     };
+    // S4: Reference counting — increment activeHandleCount for the package.
+    // The custom deleter decrements it and triggers deferred unload if
+    // pendingUnload is true and count reaches zero.
+    // Key must match loadVoicebank's format: packageId + "\n" + VersionNumber::toString()
+    stdc::VersionNumber pkgVer;
+    if (!version.empty()) {
+        pkgVer = stdc::VersionNumber::fromString(version);
+    }
+    const auto pkgKey = singer->ref.packageId + "\n" + pkgVer.toString();
+    {
+        std::lock_guard lock(_impl->mutex);
+        auto it = _impl->loadedPackages.find(pkgKey);
+        if (it != _impl->loadedPackages.end()) {
+            ++it->second.activeHandleCount;
+        }
+    }
     auto handle = std::shared_ptr<ModelSetHandle>(
-        new ModelSetHandle(std::move(modelSet), gen, std::move(isCurrentGen)));
+        new ModelSetHandle(std::move(modelSet), gen, std::move(isCurrentGen)),
+        [implWeak, pkgKey](ModelSetHandle *h) {
+            delete h;
+            // S4: Decrement reference count and check pendingUnload
+            auto sp = implWeak.lock();
+            if (!sp) return;  // session gone
+            std::filesystem::path pathToUnload;
+            bool shouldUnload = false;
+            {
+                std::lock_guard lock(sp->mutex);
+                auto it = sp->loadedPackages.find(pkgKey);
+                if (it != sp->loadedPackages.end()) {
+                    --it->second.activeHandleCount;
+                    if (it->second.pendingUnload &&
+                        it->second.activeHandleCount <= 0) {
+                        pathToUnload = it->second.normalizedPath;
+                        shouldUnload = true;
+                        sp->loadedPackages.erase(it);
+                    }
+                }
+            }
+            // Unload outside the mutex to avoid blocking other callers
+            if (shouldUnload && sp->runtime) {
+                auto unloadExp = sp->runtime->unloadPackage(pathToUnload);
+                if (!unloadExp) {
+                    // Deleter runs during handle destruction; cannot propagate
+                    // error to caller, but record it for diagnostics (ROBUST-05).
+                    SessionLog.srtWarning(
+                        "VoicebankSession: unloadPackage failed for %1: %2",
+                        stdc::path::to_utf8(pathToUnload),
+                        unloadExp.errorMessage());
+                }
+            }
+        });
     return handle;
 }
 
@@ -1025,6 +1173,228 @@ srt::core::Expected<void> VoicebankSession::ensureLanguageReady(
         }
     }
     return {};
+}
+
+// === S2: Explicit package load/unload API ===
+
+srt::core::Expected<LoadResult>
+    VoicebankSession::loadVoicebank(const std::string &packageId,
+                                    const stdc::VersionNumber &version) {
+    const auto snap = snapshot();
+    if (!snap) {
+        return srt::core::Error(srt::core::ErrorCode::SessionError,
+                                "loadVoicebank: no snapshot available");
+    }
+    // 1. Find package in snapshot
+    std::filesystem::path rootPath;
+    bool found = false;
+    for (const auto &pkg : snap->packages) {
+        if (pkg.packageId == packageId &&
+            (version.isEmpty() || pkg.version == version) && pkg.valid) {
+            rootPath = pkg.rootPath;
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        return srt::core::Error::packageError(
+            srt::core::ErrorCode::RuntimePackageNotLoaded,
+            "loadVoicebank: package not found in snapshot: packageId=" + packageId,
+            packageId);
+    }
+    // 2. Normalize path
+    std::error_code ec;
+    auto normalized = std::filesystem::weakly_canonical(rootPath, ec);
+    if (ec) {
+        normalized = rootPath;
+    }
+    const auto key = packageId + "\n" + version.toString();
+    // 3. Check duplicate
+    srt::core::Runtime *rt = nullptr;
+    unsigned long long gen = 0;
+    {
+        std::lock_guard lock(_impl->mutex);
+        if (_impl->loadedPackages.count(key)) {
+            return LoadResult::AlreadyLoaded;
+        }
+        rt = _impl->runtime;
+        gen = _impl->generation;
+    }
+    if (!rt) {
+        return srt::core::Error::inferenceError(
+            srt::core::ErrorCode::InferenceNotInitialized,
+            "loadVoicebank: no Runtime configured");
+    }
+    // 4. Runtime::loadPackage
+    auto loadExp = rt->loadPackage(normalized);
+    if (!loadExp) {
+        auto err = loadExp.takeError();
+        err.withExtraContext({{"stage", "loadPackage"},
+                              {"packagePath", normalized.string()}});
+        return std::move(err);
+    }
+    // 5. Register in loadedPackages
+    {
+        std::lock_guard lock(_impl->mutex);
+        Impl::LoadedPackageEntry entry;
+        entry.normalizedPath = normalized;
+        entry.loadedGeneration = gen;
+        _impl->loadedPackages[key] = std::move(entry);
+    }
+    return LoadResult::NewlyLoaded;
+}
+
+srt::core::Expected<void>
+    VoicebankSession::unloadVoicebank(const std::string &packageId,
+                                      const stdc::VersionNumber &version) {
+    const auto key = packageId + "\n" + version.toString();
+    srt::core::Runtime *rt = nullptr;
+    std::filesystem::path normalizedPath;
+    {
+        std::lock_guard lock(_impl->mutex);
+        auto it = _impl->loadedPackages.find(key);
+        if (it == _impl->loadedPackages.end()) {
+            return srt::core::Error::packageError(
+                srt::core::ErrorCode::RuntimePackageNotLoaded,
+                "unloadVoicebank: package not loaded: packageId=" + packageId,
+                packageId);
+        }
+        // Check active references (S4 will make this meaningful)
+        if (it->second.activeHandleCount > 0) {
+            it->second.pendingUnload = true;
+            return srt::core::Error::packageError(
+                srt::core::ErrorCode::PackageInUse,
+                "unloadVoicebank: package has active handles: packageId=" + packageId +
+                    ", count=" + std::to_string(it->second.activeHandleCount),
+                packageId);
+        }
+        rt = _impl->runtime;
+        normalizedPath = it->second.normalizedPath;
+        _impl->loadedPackages.erase(it);
+    }
+    if (rt) {
+        auto exp = rt->unloadPackage(normalizedPath);
+        if (!exp) {
+            return std::move(exp.takeError());
+        }
+    }
+    return {};
+}
+
+srt::core::Expected<void>
+    VoicebankSession::unloadVoicebank(const std::string &packageId,
+                                      const stdc::VersionNumber &version,
+                                      ForceUnloadTag) {
+    const auto key = packageId + "\n" + version.toString();
+    srt::core::Runtime *rt = nullptr;
+    std::filesystem::path normalizedPath;
+    {
+        std::lock_guard lock(_impl->mutex);
+        auto it = _impl->loadedPackages.find(key);
+        if (it == _impl->loadedPackages.end()) {
+            return srt::core::Error::packageError(
+                srt::core::ErrorCode::RuntimePackageNotLoaded,
+                "unloadVoicebank: package not loaded: packageId=" + packageId,
+                packageId);
+        }
+        // Force unload: skip reference count check
+        rt = _impl->runtime;
+        normalizedPath = it->second.normalizedPath;
+        _impl->loadedPackages.erase(it);
+    }
+    if (rt) {
+        auto exp = rt->unloadPackage(normalizedPath);
+        if (!exp) {
+            return std::move(exp.takeError());
+        }
+    }
+    return {};
+}
+
+std::vector<LoadedVoicebankInfo> VoicebankSession::loadedVoicebanks() const {
+    std::vector<LoadedVoicebankInfo> result;
+    std::lock_guard lock(_impl->mutex);
+    result.reserve(_impl->loadedPackages.size());
+    for (const auto &[key, entry] : _impl->loadedPackages) {
+        LoadedVoicebankInfo info;
+        // Parse key back to packageId and version
+        const auto sep = key.find('\n');
+        if (sep != std::string::npos) {
+            info.packageId = key.substr(0, sep);
+            info.version = stdc::VersionNumber::fromString(key.substr(sep + 1));
+        }
+        info.packagePath = entry.normalizedPath;
+        info.loadedGeneration = entry.loadedGeneration;
+        info.activeHandleCount = entry.activeHandleCount;
+        info.pendingUnload = entry.pendingUnload;
+        result.push_back(std::move(info));
+    }
+    return result;
+}
+
+// === A2: VoicebankSnapshot const query methods ===
+// Lets hosts (ds-editor-lite) reuse the snapshot's own lookups instead of
+// re-implementing O(n) traversals at each call site. The snapshot is immutable
+// after publication, so these const methods are safe to call concurrently
+// (A2-T11). Pointers are non-owning and valid only while the snapshot is alive.
+
+const ds::bank::SingerSnapshot *
+VoicebankSnapshot::findSinger(const ds::bank::SingerRef &ref) const {
+    for (const auto &s : singers) {
+        if (s.ref.packageId != ref.packageId)
+            continue;
+        if (s.ref.singerId != ref.singerId)
+            continue;
+        // Fast path: exact string equality covers both-empty and the common
+        // case where versions are already stored as VersionNumber::toString().
+        if (s.ref.version == ref.version)
+            return &s;
+        // Normalized path: "1.0" must match "1.0.0" (A2-T02). Empty version
+        // matches only empty version, so skip normalization when either side
+        // is empty (avoids treating "" as "0.0.0").
+        if (s.ref.version.empty() || ref.version.empty())
+            continue;
+        if (stdc::VersionNumber::fromString(s.ref.version) ==
+            stdc::VersionNumber::fromString(ref.version)) {
+            return &s;
+        }
+    }
+    return nullptr;
+}
+
+std::vector<const ds::bank::SingerSnapshot *>
+VoicebankSnapshot::findSingersBySingerId(const std::string &singerId) const {
+    std::vector<const ds::bank::SingerSnapshot *> result;
+    for (const auto &s : singers) {
+        if (s.ref.singerId == singerId)
+            result.push_back(&s);
+    }
+    return result;
+}
+
+const ds::bank::PackageStatus *
+VoicebankSnapshot::findPackage(const std::string &packageId,
+                               const stdc::VersionNumber &version) const {
+    for (const auto &p : packages) {
+        // PackageStatus.version is already a stdc::VersionNumber, so its
+        // operator== applies normalization (e.g. "1.0" == "1.0.0") for free.
+        if (p.packageId == packageId && p.version == version)
+            return &p;
+    }
+    return nullptr;
+}
+
+const ds::bank::PackageManifest *
+VoicebankSnapshot::findManifest(const std::string &packageId,
+                                const stdc::VersionNumber &version) const {
+    for (const auto &m : manifests) {
+        // PackageManifest exposes version() as a stdc::VersionNumber by value;
+        // operator== normalizes. Invalid packages have no manifest entry, so
+        // they naturally return nullptr here (TD-01, A2-T10).
+        if (m.packageId() == packageId && m.version() == version)
+            return &m;
+    }
+    return nullptr;
 }
 
 } // namespace ds::session

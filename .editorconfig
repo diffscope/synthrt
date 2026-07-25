@@ -1,0 +1,39 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 120
+
+[*.{cmake,CMakeLists.txt,*.cmake.in}]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+[Makefile]
+indent_style = tab
+
+# PowerShell 脚本必须用 CRLF：PowerShell 解析器对 LF-only 脚本
+# （特别是跨行的 `cmdlet |` 续行、here-string `@"..."@`）有兼容性问题。
+# Windows 旧版 PowerShell 5.1（仍是 Windows Server 默认）将 LF-only
+# 脚本视为单行，导致 cmdlet 续行解析失败。
+[*.{ps1,psm1,psd1}]
+end_of_line = crlf
+
+# Shell 与 batch 脚本保持 LF（bash 跨平台一致）
+[*.{sh,bat,cmd}]
+end_of_line = lf
+
+[*.{mid,onnx,png,json}]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset

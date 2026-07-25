@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_TASK_ITASK_P_H
-#define SRT_CORE_TASK_ITASK_P_H
+#pragma once
 
 #include <synthrt/Core/Task/ITask.h>
 
@@ -12,9 +11,7 @@ namespace srt::core {
         inline Impl(ITask *task) : NamedObject::Impl(task) {
         }
 
-        State state = Idle;
+        State m_state = Idle;
     };
 
 }
-
-#endif // SRT_CORE_TASK_ITASK_P_H

@@ -1,6 +1,6 @@
 # Driver 模块 (`srt::driver`)
 
-namespace: `srt::driver` | target: `synthrt::driver` | 头文件: `include/synthrt/Driver/`
+namespace: `srt::driver` | target: `srt::driver` | 头文件: `include/synthrt/Driver/`
 
 ---
 

@@ -31,13 +31,14 @@ struct FfmpegAudioDecoder::Impl {
     bool opened = false;
     bool eof = false;
 
+    // BUG-AUDIO-02: accumulated decoder error so decodeNextFrame (whose
+    // signature cannot change per D-11) can surface failures via read()
+    // instead of silently `continue`-ing. Reset at the start of each read().
+    srt::core::Error m_lastError;
+
     AudioFormatInfo info;
     double currentPosSec = 0.0;
     double totalDurationSec = 0.0;
-
-    // Decoded buffer for streaming mode
-    std::vector<uint8_t> decodedData;
-    int64_t decodedPos = 0; // read cursor in frames
 
     void cleanup();
     double calcDuration() const;
@@ -61,13 +62,12 @@ void FfmpegAudioDecoder::Impl::cleanup() {
         avformat_close_input(&fmtCtx);
         fmtCtx = nullptr;
     }
-    decodedData.clear();
-    decodedPos = 0;
     audioStreamIdx = -1;
     opened = false;
     eof = false;
     currentPosSec = 0.0;
     totalDurationSec = 0.0;
+    m_lastError = srt::core::Error();
 }
 
 double FfmpegAudioDecoder::Impl::calcDuration() const {
@@ -98,8 +98,11 @@ bool FfmpegAudioDecoder::Impl::decodeNextFrame(std::vector<uint8_t> &outData, in
                 eof = true;
                 break;
             }
+            // BUG-AUDIO-02: real read error — record and stop (ROBUST-05)
             av_packet_unref(packet);
-            continue;
+            m_lastError = srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
+                                           "decodeNextFrame: av_read_frame failed: " + ffmpegError(readRet));
+            return false;
         }
         if (packet->stream_index != audioStreamIdx) {
             av_packet_unref(packet);
@@ -107,24 +110,76 @@ bool FfmpegAudioDecoder::Impl::decodeNextFrame(std::vector<uint8_t> &outData, in
         }
         int ret = avcodec_send_packet(codecCtx, packet);
         av_packet_unref(packet);
-        if (ret < 0)
-            continue;
+        if (ret < 0) {
+            // BUG-AUDIO-02: real send_packet error — record and stop (ROBUST-05)
+            m_lastError = srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
+                                           "decodeNextFrame: avcodec_send_packet failed: " + ffmpegError(ret));
+            return false;
+        }
 
-        while (avcodec_receive_frame(codecCtx, frame) == 0) {
+        // BUG-AUDIO-02: distinguish EAGAIN/EOF (normal) from real decode
+        // errors (previously any non-zero return was silently ignored).
+        while (true) {
+            int recvRet = avcodec_receive_frame(codecCtx, frame);
+            if (recvRet != 0) {
+                if (recvRet != AVERROR(EAGAIN) && recvRet != AVERROR_EOF) {
+                    av_frame_unref(frame);
+                    m_lastError = srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
+                                                   "decodeNextFrame: avcodec_receive_frame failed: " + ffmpegError(recvRet));
+                    return false;
+                }
+                break; // EAGAIN (need more input) or EOF (decoder flushed)
+            }
+
             // Copy raw frame data in source format (no resampling).
             // Use frame->format (actual decoded format) instead of codecCtx->sample_fmt
             // (configured format) — they may differ for some decoders.
             const auto frameFmt = static_cast<AVSampleFormat>(frame->format);
+
+            // BUG-01: Validate decoded frame format against decoder context.
+            // Some decoders (e.g. certain AAC/MP3 decoders) ignore codecPar->format
+            // and output a different sample format (e.g. FLTP instead of declared S16).
+            // The bps used below comes from info.sampleFormat (mapped from codecPar->format
+            // at open() time); if the actual frame format's bps differs, frameBytes will
+            // be wrong, causing OOB reads (declared bps > actual bps) or silent data
+            // corruption (declared bps < actual bps) in both planar and interleaved
+            // branches below. Detect the mismatch and fail fast instead of reading the
+            // buffer with the wrong byte count. (ROBUST-05, ROBUST-02)
+            const int actualBps = av_get_bytes_per_sample(frameFmt);
+            if (actualBps <= 0) {
+                av_frame_unref(frame);
+                m_lastError = srt::core::Error(
+                    srt::core::ErrorCode::AudioDecodeFailed,
+                    "decodeNextFrame: invalid decoded frame sample format: " +
+                        std::to_string(static_cast<int>(frameFmt)));
+                return false;
+            }
+            if (actualBps != bps) {
+                av_frame_unref(frame);
+                m_lastError = srt::core::Error(
+                    srt::core::ErrorCode::AudioDecodeFailed,
+                    "decodeNextFrame: decoded frame sample format " +
+                        std::to_string(static_cast<int>(frameFmt)) +
+                        " (bps=" + std::to_string(actualBps) +
+                        ") does not match decoder context format " +
+                        std::to_string(static_cast<int>(
+                            internal::toAVSampleFormat(info.sampleFormat))) +
+                        " (bps=" + std::to_string(bps) + ")");
+                return false;
+            }
+
             const int frameChannels = frame->ch_layout.nb_channels;
-            const int frameBytes = frame->nb_samples * frameChannels * bps;
+            // BUG-AUDIO-03: int64_t to avoid overflow on large frames
+            const int64_t frameBytes = static_cast<int64_t>(frame->nb_samples) * frameChannels * bps;
             if (av_sample_fmt_is_planar(frameFmt)) {
                 // Planar: deinterleave to interleaved
-                planarBuf.resize(frameBytes);
+                planarBuf.resize(static_cast<size_t>(frameBytes));
                 for (int ch = 0; ch < frameChannels; ++ch) {
-                    const uint8_t *src = frame->data[ch];
-                    auto *dst = planarBuf.data() + ch * bps;
+                    const uint8_t *src = frame->extended_data[ch];
+                    auto *dst = planarBuf.data() + static_cast<ptrdiff_t>(ch) * bps;
                     for (int s = 0; s < frame->nb_samples; ++s) {
-                        std::memcpy(dst + s * frameChannels * bps, src + s * bps, bps);
+                        std::memcpy(dst + static_cast<ptrdiff_t>(s) * frameChannels * bps,
+                                    src + static_cast<ptrdiff_t>(s) * bps, bps);
                     }
                 }
                 outData.insert(outData.end(), planarBuf.begin(), planarBuf.end());
@@ -285,6 +340,8 @@ void FfmpegAudioDecoder::close() {
 }
 
 srt::core::Expected<AudioBuffer> FfmpegAudioDecoder::read(int64_t frameCount) {
+    if (frameCount <= 0)
+        return AudioBuffer::create(0, d->info.channelCount, d->info.sampleFormat);
     if (!d->opened) {
         return srt::core::Error(srt::core::ErrorCode::AudioDecodeFailed,
                                 "read: no file is open");
@@ -299,7 +356,15 @@ srt::core::Expected<AudioBuffer> FfmpegAudioDecoder::read(int64_t frameCount) {
     std::vector<uint8_t> data;
     data.reserve(static_cast<size_t>(frameCount * channels * bps));
 
+    // BUG-AUDIO-02: reset accumulated error before each decode pass; if
+    // decodeNextFrame records a real error, propagate it via Expected
+    // (ROBUST-01 / ROBUST-05) instead of returning an empty buffer.
+    d->m_lastError = srt::core::Error();
     bool gotData = d->decodeNextFrame(data, frameCount);
+
+    if (!d->m_lastError.ok()) {
+        return d->m_lastError;
+    }
 
     if (data.empty() && !gotData) {
         return AudioBuffer::create(0, channels, d->info.sampleFormat);
@@ -330,8 +395,6 @@ srt::core::Expected<void> FfmpegAudioDecoder::seekToTime(double seconds) {
     avcodec_flush_buffers(d->codecCtx);
     d->eof = false;
     d->currentPosSec = seconds;
-    d->decodedData.clear();
-    d->decodedPos = 0;
 
     return {};
 }

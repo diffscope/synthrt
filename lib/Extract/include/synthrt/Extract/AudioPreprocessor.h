@@ -1,5 +1,4 @@
-#ifndef SRT_EXTRACT_AUDIOPREPROCESSOR_H
-#define SRT_EXTRACT_AUDIOPREPROCESSOR_H
+#pragma once
 
 #include <cstdint>
 #include <utility>
@@ -43,5 +42,3 @@ namespace srt::extract {
     };
 
 } // namespace srt::extract
-
-#endif // SRT_EXTRACT_AUDIOPREPROCESSOR_H

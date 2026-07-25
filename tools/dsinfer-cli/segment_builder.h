@@ -4,9 +4,6 @@
 
 #include "note_data.h"
 
-// Fill gaps between consecutive notes with SP rest notes.
-void fillGapsWithSp(std::vector<MidiNote> &notes);
-
 // Build a single continuous MidiPiece from all input notes.
 MidiPiece buildContinuousPiece(const std::vector<MidiNote> &input);
 

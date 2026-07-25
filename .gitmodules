@@ -1,3 +1,0 @@
-[submodule "vcpkg-overlay"]
-	path = scripts/vcpkg
-	url = https://github.com/stdware/vcpkg-overlay.git

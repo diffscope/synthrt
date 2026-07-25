@@ -1,13 +1,12 @@
-#ifndef SRT_G2P_PLUGINS_MANDARING2P_INTERNAL_V1_TASKIMPL_H
-#define SRT_G2P_PLUGINS_MANDARING2P_INTERNAL_V1_TASKIMPL_H
+#pragma once
 
 #include <PinyinG2pTaskImplBase.h>
 #include <memory>
 
 #include <cpp-pinyin/Pinyin.h>
 
-namespace srt::g2p::plugins::MandarinG2p::Internal::V1
-{
+namespace srt::g2p::plugins::MandarinG2p::Internal::V1 {
+
     class MandarinG2pTaskImpl final : public srt::g2p::plugins::Common::PinyinG2pTaskImplBase {
     public:
         explicit MandarinG2pTaskImpl(const srt::g2p::ModuleSpec *spec);
@@ -22,6 +21,4 @@ namespace srt::g2p::plugins::MandarinG2p::Internal::V1
         std::unique_ptr<Pinyin::Pinyin> m_engine;
     };
 
-} // namespace srt::g2p::plugins::MandarinG2p::Internal::V1
-
-#endif // SRT_G2P_PLUGINS_MANDARING2P_INTERNAL_V1_TASKIMPL_H
+}

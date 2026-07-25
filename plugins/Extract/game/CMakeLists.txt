@@ -18,7 +18,7 @@ file(GLOB_RECURSE _src CONFIGURE_DEPENDS *.h *.cpp)
 
 find_package(nlohmann_json CONFIG REQUIRED)
 
-srt_extract_add_plugin(${PROJECT_NAME} MidiExtractor ${PROJECT_NAME} NO_EXPORT
+synthrt_add_plugin(${PROJECT_NAME} MidiExtractor ${PROJECT_NAME} NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_20
     LINKS srt::core srt::driver srt::audio srt::extract

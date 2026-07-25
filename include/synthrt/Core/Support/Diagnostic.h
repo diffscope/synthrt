@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <synthrt/Core/srt_core_global.h>
@@ -83,6 +84,7 @@ namespace srt::core {
         // with the existing Inference segment ending at StaleModelSet=216).
         LoadFailed,                ///< 217 — ONNX session creation / load failure
         RuntimePackageNotLoaded,  ///< 218 — Runtime::loadPackage not called for singer's package
+        PackageInUse,             ///< 219 — unloadVoicebank called while handles still active
 
         // === G2P (300-399) ===
         G2pSuccess = 300,
@@ -171,6 +173,11 @@ namespace srt::core {
         std::string moduleId;
         std::string providerKey;
         std::vector<std::string> trace;
+        /// S5: Additional structured key-value context for file-level and
+        /// count-level diagnostics that don't fit the named fields above.
+        /// Common keys: stage, manifestFile, g2pPackagePath, g2pContext,
+        /// g2pId, modelFile, s2pFile, activeHandleCount, packageVersion, packagePath.
+        std::vector<std::pair<std::string, std::string>> extraContext;
     };
 
 }

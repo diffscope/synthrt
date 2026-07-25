@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_ONNX_ONNXDRIVERAPI_H
-#define SRT_DRIVER_ONNX_ONNXDRIVERAPI_H
+#pragma once
 
 #include <filesystem>
 #include <map>
@@ -78,5 +77,3 @@ namespace srt::driver::onnx {
     };
 
 }
-
-#endif // SRT_DRIVER_ONNX_ONNXDRIVERAPI_H

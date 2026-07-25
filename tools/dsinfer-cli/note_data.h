@@ -50,7 +50,3 @@ bool isRest(const MidiNote &note);
 bool isSlurOrPlus(const MidiNote &note);
 double headerMinMs(const MidiNote &note);
 double tailMs(const MidiNote &note);
-
-// Lyric fallback: converts Chinese characters to pinyin pronunciation
-// using the dictionary in the executable-relative runtime data layout.
-std::string lyricToPronunciation(const std::string &lyric, const std::string &languageId);

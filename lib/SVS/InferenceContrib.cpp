@@ -71,7 +71,7 @@ namespace srt::svs {
     InferenceSpec::~InferenceSpec() = default;
 
     const std::string &InferenceSpec::className() const {
-        return _impl->className;
+        return _impl->m_className;
     }
 
     core::DisplayText InferenceSpec::name() const {
@@ -80,7 +80,7 @@ namespace srt::svs {
     }
 
     int InferenceSpec::apiLevel() const {
-        return _impl->apiLevel;
+        return _impl->m_apiLevel;
     }
 
     const core::JsonObject &InferenceSpec::manifestSchema() const {
@@ -94,7 +94,7 @@ namespace srt::svs {
     }
 
     const core::JsonObject &InferenceSpec::manifestConfiguration() const {
-        return _impl->manifestConfiguration;
+        return _impl->m_manifestConfiguration;
     }
 
     core::NO<InferenceConfiguration> InferenceSpec::configuration() const {
@@ -103,7 +103,7 @@ namespace srt::svs {
     }
 
     const std::filesystem::path &InferenceSpec::path() const {
-        return _impl->path;
+        return _impl->m_path;
     }
 
     core::Expected<core::NO<InferenceImportOptions>>
@@ -195,30 +195,30 @@ namespace srt::svs {
         {
             auto it = obj.find("id");
             if (it != obj.end() && it->second.isString()) {
-                impl.id = it->second.toString();
+                impl.m_id = it->second.toString();
             }
         }
         // class (string) -> className
         {
             auto it = obj.find("class");
             if (it != obj.end() && it->second.isString()) {
-                impl.className = it->second.toString();
+                impl.m_className = it->second.toString();
             }
         }
         // level (int) -> apiLevel, default 1
         {
             auto it = obj.find("level");
             if (it != obj.end() && it->second.isInt()) {
-                impl.apiLevel = static_cast<int>(it->second.toInt());
+                impl.m_apiLevel = static_cast<int>(it->second.toInt());
             } else {
-                impl.apiLevel = 1;
+                impl.m_apiLevel = 1;
             }
         }
         // configuration (object) -> manifestConfiguration
         {
             auto it = obj.find("configuration");
             if (it != obj.end() && it->second.isObject()) {
-                impl.manifestConfiguration = it->second.toObject();
+                impl.m_manifestConfiguration = it->second.toObject();
             }
         }
         // schema (object) -> manifestSchema
@@ -238,7 +238,7 @@ namespace srt::svs {
             }
         }
 
-        impl.path = basePath;
+        impl.m_path = basePath;
         return spec;
     }
 
@@ -260,10 +260,10 @@ namespace srt::svs {
                 if (!rt) {
                     SVSLog.srtWarning("loadSpec(Initialized): runtime is null for inference "
                                       "spec class '%1', interpreter will be unavailable",
-                                      impl.className);
+                                      impl.m_className);
                     break;
                 }
-                auto *plugin = findInterpreterPlugin(rt, impl.className);
+                auto *plugin = findInterpreterPlugin(rt, impl.m_className);
                 if (!plugin) {
                     // Plugin not found — log loudly so silent synthesis failures
                     // are diagnosable. The spec is still registered (Initialized)
@@ -271,13 +271,13 @@ namespace srt::svs {
                     // return an error later.
                     SVSLog.srtWarning("loadSpec(Initialized): interpreter plugin not found "
                                       "for class '%1'; inference for this spec will fail "
-                                      "at createInference time", impl.className);
+                                      "at createInference time", impl.m_className);
                     break;
                 }
                 impl.interpreter = plugin->create();
                 if (!impl.interpreter) {
                     SVSLog.srtWarning("loadSpec(Initialized): plugin->create() returned null "
-                                      "for class '%1'", impl.className);
+                                      "for class '%1'", impl.m_className);
                 }
                 break;
             }
@@ -287,7 +287,7 @@ namespace srt::svs {
                     // Silent skip: no schema/configuration will be created. This
                     // is the continuation of the Initialized-phase failure above.
                     SVSLog.srtWarning("loadSpec(Ready): skipping schema/config creation "
-                                      "for class '%1' (interpreter is null)", impl.className);
+                                      "for class '%1' (interpreter is null)", impl.m_className);
                     break;
                 }
                 // Create schema and configuration from the interpreter.

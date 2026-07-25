@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_CORE_NAMEDOBJECT_H
-#define SRT_CORE_CORE_NAMEDOBJECT_H
+#pragma once
 
 #include <string>
 #include <string_view>
@@ -140,5 +139,3 @@ namespace srt::core {
     };
 
 }
-
-#endif // SRT_CORE_CORE_NAMEDOBJECT_H

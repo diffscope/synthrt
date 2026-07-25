@@ -4,6 +4,7 @@
 #include <fstream>
 #include <map>
 #include <stdexcept>
+#include <utility>
 
 #include <stdcorelib/path.h>
 
@@ -74,6 +75,7 @@ std::vector<MidiNote> parseMidi(const fs::path &path) {
     const auto tracks = r.be16();
     const auto division = r.be16();
     if (division & 0x8000) throw std::runtime_error("SMPTE time division is not supported");
+    if (division == 0) throw std::runtime_error("MIDI division is zero");
     if (headerLen > 6) r.skip(headerLen - 6);
     (void) format;
 
@@ -84,7 +86,7 @@ std::vector<MidiNote> parseMidi(const fs::path &path) {
     };
     std::vector<TempoEvent> tempoEvents{{0, 500000}};
     std::multimap<uint32_t, std::string> lyrics;
-    struct ActiveNote { uint32_t tick; int key; std::string lyric; };
+    struct ActiveNote { uint32_t tick; int channel; int key; std::string lyric; };
 
     for (uint16_t t = 0; t < tracks; ++t) {
         if (r.text(4) != "MTrk") throw std::runtime_error("missing MTrk chunk");
@@ -92,7 +94,7 @@ std::vector<MidiNote> parseMidi(const fs::path &path) {
         const auto trackEnd = r.pos + trackLen;
         uint32_t tick = 0;
         uint8_t runningStatus = 0;
-        std::map<int, ActiveNote> active;
+        std::map<std::pair<int, int>, ActiveNote> active;
         while (r.pos < trackEnd) {
             tick += r.vlq();
             auto status = r.u8();
@@ -108,8 +110,13 @@ std::vector<MidiNote> parseMidi(const fs::path &path) {
                 const auto type = r.u8();
                 const auto len = r.vlq();
                 if (type == 0x51 && len == 3) {
-                    tempoEvents.push_back({tick, (static_cast<uint32_t>(r.u8()) << 16) |
-                                                    (static_cast<uint32_t>(r.u8()) << 8) | r.u8()});
+                    const auto usPerQuarter = (static_cast<uint32_t>(r.u8()) << 16) |
+                                              (static_cast<uint32_t>(r.u8()) << 8) |
+                                              static_cast<uint32_t>(r.u8());
+                    if (usPerQuarter == 0) {
+                        throw std::runtime_error("MIDI tempo is zero");
+                    }
+                    tempoEvents.push_back({tick, usPerQuarter});
                 } else if (type == 0x01 || type == 0x05) {
                     auto text = r.text(len);
                     if (!text.empty()) lyrics.emplace(tick, std::move(text));
@@ -124,6 +131,7 @@ std::vector<MidiNote> parseMidi(const fs::path &path) {
             }
 
             const auto event = status & 0xf0;
+            const auto channel = status & 0x0f;
             const auto data1 = r.u8();
             const bool twoData = event != 0xc0 && event != 0xd0;
             const auto data2 = twoData ? r.u8() : 0;
@@ -136,15 +144,15 @@ std::vector<MidiNote> parseMidi(const fs::path &path) {
                     lyric = it->second;
                     lyrics.erase(it);
                 }
-                active[data1] = ActiveNote{tick, data1, lyric};
+                active[{channel, data1}] = ActiveNote{tick, channel, data1, std::move(lyric)};
             } else if (event == 0x80 || (event == 0x90 && data2 == 0)) {
-                auto it = active.find(data1);
+                auto it = active.find({channel, data1});
                 if (it != active.end()) {
                     MidiNote note;
                     note.startTick = it->second.tick;
                     note.endTick = tick;
                     note.key = it->second.key;
-                    note.lyric = it->second.lyric;
+                    note.lyric = std::move(it->second.lyric);
                     notes.push_back(std::move(note));
                     active.erase(it);
                 }

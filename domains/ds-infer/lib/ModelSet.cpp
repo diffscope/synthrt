@@ -311,13 +311,13 @@ namespace ds::infer {
             return Impl::busyError(kind, "reset");
         }
         auto &slot = _impl->slot(kind);
-        ++_impl->epochSlot(kind);
         if (slot && slot->state() == srt::core::ITask::Running && !slot->stop()) {
             return srt::core::Error::inferenceError(
                 srt::core::ErrorCode::InferenceRunFailed,
                 "ModelSet::reset: failed to stop " + std::string(stageName(kind)) + " inference",
                 {}, stageName(kind));
         }
+        ++_impl->epochSlot(kind);
         slot.reset();
         _impl->resultSlot(kind).reset();
         _impl->startedSlot(kind) = false;
@@ -330,6 +330,20 @@ namespace ds::infer {
 
     bool ModelSet::isStale() const noexcept {
         return _impl->stale.load(std::memory_order_acquire);
+    }
+
+    void ModelSet::clearStale() noexcept {
+        // Conservative implementation: only clear the stale flag. Per the
+        // header contract, callers are responsible for unloading any stage
+        // whose underlying spec/package may have changed before re-load().
+        // We do NOT touch per-stage epochSlot, startedSlot, resultSlot, or
+        // the loaded Inference pointers — the caller's unload() already
+        // handles those when needed. Matching markStale()'s release/acquire
+        // pairing keeps the visibility symmetric: a load() that observed the
+        // stale=true set by markStale() will observe stale=false after this
+        // store once it re-acquires the mutex (load() reads stale under
+        // mutex, so the per-method lock provides the necessary fence).
+        _impl->stale.store(false, std::memory_order_release);
     }
 
     NO<srt::svs::Inference> &ModelSet::model(StageKind kind) noexcept {
@@ -373,7 +387,6 @@ namespace ds::infer {
             return Impl::busyError(kind, "unload");
         }
         auto &slot = _impl->slot(kind);
-        ++_impl->epochSlot(kind);
         if (!slot) {
             _impl->resultSlot(kind).reset();
             _impl->startedSlot(kind) = false;
@@ -391,6 +404,7 @@ namespace ds::infer {
                                "ModelSet::unload(" + std::string(stageName(kind)) + ")"));
             }
         }
+        ++_impl->epochSlot(kind);
         slot.reset();
         _impl->resultSlot(kind).reset();
         _impl->startedSlot(kind) = false;
@@ -409,7 +423,6 @@ namespace ds::infer {
         bool hadError = false;
         for (auto kind : kReverseOrder) {
             auto &slot = _impl->slot(kind);
-            ++_impl->epochSlot(kind);
             if (!slot) {
                 _impl->resultSlot(kind).reset();
                 _impl->startedSlot(kind) = false;
@@ -426,6 +439,7 @@ namespace ds::infer {
                 }
                 continue;
             }
+            ++_impl->epochSlot(kind);
             slot.reset();
             _impl->resultSlot(kind).reset();
             _impl->startedSlot(kind) = false;

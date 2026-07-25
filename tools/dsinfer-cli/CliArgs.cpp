@@ -1,6 +1,7 @@
 #include "CliArgs.h"
 
 #include <filesystem>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -18,7 +19,9 @@ namespace dsinfer_cli {
 namespace {
 
     // Extracted from main.cpp lines 1528-1540.
-    EP parseEp(const std::string &value) {
+    // Returns std::nullopt on unknown value (BUG-CLI-005: avoid silent fallback
+    // to CPUExecutionProvider which hides user typos).
+    std::optional<EP> parseEp(const std::string &value) {
         const auto epString = stdc::to_lower(value);
         if (epString == "dml" || epString == "directml") {
             return EP::DMLExecutionProvider;
@@ -29,28 +32,25 @@ namespace {
         if (epString == "coreml") {
             return EP::CoreMLExecutionProvider;
         }
-        return EP::CPUExecutionProvider;
+        if (epString == "cpu") {
+            return EP::CPUExecutionProvider;
+        }
+        stdc::u8println("error: unknown execution provider '%1'", value);
+        return std::nullopt;
     }
 
     // Extracted from main.cpp lines 1542-1550.
-    int parseDeviceIndex(const std::string &value) {
+    // Returns std::nullopt on parse failure (BUG-CLI-004: avoid silent
+    // fallback to device 0 which hides invalid numeric input).
+    std::optional<int> parseDeviceIndex(const std::string &value) {
         try {
             return std::stoi(value);
         } catch (const std::invalid_argument &) {
-            return 0;
+            stdc::u8println("error: invalid device index '%1'", value);
+            return std::nullopt;
         } catch (const std::out_of_range &) {
-            return 0;
-        }
-    }
-
-    // Extracted from main.cpp lines 1552-1560.
-    size_t parseMaxSegments(const std::string &value) {
-        try {
-            return static_cast<size_t>(std::stoull(value));
-        } catch (const std::invalid_argument &) {
-            return 0;
-        } catch (const std::out_of_range &) {
-            return 0;
+            stdc::u8println("error: device index out of range '%1'", value);
+            return std::nullopt;
         }
     }
 
@@ -100,9 +100,9 @@ void printUsage() {
     stdc::u8println("%1", TOOL_DESC);
     stdc::u8println("");
     stdc::u8println("Usage:");
-    stdc::u8println("  %1 midi <package_dir> <filled.mid> <spk> <output_dir> [language] [ep] [device_index] [max_segments]",
+    stdc::u8println("  %1 midi <package_dir> <filled.mid> <spk> <output_dir> [language] [ep] [device_index]",
                     stdc::system::application_name());
-    stdc::u8println("  %1 dspx <package_dir> <project.dspx> <spk> <output_dir> [language] [ep] [device_index] [max_segments]",
+    stdc::u8println("  %1 dspx <package_dir> <project.dspx> <spk> <output_dir> [language] [ep] [device_index]",
                     stdc::system::application_name());
     stdc::u8println("Options:");
     stdc::u8println("  --test-lite-style  Use ModelSet for per-stage lazy load + lifecycle test");
@@ -196,7 +196,7 @@ bool CliArgs::parse(int argc, char *argv[]) {
     }
 
     // Positional layout (after stripping program name):
-    //   mode package_dir input spk output_dir [language] [ep] [device_index] [max_segments]
+    //   mode package_dir input spk output_dir [language] [ep] [device_index]
     if (positionals.size() < 5) {
         printUsage();
         exitCode = 1;
@@ -213,13 +213,22 @@ bool CliArgs::parse(int argc, char *argv[]) {
         languageId = positionals[5];
     }
     if (positionals.size() >= 7) {
-        ep = parseEp(positionals[6]);
+        auto parsed = parseEp(positionals[6]);
+        if (!parsed) {
+            printUsage();
+            exitCode = 1;
+            return false;
+        }
+        ep = *parsed;
     }
     if (positionals.size() >= 8) {
-        deviceIndex = parseDeviceIndex(positionals[7]);
-    }
-    if (positionals.size() >= 9) {
-        maxSegments = parseMaxSegments(positionals[8]);
+        auto parsed = parseDeviceIndex(positionals[7]);
+        if (!parsed) {
+            printUsage();
+            exitCode = 1;
+            return false;
+        }
+        deviceIndex = *parsed;
     }
 
     // Apply defaults for named args that were not provided on the command line.

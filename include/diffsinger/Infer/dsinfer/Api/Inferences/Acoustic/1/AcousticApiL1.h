@@ -1,5 +1,4 @@
-#ifndef DSINFER_API_ACOUSTICAPIL1_H
-#define DSINFER_API_ACOUSTICAPIL1_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -162,5 +161,3 @@ namespace srt::svs::Api::Acoustic::L1 {
     };
 
 }
-
-#endif // DSINFER_API_ACOUSTICAPIL1_H

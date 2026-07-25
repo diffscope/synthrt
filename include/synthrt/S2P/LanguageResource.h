@@ -1,5 +1,4 @@
-#ifndef SRT_S2P_LANGUAGERESOURCE_H
-#define SRT_S2P_LANGUAGERESOURCE_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -37,5 +36,3 @@ namespace srt::s2p {
     };
 
 }
-
-#endif // SRT_S2P_LANGUAGERESOURCE_H

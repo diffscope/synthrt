@@ -1,5 +1,4 @@
-#ifndef DSINFER_API_PITCHAPIL1_H
-#define DSINFER_API_PITCHAPIL1_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -131,5 +130,3 @@ namespace srt::svs::Api::Pitch::L1 {
     };
 
 }
-
-#endif // DSINFER_API_PITCHAPIL1_H

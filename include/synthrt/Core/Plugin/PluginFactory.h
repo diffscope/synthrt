@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_PLUGIN_PLUGINFACTORY_H
-#define SRT_CORE_PLUGIN_PLUGINFACTORY_H
+#pragma once
 
 #include <filesystem>
 #include <vector>
@@ -59,5 +58,3 @@ namespace srt::core {
     }
 
 }
-
-#endif // SRT_CORE_PLUGIN_PLUGINFACTORY_H

@@ -8,9 +8,12 @@ project(s2p-cli
     DESCRIPTION "Syllable-to-Phoneme Command Line Tool"
 )
 
-add_executable(${PROJECT_NAME} main.cpp)
+add_executable(${PROJECT_NAME} main.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../common/json_escape.cpp
+)
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_link_libraries(${PROJECT_NAME} PRIVATE srt::s2p)
+target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../common")
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     TOOL_DESC="${PROJECT_DESCRIPTION}, Version ${PROJECT_VERSION}"
     TOOL_VERSION="${PROJECT_VERSION}"

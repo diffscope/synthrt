@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2P_G2PSTEP_H
-#define SRT_G2P_PLUGINS_CHAING2P_G2PSTEP_H
+#pragma once
 
 #include <synthrt/Core/Module/Module.h>
 #include <synthrt/Core/Support/Expected.h>
@@ -11,8 +10,7 @@
 #include <string>
 #include <vector>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     /// G2pStep - G2p 处理步骤基类
     ///
     /// 所有处理步骤必须继承此类并实现以下方法：
@@ -74,6 +72,4 @@ namespace srt::g2p::plugins::ChainG2p
         static std::string joinStrings(const std::vector<std::string> &strings, const std::string &delimiter);
     };
 
-} // namespace srt::g2p::plugins::ChainG2p
-
-#endif // SRT_G2P_PLUGINS_CHAING2P_G2PSTEP_H
+}

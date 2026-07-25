@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_TASK_TASK_P_H
-#define SRT_G2P_TASK_TASK_P_H
+#pragma once
 
 #include <shared_mutex>
 #include <string>
@@ -18,13 +17,11 @@ namespace srt::g2p {
     public:
         Impl() = default;
 
-        const srt::core::ModuleSpec *spec = nullptr;
-        PackageManager *mgr = nullptr;
-        int cachedApiLevel = 1;
-        std::string config;
-        mutable std::shared_mutex mutex;
+        const srt::core::ModuleSpec *m_spec = nullptr;
+        PackageManager *m_mgr = nullptr;
+        int m_cachedApiLevel = 1;
+        std::string m_config;
+        mutable std::shared_mutex m_mutex;
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_TASK_TASK_P_H

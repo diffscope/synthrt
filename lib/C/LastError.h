@@ -6,8 +6,7 @@
 //
 // Thread-safety: each thread has its own buffer; no locking is required.
 
-#ifndef SRT_C_LIB_LASTERROR_H
-#define SRT_C_LIB_LASTERROR_H
+#pragma once
 
 #include <string>
 #include <string_view>
@@ -53,5 +52,3 @@ namespace srt::c::detail {
     srt_error mapError(const srt::core::Error &error);
 
 } // namespace srt::c::detail
-
-#endif // SRT_C_LIB_LASTERROR_H

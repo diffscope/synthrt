@@ -157,6 +157,19 @@ namespace srt::g2p {
         bool metadataReady = false;
         bool modelsReady = false;
 
+        // HB-14: pending diagnostics buffer for addPackagePath failures.
+        // addPackagePath failures inside initializeMetadata()/updateMetadata()
+        // are non-fatal (the call continues with remaining packages) but are
+        // recorded here as Warning diagnostics for the caller to drain.
+        mutable std::mutex pendingDiagnosticsMutex;
+        std::vector<srt::core::Diagnostic> pendingDiagnostics;
+
+        /// Thread-safe append of a pending diagnostic (HB-14).
+        void recordPendingDiagnostic(srt::core::Diagnostic d) {
+            std::lock_guard<std::mutex> lock(pendingDiagnosticsMutex);
+            pendingDiagnostics.push_back(std::move(d));
+        }
+
         /// Find all (version, path) entries for a packageId, in map iteration
         /// order (sorted by version). Empty vector when packageId is unknown.
         std::vector<std::pair<stdc::VersionNumber, std::filesystem::path>>
@@ -357,6 +370,14 @@ namespace srt::g2p {
                                                       context,
                                                       stdc::path::to_utf8(g2pPath),
                                                       addExp.error().message());
+                                // HB-14: record as Warning diagnostic for callers.
+                                srt::core::Diagnostic _d;
+                                _d.code = addExp.error().code();
+                                _d.severity = srt::core::Severity::Warning;
+                                _d.message = "addPackagePath failed: " + addExp.error().message();
+                                _d.extraContext = {{"context", context},
+                                                   {"g2pPath", stdc::path::to_utf8(g2pPath)}};
+                                _impl->recordPendingDiagnostic(std::move(_d));
                             }
                         } else {
                             // Version-aware path: versioned context — non-empty
@@ -367,6 +388,15 @@ namespace srt::g2p {
                                                       context, voicebankVersion.toString(),
                                                       stdc::path::to_utf8(g2pPath),
                                                       addExp.error().message());
+                                // HB-14: record as Warning diagnostic for callers.
+                                srt::core::Diagnostic _d;
+                                _d.code = addExp.error().code();
+                                _d.severity = srt::core::Severity::Warning;
+                                _d.message = "addPackagePath failed: " + addExp.error().message();
+                                _d.extraContext = {{"context", context},
+                                                   {"version", voicebankVersion.toString()},
+                                                   {"g2pPath", stdc::path::to_utf8(g2pPath)}};
+                                _impl->recordPendingDiagnostic(std::move(_d));
                             }
                         }
                     }
@@ -429,9 +459,21 @@ namespace srt::g2p {
         //    Map iteration order is deterministic (std::map keyed by
         //    (string, VersionNumber)), so diff.added / diff.removed /
         //    diff.unchanged are deterministic for diagnostics and tests.
+        //    BUG-G2P-009: diff must compare path as well as (packageId,
+        //    version). When a voicebank migrates to a different path with
+        //    the same (packageId, version), treat it as removed + added so
+        //    removeContextsByPrefix fires for the old path and the new path
+        //    is registered; otherwise the hot reload silently no-ops.
         PackageDirectoryDiff diff;
         for (const auto &kv : next) {
-            if (_impl->packageDirs.find(kv.first) == _impl->packageDirs.end()) {
+            auto it = _impl->packageDirs.find(kv.first);
+            if (it == _impl->packageDirs.end()) {
+                diff.added.push_back(
+                    {kv.first.first, kv.first.second, kv.second});
+            } else if (it->second != kv.second) {
+                // path 变化：视为 removed（旧 path）+ added（新 path）
+                diff.removed.push_back(
+                    {it->first.first, it->first.second, it->second});
                 diff.added.push_back(
                     {kv.first.first, kv.first.second, kv.second});
             } else {
@@ -541,6 +583,14 @@ namespace srt::g2p {
                                                       context,
                                                       stdc::path::to_utf8(g2pPath),
                                                       addExp.error().message());
+                                // HB-14: record as Warning diagnostic for callers.
+                                srt::core::Diagnostic _d;
+                                _d.code = addExp.error().code();
+                                _d.severity = srt::core::Severity::Warning;
+                                _d.message = "addPackagePath failed: " + addExp.error().message();
+                                _d.extraContext = {{"context", context},
+                                                   {"g2pPath", stdc::path::to_utf8(g2pPath)}};
+                                _impl->recordPendingDiagnostic(std::move(_d));
                             }
                         } else {
                             // Version-aware path: versioned context — non-empty
@@ -551,6 +601,15 @@ namespace srt::g2p {
                                                       context, entry.version.toString(),
                                                       stdc::path::to_utf8(g2pPath),
                                                       addExp.error().message());
+                                // HB-14: record as Warning diagnostic for callers.
+                                srt::core::Diagnostic _d;
+                                _d.code = addExp.error().code();
+                                _d.severity = srt::core::Severity::Warning;
+                                _d.message = "addPackagePath failed: " + addExp.error().message();
+                                _d.extraContext = {{"context", context},
+                                                   {"version", entry.version.toString()},
+                                                   {"g2pPath", stdc::path::to_utf8(g2pPath)}};
+                                _impl->recordPendingDiagnostic(std::move(_d));
                             }
                         }
                     }
@@ -639,6 +698,13 @@ namespace srt::g2p {
 
     bool LanguageService::ready() const {
         return _impl->metadataReady && _impl->modelsReady;
+    }
+
+    std::vector<srt::core::Diagnostic> LanguageService::drainPendingDiagnostics() {
+        std::lock_guard<std::mutex> lock(_impl->pendingDiagnosticsMutex);
+        std::vector<srt::core::Diagnostic> out;
+        out.swap(_impl->pendingDiagnostics);
+        return out;
     }
 
     srt::core::Expected<LanguageRoute> LanguageService::resolveLanguageRoute(

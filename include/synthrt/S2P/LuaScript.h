@@ -1,5 +1,4 @@
-#ifndef SRT_S2P_LUASCRIPT_H
-#define SRT_S2P_LUASCRIPT_H
+#pragma once
 
 #include <functional>
 #include <memory>
@@ -54,5 +53,3 @@ namespace srt::s2p {
     };
 
 }
-
-#endif // SRT_S2P_LUASCRIPT_H

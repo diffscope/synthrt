@@ -17,6 +17,11 @@ namespace ds::session;
 struct SessionResources {
     srt::core::Runtime *runtime = nullptr;                        // createModelSet 必需
     std::shared_ptr<srt::g2p::LanguageService> languageService;   // convertG2p/convertS2p 必需
+    /// G2P 插件搜索路径。非空时随 refresh() 传入 initializeMetadata/updateMetadata。
+    /// **v7 勘误**：自动初始化触发条件为 `languageService != nullptr`（`if (svc)`），而非 `g2pPluginPaths` 非空。
+    std::vector<std::filesystem::path> g2pPluginPaths;
+    /// 官方 G2P 包路径（如 resources/G2pPackages/），随 g2pPluginPaths 一并传入。
+    std::vector<std::filesystem::path> officialG2pPackages;
 };
 
 class VoicebankSession {
@@ -79,6 +84,13 @@ C ABI / CLI 等 headless host 使用默认构造函数，仅走 discovery 路径
 struct VoicebankSnapshot {
     std::vector<ds::bank::SingerSnapshot> singers;
     std::vector<ds::bank::PackageStatus> packages;
+    /// TD-01 (D-39 #2): full manifests for valid packages, ordered by
+    /// discovery (same order as `packages` filtered to valid entries).
+    /// Lets lite PackageManager read author/description/license/singer/
+    /// speaker/language detail directly from the snapshot without keeping
+    /// a separate PackageCatalog. Invalid packages contribute only their
+    /// PackageStatus.error; they have no manifest here.
+    std::vector<ds::bank::PackageManifest> manifests;
     std::vector<std::filesystem::path> roots;
     std::vector<std::string> reservedPhonemes;
     AvailabilitySummary availability;
@@ -177,7 +189,7 @@ Expected<std::shared_ptr<ModelSetHandle>> ensureModelSet(singerKey);
 | `LoadFailed` | 217 | ONNX session 创建/加载失败 |
 | `RuntimePackageNotLoaded` | 218 | `Runtime::loadPackage()` 未对 singer 的 package 调用 |
 | `G2pVersionAmbiguous` | 321 | packageId 注册多个 version 但调用方未传 version |
-| `SvsSingerAmbiguous` | 601 | singerId 匹配多个 singer 但调用方未传 version |
+| `SvsSingerAmbiguous` | 604 | singerId 匹配多个 singer 但调用方未传 version |
 
 ## 语言、音素与混音
 
@@ -214,3 +226,96 @@ V3-10 起三个方法全部通过 **version-aware** `LanguageService` 重载路�
 ## 缓存
 
 推理缓存使用完整运行指纹：snapshot identity、精确 singer、stage、保留 token、provider/device、请求输入、输出格式/采样率。变化自动产生新 key；旧缓存由 Lite 空闲时 LRU 回收（K-09 之外，LRU 回收策略不在本轮范围）。
+
+---
+
+## VoicebankSnapshot 查询便捷方法 (A2)
+
+> A3 追加（2026-07-25）。详细设计见
+> [docs/lite-integration/02-synthrt-side-changes.md](file:///d:/projects/synthrt/docs/lite-integration/02-synthrt-side-changes.md) §A2。
+
+`VoicebankSnapshot` 提供 4 个 const 查询方法，供宿主快速定位 singer / package /
+manifest，避免在调用方重复实现 O(n) 遍历。这些方法**不引入索引 map**：snapshot 是
+不可变的，调用方频繁时可在调用方层加缓存。完整签名见
+[include/diffsinger/Session/VoicebankSession.h](file:///d:/projects/synthrt/include/diffsinger/Session/VoicebankSession.h)。
+
+```cpp
+struct VoicebankSnapshot {
+    // ... 现有字段不变 ...
+
+    /// 精确 (packageId, singerId, version) 匹配。未找到返回 nullptr。
+    const ds::bank::SingerSnapshot *findSinger(const ds::bank::SingerRef &ref) const;
+
+    /// 仅按 singerId 匹配，多版本同 packageId 场景可能返回多个。
+    std::vector<const ds::bank::SingerSnapshot *>
+        findSingersBySingerId(const std::string &singerId) const;
+
+    /// (packageId, version) 匹配 PackageStatus。invalid 包仍在 `packages` 中
+    /// （valid=false），本方法同样返回它们，由调用方检查 `valid` 字段。
+    const ds::bank::PackageStatus *
+        findPackage(const std::string &packageId,
+                    const stdc::VersionNumber &version) const;
+
+    /// (packageId, version) 匹配 PackageManifest。invalid 包无 manifest 条目
+    /// （TD-01），返回 nullptr。
+    const ds::bank::PackageManifest *
+        findManifest(const std::string &packageId,
+                     const stdc::VersionNumber &version) const;
+};
+```
+
+### 语义要点
+
+- **返回值**：所有方法返回 raw pointer（或 `vector<const T*>`），**非 owning**，
+  仅在 snapshot 存活期间有效。宿主持有 `shared_ptr<const VoicebankSnapshot>` 即可
+  保证指针有效。
+- **线程安全**：snapshot 在 `refresh()` 成功后**不可变**发布，这 4 个 const 方法
+  内部仅做线性遍历，可在多线程并发调用（A2-T11 验证）。
+- **版本比较规范化**：`findSinger` / `findPackage` / `findManifest` 的 version
+  比较通过 `stdc::VersionNumber::operator==` 自动规范化——`"1.0"` 与 `"1.0.0"`
+  视为等价；空 version 仅匹配空 version（A2-T02）。
+- **invalid 包行为**：`findPackage` 对 invalid 包仍返回 `PackageStatus*`（调用方
+  检查 `valid` 字段）；`findManifest` 对 invalid 包返回 `nullptr`（invalid 包无
+  manifest 条目，TD-01）。
+- **与 `VoicebankSession::findSinger` 的关系**：`VoicebankSession` 内部私有
+  `findSinger(snapshot, key)` 是会话层的多版本歧义拒绝逻辑（返回
+  `Expected<const SingerSnapshot*>`，0 匹配 → `SvsSingerNotFound`，>1 匹配且空
+  version → `SvsSingerAmbiguous`，见上文 §"findSinger 多版本歧义拒绝 (D-42)"）。
+  A2 的 `VoicebankSnapshot::findSinger` 是 snapshot 层的精确匹配查询，不做歧义
+  拒绝，由调用方自行决定策略。
+
+### 验证
+
+参见 [docs/lite-integration/05-verification-checklist.md](file:///d:/projects/synthrt/docs/lite-integration/05-verification-checklist.md) §A2（A2-T01 ~ A2-T11）。
+
+---
+
+## VoicebankSession 移动语义 (A2 / B1a)
+
+> A3 追加（2026-07-25）。
+
+`VoicebankSession` 是 **move-only** 类型：
+
+```cpp
+class VoicebankSession {
+public:
+    VoicebankSession(const VoicebankSession &) = delete;
+    VoicebankSession &operator=(const VoicebankSession &) = delete;
+    VoicebankSession(VoicebankSession &&) noexcept;          // move ctor
+    VoicebankSession &operator=(VoicebankSession &&) noexcept; // move assign
+    // ...
+};
+```
+
+实现由 `shared_ptr<Impl>` 承载，移动后源对象的 Impl 为空、可安全析构。该语义允许
+宿主在 `initialize()` 中**重新构造** `m_session` 成员——典型场景是 ds-editor-lite
+的 `SynthrtEngine`：构造时 `pluginRoot()` 尚不可用，只能默认构造一个空 session；
+待 `pluginRoot()` 就绪后再 `m_session = VoicebankSession(SessionResources{...})`
+注入资源（[docs/lite-integration/03-lite-side-migration.md](file:///d:/projects/synthrt/docs/lite-integration/03-lite-side-migration.md) B1a）。
+
+约束：
+
+- 移动后对源对象的任何非析构调用是未定义行为；宿主应在移动后立即丢弃源对象。
+- 移动操作 noexcept，可在 noexcept 容器中使用。
+- 不支持拷贝：`VoicebankSession` 持有 refresh 订阅、扫描状态等不可共享资源。
+

@@ -10,9 +10,13 @@ project(dspk-pack-cli
 
 file(GLOB_RECURSE _src CONFIGURE_DEPENDS "*.cpp")
 
+# TD-CLI-06: 链接 tools/common 共享源（escapeJsonString）
+list(APPEND _src "${CMAKE_CURRENT_SOURCE_DIR}/../common/json_escape.cpp")
+
 add_executable(${PROJECT_NAME} ${_src})
 target_compile_features(${PROJECT_NAME} PRIVATE cxx_std_20)
 target_link_libraries(${PROJECT_NAME} PRIVATE srt-ds::bank)
+target_include_directories(${PROJECT_NAME} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../common")
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     TOOL_DESC="${PROJECT_DESCRIPTION}, Version ${PROJECT_VERSION}"

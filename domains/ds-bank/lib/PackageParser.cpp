@@ -22,7 +22,8 @@ namespace ds::bank {
         if (!file.is_open()) {
             err = Error{
                 Error::FileNotOpen,
-                stdc::formatN(R"(%1: failed to open package manifest)", path),
+                stdc::formatN(R"(%1: failed to open package manifest)",
+                              stdc::path::to_utf8(path)),
             };
             return {};
         }
@@ -88,6 +89,11 @@ namespace ds::bank {
     static void addRelaxedDiagnostic(PackageManifest &manifest, const Error &error,
                                      const std::filesystem::path &file, std::string_view pointer) {
         auto diagnostic = error.diagnostic();
+        // diagnostic.location 是类 JSON pointer 格式（RFC 6901），必须使用
+        // 正斜杠分隔符。此处不能用 stdc::path::to_utf8（Windows 返回反斜杠
+        // 原生格式），而应使用 generic_string() 保证跨平台一致的正斜杠格式。
+        // CODING-03 针对 human-readable error message，不适用于 machine-parseable
+        // location 字段。
         diagnostic.location = stdc::formatN("%1#/%2", file.generic_string(), pointer);
         manifest.addDiagnostic(std::move(diagnostic));
     }
@@ -163,7 +169,8 @@ namespace ds::bank {
         if (readErr.type() != Error::NoError) {
             err = Error{
                 srt::core::ErrorCode::PackageManifestInvalid,
-                stdc::formatN(R"(%1: failed to read singer config: %2)", filePath, readErr.message()),
+                stdc::formatN(R"(%1: failed to read singer config: %2)",
+                              stdc::path::to_utf8(filePath), readErr.message()),
             };
             return;
         }
@@ -172,7 +179,8 @@ namespace ds::bank {
         if (!parseErr.empty() || !root.isObject()) {
             err = Error{
                 srt::core::ErrorCode::PackageManifestInvalid,
-                stdc::formatN(R"(%1: invalid singer config format: %2)", filePath, parseErr),
+                stdc::formatN(R"(%1: invalid singer config format: %2)",
+                              stdc::path::to_utf8(filePath), parseErr),
             };
             return;
         }
@@ -294,7 +302,8 @@ namespace ds::bank {
         if (readErr.type() != Error::NoError) {
             err = Error{
                 srt::core::ErrorCode::PackageManifestInvalid,
-                stdc::formatN(R"(%1: failed to read inference config: %2)", filePath, readErr.message()),
+                stdc::formatN(R"(%1: failed to read inference config: %2)",
+                              stdc::path::to_utf8(filePath), readErr.message()),
             };
             return info;
         }
@@ -303,7 +312,8 @@ namespace ds::bank {
         if (!parseErr.empty() || !root.isObject()) {
             err = Error{
                 srt::core::ErrorCode::PackageManifestInvalid,
-                stdc::formatN(R"(%1: invalid inference config format: %2)", filePath, parseErr),
+                stdc::formatN(R"(%1: invalid inference config format: %2)",
+                              stdc::path::to_utf8(filePath), parseErr),
             };
             return info;
         }
@@ -380,7 +390,8 @@ namespace ds::bank {
         const auto packageRoot = std::filesystem::weakly_canonical(packageDir, rootError);
         if (rootError || !std::filesystem::is_directory(packageRoot)) {
             return Error{srt::core::ErrorCode::PackageManifestInvalid,
-                         stdc::formatN(R"(%1: package root is not a readable directory)", packageDir)};
+                         stdc::formatN(R"(%1: package root is not a readable directory)",
+                                       stdc::path::to_utf8(packageDir))};
         }
         const auto manifestPath = packageRoot / "desc.json";
 
@@ -397,13 +408,15 @@ namespace ds::bank {
         if (!parseErr.empty()) {
             return Error{
                 srt::core::ErrorCode::PackageManifestInvalid,
-                stdc::formatN(R"(%1: invalid package manifest format: %2)", manifestPath, parseErr),
+                stdc::formatN(R"(%1: invalid package manifest format: %2)",
+                              stdc::path::to_utf8(manifestPath), parseErr),
             };
         }
         if (!root.isObject()) {
             return Error{
                 srt::core::ErrorCode::PackageManifestInvalid,
-                stdc::formatN(R"(%1: package manifest must be a JSON object)", manifestPath),
+                stdc::formatN(R"(%1: package manifest must be a JSON object)",
+                              stdc::path::to_utf8(manifestPath)),
             };
         }
         const auto &obj = root.toObject();
@@ -415,7 +428,8 @@ namespace ds::bank {
             if (it == obj.end() || !it->second.isString()) {
                 return Error{
                     srt::core::ErrorCode::PackageManifestMissingField,
-                    stdc::formatN(R"(%1: missing required field "id")", manifestPath),
+                    stdc::formatN(R"(%1: missing required field "id")",
+                                  stdc::path::to_utf8(manifestPath)),
                 };
             } else {
                 info.setPackageId(it->second.toString());
@@ -430,7 +444,8 @@ namespace ds::bank {
             } else {
                 return Error::packageError(
                     srt::core::ErrorCode::PackageManifestMissingField,
-                    stdc::formatN(R"(%1: missing required field "version")", manifestPath),
+                    stdc::formatN(R"(%1: missing required field "version")",
+                                  stdc::path::to_utf8(manifestPath)),
                     info.packageId());
             }
         }

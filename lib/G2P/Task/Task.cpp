@@ -16,24 +16,24 @@ namespace srt::g2p {
     Task::Task() : d(std::make_unique<Impl>()) {}
 
     Task::Task(const srt::core::ModuleSpec *spec) : d(std::make_unique<Impl>()) {
-        d->spec = spec;
+        d->m_spec = spec;
         if (spec) {
-            d->cachedApiLevel = spec->apiLevel();
+            d->m_cachedApiLevel = spec->apiLevel();
         }
     }
 
     Task::~Task() = default;
 
     const ModuleSpec *Task::spec() const {
-        return d->spec;
+        return d->m_spec;
     }
 
     PackageManager *Task::Mgr() const {
-        return d->mgr;
+        return d->m_mgr;
     }
 
     void Task::setMgr(PackageManager *mgr) {
-        d->mgr = mgr;
+        d->m_mgr = mgr;
     }
 
     srt::core::Expected<srt::core::NO<srt::core::NamedObject>> Task::getObject(
@@ -53,17 +53,17 @@ namespace srt::g2p {
     }
 
     std::string Task::getConfig() const {
-        std::shared_lock lock(d->mutex);
-        return d->config;
+        std::shared_lock lock(d->m_mutex);
+        return d->m_config;
     }
 
     srt::core::Expected<std::string> Task::loadConfig() const {
         // 从默认配置路径加载配置
-        if (!d->spec)
+        if (!d->m_spec)
             return Error(Error::RuntimeError, "spec is not available");
 
-        auto packagePath = d->spec->path();
-        auto manifestConfig = d->spec->manifestConfiguration();
+        auto packagePath = d->m_spec->path();
+        auto manifestConfig = d->m_spec->manifestConfiguration();
 
         // 解析配置路径（通常是相对路径）
         std::string configPathStr;
@@ -71,7 +71,7 @@ namespace srt::g2p {
         if (configIt != manifestConfig.end() && configIt->second.isString()) {
             configPathStr = configIt->second.toString();
         } else {
-            configPathStr = "modules/" + d->spec->id() + "/config.json";
+            configPathStr = "modules/" + d->m_spec->id() + "/config.json";
         }
 
         // std::filesystem 与 std::ifstream 属第三方库边界，异常需转为 Error（ROBUST-02）
@@ -105,8 +105,8 @@ namespace srt::g2p {
             return loadResult.error();
         }
 
-        std::unique_lock lock(d->mutex);
-        d->config = loadResult.value();
+        std::unique_lock lock(d->m_mutex);
+        d->m_config = loadResult.value();
 
         return {};
     }

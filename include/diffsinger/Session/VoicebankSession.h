@@ -12,6 +12,7 @@
 #include <synthrt/Core/Support/Diagnostic.h>
 #include <synthrt/Core/Support/Expected.h>
 #include <synthrt/G2P/Base/LangCommon.h>
+#include <diffsinger/Bank/PackageManifest.h>
 #include <diffsinger/Bank/PackageStatus.h>
 #include <diffsinger/Bank/SingerRef.h>
 #include <diffsinger/Bank/SingerSnapshot.h>
@@ -37,9 +38,16 @@ namespace ds::session {
         size_t unavailable = 0;
     };
 
-    struct VoicebankSnapshot {
+    struct DSSESSION_EXPORT VoicebankSnapshot {
         std::vector<ds::bank::SingerSnapshot> singers;
         std::vector<ds::bank::PackageStatus> packages;
+        /// TD-01 (D-39 #2): full manifests for valid packages, ordered by
+        /// discovery (same order as `packages` filtered to valid entries).
+        /// Lets lite PackageManager read author/description/license/singer/
+        /// speaker/language detail directly from the snapshot without keeping
+        /// a separate PackageCatalog. Invalid packages contribute only their
+        /// PackageStatus.error; they have no manifest here.
+        std::vector<ds::bank::PackageManifest> manifests;
         std::vector<std::filesystem::path> roots;
         std::vector<std::string> reservedPhonemes;
         AvailabilitySummary availability;
@@ -48,6 +56,38 @@ namespace ds::session {
         // === V3-07 fingerprint (D-33) ===
         std::string catalogFingerprint;    // Stable digest of package catalog content
         std::string languageFingerprint;   // Stable digest of language route content
+
+        // === A2: const query methods (lite integration) ===
+        // Lets hosts query singer/package/manifest without re-implementing the
+        // O(n) traversal. The snapshot is immutable after publication, so these
+        // const methods are safe to call concurrently (A2-T11). All pointers
+        // returned are non-owning and valid only while the snapshot is alive.
+
+        /// Find a singer snapshot by exact (packageId, singerId, version) match.
+        /// Returns nullptr if not found. Version comparison uses
+        /// stdc::VersionNumber::fromString() normalization so "1.0" matches
+        /// "1.0.0"; empty version matches only empty version (A2-T02).
+        const ds::bank::SingerSnapshot *findSinger(const ds::bank::SingerRef &ref) const;
+
+        /// Find singers by singerId alone (may return multiple for multi-version
+        /// same-packageId scenarios). Returned vector is non-owning; valid only
+        /// while the snapshot is alive.
+        std::vector<const ds::bank::SingerSnapshot *>
+            findSingersBySingerId(const std::string &singerId) const;
+
+        /// Find a package status by (packageId, version) match. Returns nullptr
+        /// if not found. Invalid packages remain in `packages` with valid=false
+        /// and are returned by this method too (callers check the `valid` field).
+        const ds::bank::PackageStatus *
+            findPackage(const std::string &packageId,
+                        const stdc::VersionNumber &version) const;
+
+        /// Find a package manifest by (packageId, version) match. Returns
+        /// nullptr if not found or the package is invalid (invalid packages
+        /// have no manifest entry — TD-01).
+        const ds::bank::PackageManifest *
+            findManifest(const std::string &packageId,
+                         const stdc::VersionNumber &version) const;
     };
 
     /// Resources borrowed by VoicebankSession (V3-06). Lifetime is owned by the
@@ -56,6 +96,15 @@ namespace ds::session {
     struct DSSESSION_EXPORT SessionResources {
         srt::core::Runtime *runtime = nullptr;                        // Required for createModelSet
         std::shared_ptr<srt::g2p::LanguageService> languageService;   // Required for convertG2p/convertS2p
+        /// G2P plugin search paths for LanguageService initialization.
+        /// When non-empty, performRefresh() passes these to initializeMetadata()
+        /// / updateMetadata() so the session can self-initialize G2P without
+        /// the host calling LanguageService directly. When empty, the host must
+        /// initialize LanguageService before calling refresh() (legacy behavior).
+        std::vector<std::filesystem::path> g2pPluginPaths;
+        /// Official G2P package paths (e.g. resources/G2pPackages/).
+        /// Passed alongside g2pPluginPaths to initializeMetadata().
+        std::vector<std::filesystem::path> officialG2pPackages;
     };
 
     /// PackageCoordinate - Stable coordinate identifying one installed package.
@@ -86,6 +135,7 @@ namespace ds::session {
         bool succeeded = false;
         bool coalesced = false;
         bool changed = false;                              ///< Whether the new snapshot differs from the previous one
+        bool languageReady = false;                        ///< Whether G2P/S2P language module is ready after refresh
         std::shared_ptr<const VoicebankSnapshot> snapshot;
         ChangeSummary changes;                             ///< Per-package delta (added/removed/changed/disabled)
         std::vector<srt::core::Diagnostic> diagnostics;    ///< Diagnostics collected during refresh
@@ -147,6 +197,22 @@ namespace ds::session {
         friend class VoicebankSession;
     };
 
+    /// S2: Result of loadVoicebank.
+    enum class LoadResult { NewlyLoaded, AlreadyLoaded };
+
+    /// S2: Info about a loaded voicebank package.
+    struct DSSESSION_EXPORT LoadedVoicebankInfo {
+        std::string packageId;
+        stdc::VersionNumber version;
+        std::filesystem::path packagePath;
+        unsigned long long loadedGeneration = 0;
+        int activeHandleCount = 0;
+        bool pendingUnload = false;
+    };
+
+    /// S2: Tag type for force-unload overload.
+    struct DSSESSION_EXPORT ForceUnloadTag {};
+
     /// Thread-safe owner of an atomically published, immutable voicebank view.
     class DSSESSION_EXPORT VoicebankSession {
     public:
@@ -159,6 +225,11 @@ namespace ds::session {
         ~VoicebankSession();
         VoicebankSession(const VoicebankSession &) = delete;
         VoicebankSession &operator=(const VoicebankSession &) = delete;
+        // Move-only: lets hosts reassign m_session after pluginRoot() becomes
+        // available (B1a in ds-editor-lite). Impl is shared_ptr-backed, so the
+        // moved-from session leaves the Impl empty and is safe to destruct.
+        VoicebankSession(VoicebankSession &&) noexcept;
+        VoicebankSession &operator=(VoicebankSession &&) noexcept;
 
         void setRoots(std::vector<std::filesystem::path> roots);
         std::vector<std::filesystem::path> roots() const;
@@ -255,6 +326,32 @@ namespace ds::session {
         /// with explicit error categorization (V3-08).
         srt::core::Expected<std::shared_ptr<ModelSetHandle>>
             ensureModelSet(const ds::bank::SingerRef &singerKey);
+
+        // === S2: Explicit package load/unload API ===
+
+        /// Load a voicebank package into Runtime. Idempotent: returns
+        /// AlreadyLoaded if the (packageId, version) is already loaded.
+        /// The package must exist in the current snapshot.
+        srt::core::Expected<LoadResult> loadVoicebank(
+            const std::string &packageId,
+            const stdc::VersionNumber &version);
+
+        /// Unload a voicebank package, freeing Runtime resources.
+        /// Returns PackageInUse if active ModelSetHandle references exist
+        /// (sets pendingUnload=true for deferred unload).
+        srt::core::Expected<void> unloadVoicebank(
+            const std::string &packageId,
+            const stdc::VersionNumber &version);
+
+        /// Force unload: marks all handles stale, then unloads immediately.
+        /// Intended for shutdown scenarios.
+        srt::core::Expected<void> unloadVoicebank(
+            const std::string &packageId,
+            const stdc::VersionNumber &version,
+            ForceUnloadTag);
+
+        /// Query currently loaded voicebanks with reference counts.
+        std::vector<LoadedVoicebankInfo> loadedVoicebanks() const;
 
     private:
         class Impl;

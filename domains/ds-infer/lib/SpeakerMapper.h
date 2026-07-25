@@ -1,6 +1,8 @@
 #pragma once
 
 #include <map>
+#include <mutex>
+#include <shared_mutex>
 #include <string>
 #include <utility>
 
@@ -64,6 +66,12 @@ namespace ds::infer {
         // Composite key: (packageId, inferenceId).
         using Key = std::pair<std::string, std::string>;
         std::map<Key, SpeakerMapping> m_mappings;
+
+        // Guards m_mappings against concurrent access from inference threads
+        // (resolve) and voicebank refresh threads (setMapping /
+        // loadFromInferenceInfo). Readers take a shared_lock; writers take a
+        // unique_lock (CODING-04).
+        mutable std::shared_mutex m_mutex;
     };
 
 } // namespace ds::infer

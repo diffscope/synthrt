@@ -1,76 +1,69 @@
 #include <synthrt/Audio/AudioFileWriter.h>
-#include "FfmpegUtils.h"
 
-extern "C" {
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/error.h>
-#include <libavutil/opt.h>
-#include <libswresample/swresample.h>
-}
+#include <sndfile.h>
 
 #include <algorithm>
 #include <cstring>
+#include <string>
+#include <string_view>
 
 #include <synthrt/Core/Support/Error.h>
 
 namespace srt::audio {
-using internal::ffmpegError;
-using internal::toAVSampleFormat;
+
+// ----------------------------------------------------------------------------
+// libsndfile 后端实现（P4-2）。
+//
+// 设计要点：
+// - 公共 API（open/write/close）保持不变，PIMPL 隔离 libsndfile 头文件
+// - SF_FORMAT 根据 path 扩展名 + SampleFormat 决定（.wav/.flac/.ogg/.aiff）
+// - write() 根据 buffer.format() 调用 sf_writef_float / sf_writef_short /
+//   sf_writef_int，无需调用方手动转换
+// - 保留 P2-11 修复的 AFW-2/AFW-3/AFW-4 输入校验
+// - FFmpeg 依赖仅保留在 FfmpegAudioDecoder（解码侧），写入侧不再使用 FFmpeg
+// ----------------------------------------------------------------------------
+
+namespace {
+
+// 提取文件扩展名（小写），返回包含点的 view（如 ".wav"），无扩展名返回空 view。
+std::string_view getExtension(std::string_view path) {
+    auto pos = path.find_last_of('.');
+    if (pos == std::string_view::npos) {
+        return {};
+    }
+    auto ext = path.substr(pos);
+    // 转小写（不修改原 path）
+    static thread_local std::string lower;
+    lower.clear();
+    lower.reserve(ext.size());
+    for (char c : ext) {
+        lower.push_back(static_cast<char>(c >= 'A' && c <= 'Z' ? c + ('a' - 'A') : c));
+    }
+    return lower;
+}
+
+} // namespace
 
 struct AudioFileWriter::Impl {
-    AVFormatContext *fmtCtx = nullptr;
-    AVCodecContext *codecCtx = nullptr;
-    AVStream *stream = nullptr;
-    AVPacket *packet = nullptr;
-    AVFrame *frame = nullptr;
-    SwrContext *swrCtx = nullptr;
-
-    bool opened = false;
-    int64_t framesWritten = 0;
+    SNDFILE *sndfile = nullptr;
+    SF_INFO info = {};
     int sampleRate = 0;
     int channelCount = 0;
     SampleFormat format = SampleFormat::Unknown;
+    bool opened = false;
 
-    // The encoder's required sample format (may differ from input)
-    AVSampleFormat encoderFmt = AV_SAMPLE_FMT_NONE;
-    int64_t pts = 0;
-
-    void cleanup();
+    ~Impl() {
+        // 防御性：析构时若仍打开则强制 close（不传播错误）
+        if (sndfile) {
+            sf_close(sndfile);
+            sndfile = nullptr;
+        }
+    }
 };
-
-void AudioFileWriter::Impl::cleanup() {
-    if (swrCtx) {
-        swr_free(&swrCtx);
-        swrCtx = nullptr;
-    }
-    if (frame) {
-        av_frame_free(&frame);
-        frame = nullptr;
-    }
-    if (packet) {
-        av_packet_free(&packet);
-        packet = nullptr;
-    }
-    if (codecCtx) {
-        avcodec_free_context(&codecCtx);
-        codecCtx = nullptr;
-    }
-    if (fmtCtx) {
-        if (opened && fmtCtx->pb) {
-            av_write_trailer(fmtCtx);
-        }
-        if (!(fmtCtx->oformat->flags & AVFMT_NOFILE)) {
-            avio_closep(&fmtCtx->pb);
-        }
-        avformat_free_context(fmtCtx);
-        fmtCtx = nullptr;
-    }
-    opened = false;
-}
 
 AudioFileWriter::AudioFileWriter() : d(std::make_unique<Impl>()) {
 }
+
 AudioFileWriter::~AudioFileWriter() {
     if (d && d->opened) {
         close();
@@ -80,8 +73,9 @@ AudioFileWriter::~AudioFileWriter() {
 AudioFileWriter::AudioFileWriter(AudioFileWriter &&) noexcept = default;
 AudioFileWriter &AudioFileWriter::operator=(AudioFileWriter &&) noexcept = default;
 
-srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sampleRate, int channelCount,
-                                                 SampleFormat format) {
+srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sampleRate,
+                                                 int channelCount, SampleFormat format) {
+    // AFW-2: 重复 open 时先 close 旧实例
     if (d->opened) {
         auto closeExp = close();
         if (!closeExp) {
@@ -89,147 +83,84 @@ srt::core::Expected<void> AudioFileWriter::open(const std::string &path, int sam
         }
     }
 
+    // 校验参数
+    if (sampleRate <= 0) {
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "open: invalid sampleRate (" + std::to_string(sampleRate) +
+                                    ") for '" + path + "'");
+    }
+    if (channelCount <= 0) {
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "open: invalid channelCount (" + std::to_string(channelCount) +
+                                    ") for '" + path + "'");
+    }
+    // AFW-3: format 必须非 Unknown
+    if (format == SampleFormat::Unknown) {
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "open: sample format is Unknown for '" + path + "'");
+    }
+
+    // 根据扩展名 + format 决定 SF_FORMAT
+    const auto ext = getExtension(path);
+    int majorFormat = 0;
+    int subFormat = 0;
+
+    if (ext == ".wav") {
+        majorFormat = SF_FORMAT_WAV;
+        switch (format) {
+        case SampleFormat::Float32: subFormat = SF_FORMAT_FLOAT; break;
+        case SampleFormat::Int16:   subFormat = SF_FORMAT_PCM_16; break;
+        case SampleFormat::Int32:   subFormat = SF_FORMAT_PCM_32; break;
+        default:                    subFormat = SF_FORMAT_FLOAT; break;
+        }
+    } else if (ext == ".flac") {
+        majorFormat = SF_FORMAT_FLAC;
+        switch (format) {
+        case SampleFormat::Int16:   subFormat = SF_FORMAT_PCM_16; break;
+        case SampleFormat::Int32:   subFormat = SF_FORMAT_PCM_24; break;
+        case SampleFormat::Float32: subFormat = SF_FORMAT_FLOAT; break;
+        default:                    subFormat = SF_FORMAT_PCM_24; break;
+        }
+    } else if (ext == ".ogg") {
+        majorFormat = SF_FORMAT_OGG;
+        subFormat = SF_FORMAT_VORBIS;
+    } else if (ext == ".aiff" || ext == ".aif") {
+        majorFormat = SF_FORMAT_AIFF;
+        switch (format) {
+        case SampleFormat::Float32: subFormat = SF_FORMAT_FLOAT; break;
+        case SampleFormat::Int16:   subFormat = SF_FORMAT_PCM_16; break;
+        case SampleFormat::Int32:   subFormat = SF_FORMAT_PCM_32; break;
+        default:                    subFormat = SF_FORMAT_FLOAT; break;
+        }
+    } else {
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "open: unsupported file extension '" + std::string(ext) +
+                                    "' for '" + path + "' (supported: .wav/.flac/.ogg/.aiff)");
+    }
+
+    d->info = {};
+    d->info.samplerate = sampleRate;
+    d->info.channels = channelCount;
+    d->info.format = majorFormat | subFormat;
+
+    d->sndfile = sf_open(path.c_str(), SFM_WRITE, &d->info);
+    if (!d->sndfile) {
+        return srt::core::Error(
+            srt::core::ErrorCode::AudioWriteFailed,
+            "open: sf_open failed for '" + path + "': " + sf_strerror(nullptr));
+    }
+
     d->sampleRate = sampleRate;
     d->channelCount = channelCount;
     d->format = format;
-
-    int ret = avformat_alloc_output_context2(&d->fmtCtx, nullptr, nullptr, path.c_str());
-    if (ret < 0 || !d->fmtCtx) {
-        d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "open: failed to allocate output context for '" + path +
-                                    "': " + ffmpegError(ret));
-    }
-
-    // Find encoder
-    const AVCodec *codec = avcodec_find_encoder(d->fmtCtx->oformat->audio_codec);
-    if (!codec) {
-        // Fallback to PCM s16le for WAV
-        codec = avcodec_find_encoder(AV_CODEC_ID_PCM_S16LE);
-    }
-    if (!codec) {
-        d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "open: no suitable audio encoder found for '" + path + "'");
-    }
-
-    d->stream = avformat_new_stream(d->fmtCtx, nullptr);
-    if (!d->stream) {
-        d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "open: failed to create audio stream for '" + path + "'");
-    }
-
-    d->codecCtx = avcodec_alloc_context3(codec);
-    if (!d->codecCtx) {
-        d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "open: failed to allocate codec context for '" + path + "'");
-    }
-
-    d->codecCtx->sample_rate = sampleRate;
-    av_channel_layout_default(&d->codecCtx->ch_layout, channelCount);
-
-    // Determine encoder format
-    d->encoderFmt = codec->sample_fmts ? codec->sample_fmts[0] : AV_SAMPLE_FMT_FLT;
-    // Prefer float32 if encoder supports it
-    if (codec->sample_fmts) {
-        for (int i = 0; codec->sample_fmts[i] != AV_SAMPLE_FMT_NONE; ++i) {
-            if (codec->sample_fmts[i] == AV_SAMPLE_FMT_FLT) {
-                d->encoderFmt = AV_SAMPLE_FMT_FLT;
-                break;
-            }
-        }
-    }
-    d->codecCtx->sample_fmt = d->encoderFmt;
-    d->codecCtx->time_base = {1, sampleRate};
-
-    ret = avcodec_open2(d->codecCtx, codec, nullptr);
-    if (ret < 0) {
-        d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "open: failed to open encoder for '" + path +
-                                    "': " + ffmpegError(ret));
-    }
-
-    ret = avcodec_parameters_from_context(d->stream->codecpar, d->codecCtx);
-    if (ret < 0) {
-        d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "open: failed to copy codec parameters for '" + path +
-                                    "': " + ffmpegError(ret));
-    }
-    d->stream->time_base = d->codecCtx->time_base;
-
-    // Open output file
-    if (!(d->fmtCtx->oformat->flags & AVFMT_NOFILE)) {
-        ret = avio_open(&d->fmtCtx->pb, path.c_str(), AVIO_FLAG_WRITE);
-        if (ret < 0) {
-            d->cleanup();
-            return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                    "open: failed to open output file '" + path +
-                                        "': " + ffmpegError(ret));
-        }
-    }
-
-    ret = avformat_write_header(d->fmtCtx, nullptr);
-    if (ret < 0) {
-        d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "open: failed to write header for '" + path +
-                                    "': " + ffmpegError(ret));
-    }
-
-    d->packet = av_packet_alloc();
-    d->frame = av_frame_alloc();
-    if (!d->packet || !d->frame) {
-        d->cleanup();
-        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                "open: failed to allocate packet/frame for '" + path + "'");
-    }
-
-    // Setup resampler if input format differs from encoder format
-    AVSampleFormat inputFmt = toAVSampleFormat(format);
-    if (inputFmt != d->encoderFmt || inputFmt == AV_SAMPLE_FMT_NONE) {
-        AVChannelLayout inChLayout{};
-        av_channel_layout_default(&inChLayout, channelCount);
-        AVChannelLayout outChLayout{};
-        av_channel_layout_default(&outChLayout, channelCount);
-
-        ret = swr_alloc_set_opts2(&d->swrCtx,
-                                  &outChLayout,
-                                  d->encoderFmt,
-                                  sampleRate,
-                                  &inChLayout,
-                                  inputFmt == AV_SAMPLE_FMT_NONE ? AV_SAMPLE_FMT_FLT : inputFmt,
-                                  sampleRate,
-                                  0,
-                                  nullptr);
-        av_channel_layout_uninit(&inChLayout);
-        av_channel_layout_uninit(&outChLayout);
-
-        if (!d->swrCtx) {
-            d->cleanup();
-            return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                    "open: failed to allocate resampler for '" + path + "'");
-        }
-        ret = swr_init(d->swrCtx);
-        if (ret < 0) {
-            d->cleanup();
-            return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                    "open: failed to init resampler for '" + path +
-                                        "': " + ffmpegError(ret));
-        }
-    }
-
     d->opened = true;
-    d->framesWritten = 0;
-    d->pts = 0;
     return {};
 }
 
 srt::core::Expected<void> AudioFileWriter::write(const AudioBuffer &buffer, int sampleRate) {
-    (void)sampleRate; // Sample rate is set during open(); parameter kept for API consistency
+    // AFW-1: sampleRate 在 open() 时固定，此处忽略。调用方应确保 buffer 的实际采样率
+    // 与 open() 一致，否则写出的文件采样率错误。
+    (void)sampleRate;
 
     if (!d->opened) {
         return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
@@ -240,78 +171,73 @@ srt::core::Expected<void> AudioFileWriter::write(const AudioBuffer &buffer, int 
         return {};
     }
 
-    const int frameSize = d->codecCtx->frame_size > 0 ? d->codecCtx->frame_size : 1024;
-    const auto *samples = buffer.rawData();
-    int64_t frameCount = buffer.frameCount();
-    int srcBps = bytesPerSample(buffer.format());
-
-    int64_t offset = 0;
-    while (offset < frameCount) {
-        int64_t remaining = frameCount - offset;
-        int nbSamples = static_cast<int>(std::min(static_cast<int64_t>(frameSize), remaining));
-
-        d->frame->nb_samples = nbSamples;
-        d->frame->format = d->encoderFmt;
-        av_channel_layout_copy(&d->frame->ch_layout, &d->codecCtx->ch_layout);
-        d->frame->pts = d->pts;
-
-        int ret = av_frame_get_buffer(d->frame, 0);
-        if (ret < 0) {
-            return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                    "write: failed to allocate frame buffer: " + ffmpegError(ret));
-        }
-
-        if (d->swrCtx) {
-            const uint8_t *inData[1] = {samples + offset * d->channelCount * srcBps};
-            ret = swr_convert(d->swrCtx, d->frame->data, nbSamples, inData, nbSamples);
-            if (ret < 0) {
-                av_frame_unref(d->frame);
-                return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                        "write: resample failed: " + ffmpegError(ret));
-            }
-        } else {
-            int byteSize = nbSamples * d->channelCount * av_get_bytes_per_sample(d->encoderFmt);
-            memcpy(d->frame->data[0], samples + offset * d->channelCount * srcBps, byteSize);
-        }
-
-        ret = avcodec_send_frame(d->codecCtx, d->frame);
-        av_frame_unref(d->frame);
-        if (ret < 0) {
-            return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
-                                    "write: failed to send frame: " + ffmpegError(ret));
-        }
-
-        while ((ret = avcodec_receive_packet(d->codecCtx, d->packet)) >= 0) {
-            d->packet->stream_index = d->stream->index;
-            av_packet_rescale_ts(d->packet, d->codecCtx->time_base, d->stream->time_base);
-            av_interleaved_write_frame(d->fmtCtx, d->packet);
-            av_packet_unref(d->packet);
-        }
-
-        d->pts += nbSamples;
-        offset += nbSamples;
+    // AFW-2: 校验 buffer 通道数与 writer 一致
+    if (buffer.channelCount() != d->channelCount) {
+        return srt::core::Error(
+            srt::core::ErrorCode::AudioWriteFailed,
+            "write: channel count mismatch (buffer=" + std::to_string(buffer.channelCount()) +
+                ", writer=" + std::to_string(d->channelCount) + ")");
     }
 
-    d->framesWritten += frameCount;
+    // AFW-3: 校验 buffer format 非 Unknown
+    if (buffer.format() == SampleFormat::Unknown) {
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "write: buffer sample format is Unknown");
+    }
+
+    // libsndfile 接受 interleaved 数据，与 AudioBuffer 布局一致。
+    // 根据 buffer.format() 调用对应 API。注意：open() 时确定的 subFormat 必须与
+    // buffer.format() 兼容（libsndfile 会自动转换 int16/int32/float，但调用方传
+    // 入的 SampleFormat 应与 open() 时一致以保证写出的 PCM 类型正确）。
+    const auto frameCount = static_cast<sf_count_t>(buffer.frameCount());
+    sf_count_t written = 0;
+
+    switch (buffer.format()) {
+    case SampleFormat::Float32: {
+        const auto *data = buffer.floats().data();
+        written = sf_writef_float(d->sndfile, data, frameCount);
+        break;
+    }
+    case SampleFormat::Int16: {
+        const auto *data = buffer.int16s().data();
+        written = sf_writef_short(d->sndfile, data, frameCount);
+        break;
+    }
+    case SampleFormat::Int32: {
+        // AudioBuffer 暂未提供 int32s() 访问器，用 rawData 按 int32_t 解释
+        const auto *data = reinterpret_cast<const int32_t *>(buffer.rawData());
+        written = sf_writef_int(d->sndfile, data, frameCount);
+        break;
+    }
+    default:
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "write: unsupported sample format in buffer");
+    }
+
+    if (written != frameCount) {
+        return srt::core::Error(
+            srt::core::ErrorCode::AudioWriteFailed,
+            "write: sf_writef_* wrote " + std::to_string(written) + "/" +
+                std::to_string(frameCount) + " frames: " + sf_strerror(d->sndfile));
+    }
     return {};
 }
 
 srt::core::Expected<void> AudioFileWriter::close() {
-    if (!d->opened)
+    if (!d->opened) {
         return {};
-
-    // Flush encoder
-    if (d->codecCtx) {
-        avcodec_send_frame(d->codecCtx, nullptr);
-        while (avcodec_receive_packet(d->codecCtx, d->packet) >= 0) {
-            d->packet->stream_index = d->stream->index;
-            av_packet_rescale_ts(d->packet, d->codecCtx->time_base, d->stream->time_base);
-            av_interleaved_write_frame(d->fmtCtx, d->packet);
-            av_packet_unref(d->packet);
-        }
     }
 
-    d->cleanup();
+    // sf_write_sync 刷新内部缓冲（libsndfile 默认会缓冲部分数据）
+    sf_write_sync(d->sndfile);
+
+    int err = sf_close(d->sndfile);
+    d->sndfile = nullptr;
+    d->opened = false;
+    if (err != 0) {
+        return srt::core::Error(srt::core::ErrorCode::AudioWriteFailed,
+                                "close: sf_close failed: " + std::string(sf_strerror(nullptr)));
+    }
     return {};
 }
 

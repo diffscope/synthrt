@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_PACKAGE_PACKAGE_H
-#define SRT_G2P_PACKAGE_PACKAGE_H
+#pragma once
 
 #include <filesystem>
 #include <string>
@@ -91,5 +90,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_PACKAGE_PACKAGE_H

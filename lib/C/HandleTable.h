@@ -83,16 +83,25 @@ public:
 
     /// 销毁句柄,移除表项。返回是否成功(句柄存在才成功)。
     /// 注意:已 lookup 的 shared_ptr 仍保持对象存活。
+    /// 析构在锁外执行,避免在锁内运行用户代码(潜在的死锁/重入)。
     bool destroy(HandleId id) {
         if (id == kInvalidHandle) {
             return false;
         }
-        std::lock_guard<std::mutex> lock(m_mutex);
-        auto it = m_entries.find(id);
-        if (it == m_entries.end()) {
-            return false;
+        std::shared_ptr<T> released;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            auto it = m_entries.find(id);
+            if (it == m_entries.end()) {
+                return false;
+            }
+            released = std::move(it->second);
+            m_entries.erase(it);
         }
-        m_entries.erase(it);
+        // shared_ptr destructor runs here, outside the lock.
+        // If this is the last reference, T's destructor executes without
+        // holding m_mutex, avoiding deadlock if T's dtor calls back into
+        // this HandleTable (non-recursive mutex would deadlock).
         return true;
     }
 
@@ -122,7 +131,7 @@ struct RuntimeData {
     ~RuntimeData() = default;
 
     // Real Runtime — thread-safe (has its own internal mutex).
-    srt::core::Runtime runtime;
+    srt::core::Runtime m_runtime;
 };
 
 struct LanguageServiceData {
@@ -130,7 +139,7 @@ struct LanguageServiceData {
     ~LanguageServiceData() = default;
 
     // Real LanguageService — thread-safe after initialize().
-    srt::g2p::LanguageService languageService;
+    srt::g2p::LanguageService m_languageService;
 };
 
 struct SessionData {
@@ -139,21 +148,21 @@ struct SessionData {
 
     /// Real VoicebankSession — thread-safe (has its own internal mutex).
     /// Owns the voicebank snapshot, refresh pipeline, and model set factory.
-    ds::session::VoicebankSession session;
+    ds::session::VoicebankSession m_session;
 };
 
 struct ModelData {
     ModelData() = default;
     ~ModelData() = default;
 
-    std::shared_ptr<SessionData> session;
+    std::shared_ptr<SessionData> m_session;
     /// Real ModelSetHandle bound to a snapshot generation. May become stale
     /// after a successful refresh (start() returns StaleModelSet; load/stop/
     /// unload remain usable).
-    std::shared_ptr<ds::session::ModelSetHandle> handle;
-    std::string packageId;
-    std::string singerId;
-    std::string version;
+    std::shared_ptr<ds::session::ModelSetHandle> m_handle;
+    std::string m_packageId;
+    std::string m_singerId;
+    std::string m_version;
 
     /// ModelBusy 协作:同 model 忙时返回 false (调用方应返回 SRT_ERR_MODEL_BUSY)。
     bool tryAcquire() {
@@ -179,24 +188,24 @@ struct TaskData {
     ~TaskData() = default;
 
     /// Keeps the session alive after srt_session_destroy (destroy race safety).
-    std::shared_ptr<SessionData> session;
+    std::shared_ptr<SessionData> m_session;
 
     /// Task kind — determines how result_json is serialized. Only Refresh is
     /// wired in WP8; G2p/S2p/Stage are future task kinds.
     enum class Type { Refresh, G2p, S2p, Stage };
-    Type type = Type::Refresh;
+    Type m_type = Type::Refresh;
 
-    mutable std::mutex mutex;
-    std::condition_variable cv;
-    srt_TaskState state = SRT_TASK_STATE_PENDING;
-    std::string resultJson;
-    std::string errorMessage;
-    int errorCode = 0;
-    bool cancelRequested = false;
+    mutable std::mutex m_mutex;
+    std::condition_variable m_cv;
+    srt_TaskState m_state = SRT_TASK_STATE_PENDING;
+    std::string m_resultJson;
+    std::string m_errorMessage;
+    int m_errorCode = 0;
+    bool m_cancelRequested = false;
 
     /// Refresh-specific: shared_future returned by VoicebankSession::refreshAsync().
     /// The watcher thread blocks on get() and updates state/resultJson under mutex.
-    std::shared_future<ds::session::RefreshResult> refreshFuture;
+    std::shared_future<ds::session::RefreshResult> m_refreshFuture;
 };
 
 // --------------------------------------------------------------------------

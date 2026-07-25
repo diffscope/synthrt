@@ -138,8 +138,17 @@ namespace srt::core {
         if (!ec) {
             return canonical;
         }
-        // Fallback: use absolute() if canonical() fails (e.g. path does not exist yet)
-        return std::filesystem::absolute(path);
+        // Fallback: use absolute() if canonical() fails (e.g. path does not exist yet).
+        // ROBUST-01/ROBUST-02: use error_code overload to avoid filesystem_error
+        // throwing across the API boundary on Windows non-ANSI paths or permission
+        // errors.
+        auto absPath = std::filesystem::absolute(path, ec);
+        if (ec) {
+            return Error(Error::InvalidFormat,
+                         "failed to resolve absolute path: " + stdc::path::to_utf8(path) +
+                             " (" + ec.message() + ")");
+        }
+        return absPath;
     }
 
     Expected<std::vector<std::string>> ConfigAccessor::getStringArray(const std::string &key) const {
@@ -239,7 +248,7 @@ namespace srt::core {
         if (value < min || value > max) {
             std::string keyMsg = key.empty() ? "" : "'" + key + "' ";
             return validationError(
-                stdc::formatN("Value %1%2is out of range [%3, %4]", keyMsg, value, min, max),
+                stdc::formatN("Value %1%2 is out of range [%3, %4]", keyMsg, value, min, max),
                 "Adjust the value to be within the valid range");
         }
         return true;
@@ -249,7 +258,7 @@ namespace srt::core {
         if (value < min || value > max) {
             std::string keyMsg = key.empty() ? "" : "'" + key + "' ";
             return validationError(
-                stdc::formatN("Value %1%2is out of range [%3, %4]", keyMsg, value, min, max),
+                stdc::formatN("Value %1%2 is out of range [%3, %4]", keyMsg, value, min, max),
                 "Adjust the value to be within the valid range");
         }
         return true;
@@ -273,7 +282,7 @@ namespace srt::core {
             allowedList += "'" + allowedValues[i] + "'";
         }
         return validationError(
-            stdc::formatN("Value %1%2is not allowed. Allowed values: %3", keyMsg, value, allowedList),
+            stdc::formatN("Value %1%2 is not allowed. Allowed values: %3", keyMsg, value, allowedList),
             "Use one of the allowed values");
     }
 

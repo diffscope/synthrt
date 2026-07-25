@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <stdcorelib/str.h>
+
 #include <synthrt/Core/Support/Diagnostic.h>
 #include <synthrt/Core/Support/Error.h>
 #include <synthrt/Core/Support/Expected.h>
@@ -18,6 +20,7 @@
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
+#include <dsinfer/Api/Inferences/Vocoder/2/VocoderApiL2.h>
 
 namespace ds::infer {
 
@@ -27,6 +30,7 @@ namespace ds::infer {
     namespace Pit = srt::svs::Api::Pitch::L1;
     namespace Var = srt::svs::Api::Variance::L1;
     namespace Vo = srt::svs::Api::Vocoder::L1;
+    namespace Vo_L2 = srt::svs::Api::Vocoder::L2;
 
     using srt::core::NO;
 
@@ -177,6 +181,15 @@ namespace ds::infer {
             const auto &durations = resExp.value()->durations;
 
             // Apply: phoneme start times relative to their word start.
+            // Count total phonemes up front so we can detect a durations <
+            // phonemes mismatch (BUG-17): the inner break leaves remaining
+            // phoneme.start at default 0.0 but i == durations.size() would
+            // otherwise pass the sanity check silently.
+            size_t totalPhonemeCount = 0;
+            for (const auto &word : words) {
+                totalPhonemeCount += word.phones.size();
+            }
+
             size_t i = 0;
             for (auto &word : words) {
                 double timeCursor = 0.0;
@@ -187,6 +200,14 @@ namespace ds::infer {
                     timeCursor += durations[i];
                     ++i;
                 }
+            }
+            if (i != durations.size() || i != totalPhonemeCount) {
+                auto err = srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
+                    stdc::formatN("durations size mismatch: phonemes=%1, durations=%2, consumed=%3",
+                        totalPhonemeCount, durations.size(), i));
+                err.appendTrace(std::source_location::current(), "InferenceService::run");
+                result.error = std::move(err);
+                return result;
             }
         }
 
@@ -381,7 +402,11 @@ namespace ds::infer {
             input->mel = mel;
             input->f0 = f0;
 
-            auto resExp = startAndCheck<Vo::VocoderStartInput, Vo::VocoderResult>(
+            // Use the base TaskResult as the ResultType so we can dispatch
+            // between L2 (vocoder.L2) and L1 (vocoder) by objectName().
+            // NO<>::as<>() uses static_pointer_cast, so a blind cast to the
+            // wrong sibling VocoderResult type would be UB.
+            auto resExp = startAndCheck<Vo::VocoderStartInput, srt::core::TaskResult>(
                 inference, input, "vocoder", singer);
             if (!resExp) {
                 auto err = resExp.takeError();
@@ -389,25 +414,43 @@ namespace ds::infer {
                 result.error = err;
                 return result;
             }
+            auto voTaskResult = resExp.value();
 
-            const auto &audioData = resExp.value()->audioData;
-            // Vocoder produces IEEE_FLOAT PCM bytes; copy into float vector.
-            if (!audioData.empty()) {
-                const auto sampleCount = audioData.size() / sizeof(float);
-                result.audio.resize(sampleCount);
-                if (sampleCount > 0) {
-                    std::memcpy(result.audio.data(), audioData.data(),
-                                sampleCount * sizeof(float));
+            if (voTaskResult->objectName() == Vo_L2::API_NAME) {
+                // L2 path: float audioData + sampleRate/channels on the result.
+                auto voResult = voTaskResult.as<Vo_L2::VocoderResult>();
+                result.audio = std::move(voResult->audioData);
+                result.sampleRate = voResult->sampleRate;
+                result.channels = voResult->channels;
+            } else {
+                // L1 fallback: legacy vocoder plugin returns vector<uint8_t>.
+                auto voResult = voTaskResult.as<Vo::VocoderResult>();
+                const auto &audioData = voResult->audioData;
+                // BUG-21: validate size is a multiple of sizeof(float) before
+                // reinterpreting bytes as float32 PCM. A non-multiple size
+                // would silently truncate trailing bytes / mis-size the vector.
+                if (!audioData.empty()) {
+                    if (audioData.size() % sizeof(float) != 0) {
+                        result.error = srt::core::Error(
+                            srt::core::ErrorCode::InferenceOutputEmpty,
+                            "InferenceService::run: vocoder audioData size is not a multiple of sizeof(float)");
+                        return result;
+                    }
+                    const auto sampleCount = audioData.size() / sizeof(float);
+                    result.audio.resize(sampleCount);
+                    if (sampleCount > 0) {
+                        std::memcpy(result.audio.data(), audioData.data(),
+                                    sampleCount * sizeof(float));
+                    }
                 }
+                // L1 result has no sampleRate field; fall back to configuration.
+                const auto vocoderConfig =
+                    m_stages.vocoder.spec->configuration().as<Vo::VocoderConfiguration>();
+                if (vocoderConfig) {
+                    result.sampleRate = vocoderConfig->sampleRate;
+                }
+                result.channels = 1;
             }
-
-            // Populate sampleRate from vocoder configuration.
-            const auto vocoderConfig =
-                m_stages.vocoder.spec->configuration().as<Vo::VocoderConfiguration>();
-            if (vocoderConfig) {
-                result.sampleRate = vocoderConfig->sampleRate;
-            }
-            result.channels = 1;
         }
 
         result.error = srt::core::Error();

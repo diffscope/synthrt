@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_SUPPORT_ERROR_H
-#define SRT_G2P_SUPPORT_ERROR_H
+#pragma once
 
 #include <memory>
 #include <source_location>
@@ -96,5 +95,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_SUPPORT_ERROR_H

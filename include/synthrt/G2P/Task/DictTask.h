@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_TASK_DICTTASK_H
-#define SRT_G2P_TASK_DICTTASK_H
+#pragma once
 
 #include <cstddef>
 #include <cstdint>
@@ -50,5 +49,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_TASK_DICTTASK_H

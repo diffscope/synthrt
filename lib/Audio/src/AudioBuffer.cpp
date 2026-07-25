@@ -23,6 +23,8 @@ uint8_t *AudioBuffer::dataPtrMutable() {
 // -- Factory methods --
 
 AudioBuffer AudioBuffer::create(int64_t frameCount, int channelCount, SampleFormat format) {
+    if (frameCount < 0 || channelCount < 0)
+        return AudioBuffer();
     AudioBuffer buf;
     buf.m_frameCount = frameCount;
     buf.m_channelCount = channelCount;
@@ -37,6 +39,8 @@ AudioBuffer AudioBuffer::create(int64_t frameCount, int channelCount, SampleForm
 }
 
 AudioBuffer AudioBuffer::fromCopy(const void *data, int64_t frameCount, int channelCount, SampleFormat format) {
+    if (frameCount < 0 || channelCount < 0)
+        return AudioBuffer();
     AudioBuffer buf = create(frameCount, channelCount, format);
     auto *vec = std::get_if<std::vector<uint8_t>>(&buf.m_data);
     if (vec && !vec->empty() && data) {
@@ -46,6 +50,8 @@ AudioBuffer AudioBuffer::fromCopy(const void *data, int64_t frameCount, int chan
 }
 
 AudioBuffer AudioBuffer::fromView(const void *data, int64_t frameCount, int channelCount, SampleFormat format) {
+    if (frameCount < 0 || channelCount < 0)
+        return AudioBuffer();
     AudioBuffer buf;
     buf.m_frameCount = frameCount;
     buf.m_channelCount = channelCount;

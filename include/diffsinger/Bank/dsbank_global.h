@@ -1,5 +1,4 @@
-#ifndef DSBANK_DSBANK_GLOBAL_H
-#define DSBANK_DSBANK_GLOBAL_H
+#pragma once
 
 #include <stdcorelib/stdc_global.h>
 
@@ -14,5 +13,3 @@
 #    endif
 #  endif
 #endif
-
-#endif // DSBANK_DSBANK_GLOBAL_H

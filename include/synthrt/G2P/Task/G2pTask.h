@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_TASK_G2PTASK_H
-#define SRT_G2P_TASK_G2PTASK_H
+#pragma once
 
 #include <string>
 #include <unordered_map>
@@ -25,5 +24,3 @@ namespace srt::g2p
         std::string errorMessage;
     };
 } // namespace srt::g2p
-
-#endif // SRT_G2P_TASK_G2PTASK_H

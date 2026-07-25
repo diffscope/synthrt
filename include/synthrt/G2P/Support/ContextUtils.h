@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_SUPPORT_CONTEXTUTILS_H
-#define SRT_G2P_SUPPORT_CONTEXTUTILS_H
+#pragma once
 
 #include <string>
 #include <string_view>
@@ -112,5 +111,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_SUPPORT_CONTEXTUTILS_H

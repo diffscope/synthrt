@@ -1,0 +1,62 @@
+# Pre-commit hooks for synthrt.
+#
+# Tool version lock (see docs/design/design-guidelines.md):
+#   clang-format / clang-tidy : LLVM 16 (rev v16.0.6)
+#   cmake-format              : 0.6.13 (rev v0.6.13)
+#   pre-commit                : 3.6.0+
+#
+# Install:
+#   pip install pre-commit==3.6.0 clang-format==16.0.6 cmake-format==0.6.13
+#   pre-commit install
+#
+# Run manually:
+#   pre-commit run --all-files
+
+repos:
+  # C++ formatting and static analysis (LLVM 16).
+  - repo: https://github.com/pocc/pre-commit-hooks
+    rev: v16.0.6
+    hooks:
+      - id: clang-format
+        name: clang-format (C/C++)
+        # Uses .clang-format at repo root (ColumnLimit 120, C++20).
+        args: [--style=file, -i]
+        files: \.(cpp|cc|cxx|h|hpp|hxx|c|hh)$
+      - id: clang-tidy
+        name: clang-tidy (C/C++, warn-only)
+        # Uses .clang-tidy at repo root. Warn-only baseline per T-P0-08;
+        # fail-on promotion is tracked by T-P3-04.
+        args: [--warnings-as-errors=]
+        files: \.(cpp|cc|cxx|h|hpp|hxx|c|hh)$
+
+  # CMake formatting (0.6.13). Uses .cmake-format.json at repo root.
+  - repo: https://github.com/cheshirekow/cmake-format-precommit
+    rev: v0.6.13
+    hooks:
+      - id: cmake-format
+        name: cmake-format (CMakeLists.txt / *.cmake)
+        args: [--config=.cmake-format.json, -i]
+        files: |
+          (?x)^(
+            .*/CMakeLists\.txt|
+            .*\.cmake(\.in)?
+          )$
+
+  # Generic file hygiene hooks.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+        name: end-of-file-fixer
+        # Markdown is exempted per .editorconfig (trim_trailing_whitespace=false).
+        exclude: ^.*\.md$
+      - id: trailing-whitespace
+        name: trailing-whitespace
+        exclude: ^.*\.md$
+      - id: check-yaml
+        name: check-yaml
+        # .clang-format / .clang-tidy are YAML; still validate them.
+        files: \.(yaml|yml)$
+      - id: check-json
+        name: check-json
+        files: \.json$

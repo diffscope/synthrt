@@ -40,7 +40,8 @@ namespace srt::s2p {
         Private() = default;
 
         Private(Private &&other) noexcept
-            : environment(std::move(other.environment)), s2pRef(other.s2pRef) {
+            : environment(std::move(other.environment)), s2pRef(other.s2pRef),
+              scriptId(std::move(other.scriptId)) {
             other.s2pRef = LUA_NOREF;
         }
 
@@ -51,6 +52,7 @@ namespace srt::s2p {
                 }
                 environment = std::move(other.environment);
                 s2pRef = other.s2pRef;
+                scriptId = std::move(other.scriptId);
                 other.s2pRef = LUA_NOREF;
             }
             return *this;
@@ -64,6 +66,7 @@ namespace srt::s2p {
 
         Internal::LuaExecutionEnvironment environment;
         int s2pRef{LUA_NOREF};
+        std::string scriptId;
     };
 
     LuaS2P::LuaS2P() : d(std::make_unique<Private>()) {
@@ -83,6 +86,7 @@ namespace srt::s2p {
             // throw std::runtime_error if luaL_newstate() fails (OOM).
             obj = std::unique_ptr<LuaS2P>(new LuaS2P());
             obj->d->environment.loadAndRun(luaScript);
+            obj->d->scriptId = luaScript.chunkName();
             obj->d->s2pRef = obj->d->environment.getGlobalFunctionRef("s2p");
         } catch (const std::exception &e) {
             return srt::core::Error(srt::core::ErrorCode::S2pScriptError, e.what());
@@ -104,8 +108,10 @@ namespace srt::s2p {
         lua_pushlstring(state, pronunciation.data(), pronunciation.size());
 
         if (d->environment.pcall(1, 1, 0) != 0) {
+            const auto luaError = d->environment.errorString();
             return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
-                "LuaS2P error: s2p failed: " + d->environment.errorString());
+                "LuaS2P error: s2p failed: " + luaError)
+                .withExtraContext({{"scriptId", d->scriptId}, {"luaError", luaError}});
         }
 
         if (!lua_istable(state, -1)) {

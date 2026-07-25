@@ -4,14 +4,7 @@ project(srt-g2p
     DESCRIPTION "synthrt v3 G2P (grapheme-to-phoneme) management"
 )
 
-set(srt-g2p_VAR_PREFIX srt_g2p)
-set(SRT_G2P_INSTALL ${SYNTHRT_INSTALL})
-set(SRT_G2P_VERSION ${PROJECT_VERSION})
-set(SRT_G2P_INSTALL_NAME ${PROJECT_NAME})
-set(SRT_G2P_AUTHOR "Team OpenVPI")
-set(SRT_G2P_START_YEAR 2023)
-set(SRT_G2P_INCLUDE_DIR ../../include)
-include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
+synthrt_declare_target(srt_g2p "${PROJECT_NAME}" ${PROJECT_VERSION} "Team OpenVPI" 2023 "../../include")
 
 # srt-g2p library
 #
@@ -19,7 +12,7 @@ include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
 # All public classes live under namespace srt::g2p::
 
 file(GLOB_RECURSE _src CONFIGURE_DEPENDS "*.cpp")
-list(FILTER _src EXCLUDE REGEX "/Support/(InferUtil|Common)/")
+list(FILTER _src EXCLUDE REGEX "/Support/(Inferutil|Common)/")
 
 find_package(stdcorelib CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
@@ -31,15 +24,19 @@ find_package(nlohmann_json CONFIG REQUIRED)
 # LanguageService::resolveS2pResource() returns srt::s2p::LanguageResource,
 # so srt::s2p is linked publicly. srt-s2p only depends on srt::core, so
 # no circular dependency is introduced.
-srt_g2p_add_library(${PROJECT_NAME} SHARED
+# A1: G2pOnnxSetup.cpp reuses the Runtime's "inference/dsdriver"
+# srt::driver::InferenceDriver and wraps it with a CPU-only SessionFactory
+# adapter, so srt::driver is linked publicly. srt-driver only depends on
+# srt::core, so no circular dependency is introduced.
+synthrt_add_library(${PROJECT_NAME} SHARED
     SOURCES ${_src}
-    LINKS stdcorelib::stdcorelib srt::core srt-ds::bank srt::s2p
+    LINKS stdcorelib::stdcorelib srt::core srt::driver srt-ds::bank srt::s2p
     LINKS_PRIVATE nlohmann_json::nlohmann_json
     INCLUDE_PRIVATE ../../include/synthrt/G2P/** **
 )
 
 # sparsepp header-only dependency (used by Support/PhonemeDict.cpp).
-find_path(SPARSEPP_INCLUDE_DIRS "sparsepp/spp.h")
+find_package(SparsePP REQUIRED)
 target_include_directories(${PROJECT_NAME} PUBLIC
     $<BUILD_INTERFACE:${SPARSEPP_INCLUDE_DIRS}>
 )
@@ -48,11 +45,8 @@ target_include_directories(${PROJECT_NAME} PUBLIC
 if(NOT TARGET srt::g2p)
     add_library(srt::g2p ALIAS ${PROJECT_NAME})
 endif()
-if(NOT TARGET synthrt::g2p)
-    add_library(synthrt::g2p ALIAS ${PROJECT_NAME})
-endif()
 
 set(CMAKE_FOLDER "Libraries")
 add_subdirectory(Support)
 
-srt_g2p_install()
+synthrt_install()

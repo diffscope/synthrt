@@ -60,7 +60,7 @@ namespace srt::dependency {
                 for (const auto &depRaw : module.requirements) {
                     bool alreadyResolved = false;
                     for (const auto &existingDep : module.resolvedDependencies) {
-                        if (existingDep.packageId == depRaw.packageId && existingDep.moduleId == depRaw.moduleId) {
+                        if (existingDep.packageId == depRaw.packageId && existingDep.moduleId == depRaw.moduleId && existingDep.level == depRaw.level) {
                             alreadyResolved = true;
                             newResolvedDeps.push_back(existingDep);
                             break;
@@ -218,10 +218,10 @@ namespace srt::dependency {
 
         for (size_t i = 0; i < modules.size(); ++i) {
             const auto &module = modules[i];
-            std::string uniqueKey = module.packageId + ":" + module.moduleId + ":" + std::to_string(module.level) +
-                                       ":" + module.context;
-            if (!module.contextVersion.isEmpty())
-                uniqueKey += "@" + module.contextVersion.toString();
+            // CODING-05: use ModuleMetadata::uniqueKey() which includes iid +
+            // type (the manual拼接 below missed them, causing modules of
+            // different iid/type to be erroneously de-duplicated).
+            std::string uniqueKey = module.uniqueKey();
 
             if (auto it = bestIndexes.find(uniqueKey); it == bestIndexes.end()) {
                 bestIndexes[uniqueKey] = i;

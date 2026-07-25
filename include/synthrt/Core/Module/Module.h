@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_MODULE_MODULE_H
-#define SRT_CORE_MODULE_MODULE_H
+#pragma once
 
 #include <filesystem>
 #include <memory>
@@ -48,7 +47,7 @@ namespace srt::core {
     /// A locator uniquely identifies a ModuleSpec by (package, version, id).
     /// Any subset of the three components may be omitted, in which case the
     /// locator matches all specs that satisfy the supplied components.
-    class ModuleLocator {
+    class SRT_CORE_EXPORT ModuleLocator {
     public:
         ModuleLocator(std::string package, const stdc::VersionNumber version, std::string id) :
             _package(std::move(package)), _version(version), _id(std::move(id)) {}
@@ -62,7 +61,7 @@ namespace srt::core {
         const std::string &package() const { return _package; }
         stdc::VersionNumber version() const { return _version; }
         const std::string &id() const { return _id; }
-        bool isEmpty() const { return _id.empty(); }
+        bool isEmpty() const { return _package.empty() && _version.isEmpty() && _id.empty(); }
 
         std::string toString() const;
         static ModuleLocator fromString(const std::string_view &token);
@@ -320,5 +319,3 @@ namespace srt::core {
 
 #define SRT_CORE_REGISTER_MODULE_CATEGORY_DEFINE(ClassName, CategoryKey) \
     SRT_CORE_DEFINE_MODULE_CATEGORY(ClassName, CategoryKey)
-
-#endif // SRT_CORE_MODULE_MODULE_H

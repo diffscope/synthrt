@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_TASK_TASKPLUGIN_H
-#define SRT_G2P_TASK_TASKPLUGIN_H
+#pragma once
 
 #include <synthrt/Core/Plugin/Plugin.h>
 #include <synthrt/Core/Support/Expected.h>
@@ -56,5 +55,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_TASK_TASKPLUGIN_H

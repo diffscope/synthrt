@@ -83,6 +83,9 @@ InputObject buildInputFromPiece(srt::g2p::LanguageService &langSvc,
         s2pMode = route.s2pMode;
         s2pFile = route.s2pFile;
         onsetFile = route.onsetFile;
+    } else {
+        // ROBUST-05: 显式报错，禁止错误吞没 (BUG-CLI-015)
+        throw std::runtime_error("resolveLanguageRoute failed: " + routeExp.error().message());
     }
 
     // Build the S2P resource from the route fields.

@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_TASK_VERSIONEDTASKMANAGER_H
-#define SRT_G2P_TASK_VERSIONEDTASKMANAGER_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -75,8 +74,8 @@ namespace srt::g2p {
 /// the delegation methods.
 #define SRT_G2P_TASK_IMPLEMENT(TaskClass, ImplClass)                                                 \
     TaskClass::TaskClass(const ::srt::g2p::ModuleSpec *spec)                                         \
-        : ::srt::g2p::Task(spec), _manager(spec) {                                                   \
-        _manager.setImpl(std::make_unique<ImplClass>(spec));                                         \
+        : ::srt::g2p::Task(spec), m_manager(spec) {                                                  \
+        m_manager.setImpl(std::make_unique<ImplClass>(spec));                                        \
     }                                                                                                \
     SRT_G2P_TASK_IMPLEMENT_METHODS(TaskClass)
 
@@ -87,20 +86,18 @@ namespace srt::g2p {
     TaskClass::~TaskClass() = default;                                                               \
                                                                                                      \
     int TaskClass::apiLevel() const {                                                                \
-        return _manager.currentLevel();                                                              \
+        return m_manager.currentLevel();                                                             \
     }                                                                                                \
                                                                                                      \
     ::srt::core::Expected<void> TaskClass::initialize() {                                            \
-        return _manager.initialize();                                                                \
+        return m_manager.initialize();                                                               \
     }                                                                                                \
                                                                                                      \
     ::srt::core::Expected<::srt::core::NO<::srt::g2p::TaskResult>>                                   \
     TaskClass::start(const ::srt::core::NO<::srt::g2p::TaskInput> &input) {                          \
-        return _manager.start(input);                                                                \
+        return m_manager.start(input);                                                               \
     }                                                                                                \
                                                                                                      \
     std::string TaskClass::getConfig() const {                                                       \
-        return _manager.getConfig();                                                                 \
+        return m_manager.getConfig();                                                                \
     }
-
-#endif // SRT_G2P_TASK_VERSIONEDTASKMANAGER_H

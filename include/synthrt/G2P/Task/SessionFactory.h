@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_TASK_SESSIONFACTORY_H
-#define SRT_G2P_TASK_SESSIONFACTORY_H
+#pragma once
 
 #include <string>
 
@@ -32,5 +31,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_TASK_SESSIONFACTORY_H

@@ -9,14 +9,7 @@ project(srt-audio
         DESCRIPTION "synthrt audio processing library (FFmpeg-based)"
 )
 
-set(srt-audio_VAR_PREFIX srt_audio)
-set(SRT_AUDIO_INSTALL ${SYNTHRT_INSTALL})
-set(SRT_AUDIO_VERSION ${PROJECT_VERSION})
-set(SRT_AUDIO_INSTALL_NAME ${PROJECT_NAME})
-set(SRT_AUDIO_AUTHOR "Team OpenVPI")
-set(SRT_AUDIO_START_YEAR 2023)
-set(SRT_AUDIO_INCLUDE_DIR include)
-include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
+synthrt_declare_target(srt_audio "${PROJECT_NAME}" ${PROJECT_VERSION} "Team OpenVPI" 2023 "include")
 
 file(GLOB_RECURSE _src CONFIGURE_DEPENDS
         "include/*.h"
@@ -26,8 +19,9 @@ file(GLOB_RECURSE _src CONFIGURE_DEPENDS
 
 find_package(stdcorelib CONFIG REQUIRED)
 find_package(FFmpeg REQUIRED)
+find_package(SndFile CONFIG REQUIRED)
 
-srt_audio_add_library(${PROJECT_NAME} SHARED PREFIX srt_audio
+synthrt_add_library(${PROJECT_NAME} SHARED PREFIX srt_audio
         SOURCES ${_src}
         LINKS stdcorelib::stdcorelib srt::core
         INCLUDE_PRIVATE include/synthrt/Audio/** **
@@ -35,7 +29,8 @@ srt_audio_add_library(${PROJECT_NAME} SHARED PREFIX srt_audio
 target_compile_definitions(srt-audio PRIVATE SRT_AUDIO_LIBRARY)
 
 # FFmpeg/libswresample — private link (PIMPL, headers not exposed in public API)
-target_link_libraries(srt-audio PRIVATE ${FFMPEG_LIBRARIES})
+# FFmpeg 仅用于 FfmpegAudioDecoder（解码侧）；AudioFileWriter 写入侧改用 libsndfile
+target_link_libraries(srt-audio PRIVATE ${FFMPEG_LIBRARIES} SndFile::sndfile)
 target_include_directories(srt-audio PRIVATE ${FFMPEG_INCLUDE_DIRS})
 
 # Optional xsimd SIMD acceleration (Slicer RMS computation).
@@ -49,8 +44,5 @@ endif ()
 if (NOT TARGET srt::audio)
     add_library(srt::audio ALIAS srt-audio)
 endif ()
-if (NOT TARGET synthrt::audio)
-    add_library(synthrt::audio ALIAS srt-audio)
-endif ()
 
-srt_audio_install()
+synthrt_install()

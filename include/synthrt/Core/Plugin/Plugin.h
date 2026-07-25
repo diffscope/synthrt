@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_PLUGIN_PLUGIN_H
-#define SRT_CORE_PLUGIN_PLUGIN_H
+#pragma once
 
 #include <filesystem>
 
@@ -80,5 +79,3 @@ namespace srt::core {
         ~initializer() {                                                                            \
         }                                                                                           \
     } dummy;
-
-#endif // SRT_CORE_PLUGIN_PLUGIN_H

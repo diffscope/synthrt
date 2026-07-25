@@ -1,10 +1,8 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2P_STEPS_FORMATSTEP_H
-#define SRT_G2P_PLUGINS_CHAING2P_STEPS_FORMATSTEP_H
+#pragma once
 
 #include "../Core/G2pStep.h"
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     /// FormatStep - 格式化步骤
     ///
     /// 格式化输出结果
@@ -29,6 +27,4 @@ namespace srt::g2p::plugins::ChainG2p
         static std::string addSpaceAtAlnumBoundary(const std::string &str);
     };
 
-} // namespace srt::g2p::plugins::ChainG2p
-
-#endif // SRT_G2P_PLUGINS_CHAING2P_STEPS_FORMATSTEP_H
+}

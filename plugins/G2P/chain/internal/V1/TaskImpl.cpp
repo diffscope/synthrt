@@ -6,8 +6,7 @@
 #include <synthrt/G2P/Task/G2pTask.h>
 #include "../Core/G2pStep.h"
 
-namespace srt::g2p::plugins::ChainG2p::Internal::V1
-{
+namespace srt::g2p::plugins::ChainG2p::Internal::V1 {
     ChainG2pTaskImpl::ChainG2pTaskImpl(const srt::g2p::ModuleSpec *spec)
         : m_spec(spec) {}
 
@@ -37,6 +36,10 @@ namespace srt::g2p::plugins::ChainG2p::Internal::V1
         }
 
         const auto g2pInput = input.as<srt::g2p::G2pInputV1>();
+        if (!g2pInput) {
+            return srt::g2p::Error(srt::g2p::Error::ValidationError,
+                                   "type mismatch, expected G2pInputV1");
+        }
 
         // 创建上下文
         auto context = std::make_shared<G2pContext>(g2pInput->g2pInput, m_spec);
@@ -79,4 +82,4 @@ namespace srt::g2p::plugins::ChainG2p::Internal::V1
         return {};
     }
 
-} // namespace srt::g2p::plugins::ChainG2p::Internal::V1
+}

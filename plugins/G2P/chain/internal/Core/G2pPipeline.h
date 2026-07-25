@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2P_G2PPIPELINE_H
-#define SRT_G2P_PLUGINS_CHAING2P_G2PPIPELINE_H
+#pragma once
 
 #include <synthrt/Core/Module/Module.h>
 #include <synthrt/Core/Support/Expected.h>
@@ -9,8 +8,7 @@
 #include <memory>
 #include <vector>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     /// G2pPipeline - G2p 处理管道
     ///
     /// 负责管理多个处理步骤的执行顺序
@@ -38,6 +36,4 @@ namespace srt::g2p::plugins::ChainG2p
         std::vector<std::shared_ptr<G2pStep>> m_steps;
     };
 
-} // namespace srt::g2p::plugins::ChainG2p
-
-#endif // SRT_G2P_PLUGINS_CHAING2P_G2PPIPELINE_H
+}

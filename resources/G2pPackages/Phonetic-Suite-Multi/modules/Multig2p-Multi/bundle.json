@@ -1,0 +1,30 @@
+{
+  "bundle_version": "1.0",
+  "schema_version": "1.0",
+  "model_version": "v1",
+  "min_runtime_version": "onnxruntime>=1.13",
+  "vocab_hash": "913dcb42ff459d07",
+  "opset_version": 16,
+  "export_flags": [],
+  "files": {
+    "encoder": "encoder_int8.onnx",
+    "decoder": "decoder_int8.onnx",
+    "decoder_step_init": "decoder_step_init_int8.onnx",
+    "decoder_step": "decoder_step_int8.onnx"
+  },
+  "languages": [
+    "eng/default",
+    "deu/default",
+    "fra/default",
+    "ita/default",
+    "kor/default",
+    "por/default",
+    "rus/default",
+    "spa/default",
+    "fil/default",
+    "eng/plus",
+    "deu/marzipan",
+    "fra/millefeuille"
+  ],
+  "generated_at": "2026-07-21T04:23:34Z"
+}

@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_ONNX_ENV_H
-#define SRT_DRIVER_ONNX_ENV_H
+#pragma once
 
 #include <atomic>
 #include <shared_mutex>
@@ -33,5 +32,3 @@ namespace srt::driver::onnx {
     };
 
 } // namespace srt::driver::onnx
-
-#endif // SRT_DRIVER_ONNX_ENV_H

@@ -16,12 +16,12 @@ namespace srt::core {
 
     const std::string &NamedObject::objectName() const {
         __stdc_impl_t;
-        return impl.name;
+        return impl.m_name;
     }
 
     void NamedObject::setObjectName(std::string name) {
         __stdc_impl_t;
-        impl.name = std::move(name);
+        impl.m_name = std::move(name);
     }
 
     static std::any &staticEmptyObjectProperty() {
@@ -31,8 +31,8 @@ namespace srt::core {
 
     const std::any &NamedObject::property(std::string_view name) const {
         __stdc_impl_t;
-        auto it = impl.properties.find(name);
-        if (it == impl.properties.end()) {
+        auto it = impl.m_properties.find(name);
+        if (it == impl.m_properties.end()) {
             return staticEmptyObjectProperty();
         }
         return it->second;
@@ -40,9 +40,9 @@ namespace srt::core {
 
     void NamedObject::setProperty(std::string_view name, std::any value) {
         __stdc_impl_t;
-        auto it = impl.properties.find(name);
-        if (it == impl.properties.end()) {
-            impl.properties[std::string(name)] = std::move(value);
+        auto it = impl.m_properties.find(name);
+        if (it == impl.m_properties.end()) {
+            impl.m_properties[std::string(name)] = std::move(value);
         } else {
             it->second = std::move(value);
         }
@@ -70,14 +70,15 @@ namespace srt::core {
             return;
         }
 
-        auto it = impl.objects.find(id);
-        if (it == impl.objects.end()) {
-            it = impl.objects
+        auto it = impl.m_objects.find(id);
+        if (it == impl.m_objects.end()) {
+            it = impl.m_objects
                      .emplace(std::string(id),
                               stdc::linked_map<const NamedObject *, NO<NamedObject>>())
                      .first;
         }
         it->second.append(obj.get(), obj);
+        objectAdded(id, obj);
     }
 
     void ObjectPool::removeObject(const NamedObject *obj) {
@@ -86,8 +87,8 @@ namespace srt::core {
 
     void ObjectPool::removeObject(std::string_view id, const NamedObject *obj) {
         __stdc_impl_t;
-        auto it = impl.objects.find(id);
-        if (it == impl.objects.end()) {
+        auto it = impl.m_objects.find(id);
+        if (it == impl.m_objects.end()) {
             return;
         }
         auto &map = it->second;
@@ -99,39 +100,39 @@ namespace srt::core {
             aboutToRemoveObject(id, it2->second);
             map.erase(it2);
             if (map.empty()) {
-                impl.objects.erase(it);
+                impl.m_objects.erase(it);
             }
         }
     }
 
     void ObjectPool::removeObjects(std::string_view id) {
         __stdc_impl_t;
-        auto it = impl.objects.find(id);
-        if (it == impl.objects.end()) {
+        auto it = impl.m_objects.find(id);
+        if (it == impl.m_objects.end()) {
             return;
         }
         auto &map = it->second;
         for (auto it = map.rbegin(); it != map.rend(); ++it) {
             aboutToRemoveObject(id, it->second);
         }
-        impl.objects.erase(it);
+        impl.m_objects.erase(it);
     }
 
     void ObjectPool::removeAllObjects() {
         __stdc_impl_t;
-        for (auto &item : impl.objects) {
+        for (auto &item : impl.m_objects) {
             auto &map = item.second;
             for (auto it = map.rbegin(); it != map.rend(); ++it) {
                 aboutToRemoveObject(item.first, it->second);
             }
         }
-        impl.objects.clear();
+        impl.m_objects.clear();
     }
 
     std::vector<NO<NamedObject>> ObjectPool::allObjects() const {
         __stdc_impl_t;
         std::vector<NO<NamedObject>> res;
-        for (const auto &item : impl.objects) {
+        for (const auto &item : impl.m_objects) {
             auto values = item.second.values();
             res.insert(res.end(), values.begin(), values.end());
         }
@@ -140,8 +141,8 @@ namespace srt::core {
 
     std::vector<NO<NamedObject>> ObjectPool::getObjects(std::string_view id) const {
         __stdc_impl_t;
-        auto it = impl.objects.find(id);
-        if (it == impl.objects.end()) {
+        auto it = impl.m_objects.find(id);
+        if (it == impl.m_objects.end()) {
             return {};
         }
         return it->second.values();
@@ -149,8 +150,8 @@ namespace srt::core {
 
     NO<NamedObject> ObjectPool::getFirstObject(std::string_view id) const {
         __stdc_impl_t;
-        auto it = impl.objects.find(id);
-        if (it == impl.objects.end()) {
+        auto it = impl.m_objects.find(id);
+        if (it == impl.m_objects.end()) {
             return {};
         }
         return it->second.begin()->second;

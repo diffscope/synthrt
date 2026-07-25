@@ -1,5 +1,4 @@
-#ifndef SRT_EXTRACT_EXTRACTORDRIVER_H
-#define SRT_EXTRACT_EXTRACTORDRIVER_H
+#pragma once
 
 #include <synthrt/Core/Support/Expected.h>
 #include <synthrt/Driver/InferenceDriver.h>
@@ -20,5 +19,3 @@ namespace srt::extract {
     getInferenceDriver(const srt::core::Runtime *runtime);
 
 } // namespace srt::extract
-
-#endif // SRT_EXTRACT_EXTRACTORDRIVER_H

@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_TASK_SESSIONTASK_H
-#define SRT_G2P_TASK_SESSIONTASK_H
+#pragma once
 
 #include <filesystem>
 #include <map>
@@ -60,5 +59,3 @@ namespace srt::g2p
         std::map<std::string, srt::core::NO<srt::core::ITensor>> outputs;
     };
 } // namespace srt::g2p
-
-#endif // SRT_G2P_TASK_SESSIONTASK_H

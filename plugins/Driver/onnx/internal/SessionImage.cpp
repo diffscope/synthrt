@@ -2,6 +2,8 @@
 
 #include <onnxruntime_cxx_api.h>
 
+#include <stdcorelib/path.h>
+
 #include <synthrt/Driver/onnx/OnnxDriverApi.h>
 
 #include "OnnxDriver_Logger.h"
@@ -30,26 +32,32 @@ namespace srt::driver::onnx {
                 switch (ep) {
                     case DMLExecutionProvider: {
                         if (!initDirectML(sessOpt, deviceIndex, &initEPErrorMsg)) {
-                            // log warning: "Could not initialize DirectML: {initEPErrorMsg},
-                            // falling back to CPU."
-                            Log.srtWarning(
-                                "Could not initialize DirectML: %1, falling back to CPU.",
-                                initEPErrorMsg);
-                        } else {
-                            Log.srtInfo("Use DirectML. Device index: %1", deviceIndex);
+                            // ROBUST-05: do not silently fall back to CPU; return
+                            // an explicit error containing the EP name and cause.
+                            if (errorMessage) {
+                                *errorMessage =
+                                    "Could not initialize DirectML execution provider for "
+                                    "model \"" +
+                                    stdc::path::to_utf8(modelPath) + "\": " + initEPErrorMsg;
+                            }
+                            return Ort::Session{nullptr};
                         }
+                        Log.srtInfo("Use DirectML. Device index: %1", deviceIndex);
                         break;
                     }
                     case CUDAExecutionProvider: {
                         if (!initCUDA(sessOpt, deviceIndex, &initEPErrorMsg)) {
-                            // log warning: "Could not initialize CUDA: {initEPErrorMsg}, falling
-                            // back to CPU."
-                            Log.srtWarning(
-                                "Could not initialize CUDA: %1, falling back to CPU.",
-                                initEPErrorMsg);
-                        } else {
-                            Log.srtInfo("Use CUDA. Device index: %1", deviceIndex);
+                            // ROBUST-05: do not silently fall back to CPU; return
+                            // an explicit error containing the EP name and cause.
+                            if (errorMessage) {
+                                *errorMessage =
+                                    "Could not initialize CUDA execution provider for "
+                                    "model \"" +
+                                    stdc::path::to_utf8(modelPath) + "\": " + initEPErrorMsg;
+                            }
+                            return Ort::Session{nullptr};
                         }
+                        Log.srtInfo("Use CUDA. Device index: %1", deviceIndex);
                         break;
                     }
                     default: {

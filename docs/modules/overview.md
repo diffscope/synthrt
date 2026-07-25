@@ -1,6 +1,6 @@
 # SynthRT 模块调用文档总览
 
-日期: 2026-07-18
+日期: 2026-07-25（A3 追加 lite 对接入口标注）
 
 定位: 本文档提供 synthrt 各模块的调用关系总览。各模块详细 API 见同目录下的独立文档。文档详略得当：核心调用路径详述，边缘场景略述。
 
@@ -10,15 +10,15 @@
 
 | 模块 | namespace | CMake target | 头文件根 | 文档 |
 |---|---|---|---|---|
-| Core | `srt::core` | `synthrt::core` | `include/synthrt/Core/` | [core.md](core.md) |
-| Driver | `srt::driver` | `synthrt::driver` | `include/synthrt/Driver/` | [driver.md](driver.md) |
-| SVS | `srt::svs` | `synthrt::svs` | `include/synthrt/SVS/` | [svs.md](svs.md) |
-| G2P | `srt::g2p` / `ds::lang` | `synthrt::g2p` | `include/synthrt/G2P/` | [g2p.md](g2p.md) |
-| S2P | `srt::s2p` | `synthrt::s2p` | `include/synthrt/S2P/` | [s2p.md](s2p.md) |
+| Core | `srt::core` | `srt::core` | `include/synthrt/Core/` | [core.md](core.md) |
+| Driver | `srt::driver` | `srt::driver` | `include/synthrt/Driver/` | [driver.md](driver.md) |
+| SVS | `srt::svs` | `srt::svs` | `include/synthrt/SVS/` | [svs.md](svs.md) |
+| G2P | `srt::g2p` / `ds::lang` | `srt::g2p` | `include/synthrt/G2P/` | [g2p.md](g2p.md) |
+| S2P | `srt::s2p` | `srt::s2p` | `include/synthrt/S2P/` | [s2p.md](s2p.md) |
 | DS Bank | `ds::bank` | `srt-ds::bank` | `include/diffsinger/Bank/` | [ds-bank.md](ds-bank.md) |
 | DS Infer | `ds::infer` | `srt-ds::infer` | `include/diffsinger/Infer/` | [ds-infer.md](ds-infer.md) |
 | DS Session | `ds::session` | `srt-ds::session` | `include/diffsinger/Session/` | [ds-session.md](ds-session.md) |
-| C ABI | (C API) | `synthrt::c` | `include/synthrt/C/` | [c-abi.md](c-abi.md) |
+| C ABI | (C API) | `srt::c` | `include/synthrt/C/` | [c-abi.md](c-abi.md) |
 
 ---
 
@@ -43,6 +43,15 @@
 ## 3. 典型调用流程
 
 ### 3.1 会话式调用（vnext 推荐，宿主层唯一入口）
+
+> **lite 对接入口**：`ds::session::VoicebankSession` 是宿主层推荐入口
+> （synthrt 既有的会话编排层，**非新增 facade**，见
+> [docs/lite-integration/00-overview.md](file:///d:/projects/synthrt/docs/lite-integration/00-overview.md)
+> §3 ARCH-03 核对）。ds-editor-lite 应使用
+> `VoicebankSession(SessionResources{runtime, languageService})` 作为唯一
+> voicebank/G2P/inference 入口，避免在 SynthrtEngine 中重复实现目录包装、
+> 句柄映射与刷新阻塞逻辑。完整迁移方案见
+> [docs/lite-integration/](file:///d:/projects/synthrt/docs/lite-integration/)。
 
 ```cpp
 #include <diffsinger/Session/VoicebankSession.h>

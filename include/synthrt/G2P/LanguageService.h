@@ -141,6 +141,15 @@ namespace srt::g2p {
         bool modelsReady() const;    ///< Stage 2 completed
         bool ready() const;          ///< metadataReady() && modelsReady()
 
+        // === Pending diagnostics (HB-14) ===
+        //
+        // addPackagePath failures inside initializeMetadata()/updateMetadata()
+        // are non-fatal (the call continues with the remaining packages) but
+        // are recorded as Warning diagnostics. Callers (e.g. VoicebankSession
+        // ::performRefresh) drain them after the metadata call to surface them
+        // in RefreshResult.diagnostics. Returns and clears the buffer.
+        std::vector<srt::core::Diagnostic> drainPendingDiagnostics();
+
         // === Per-singer route ===
         //
         // New version-aware route resolution (V3-01). Resolves G2P route + S2P

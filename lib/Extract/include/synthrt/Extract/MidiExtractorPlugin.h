@@ -1,5 +1,4 @@
-#ifndef SRT_EXTRACT_MIDIEXTRACTORPLUGIN_H
-#define SRT_EXTRACT_MIDIEXTRACTORPLUGIN_H
+#pragma once
 
 #include <synthrt/Core/Plugin/Plugin.h>
 #include <synthrt/Extract/MidiExtractor.h>
@@ -36,5 +35,3 @@ namespace srt::extract {
     };
 
 } // namespace srt::extract
-
-#endif // SRT_EXTRACT_MIDIEXTRACTORPLUGIN_H

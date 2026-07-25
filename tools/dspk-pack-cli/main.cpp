@@ -9,34 +9,16 @@
 #include <diffsinger/Bank/PackageParser.h>
 #include <diffsinger/Bank/PackageValidator.h>
 
+// TD-CLI-06: 复用 tools/common 的公共 JSON 转义实现，消除重复定义
+#include "json_escape.h"
+
 namespace fs = std::filesystem;
 namespace ds_bank = ds::bank;
+namespace json_common = synthrt::tools::common;
 
-static std::string escapeJson(const std::string &text) {
-    std::string out;
-    for (const char ch : text) {
-        switch (ch) {
-            case '\\':
-                out += "\\\\";
-                break;
-            case '"':
-                out += "\\\"";
-                break;
-            case '\n':
-                out += "\\n";
-                break;
-            case '\r':
-                out += "\\r";
-                break;
-            case '\t':
-                out += "\\t";
-                break;
-            default:
-                out += ch;
-                break;
-        }
-    }
-    return out;
+// 保留旧名 escapeJson 作为 thin wrapper，避免大面积改写 main.cpp 调用点。
+static inline std::string escapeJson(const std::string &text) {
+    return json_common::escapeJsonString(text);
 }
 
 static void printUsage(const char *prog) {
@@ -45,7 +27,10 @@ static void printUsage(const char *prog) {
     std::printf("Usage:\n");
     std::printf("  %s validate <dir>       Validate a DiffSinger package directory\n", prog);
     std::printf("  %s info <dir>           Print standard package metadata\n", prog);
-    std::printf("  %s pack <dir> <output>  Pack a DiffSinger package directory into an archive\n",
+    // TD-CLI-07: pack 是 stub，ds-bank 尚未提供打包能力。在 --help 中显式
+    // 标注 "not yet implemented"，避免用户误以为可用。
+    std::printf("  %s pack <dir> <output>  Pack a package directory into an archive "
+                "(not yet implemented)\n",
                 prog);
     std::printf("\n");
     std::printf("Options:\n");

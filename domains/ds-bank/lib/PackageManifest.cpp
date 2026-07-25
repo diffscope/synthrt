@@ -10,104 +10,104 @@ namespace ds::bank {
     // ---------------------------------------------------------------------------
 
     LanguageInfo::LanguageInfo(std::string languageId, std::string name, std::string g2pVersion)
-        : _languageId(std::move(languageId)), _name(std::move(name)),
-          _g2pVersion(std::move(g2pVersion)) {
+        : m_languageId(std::move(languageId)), m_name(std::move(name)),
+          m_g2pVersion(std::move(g2pVersion)) {
     }
 
     const std::string &LanguageInfo::languageId() const {
-        return _languageId;
+        return m_languageId;
     }
 
     void LanguageInfo::setLanguageId(std::string languageId) {
-        _languageId = std::move(languageId);
+        m_languageId = std::move(languageId);
     }
 
     const std::string &LanguageInfo::name() const {
-        return _name;
+        return m_name;
     }
 
     void LanguageInfo::setName(std::string name) {
-        _name = std::move(name);
+        m_name = std::move(name);
     }
 
     const std::string &LanguageInfo::g2pVersion() const {
-        return _g2pVersion;
+        return m_g2pVersion;
     }
 
     void LanguageInfo::setG2pVersion(std::string g2pVersion) {
-        _g2pVersion = std::move(g2pVersion);
+        m_g2pVersion = std::move(g2pVersion);
     }
 
     const std::string &LanguageInfo::g2pId() const {
-        return _g2pId;
+        return m_g2pId;
     }
 
     void LanguageInfo::setG2pId(std::string g2pId) {
-        _g2pId = std::move(g2pId);
+        m_g2pId = std::move(g2pId);
     }
 
     const std::filesystem::path &LanguageInfo::dict() const {
-        return _dict;
+        return m_dict;
     }
 
     void LanguageInfo::setDict(std::filesystem::path dict) {
-        _dict = std::move(dict);
+        m_dict = std::move(dict);
     }
 
     const std::string &LanguageInfo::s2pMode() const {
-        return _s2pMode;
+        return m_s2pMode;
     }
 
     void LanguageInfo::setS2pMode(std::string s2pMode) {
-        _s2pMode = std::move(s2pMode);
+        m_s2pMode = std::move(s2pMode);
     }
 
     const std::string &LanguageInfo::onsetMode() const {
-        return _onsetMode;
+        return m_onsetMode;
     }
 
     void LanguageInfo::setOnsetMode(std::string onsetMode) {
-        _onsetMode = std::move(onsetMode);
+        m_onsetMode = std::move(onsetMode);
     }
 
     const std::filesystem::path &LanguageInfo::s2pFile() const {
-        return _s2pFile;
+        return m_s2pFile;
     }
 
     void LanguageInfo::setS2pFile(std::filesystem::path s2pFile) {
-        _s2pFile = std::move(s2pFile);
+        m_s2pFile = std::move(s2pFile);
     }
 
     const std::filesystem::path &LanguageInfo::onsetFile() const {
-        return _onsetFile;
+        return m_onsetFile;
     }
 
     void LanguageInfo::setOnsetFile(std::filesystem::path onsetFile) {
-        _onsetFile = std::move(onsetFile);
+        m_onsetFile = std::move(onsetFile);
     }
 
     const std::vector<std::filesystem::path> &LanguageInfo::g2pPackages() const {
-        return _g2pPackages;
+        return m_g2pPackages;
     }
 
     void LanguageInfo::setG2pPackages(std::vector<std::filesystem::path> g2pPackages) {
-        _g2pPackages = std::move(g2pPackages);
+        m_g2pPackages = std::move(g2pPackages);
     }
 
     bool LanguageInfo::hasG2pPackageVersion() const {
-        return _g2pPackageVersion.has_value();
+        return m_g2pPackageVersion.has_value();
     }
 
     const stdc::VersionNumber &LanguageInfo::g2pPackageVersion() const {
-        return *_g2pPackageVersion;
+        return *m_g2pPackageVersion;
     }
 
     void LanguageInfo::setG2pPackageVersion(stdc::VersionNumber version) {
-        _g2pPackageVersion = std::move(version);
+        m_g2pPackageVersion = std::move(version);
     }
 
     void LanguageInfo::clearG2pPackageVersion() {
-        _g2pPackageVersion.reset();
+        m_g2pPackageVersion.reset();
     }
 
     // ---------------------------------------------------------------------------
@@ -115,122 +115,122 @@ namespace ds::bank {
     // ---------------------------------------------------------------------------
 
     SpeakerInfo::SpeakerInfo(std::string speakerId, std::string name, std::string singerId)
-        : _speakerId(std::move(speakerId)), _name(std::move(name)), _singerId(std::move(singerId)) {
+        : m_speakerId(std::move(speakerId)), m_name(std::move(name)), m_singerId(std::move(singerId)) {
     }
 
     const std::string &SpeakerInfo::speakerId() const {
-        return _speakerId;
+        return m_speakerId;
     }
 
     void SpeakerInfo::setSpeakerId(std::string speakerId) {
-        _speakerId = std::move(speakerId);
+        m_speakerId = std::move(speakerId);
     }
 
     const std::string &SpeakerInfo::name() const {
-        return _name;
+        return m_name;
     }
 
     void SpeakerInfo::setName(std::string name) {
-        _name = std::move(name);
+        m_name = std::move(name);
     }
 
     const std::string &SpeakerInfo::singerId() const {
-        return _singerId;
+        return m_singerId;
     }
 
     void SpeakerInfo::setSingerId(std::string singerId) {
-        _singerId = std::move(singerId);
+        m_singerId = std::move(singerId);
     }
 
     const std::optional<std::pair<int, int>> &SpeakerInfo::toneRange() const {
-        return _toneRange;
+        return m_toneRange;
     }
 
     void SpeakerInfo::setToneRange(std::optional<std::pair<int, int>> toneRange) {
-        _toneRange = std::move(toneRange);
+        m_toneRange = std::move(toneRange);
     }
 
     // ---------------------------------------------------------------------------
     // SingerManifest
     // ---------------------------------------------------------------------------
 
-    SingerManifest::SingerManifest() : _phonemeLength(48.0) {
+    SingerManifest::SingerManifest() : m_phonemeLength(48.0) {
     }
 
     SingerManifest::SingerManifest(std::string singerId, std::string name)
-        : _singerId(std::move(singerId)), _name(std::move(name)), _phonemeLength(48.0) {
+        : m_singerId(std::move(singerId)), m_name(std::move(name)), m_phonemeLength(48.0) {
     }
 
     const std::string &SingerManifest::singerId() const {
-        return _singerId;
+        return m_singerId;
     }
 
     void SingerManifest::setSingerId(std::string singerId) {
-        _singerId = std::move(singerId);
+        m_singerId = std::move(singerId);
     }
 
     const std::string &SingerManifest::packageId() const {
-        return _packageId;
+        return m_packageId;
     }
 
     void SingerManifest::setPackageId(std::string packageId) {
-        _packageId = std::move(packageId);
+        m_packageId = std::move(packageId);
     }
 
     stdc::VersionNumber SingerManifest::packageVersion() const {
-        return _packageVersion;
+        return m_packageVersion;
     }
 
     void SingerManifest::setPackageVersion(stdc::VersionNumber packageVersion) {
-        _packageVersion = std::move(packageVersion);
+        m_packageVersion = std::move(packageVersion);
     }
 
     const std::string &SingerManifest::name() const {
-        return _name;
+        return m_name;
     }
 
     void SingerManifest::setName(std::string name) {
-        _name = std::move(name);
+        m_name = std::move(name);
     }
 
     double SingerManifest::phonemeLength() const {
-        return _phonemeLength;
+        return m_phonemeLength;
     }
 
     void SingerManifest::setPhonemeLength(double length) {
-        _phonemeLength = length;
+        m_phonemeLength = length;
     }
 
     const std::vector<LanguageInfo> &SingerManifest::languages() const {
-        return _languages;
+        return m_languages;
     }
 
     void SingerManifest::setLanguages(std::vector<LanguageInfo> languages) {
-        _languages = std::move(languages);
+        m_languages = std::move(languages);
     }
 
     const std::vector<SpeakerInfo> &SingerManifest::speakers() const {
-        return _speakers;
+        return m_speakers;
     }
 
     void SingerManifest::setSpeakers(std::vector<SpeakerInfo> speakers) {
-        _speakers = std::move(speakers);
+        m_speakers = std::move(speakers);
     }
 
     const std::string &SingerManifest::defaultLanguage() const {
-        return _defaultLanguage;
+        return m_defaultLanguage;
     }
 
     void SingerManifest::setDefaultLanguage(std::string defaultLanguage) {
-        _defaultLanguage = std::move(defaultLanguage);
+        m_defaultLanguage = std::move(defaultLanguage);
     }
 
     const std::vector<SingerImportInfo> &SingerManifest::imports() const {
-        return _imports;
+        return m_imports;
     }
 
     void SingerManifest::setImports(std::vector<SingerImportInfo> imports) {
-        _imports = std::move(imports);
+        m_imports = std::move(imports);
     }
 
     // ---------------------------------------------------------------------------
@@ -238,131 +238,131 @@ namespace ds::bank {
     // ---------------------------------------------------------------------------
 
     const std::string &PackageManifest::packageId() const {
-        return _packageId;
+        return m_packageId;
     }
 
     void PackageManifest::setPackageId(std::string packageId) {
-        _packageId = std::move(packageId);
+        m_packageId = std::move(packageId);
     }
 
     const std::filesystem::path &PackageManifest::rootPath() const {
-        return _rootPath;
+        return m_rootPath;
     }
 
     void PackageManifest::setRootPath(std::filesystem::path rootPath) {
-        _rootPath = std::move(rootPath);
+        m_rootPath = std::move(rootPath);
     }
 
     const std::vector<std::filesystem::path> &PackageManifest::singerRefs() const {
-        return _singerRefs;
+        return m_singerRefs;
     }
 
     void PackageManifest::setSingerRefs(std::vector<std::filesystem::path> singerRefs) {
-        _singerRefs = std::move(singerRefs);
+        m_singerRefs = std::move(singerRefs);
     }
 
     const std::vector<std::filesystem::path> &PackageManifest::inferenceRefs() const {
-        return _inferenceRefs;
+        return m_inferenceRefs;
     }
 
     void PackageManifest::setInferenceRefs(std::vector<std::filesystem::path> inferenceRefs) {
-        _inferenceRefs = std::move(inferenceRefs);
+        m_inferenceRefs = std::move(inferenceRefs);
     }
 
     stdc::VersionNumber PackageManifest::version() const {
-        return _version;
+        return m_version;
     }
 
     void PackageManifest::setVersion(stdc::VersionNumber version) {
-        _version = std::move(version);
+        m_version = std::move(version);
     }
 
     const std::optional<stdc::VersionNumber> &PackageManifest::compatVersion() const {
-        return _compatVersion;
+        return m_compatVersion;
     }
 
     void PackageManifest::setCompatVersion(std::optional<stdc::VersionNumber> compatVersion) {
-        _compatVersion = std::move(compatVersion);
+        m_compatVersion = std::move(compatVersion);
     }
 
     const std::string &PackageManifest::name() const {
-        return _name;
+        return m_name;
     }
 
     void PackageManifest::setName(std::string name) {
-        _name = std::move(name);
+        m_name = std::move(name);
     }
 
     const std::string &PackageManifest::description() const {
-        return _description;
+        return m_description;
     }
 
     void PackageManifest::setDescription(std::string description) {
-        _description = std::move(description);
+        m_description = std::move(description);
     }
 
     const std::string &PackageManifest::author() const {
-        return _author;
+        return m_author;
     }
 
     void PackageManifest::setAuthor(std::string author) {
-        _author = std::move(author);
+        m_author = std::move(author);
     }
 
     const std::string &PackageManifest::license() const {
-        return _license;
+        return m_license;
     }
 
     void PackageManifest::setLicense(std::string license) {
-        _license = std::move(license);
+        m_license = std::move(license);
     }
 
     const std::vector<std::string> &PackageManifest::dependencies() const {
-        return _dependencies;
+        return m_dependencies;
     }
 
     void PackageManifest::setDependencies(std::vector<std::string> dependencies) {
-        _dependencies = std::move(dependencies);
+        m_dependencies = std::move(dependencies);
     }
 
     const std::vector<SingerManifest> &PackageManifest::singers() const {
-        return _singers;
+        return m_singers;
     }
 
     void PackageManifest::setSingers(std::vector<SingerManifest> singers) {
-        _singers = std::move(singers);
+        m_singers = std::move(singers);
     }
 
     const std::vector<SpeakerInfo> &PackageManifest::speakers() const {
-        return _speakers;
+        return m_speakers;
     }
 
     void PackageManifest::setSpeakers(std::vector<SpeakerInfo> speakers) {
-        _speakers = std::move(speakers);
+        m_speakers = std::move(speakers);
     }
 
     const std::vector<LanguageInfo> &PackageManifest::languages() const {
-        return _languages;
+        return m_languages;
     }
 
     void PackageManifest::setLanguages(std::vector<LanguageInfo> languages) {
-        _languages = std::move(languages);
+        m_languages = std::move(languages);
     }
 
     const std::vector<InferenceInfo> &PackageManifest::inferences() const {
-        return _inferences;
+        return m_inferences;
     }
 
     void PackageManifest::setInferences(std::vector<InferenceInfo> inferences) {
-        _inferences = std::move(inferences);
+        m_inferences = std::move(inferences);
     }
 
     const std::vector<srt::core::Diagnostic> &PackageManifest::diagnostics() const {
-        return _diagnostics;
+        return m_diagnostics;
     }
 
     void PackageManifest::addDiagnostic(srt::core::Diagnostic diagnostic) {
-        _diagnostics.emplace_back(std::move(diagnostic));
+        m_diagnostics.emplace_back(std::move(diagnostic));
     }
 
 }

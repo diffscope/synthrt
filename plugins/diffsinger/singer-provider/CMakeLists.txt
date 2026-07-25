@@ -1,11 +1,17 @@
+# diffsinger - DiffSinger singer-provider 插件（提供 DiffSinger 歌声配置）
 project(diffsinger
     VERSION ${DSINFER_VERSION}
     LANGUAGES CXX
 )
 
-file(GLOB_RECURSE _src *.h *.cpp)
+if(NOT TARGET srt-ds::infer)
+    message(WARNING "diffsinger will not be built: srt-ds::infer target not found.")
+    return()
+endif()
 
-dsinfer_add_plugin(${PROJECT_NAME} ${CURRENT_PLUGIN_CATEGORY} ${PROJECT_NAME} NO_EXPORT
+file(GLOB_RECURSE _src CONFIGURE_DEPENDS *.h *.cpp)
+
+synthrt_add_plugin(${PROJECT_NAME} ${CURRENT_PLUGIN_CATEGORY} ${PROJECT_NAME} NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_20
     LINKS srt::core srt-ds::infer

@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_CORE_PACKAGEMANAGER_P_H
-#define SRT_G2P_CORE_PACKAGEMANAGER_P_H
+#pragma once
 
 #include <list>
 #include <map>
@@ -24,11 +23,10 @@ namespace srt::g2p {
 
     class PackageManager::Impl {
     public:
-        explicit Impl(PackageManager *decl);
+        explicit Impl(PackageManager *q);
         virtual ~Impl();
 
-        using Decl = PackageManager;
-        PackageManager *decl;
+        PackageManager *m_q;
 
         struct LoadedPackageBlock {
             PackageData *spec = nullptr;
@@ -54,47 +52,51 @@ namespace srt::g2p {
         void closeAllLoadedPackages();
         void refreshPackageIndexes(const srt::core::ContextKey &ctxKey);
 
+        /// Erase all per-context state for \p ctxKey (TD-02). Centralizes the
+        /// 7-map erase previously duplicated in removeContextsByPrefix
+        /// overloads. New per-context state should be added here so retire
+        /// paths do not silently leak entries (D-24 / ROBUST-05).
+        void eraseContextState(const srt::core::ContextKey &ctxKey);
+
         // Category registry
-        std::map<std::string, srt::core::ModuleCategory *, std::less<>> categories;
-        std::map<std::string, srt::core::ModuleCategory *, std::less<>> cateKeyMap;
+        std::map<std::string, srt::core::ModuleCategory *, std::less<>> m_categories;
+        std::map<std::string, srt::core::ModuleCategory *, std::less<>> m_cateKeyMap;
 
         // Per-context package paths
-        std::map<srt::core::ContextKey, llvm::SmallVector<std::filesystem::path>> contextPackagePaths;
+        std::map<srt::core::ContextKey, llvm::SmallVector<std::filesystem::path>> m_contextPackagePaths;
 
         // Per-context initialization states
-        std::map<srt::core::ContextKey, ContextState> contextStates;
+        std::map<srt::core::ContextKey, ContextState> m_contextStates;
 
         // C-8: per-context dependency errors
-        std::map<srt::core::ContextKey, std::vector<std::string>> contextDependencyErrors;
+        std::map<srt::core::ContextKey, std::vector<std::string>> m_contextDependencyErrors;
 
         // Per-context module metadata cache
-        std::map<srt::core::ContextKey, std::vector<srt::dependency::ModuleMetadata>> contextModuleInfos;
-        std::map<srt::core::ContextKey, bool> contextDependencyResolved;
+        std::map<srt::core::ContextKey, std::vector<srt::dependency::ModuleMetadata>> m_contextModuleInfos;
+        std::map<srt::core::ContextKey, bool> m_contextDependencyResolved;
 
         // Per-context dependency graphs
-        std::map<srt::core::ContextKey, srt::dependency::DependencyGraph> contextDependencyGraphs;
+        std::map<srt::core::ContextKey, srt::dependency::DependencyGraph> m_contextDependencyGraphs;
 
         // Loaded package management
-        LoadedPackageMap loadedPackageMap;
-        std::unordered_set<PackageData *> resourcePackages;
-        bool packagePathsDirty = false;
-        std::map<srt::core::ContextKey, std::map<std::string, std::map<stdc::VersionNumber, PackageBrief>, std::less<>>> contextCachedIndexes;
-        std::map<std::string, std::unordered_map<stdc::VersionNumber, std::filesystem::path>, std::less<>> pendingPackages;
+        LoadedPackageMap m_loadedPackageMap;
+        std::unordered_set<PackageData *> m_resourcePackages;
+        bool m_packagePathsDirty = false;
+        std::map<srt::core::ContextKey, std::map<std::string, std::map<stdc::VersionNumber, PackageBrief>, std::less<>>> m_contextCachedIndexes;
+        std::map<std::string, std::unordered_map<stdc::VersionNumber, std::filesystem::path>, std::less<>> m_pendingPackages;
 
         // 3-level map: category → ContextKey → moduleId → Task
-        std::map<std::string, std::map<srt::core::ContextKey, std::map<std::string, srt::core::NO<Task>>>> tasks;
+        std::map<std::string, std::map<srt::core::ContextKey, std::map<std::string, srt::core::NO<Task>>>> m_tasks;
 
-        mutable std::shared_mutex tasks_mtx;
+        mutable std::shared_mutex m_tasks_mtx;
 
-        bool initialized = false;
+        bool m_initialized = false;
 
         static constexpr int kCurrentLevel = 2;
         static constexpr int kMaximumLevel = 2;
         static constexpr int kMinimumLevel = 1;
 
-        mutable std::shared_mutex su_mtx;
+        mutable std::shared_mutex m_su_mtx;
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_CORE_PACKAGEMANAGER_P_H

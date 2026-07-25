@@ -9,12 +9,12 @@ namespace srt::g2p {
 
     class DisplayText::Impl {
     public:
-        std::string defaultText;
-        std::optional<std::map<std::string, std::string, std::less<>>> texts;
+        std::string m_defaultText;
+        std::optional<std::map<std::string, std::string, std::less<>>> m_texts;
 
         void assign(const srt::core::JsonValue &value) {
             if (value.isString()) {
-                defaultText = value.toString();
+                m_defaultText = value.toString();
                 return;
             }
             if (!value.isObject()) {
@@ -49,9 +49,9 @@ namespace srt::g2p {
                 if (defaultText_.empty()) {
                     defaultText_ = texts_.begin()->second;
                 }
-                texts = std::move(texts_);
+                m_texts = std::move(texts_);
             }
-            defaultText = std::move(defaultText_);
+            m_defaultText = std::move(defaultText_);
         }
     };
 
@@ -59,13 +59,13 @@ namespace srt::g2p {
 
     DisplayText::DisplayText(std::string text) : _impl(std::make_shared<Impl>()) {
         __stdc_impl_t;
-        impl.defaultText = std::move(text);
+        impl.m_defaultText = std::move(text);
     }
 
     DisplayText::DisplayText(std::string defaultText, const std::map<std::string, std::string> &texts) :
         DisplayText(std::move(defaultText)) {
         __stdc_impl_t;
-        impl.texts = {texts.begin(), texts.end()};
+        impl.m_texts = {texts.begin(), texts.end()};
     }
 
     DisplayText::DisplayText(const srt::core::JsonValue &value) : _impl(std::make_shared<Impl>()) {
@@ -77,7 +77,7 @@ namespace srt::g2p {
 
     DisplayText &DisplayText::operator=(std::string text) {
         __stdc_impl_t;
-        impl.defaultText = std::move(text);
+        impl.m_defaultText = std::move(text);
         return *this;
     }
 
@@ -91,37 +91,37 @@ namespace srt::g2p {
         __stdc_impl_t;
 
         // 本地化查找尚未实现，当前始终返回 defaultText
-        return impl.defaultText;
+        return impl.m_defaultText;
     }
 
     std::string DisplayText::text(const std::string_view locale) const {
         __stdc_impl_t;
-        if (!impl.texts) {
-            return impl.defaultText;
+        if (!impl.m_texts) {
+            return impl.m_defaultText;
         }
-        const auto it = impl.texts->find(locale);
-        if (it == impl.texts->end()) {
-            return impl.defaultText;
+        const auto it = impl.m_texts->find(locale);
+        if (it == impl.m_texts->end()) {
+            return impl.m_defaultText;
         }
         return it->second;
     }
 
     const std::string &DisplayText::defaultText() const {
         __stdc_impl_t;
-        return impl.defaultText;
+        return impl.m_defaultText;
     }
 
     void DisplayText::set(std::string_view locale, std::string text) {
         __stdc_impl_t;
-        if (!impl.texts) {
-            impl.texts.emplace();
+        if (!impl.m_texts) {
+            impl.m_texts.emplace();
         }
-        impl.texts->insert_or_assign(std::string(locale), std::move(text));
+        impl.m_texts->insert_or_assign(std::string(locale), std::move(text));
     }
 
     bool DisplayText::isEmpty() const {
         __stdc_impl_t;
-        return impl.defaultText.empty();
+        return impl.m_defaultText.empty();
     }
 
 } // namespace srt::g2p

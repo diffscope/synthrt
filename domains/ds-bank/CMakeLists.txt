@@ -5,19 +5,9 @@ project(dsbank
 )
 
 # ----------------------------------
-# Project Variables
-# ----------------------------------
-set(DSBANK_INSTALL ${SYNTHRT_INSTALL})
-set(DSBANK_VERSION ${PROJECT_VERSION})
-set(DSBANK_INSTALL_NAME srt-ds-bank)
-
-# ----------------------------------
 # Configure BuildAPI
 # ----------------------------------
-set(DSBANK_AUTHOR "Team OpenVPI")
-set(DSBANK_START_YEAR 2023)
-set(DSBANK_INCLUDE_DIR ../../include)
-include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
+synthrt_declare_target(dsbank "srt-ds-bank" ${PROJECT_VERSION} "Team OpenVPI" 2023 "../../include")
 
 # ----------------------------------
 # Add source modules (enabled in Phase 2a)
@@ -29,4 +19,4 @@ if(SYNTHRT_BUILD_TESTS)
     add_subdirectory(unittests)
 endif()
 
-dsbank_install()
+synthrt_install()

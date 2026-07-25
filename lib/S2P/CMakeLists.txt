@@ -11,14 +11,7 @@ project(srt-s2p
     DESCRIPTION "synthrt S2P (syllable-to-phoneme) runtime"
 )
 
-set(srt-s2p_VAR_PREFIX srt_s2p)
-set(SRT_S2P_INSTALL ${SYNTHRT_INSTALL})
-set(SRT_S2P_VERSION ${PROJECT_VERSION})
-set(SRT_S2P_INSTALL_NAME ${PROJECT_NAME})
-set(SRT_S2P_AUTHOR "Team OpenVPI")
-set(SRT_S2P_START_YEAR 2023)
-set(SRT_S2P_INCLUDE_DIR ../../include)
-include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
+synthrt_declare_target(srt_s2p "${PROJECT_NAME}" ${PROJECT_VERSION} "Team OpenVPI" 2023 "../../include")
 
 file(GLOB _src "*.cpp" "internal/*.cpp")
 
@@ -114,37 +107,37 @@ if(SYNTHRT_ENABLE_LUAJIT)
                 "SYNTHRT_ENABLE_LUAJIT is ON, but the LuaJIT Debug library was not found")
         endif()
         if(WIN32)
-            add_library(synthrt_luajit SHARED IMPORTED)
+            add_library(srt::luajit SHARED IMPORTED)
         else()
-            add_library(synthrt_luajit UNKNOWN IMPORTED)
+            add_library(srt::luajit UNKNOWN IMPORTED)
         endif()
-        set_target_properties(synthrt_luajit PROPERTIES
+        set_target_properties(srt::luajit PROPERTIES
             IMPORTED_CONFIGURATIONS RELEASE
             IMPORTED_LOCATION_RELEASE "${_srt_s2p_lua_lib_release}"
             INTERFACE_INCLUDE_DIRECTORIES "${_srt_s2p_lua_header}"
         )
         if(_srt_s2p_lua_lib_debug)
-            set_property(TARGET synthrt_luajit APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
-            set_property(TARGET synthrt_luajit PROPERTY
+            set_property(TARGET srt::luajit APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)
+            set_property(TARGET srt::luajit PROPERTY
                 IMPORTED_LOCATION_DEBUG "${_srt_s2p_lua_lib_debug}")
         endif()
         if(WIN32 AND _srt_s2p_lua_dll_release)
-            set_target_properties(synthrt_luajit PROPERTIES
+            set_target_properties(srt::luajit PROPERTIES
                 IMPORTED_LOCATION_RELEASE "${_srt_s2p_lua_dll_release}"
                 IMPORTED_IMPLIB_RELEASE "${_srt_s2p_lua_lib_release}"
             )
         endif()
         if(WIN32 AND _srt_s2p_lua_dll_debug AND _srt_s2p_lua_lib_debug)
-            set_target_properties(synthrt_luajit PROPERTIES
+            set_target_properties(srt::luajit PROPERTIES
                 IMPORTED_LOCATION_DEBUG "${_srt_s2p_lua_dll_debug}"
                 IMPORTED_IMPLIB_DEBUG "${_srt_s2p_lua_lib_debug}"
             )
         endif()
-        set_target_properties(synthrt_luajit PROPERTIES
+        set_target_properties(srt::luajit PROPERTIES
             MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release
             MAP_IMPORTED_CONFIG_MINSIZEREL Release
         )
-        set(_srt_s2p_luajit_target synthrt_luajit)
+        set(_srt_s2p_luajit_target srt::luajit)
     endif()
 endif()
 
@@ -155,7 +148,7 @@ endif()
 find_package(stdcorelib CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
-srt_s2p_add_library(${PROJECT_NAME} SHARED PREFIX srt_s2p
+synthrt_add_library(${PROJECT_NAME} SHARED PREFIX srt_s2p
     SOURCES ${_src}
     LINKS stdcorelib::stdcorelib srt::core
     LINKS_PRIVATE nlohmann_json::nlohmann_json ${_srt_s2p_luajit_target}
@@ -170,8 +163,5 @@ endif()
 if(NOT TARGET srt::s2p)
     add_library(srt::s2p ALIAS srt-s2p)
 endif()
-if(NOT TARGET synthrt::s2p)
-    add_library(synthrt::s2p ALIAS srt-s2p)
-endif()
 
-srt_s2p_install()
+synthrt_install()

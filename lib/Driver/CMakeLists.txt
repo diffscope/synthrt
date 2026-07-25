@@ -4,14 +4,7 @@ project(srt-driver
     DESCRIPTION "synthrt v3 inference driver abstraction"
 )
 
-set(srt-driver_VAR_PREFIX srt_driver)
-set(SRT_DRIVER_INSTALL ${SYNTHRT_INSTALL})
-set(SRT_DRIVER_VERSION ${PROJECT_VERSION})
-set(SRT_DRIVER_INSTALL_NAME ${PROJECT_NAME})
-set(SRT_DRIVER_AUTHOR "Team OpenVPI")
-set(SRT_DRIVER_START_YEAR 2023)
-set(SRT_DRIVER_INCLUDE_DIR ../../include)
-include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
+synthrt_declare_target(srt_driver "${PROJECT_NAME}" ${PROJECT_VERSION} "Team OpenVPI" 2023 "../../include")
 
 option(SRT_DRIVER_ENABLE_DIRECTML "Enable DirectML provider for the ONNX driver plugin" ON)
 option(SRT_DRIVER_ENABLE_CUDA "Enable CUDA provider for the ONNX driver plugin" ON)
@@ -50,7 +43,7 @@ else()
 endif()
 
 # srt-core is built in-tree; the srt::core alias target is available directly.
-srt_driver_add_library(${PROJECT_NAME} SHARED
+synthrt_add_library(${PROJECT_NAME} SHARED
     SOURCES ${_src}
     LINKS stdcorelib::stdcorelib srt::core
     INCLUDE_PRIVATE ../../include/synthrt/Driver/** **
@@ -70,8 +63,5 @@ endif()
 if(NOT TARGET srt::driver)
     add_library(srt::driver ALIAS ${PROJECT_NAME})
 endif()
-if(NOT TARGET synthrt::driver)
-    add_library(synthrt::driver ALIAS ${PROJECT_NAME})
-endif()
 
-srt_driver_install()
+synthrt_install()

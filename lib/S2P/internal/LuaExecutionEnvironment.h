@@ -1,5 +1,4 @@
-#ifndef SRT_S2P_INTERNAL_LUAEXECUTIONENVIRONMENT_H
-#define SRT_S2P_INTERNAL_LUAEXECUTIONENVIRONMENT_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -53,5 +52,3 @@ namespace srt::s2p {
     }
 
 }
-
-#endif // SRT_S2P_INTERNAL_LUAEXECUTIONENVIRONMENT_H

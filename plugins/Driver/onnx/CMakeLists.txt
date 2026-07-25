@@ -40,7 +40,7 @@ project(srt-onnxdriver
     LANGUAGES C CXX
 )
 
-file(GLOB_RECURSE _src *.h *.cpp)
+file(GLOB_RECURSE _src CONFIGURE_DEPENDS *.h *.cpp)
 
 set(_onnxruntime_cuda_dir ${_onnxruntime_dir}/cuda)
 
@@ -60,7 +60,7 @@ find_package(blake3 CONFIG REQUIRED)
 # synthrt is built in-tree and provides srt::LogCategory / srt::Logger used by
 # the plugin logger. The target is globally visible from the top-level CMake.
 
-srt_driver_add_plugin(${PROJECT_NAME} inferencedrivers ${PROJECT_NAME} NO_EXPORT
+synthrt_add_plugin(${PROJECT_NAME} inferencedrivers ${PROJECT_NAME} NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_20
     LINKS srt::driver srt::core

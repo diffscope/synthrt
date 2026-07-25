@@ -1,10 +1,8 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2P_STEPS_FALLBACKSTEP_H
-#define SRT_G2P_PLUGINS_CHAING2P_STEPS_FALLBACKSTEP_H
+#pragma once
 
 #include "../Core/G2pStep.h"
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     /// FallbackStep - 回退步骤
     ///
     /// 处理转换失败的词
@@ -25,6 +23,4 @@ namespace srt::g2p::plugins::ChainG2p
         std::string m_defaultPronunciation;
     };
 
-} // namespace srt::g2p::plugins::ChainG2p
-
-#endif // SRT_G2P_PLUGINS_CHAING2P_STEPS_FALLBACKSTEP_H
+}

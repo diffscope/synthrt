@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_TASK_TASK_H
-#define SRT_G2P_TASK_TASK_H
+#pragma once
 
 #include <filesystem>
 #include <memory>
@@ -84,5 +83,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_TASK_TASK_H

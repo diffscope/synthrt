@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_SUPPORT_PHONEMEDICT_H
-#define SRT_G2P_SUPPORT_PHONEMEDICT_H
+#pragma once
 
 #include <cstring>
 #include <filesystem>
@@ -183,6 +182,3 @@ namespace srt::g2p
     };
 
 } // namespace srt::g2p
-
-
-#endif // SRT_G2P_SUPPORT_PHONEMEDICT_H

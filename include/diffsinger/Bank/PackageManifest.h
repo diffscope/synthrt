@@ -100,22 +100,22 @@ namespace ds::bank {
         void addDiagnostic(srt::core::Diagnostic diagnostic);
 
     protected:
-        std::string _packageId;
-        std::filesystem::path _rootPath;
-        std::vector<std::filesystem::path> _singerRefs;
-        std::vector<std::filesystem::path> _inferenceRefs;
-        stdc::VersionNumber _version;
-        std::optional<stdc::VersionNumber> _compatVersion;
-        std::string _name;
-        std::string _description;
-        std::string _author;
-        std::string _license;
-        std::vector<std::string> _dependencies;
-        std::vector<SingerManifest> _singers;
-        std::vector<SpeakerInfo> _speakers;
-        std::vector<LanguageInfo> _languages;
-        std::vector<InferenceInfo> _inferences;
-        std::vector<srt::core::Diagnostic> _diagnostics;
+        std::string m_packageId;
+        std::filesystem::path m_rootPath;
+        std::vector<std::filesystem::path> m_singerRefs;
+        std::vector<std::filesystem::path> m_inferenceRefs;
+        stdc::VersionNumber m_version;
+        std::optional<stdc::VersionNumber> m_compatVersion;
+        std::string m_name;
+        std::string m_description;
+        std::string m_author;
+        std::string m_license;
+        std::vector<std::string> m_dependencies;
+        std::vector<SingerManifest> m_singers;
+        std::vector<SpeakerInfo> m_speakers;
+        std::vector<LanguageInfo> m_languages;
+        std::vector<InferenceInfo> m_inferences;
+        std::vector<srt::core::Diagnostic> m_diagnostics;
     };
 
 }

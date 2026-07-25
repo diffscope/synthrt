@@ -1,5 +1,4 @@
-#ifndef PARAMTAG_H
-#define PARAMTAG_H
+#pragma once
 
 #include <string_view>
 #include <type_traits>
@@ -11,43 +10,43 @@ namespace srt::svs {
         inline constexpr ParamTag() = default;
 
         template <size_t N>
-        inline constexpr ParamTag(const char (&name)[N]) : _name(name, N - 1) {
+        inline constexpr ParamTag(const char (&name)[N]) : m_name(name, N - 1) {
         }
 
         inline constexpr std::string_view name() const {
-            return _name;
+            return m_name;
         }
 
         inline bool operator==(const ParamTag &RHS) const {
-            return _name == RHS._name;
+            return m_name == RHS.m_name;
         }
 
         inline bool operator!=(const ParamTag &RHS) const {
-            return _name != RHS._name;
+            return m_name != RHS.m_name;
         }
 
         inline bool operator<(const ParamTag &RHS) const {
-            return _name < RHS._name;
+            return m_name < RHS.m_name;
         }
 
         inline bool operator>(const ParamTag &RHS) const {
-            return _name > RHS._name;
+            return m_name > RHS.m_name;
         }
 
         inline bool operator<=(const ParamTag &RHS) const {
-            return _name <= RHS._name;
+            return m_name <= RHS.m_name;
         }
 
         inline bool operator>=(const ParamTag &RHS) const {
-            return _name >= RHS._name;
+            return m_name >= RHS.m_name;
         }
 
         inline size_t hash() const {
-            return std::hash<std::string_view>()(_name);
+            return std::hash<std::string_view>()(m_name);
         }
 
     protected:
-        std::string_view _name;
+        std::string_view m_name;
     };
 
 }
@@ -62,5 +61,3 @@ namespace std {
     };
 
 }
-
-#endif // PARAMTAG_H

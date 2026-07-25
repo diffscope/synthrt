@@ -31,10 +31,10 @@ namespace ds::bank {
         void setToneRange(std::optional<std::pair<int, int>> toneRange);
 
     protected:
-        std::string _speakerId;
-        std::string _name;
-        std::string _singerId;
-        std::optional<std::pair<int, int>> _toneRange;
+        std::string m_speakerId;
+        std::string m_name;
+        std::string m_singerId;
+        std::optional<std::pair<int, int>> m_toneRange;
     };
 
 }

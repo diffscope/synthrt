@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_ONNX_ONNXDRIVER_H
-#define SRT_DRIVER_ONNX_ONNXDRIVER_H
+#pragma once
 
 #include <filesystem>
 
@@ -22,9 +21,7 @@ namespace srt::driver::onnx {
 
     protected:
         class Impl;
-        std::unique_ptr<Impl> _impl;
+        std::unique_ptr<Impl> m_impl;
     };
 
 }
-
-#endif // SRT_DRIVER_ONNX_ONNXDRIVER_H

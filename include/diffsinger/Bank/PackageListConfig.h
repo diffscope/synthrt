@@ -25,23 +25,23 @@ namespace ds::bank {
         inline std::time_t installedTimestamp() const;
 
     protected:
-        bool _hasSinger = false;
-        std::time_t _installedTimestamp = 0;
+        bool m_hasSinger = false;
+        std::time_t m_installedTimestamp = 0;
 
         friend class PackageListConfig;
     };
 
     inline PackageListItemMetadata::PackageListItemMetadata(bool hasSinger,
                                                             std::time_t installedTimestamp)
-        : _hasSinger(hasSinger), _installedTimestamp(installedTimestamp) {
+        : m_hasSinger(hasSinger), m_installedTimestamp(installedTimestamp) {
     }
 
     inline bool PackageListItemMetadata::hasSinger() const {
-        return _hasSinger;
+        return m_hasSinger;
     }
 
     inline std::time_t PackageListItemMetadata::installedTimestamp() const {
-        return _installedTimestamp;
+        return m_installedTimestamp;
     }
 
 
@@ -58,10 +58,10 @@ namespace ds::bank {
         inline const PackageListItemMetadata &metadata() const;
 
     protected:
-        std::string _id;
-        stdc::VersionNumber _version;
-        std::filesystem::path _relativeLocation;
-        PackageListItemMetadata _metadata;
+        std::string m_id;
+        stdc::VersionNumber m_version;
+        std::filesystem::path m_relativeLocation;
+        PackageListItemMetadata m_metadata;
 
         friend class PackageListConfig;
     };
@@ -69,20 +69,20 @@ namespace ds::bank {
     inline PackageListItem::PackageListItem(std::string id, stdc::VersionNumber version,
                                             std::filesystem::path relativeLocation,
                                             PackageListItemMetadata metadata)
-        : _id(std::move(id)), _version(version), _relativeLocation(std::move(relativeLocation)),
-          _metadata(std::move(metadata)) {
+        : m_id(std::move(id)), m_version(version), m_relativeLocation(std::move(relativeLocation)),
+          m_metadata(std::move(metadata)) {
     }
 
     inline const std::string &PackageListItem::id() const {
-        return _id;
+        return m_id;
     }
 
     inline const std::filesystem::path &PackageListItem::relativeLocation() const {
-        return _relativeLocation;
+        return m_relativeLocation;
     }
 
     inline const PackageListItemMetadata &PackageListItem::metadata() const {
-        return _metadata;
+        return m_metadata;
     }
 
 
@@ -101,15 +101,15 @@ namespace ds::bank {
         srt::core::Expected<void> save(const std::filesystem::path &path) const;
 
     protected:
-        std::vector<PackageListItem> _packages;
+        std::vector<PackageListItem> m_packages;
     };
 
     inline PackageListConfig::PackageListConfig(std::vector<PackageListItem> packages)
-        : _packages(std::move(packages)) {
+        : m_packages(std::move(packages)) {
     }
 
     inline const std::vector<PackageListItem> &PackageListConfig::packages() const {
-        return _packages;
+        return m_packages;
     }
 
 }

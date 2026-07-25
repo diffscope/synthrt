@@ -3,14 +3,6 @@ project(srt-driver-plugins
     LANGUAGES CXX
 )
 
-set(srt-driver-plugins_VAR_PREFIX srt_driver)
-set(srt-driver_VAR_PREFIX srt_driver)
-set(SRT_DRIVER_INSTALL ${SYNTHRT_INSTALL})
-set(SRT_DRIVER_VERSION ${PROJECT_VERSION})
-set(SRT_DRIVER_INSTALL_NAME srt-driver)
-set(SRT_DRIVER_AUTHOR "Team OpenVPI")
-set(SRT_DRIVER_START_YEAR 2023)
-set(SRT_DRIVER_INCLUDE_DIR ../../include)
-include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
+synthrt_declare_target(srt_driver "srt-driver" ${PROJECT_VERSION} "Team OpenVPI" 2023 "../../include")
 
 add_subdirectory(onnx)

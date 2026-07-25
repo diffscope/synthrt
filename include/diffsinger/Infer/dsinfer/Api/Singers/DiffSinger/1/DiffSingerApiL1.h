@@ -1,5 +1,4 @@
-#ifndef DSINFER_API_DIFFSINGERAPIL1_H
-#define DSINFER_API_DIFFSINGERAPIL1_H
+#pragma once
 
 #include <synthrt/SVS/SingerContrib.h>
 
@@ -18,5 +17,3 @@ namespace srt::svs::Api::DiffSinger::L1 {
     };
 
 }
-
-#endif // DSINFER_API_DIFFSINGERAPIL1_H

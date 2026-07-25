@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_SUPPORT_DISPLAYPATH_H
-#define SRT_CORE_SUPPORT_DISPLAYPATH_H
+#pragma once
 
 #include <filesystem>
 #include <map>
@@ -39,5 +38,3 @@ namespace srt::core {
     };
 
 }
-
-#endif // SRT_CORE_SUPPORT_DISPLAYPATH_H

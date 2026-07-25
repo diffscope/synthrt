@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2P_INTERNAL_V1_TASKIMPL_H
-#define SRT_G2P_PLUGINS_CHAING2P_INTERNAL_V1_TASKIMPL_H
+#pragma once
 
 #include <synthrt/G2P/Task/VersionedTaskImplBase.h>
 #include <memory>
@@ -9,8 +8,7 @@
 #include <synthrt/Core/Module/Module.h>
 #include "../Core/G2pPipeline.h"
 
-namespace srt::g2p::plugins::ChainG2p::Internal::V1
-{
+namespace srt::g2p::plugins::ChainG2p::Internal::V1 {
     /// ChainG2pTaskImpl - ChainG2p 的 Level 1 实现
     /// 使用责任链模式处理 G2p 转换
     class ChainG2pTaskImpl final : public srt::g2p::VersionedTaskImplBase {
@@ -38,6 +36,4 @@ namespace srt::g2p::plugins::ChainG2p::Internal::V1
         mutable std::shared_mutex m_mutex;
     };
 
-} // namespace srt::g2p::plugins::ChainG2p::Internal::V1
-
-#endif // SRT_G2P_PLUGINS_CHAING2P_INTERNAL_V1_TASKIMPL_H
+}

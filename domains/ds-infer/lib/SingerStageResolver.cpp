@@ -72,6 +72,13 @@ namespace ds::infer {
 
         StageSet stageSet;
 
+        // BUG-26: Track which stage slots have been filled to detect duplicate
+        // imports of the same className. Per ROBUST-05, silent overwrite of
+        // duplicate stage imports must be rejected explicitly. Mirrors the
+        // SvsSingerAmbiguous rejection pattern in resolve(runtime,...) below
+        // for multi-version singer ambiguity.
+        bool slotFilled[std::size(kStageEntries)] = {};
+
         for (const auto &imp : singerSpec->imports()) {
             auto *inference = imp.inference();
             if (!inference) {
@@ -83,8 +90,19 @@ namespace ds::infer {
             }
 
             const auto &cls = inference->className();
-            for (const auto &entry : kStageEntries) {
+            for (size_t i = 0; i < std::size(kStageEntries); ++i) {
+                const auto &entry = kStageEntries[i];
                 if (cls == entry.className) {
+                    if (slotFilled[i]) {
+                        return srt::core::Error::inferenceError(
+                            srt::core::ErrorCode::SvsStageResolveFailed,
+                            "SingerStageResolver::resolve: ambiguous import for singer " +
+                                singerSpec->id() + ": className '" + cls +
+                                "' is imported multiple times",
+                            singerSpec->id(), cls);
+                    }
+                    slotFilled[i] = true;
+
                     if (!imp.options()) {
                         return srt::core::Error::inferenceError(
                             srt::core::ErrorCode::SvsStageResolveFailed,
@@ -128,12 +146,12 @@ namespace ds::infer {
                                      const std::string &version) {
         auto *singerCat = runtime.moduleCategory("singer");
         if (!singerCat) {
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::SessionError,
                                     "singer module category is not available");
         }
         auto *sc = singerCat->as<srt::svs::SingerCategory>();
         if (!sc) {
-            return srt::core::Error(srt::core::Error::SessionError,
+            return srt::core::Error(srt::core::ErrorCode::SessionError,
                                     "singer category cast failed");
         }
 
@@ -141,9 +159,20 @@ namespace ds::infer {
         // multiple packages/versions that each define a singer with the same id,
         // so packageId/version must be honored when supplied.
         std::vector<const srt::svs::SingerSpec *> candidates;
-        const auto requestedVersion = version.empty()
-                                          ? stdc::VersionNumber{}
-                                          : stdc::VersionNumber::fromString(version);
+        stdc::VersionNumber requestedVersion;
+        if (!version.empty()) {
+            try {
+                requestedVersion = stdc::VersionNumber::fromString(version);
+            } catch (const std::exception &e) {
+                // BUG-13: 第三方异常边界隔离（ROBUST-02）。fromString 是第三方接口，
+                // 非法 version 字符串可能抛 std::exception，必须在此边界转换为 Error，
+                // 不允许穿越 resolve 到上层（如 VoicebankSession::createModelSet）。
+                return srt::core::Error(
+                    srt::core::ErrorCode::InvalidArgument,
+                    "SingerStageResolver::resolve: invalid version string '" + version +
+                        "': " + e.what());
+            }
+        }
         for (const auto *singer : sc->singers()) {
             if (singer->id() != singerId) {
                 continue;
@@ -164,7 +193,9 @@ namespace ds::infer {
                 "packageId=" + packageId +
                 ", singerId=" + singerId +
                 ", version=" + version,
-                singerId);
+                singerId)
+                .withContext({}, {}, packageId)
+                .withExtraContext({{"packageVersion", version}});
         }
 
         const srt::svs::SingerSpec *singerSpec = nullptr;
@@ -183,7 +214,9 @@ namespace ds::infer {
                 "ambiguous singer: multiple singers with singerId=" + singerId +
                     " loaded for packageId=" + packageId + ", version=" +
                     version + "; provide packageId/version to disambiguate",
-                singerId);
+                singerId)
+                .withContext({}, {}, packageId)
+                .withExtraContext({{"packageVersion", version}});
         }
 
         return resolve(singerSpec);

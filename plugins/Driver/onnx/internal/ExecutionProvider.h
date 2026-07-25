@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_ONNX_EXECUTIONPROVIDER_P_H
-#define SRT_DRIVER_ONNX_EXECUTIONPROVIDER_P_H
+#pragma once
 
 #include <onnxruntime_cxx_api.h>
 
@@ -12,5 +11,3 @@ namespace srt::driver::onnx {
                       std::string *errorMessage = nullptr);
 
 }
-
-#endif // SRT_DRIVER_ONNX_EXECUTIONPROVIDER_P_H

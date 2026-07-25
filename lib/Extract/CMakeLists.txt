@@ -4,14 +4,7 @@ project(srt-extract
     DESCRIPTION "synthrt v3 audio feature extractors (pitch/MIDI)"
 )
 
-set(srt-extract_VAR_PREFIX srt_extract)
-set(SRT_EXTRACT_INSTALL ${SYNTHRT_INSTALL})
-set(SRT_EXTRACT_VERSION ${PROJECT_VERSION})
-set(SRT_EXTRACT_INSTALL_NAME ${PROJECT_NAME})
-set(SRT_EXTRACT_AUTHOR "Team OpenVPI")
-set(SRT_EXTRACT_START_YEAR 2026)
-set(SRT_EXTRACT_INCLUDE_DIR include)
-include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
+synthrt_declare_target(srt_extract "${PROJECT_NAME}" ${PROJECT_VERSION} "Team OpenVPI" 2026 "include")
 
 # srt-extract library
 #
@@ -26,7 +19,7 @@ file(GLOB_RECURSE _src CONFIGURE_DEPENDS "src/*.cpp")
 
 find_package(stdcorelib CONFIG REQUIRED)
 
-srt_extract_add_library(${PROJECT_NAME} SHARED
+synthrt_add_library(${PROJECT_NAME} SHARED
     SOURCES ${_src}
     LINKS stdcorelib::stdcorelib srt::core srt::audio srt::driver
     INCLUDE_PRIVATE include/synthrt/Extract/** **
@@ -36,8 +29,5 @@ srt_extract_add_library(${PROJECT_NAME} SHARED
 if(NOT TARGET srt::extract)
     add_library(srt::extract ALIAS ${PROJECT_NAME})
 endif()
-if(NOT TARGET synthrt::extract)
-    add_library(synthrt::extract ALIAS ${PROJECT_NAME})
-endif()
 
-srt_extract_install()
+synthrt_install()

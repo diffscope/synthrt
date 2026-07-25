@@ -1,6 +1,7 @@
 #include "Runtime.h"
 #include "Runtime_p.h"
 
+#include <algorithm>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -12,6 +13,7 @@
 
 #include <synthrt/Core/Module/Module.h>
 #include <synthrt/Core/Support/JSON.h>
+#include <synthrt/Core/Support/Logging.h>
 
 // Module_p.h defines ModuleSpec::Impl (with packageId/packageVersion fields)
 // which Runtime::loadPackage writes to inject package identity. The header is
@@ -23,23 +25,25 @@ namespace fs = std::filesystem;
 
 namespace srt::core {
 
+    static srt::LogCategory RuntimeLog("core.runtime");
+
     llvm::SmallVector<ModuleCategory *(*)(Runtime *)> Runtime::Impl::moduleCategoryFactories;
 
-    Runtime::Impl::Impl(Runtime *decl) : _decl(decl) {
+    Runtime::Impl::Impl(Runtime *q) : m_q(q) {
         // ARCH-03: compose services instead of inheriting PluginFactory/
         // ObjectPool. The PluginFactory provides the plugin discovery/load
         // ability (PluginService) and is owned by the ServiceRegistry.
-        plugins = services.registerService<PluginFactory>(std::make_unique<PluginFactory>());
-        objectPool = std::make_unique<ObjectPool>();
+        m_plugins = m_services.registerService<PluginFactory>(std::make_unique<PluginFactory>());
+        m_objectPool = std::make_unique<ObjectPool>();
     }
 
     Runtime::Impl::~Impl() {
-        for (const auto &[name, cate] : moduleCategories) {
+        for (const auto &[name, cate] : m_moduleCategories) {
             (void) name;
             delete cate;
         }
-        moduleCategories.clear();
-        moduleCateKeyMap.clear();
+        m_moduleCategories.clear();
+        m_moduleCateKeyMap.clear();
     }
 
     Runtime::Runtime() : _impl(new Impl(this)) {
@@ -48,8 +52,8 @@ namespace srt::core {
             if (!cate) {
                 continue;
             }
-            _impl->moduleCategories.emplace(cate->name(), cate);
-            _impl->moduleCateKeyMap.emplace(cate->key(), cate);
+            _impl->m_moduleCategories.emplace(cate->name(), cate);
+            _impl->m_moduleCateKeyMap.emplace(cate->key(), cate);
         }
     }
 
@@ -58,17 +62,17 @@ namespace srt::core {
     // --- Service registry (ARCH-03) ---
 
     ServiceRegistry &Runtime::services() {
-        return _impl->services;
+        return _impl->m_services;
     }
 
     const ServiceRegistry &Runtime::services() const {
-        return _impl->services;
+        return _impl->m_services;
     }
 
     // --- Stage 1: package scanning ---
 
     Expected<void> Runtime::scanPackages(const std::filesystem::path &rootDir) {
-        if (_impl->initializing.load() || _impl->initialized.load()) {
+        if (_impl->m_initializing.load() || _impl->m_initialized.load()) {
             return Error{Diagnostic{
                 ErrorCode::PackageScanAfterInitialize,
                 Severity::Error,
@@ -96,12 +100,12 @@ namespace srt::core {
             // Metadata parsing is consumed by the package service as the DS
             // Bank/Core boundary lands; this API is already immutable after
             // initialization.
-            _impl->discoveredPackages.clear();
+            _impl->m_discoveredPackages.clear();
             for (const auto &entry : fs::directory_iterator(canonical)) {
                 if (!entry.is_directory()) {
                     continue;
                 }
-                _impl->discoveredPackages.push_back(fs::canonical(entry.path()));
+                _impl->m_discoveredPackages.push_back(fs::canonical(entry.path()));
             }
         } catch (const std::exception &e) {
             return Error{
@@ -110,12 +114,19 @@ namespace srt::core {
             };
         }
 
-        _impl->scanRoot = canonical;
-        _impl->scanned = true;
+        _impl->m_scanRoot = canonical;
+        _impl->m_scanned = true;
         return Expected<void>();
     }
 
     Expected<void> Runtime::loadPackage(const std::filesystem::path &path) {
+        // CODING-04: serialize loadPackage to prevent TOCTOU races where two
+        // concurrent callers both pass duplicate detection and both commit specs.
+        // su_mtx is declared in Runtime::Impl (Runtime_p.h) and protects category
+        // / contribute operations across packages. Public API signature is
+        // unchanged (D-11).
+        std::unique_lock<std::shared_mutex> suLock(_impl->m_su_mtx);
+
         // Load DiffSinger voice bank packages by parsing desc.json and
         // delegating to InferenceCategory/SingerCategory for spec creation.
         //
@@ -256,7 +267,17 @@ namespace srt::core {
             // Roll back in reverse order (singers were appended after inferences,
             // so they roll back first — matching the dependency direction).
             for (auto it = committed.rbegin(); it != committed.rend(); ++it) {
-                (void) it->cat->loadSpec(it->spec, ModuleSpec::Deleted);
+                // ROBUST-05: do not silently swallow rollback errors. Log a
+                // warning. If loadSpec(Deleted) fails, the spec is still in
+                // the category's modules list — do NOT delete it to avoid
+                // double-free when ~ModuleCategory runs (mirrors unloadPackage).
+                auto delResult = it->cat->loadSpec(it->spec, ModuleSpec::Deleted);
+                if (!delResult) {
+                    RuntimeLog.srtWarning(
+                        "loadPackage rollback: loadSpec(Deleted) failed for spec '%1': %2",
+                        it->spec->id(), delResult.errorString());
+                    continue; // leave spec in modules list; ~Impl will own it
+                }
                 delete it->spec;
             }
             committed.clear();
@@ -314,8 +335,8 @@ namespace srt::core {
             // loadSpec failure) — plug the previous leak where parseSpec'd specs
             // were not deleted on the duplicate-detection error path.
             std::unique_ptr<ModuleSpec> spec(parseResult.value());
-            spec->_impl->packageId = pkgId;
-            spec->_impl->packageVersion = pkgVersion;
+            spec->_impl->m_packageId = pkgId;
+            spec->_impl->m_packageVersion = pkgVersion;
 
             // Duplicate detection: reject a spec whose (id, packageId,
             // packageVersion) strictly matches an already-loaded inference
@@ -350,7 +371,17 @@ namespace srt::core {
             if (!readyResult) {
                 // Initialized succeeded, so spec IS in the modules list —
                 // remove it before unique_ptr frees the memory.
-                (void) infCat->loadSpec(spec.get(), ModuleSpec::Deleted);
+                auto infDelResult = infCat->loadSpec(spec.get(), ModuleSpec::Deleted);
+                if (!infDelResult) {
+                    // ROBUST-05: log the rollback failure instead of swallowing.
+                    // If loadSpec(Deleted) failed, the spec is still in the
+                    // modules list — release ownership to prevent double-free
+                    // when ~ModuleCategory runs (mirrors rollbackCommitted).
+                    RuntimeLog.srtWarning(
+                        "loadPackage: failed to roll back inference spec '%1' after Ready failure: %2",
+                        spec->id(), infDelResult.errorString());
+                    (void) spec.release(); // let ~ModuleCategory own & delete it
+                }
                 rollbackCommitted();
                 return std::move(readyResult.takeError()
                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
@@ -421,8 +452,8 @@ namespace srt::core {
                     .withContext({}, {}, pkgId));
             }
             std::unique_ptr<ModuleSpec> spec(parseResult.value());
-            spec->_impl->packageId = pkgId;
-            spec->_impl->packageVersion = pkgVersion;
+            spec->_impl->m_packageId = pkgId;
+            spec->_impl->m_packageVersion = pkgVersion;
 
             // Duplicate detection: reject a singer whose (singerId, packageId,
             // packageVersion) strictly matches an already-loaded singer. Same
@@ -450,7 +481,17 @@ namespace srt::core {
             }
             auto readyResult = singerCat->loadSpec(spec.get(), ModuleSpec::Ready);
             if (!readyResult) {
-                (void) singerCat->loadSpec(spec.get(), ModuleSpec::Deleted);
+                auto singerDelResult = singerCat->loadSpec(spec.get(), ModuleSpec::Deleted);
+                if (!singerDelResult) {
+                    // ROBUST-05: log the rollback failure instead of swallowing.
+                    // If loadSpec(Deleted) failed, the spec is still in the
+                    // modules list — release ownership to prevent double-free
+                    // when ~ModuleCategory runs (mirrors rollbackCommitted).
+                    RuntimeLog.srtWarning(
+                        "loadPackage: failed to roll back singer spec '%1' after Ready failure: %2",
+                        spec->id(), singerDelResult.errorString());
+                    (void) spec.release(); // let ~ModuleCategory own & delete it
+                }
                 rollbackCommitted();
                 return std::move(readyResult.takeError()
                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
@@ -460,6 +501,129 @@ namespace srt::core {
             (void) spec.release();
         }
 
+        // Record the loaded package so unloadPackage(path) can resolve the
+        // pkgId without re-parsing desc.json (which may have been modified
+        // on disk between load and unload). Use canonical path to tolerate
+        // trailing-slash / relative-input differences at the call site.
+        std::error_code canonEc;
+        auto canonicalPath = fs::canonical(path, canonEc);
+        if (canonEc) {
+            // Canonicalization may fail if the directory was removed between
+            // the fs::exists checks above and here. Fall back to lexically
+            // normal form so we still record something usable; unloadPackage
+            // will perform the same normalization on its input.
+            canonicalPath = path.lexically_normal();
+        }
+        _impl->m_loadedPackages.push_back({canonicalPath, pkgId});
+
+        return Expected<void>();
+    }
+
+    Expected<void> Runtime::unloadPackage(const std::filesystem::path &path) {
+        // CODING-04: serialize against concurrent loadPackage / unloadPackage
+        // to prevent TOCTOU on loadedPackages and the category modules lists.
+        std::unique_lock<std::shared_mutex> suLock(_impl->m_su_mtx);
+
+        // Resolve the canonical path the same way loadPackage does, so path
+        // identity holds across trailing-slash / relative-input differences.
+        std::error_code canonEc;
+        auto canonicalPath = fs::canonical(path, canonEc);
+        if (canonEc) {
+            canonicalPath = path.lexically_normal();
+        }
+
+        // 1. Look up the loaded package by canonical path. If not found,
+        // return RuntimePackageNotLoaded so callers can distinguish "not
+        // loaded by Runtime" from "filesystem missing".
+        std::string pkgId;
+        auto loadedIt = std::find_if(
+            _impl->m_loadedPackages.begin(), _impl->m_loadedPackages.end(),
+            [&](const Runtime::Impl::LoadedPackage &p) {
+                return p.canonicalPath == canonicalPath;
+            });
+        if (loadedIt == _impl->m_loadedPackages.end()) {
+            return Error::packageError(
+                ErrorCode::RuntimePackageNotLoaded,
+                "package not loaded: " + stdc::path::to_utf8(canonicalPath));
+        }
+        pkgId = loadedIt->packageId;
+
+        // 2. Collect specs to unload. Inferences are loaded first by
+        // loadPackage, singers second; unload in reverse order (singers
+        // first) so that singer specs — which may hold InferenceSpec pointers
+        // resolved at Initialized time — are torn down before the inference
+        // specs they reference. This mirrors the rollbackCommitted lambda in
+        // loadPackage.
+        struct SpecToRemove {
+            ModuleCategory *cat;
+            ModuleSpec *spec;
+        };
+        std::vector<SpecToRemove> toRemove;
+
+        auto collectFrom = [&](ModuleCategory *cat) {
+            if (!cat) {
+                return;
+            }
+            for (auto *spec : cat->specs()) {
+                if (spec->packageId() == pkgId) {
+                    toRemove.push_back({cat, spec});
+                }
+            }
+        };
+
+        // Singer first (appended last by loadPackage, removed first here).
+        auto *singerCat = moduleCategory("singer");
+        collectFrom(singerCat);
+        auto *infCat = moduleCategory("inference");
+        collectFrom(infCat);
+
+        if (toRemove.empty()) {
+            // No specs reference this package — still remove the loaded-
+            // package record so the caller can re-load later.
+            _impl->m_loadedPackages.erase(loadedIt);
+            return Expected<void>();
+        }
+
+        // 3. Transition each spec to Deleted, then free its memory. This
+        // matches the rollback path in loadPackage: loadSpec(Deleted) removes
+        // the spec from the category's modules list (and lets derived
+        // categories release resolved pointers — see
+        // SingerCategory::loadSpec(Deleted) clearing _inference). After
+        // loadSpec(Deleted) succeeds, the spec is no longer reachable from
+        // the category, so delete is safe.
+        srt::core::Error firstError;
+        bool hadError = false;
+        for (const auto &entry : toRemove) {
+            auto delResult = entry.cat->loadSpec(entry.spec, ModuleSpec::Deleted);
+            if (!delResult) {
+                // ROBUST-05: log and continue rather than swallowing. The
+                // spec may still be in the modules list in this case; we do
+                // NOT delete it to avoid double-free when ~ModuleCategory
+                // runs.
+                if (!hadError) {
+                    firstError = std::move(delResult.takeError()
+                        .withTrace(std::source_location::current(),
+                                   "Runtime::unloadPackage")
+                        .withContext({}, {}, pkgId));
+                    hadError = true;
+                }
+                RuntimeLog.srtWarning(
+                    "unloadPackage: loadSpec(Deleted) failed for spec '%1' in "
+                    "package %2: %3",
+                    entry.spec->id(), pkgId, delResult.errorString());
+                continue;
+            }
+            delete entry.spec;
+        }
+
+        // 4. Remove from the loaded-package record regardless of partial
+        // failure: the caller asked to unload, and we have done our best to
+        // honor it. A subsequent loadPackage(path) will re-record the entry.
+        _impl->m_loadedPackages.erase(loadedIt);
+
+        if (hadError) {
+            return firstError;
+        }
         return Expected<void>();
     }
 
@@ -470,14 +634,14 @@ namespace srt::core {
         // reject any re-entry. Mirrors the LangCore Manager::initialize()
         // contract.
         bool expected = false;
-        if (!_impl->initializing.compare_exchange_strong(expected, true)) {
+        if (!_impl->m_initializing.compare_exchange_strong(expected, true)) {
             return Error{
                 Error::InvalidArgument,
                 "Runtime is already initializing or initialized",
             };
         }
 
-        if (_impl->initialized.load()) {
+        if (_impl->m_initialized.load()) {
             return Error{
                 Error::InvalidArgument,
                 "Runtime is already initialized",
@@ -499,20 +663,20 @@ namespace srt::core {
         // Result<T> (ROBUST-01) and leave initializing/initialized in a state
         // that prevents silent retry (infrastructure failure blocks).
 
-        _impl->initialized.store(true);
+        _impl->m_initialized.store(true);
         return Expected<void>();
     }
 
     bool Runtime::isInitialized() const {
-        return _impl->initialized.load();
+        return _impl->m_initialized.load();
     }
 
     std::vector<std::filesystem::path> Runtime::discoveredPackages() const {
-        return _impl->discoveredPackages;
+        return _impl->m_discoveredPackages;
     }
 
     ModuleCategory *Runtime::moduleCategory(const std::string_view &name) const {
-        if (auto it = _impl->moduleCategories.find(name); it != _impl->moduleCategories.end()) {
+        if (auto it = _impl->m_moduleCategories.find(name); it != _impl->m_moduleCategories.end()) {
             return it->second;
         }
         return nullptr;

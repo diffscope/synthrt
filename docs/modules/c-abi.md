@@ -1,6 +1,6 @@
 # C ABI 模块
 
-namespace: (C API) | target: `synthrt::c` | 头文件: `include/synthrt/C/`
+namespace: (C API) | target: `srt::c` | 头文件: `include/synthrt/C/`
 
 ---
 

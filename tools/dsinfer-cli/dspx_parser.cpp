@@ -14,7 +14,7 @@
 
 namespace fs = std::filesystem;
 
-static double dspxTickToMs(int tick, const std::vector<opendspx::Tempo> &tempos) {
+static double dspxTickToMs(int64_t tick, const std::vector<opendspx::Tempo> &tempos) {
     auto sorted = tempos;
     std::sort(sorted.begin(), sorted.end(), [](const auto &a, const auto &b) {
         return a.pos < b.pos;
@@ -23,8 +23,19 @@ static double dspxTickToMs(int tick, const std::vector<opendspx::Tempo> &tempos)
         sorted.push_back({});
     }
 
+    if (sorted.front().value <= 0.0) {
+        throw std::runtime_error("dspxTickToMs: invalid BPM " +
+                                 std::to_string(sorted.front().value));
+    }
+    for (const auto &tempo : sorted) {
+        if (tempo.value <= 0.0) {
+            throw std::runtime_error("dspxTickToMs: invalid BPM " +
+                                     std::to_string(tempo.value));
+        }
+    }
+
     double ms = 0.0;
-    int cursor = 0;
+    int64_t cursor = 0;
     double bpm = sorted.front().value;
     for (const auto &tempo : sorted) {
         if (tempo.pos <= cursor) {
@@ -62,8 +73,8 @@ std::vector<MidiNote> parseDspx(const fs::path &path) {
                 out.key = note.keyNum;
                 out.lyric = note.lyric;
                 out.language = note.language;
-                out.startMs = dspxTickToMs(static_cast<int>(out.startTick), model.content.timeline.tempos);
-                out.endMs = dspxTickToMs(static_cast<int>(out.endTick), model.content.timeline.tempos);
+                out.startMs = dspxTickToMs(out.startTick, model.content.timeline.tempos);
+                out.endMs = dspxTickToMs(out.endTick, model.content.timeline.tempos);
                 notes.push_back(std::move(out));
             }
         }

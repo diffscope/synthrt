@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_SUPPORT_EXPECTED_H
-#define SRT_CORE_SUPPORT_EXPECTED_H
+#pragma once
 
 #include <cassert>
 #include <type_traits>
@@ -311,5 +310,3 @@ namespace srt::core {
     };
 
 }
-
-#endif // SRT_CORE_SUPPORT_EXPECTED_H

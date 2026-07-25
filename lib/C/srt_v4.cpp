@@ -33,9 +33,12 @@
 
 #include <synthrt/Core/Support/Error.h>
 #include <synthrt/Core/Support/Expected.h>
+#include <synthrt/Core/Support/Logging.h>
 
 #include "LastError.h"
 #include "HandleTable.h"
+
+static srt::core::LogCategory cApiLog("c_api");
 
 // --------------------------------------------------------------------------
 // Session handle — composes VoicebankScanner + LanguageService + Runtime
@@ -157,6 +160,11 @@ extern "C" srt_error srt_session_set_package_paths(srt_session session,
     }
     if (count > 0 && !paths) {
         srt::c::detail::setLastError("srt_session_set_package_paths: paths is null",
+                                     SRT_ERR_INVALID_ARG);
+        return SRT_ERR_INVALID_ARG;
+    }
+    if (count < 0) {
+        srt::c::detail::setLastError("srt_session_set_package_paths: count is negative",
                                      SRT_ERR_INVALID_ARG);
         return SRT_ERR_INVALID_ARG;
     }
@@ -313,27 +321,27 @@ void runRefreshWatcher(std::weak_ptr<TaskData> weak) {
     auto t = weak.lock();
     if (!t) return;
     try {
-        const auto result = t->refreshFuture.get();
-        std::lock_guard<std::mutex> lock(t->mutex);
-        t->resultJson = serializeRefreshResult(result);
-        t->errorMessage.clear();
-        t->errorCode = 0;
-        t->state = SRT_TASK_STATE_SUCCEEDED;
-        t->cv.notify_all();
+        const auto result = t->m_refreshFuture.get();
+        std::lock_guard<std::mutex> lock(t->m_mutex);
+        t->m_resultJson = serializeRefreshResult(result);
+        t->m_errorMessage.clear();
+        t->m_errorCode = 0;
+        t->m_state = SRT_TASK_STATE_SUCCEEDED;
+        t->m_cv.notify_all();
     } catch (const std::exception &e) {
-        std::lock_guard<std::mutex> lock(t->mutex);
-        t->errorMessage = e.what();
-        t->errorCode = static_cast<int>(SRT_ERR_GENERIC);
-        t->resultJson.clear();
-        t->state = SRT_TASK_STATE_FAILED;
-        t->cv.notify_all();
+        std::lock_guard<std::mutex> lock(t->m_mutex);
+        t->m_errorMessage = e.what();
+        t->m_errorCode = static_cast<int>(SRT_ERR_GENERIC);
+        t->m_resultJson.clear();
+        t->m_state = SRT_TASK_STATE_FAILED;
+        t->m_cv.notify_all();
     } catch (...) {
-        std::lock_guard<std::mutex> lock(t->mutex);
-        t->errorMessage = "unknown refresh failure";
-        t->errorCode = static_cast<int>(SRT_ERR_GENERIC);
-        t->resultJson.clear();
-        t->state = SRT_TASK_STATE_FAILED;
-        t->cv.notify_all();
+        std::lock_guard<std::mutex> lock(t->m_mutex);
+        t->m_errorMessage = "unknown refresh failure";
+        t->m_errorCode = static_cast<int>(SRT_ERR_GENERIC);
+        t->m_resultJson.clear();
+        t->m_state = SRT_TASK_STATE_FAILED;
+        t->m_cv.notify_all();
     }
 }
 
@@ -413,9 +421,9 @@ extern "C" srt_SessionHandle *srt_session_create_with_resources(
         // the session (caller-owned handles). This mirrors the ds-editor-lite
         // pattern documented in 03-session-and-snapshot.md §1.1.
         std::shared_ptr<srt::g2p::LanguageService> langAlias(
-            std::shared_ptr<srt::g2p::LanguageService>{}, &langData->languageService);
-        data->session.setLanguageService(langAlias);
-        data->session.setRuntime(&rtData->runtime);
+            std::shared_ptr<srt::g2p::LanguageService>{}, &langData->m_languageService);
+        data->m_session.setLanguageService(langAlias);
+        data->m_session.setRuntime(&rtData->m_runtime);
         HandleId id = sessionTable().create(data);
         if (id == kInvalidHandle) {
             srt::c::detail::setLastError(
@@ -462,7 +470,7 @@ extern "C" srt_error srt_session_set_roots(srt_SessionHandle *handle,
             pathVec.emplace_back(std::filesystem::path(roots[i]));
         }
         // VoicebankSession::setRoots is thread-safe (internal mutex).
-        data->session.setRoots(std::move(pathVec));
+        data->m_session.setRoots(std::move(pathVec));
         return SRT_OK;
     } catch (const std::exception &e) {
         srt::c::detail::setLastError(std::string("srt_session_set_roots: ") + e.what());
@@ -502,7 +510,7 @@ extern "C" srt_error srt_session_set_reserved_phonemes(srt_SessionHandle *handle
             tmp.emplace_back(phonemes[i]);
         }
         // VoicebankSession::setReservedPhonemes is thread-safe (internal mutex).
-        data->session.setReservedPhonemes(std::move(tmp));
+        data->m_session.setReservedPhonemes(std::move(tmp));
         return SRT_OK;
     } catch (const std::exception &e) {
         srt::c::detail::setLastError(std::string("srt_session_set_reserved_phonemes: ") + e.what());
@@ -525,25 +533,25 @@ extern "C" srt_TaskHandle *srt_session_refresh_async(srt_SessionHandle *handle) 
             return nullptr;
         }
         auto task = std::make_shared<TaskData>();
-        task->session = session; // keep the session alive after destroy
-        task->type = TaskData::Type::Refresh;
-        task->state = SRT_TASK_STATE_RUNNING;
+        task->m_session = session; // keep the session alive after destroy
+        task->m_type = TaskData::Type::Refresh;
+        task->m_state = SRT_TASK_STATE_RUNNING;
+        // Register the task in the handle table BEFORE starting the watcher
+        // thread, so that if create() throws (bad_alloc), no detached thread
+        // is left running with an unregistered task (silent success).
+        // Note: create() only returns kInvalidHandle for null input, which
+        // can't happen here (task is from make_shared), so the kInvalidHandle
+        // check below is defensive only — the real OOM path is the catch block.
+        HandleId tid = taskTable().create(task);
         // VoicebankSession::refreshAsync coalesces concurrent calls and
         // returns a shared_future. The watcher thread blocks on get() and
         // publishes the result under the task mutex.
-        task->refreshFuture = session->session.refreshAsync();
-        auto weak = std::weak_ptr<TaskData>(task);
+        task->m_refreshFuture = session->m_session.refreshAsync();
         // Detached watcher: holds a shared_ptr (via weak.lock()) until the
         // refresh completes, so the task survives srt_task_destroy. Refresh
         // is not cancellable; cancelRequested is recorded for future task
         // kinds (G2P/S2P/stage).
-        std::thread(runRefreshWatcher, weak).detach();
-        HandleId tid = taskTable().create(task);
-        if (tid == kInvalidHandle) {
-            srt::c::detail::setLastError("srt_session_refresh_async: out of memory",
-                                         SRT_ERR_OUT_OF_MEM);
-            return nullptr;
-        }
+        std::thread(runRefreshWatcher, std::weak_ptr<TaskData>(task)).detach();
         return encodeTaskHandle(tid);
     } catch (const std::exception &e) {
         srt::c::detail::setLastError(std::string("srt_session_refresh_async: ") + e.what());
@@ -569,7 +577,7 @@ extern "C" const void *srt_session_snapshot(srt_SessionHandle *handle) {
         // alive by the session's internal shared_ptr<const VoicebankSnapshot>.
         // The raw pointer is valid only until the next refresh publishes a new
         // snapshot; callers must not hold it across tasks (see srt.h).
-        auto snap = data->session.snapshot();
+        auto snap = data->m_session.snapshot();
         if (!snap) {
             return nullptr; // no snapshot yet (refresh not called)
         }
@@ -691,17 +699,17 @@ extern "C" srt_ModelHandle *srt_model_create(srt_SessionHandle *session,
         // On failure the Expected error is mapped to an srt_error code and
         // stored in the TLS last-error buffer (ROBUST-01/ROBUST-02).
         ds::bank::SingerRef ref(packageId, singerId, version ? version : "");
-        auto exp = sessionData->session.createModelSet(ref);
+        auto exp = sessionData->m_session.createModelSet(ref);
         if (!exp.hasValue()) {
             srt::c::detail::mapError(exp.takeError());
             return nullptr;
         }
         auto model = std::make_shared<ModelData>();
-        model->session = sessionData;
-        model->handle = std::move(exp.take());
-        model->packageId = packageId;
-        model->singerId = singerId;
-        model->version = version ? version : "";
+        model->m_session = sessionData;
+        model->m_handle = std::move(exp.take());
+        model->m_packageId = packageId;
+        model->m_singerId = singerId;
+        model->m_version = version ? version : "";
         HandleId id = modelTable().create(model);
         if (id == kInvalidHandle) {
             srt::c::detail::setLastError("srt_model_create: out of memory",
@@ -738,17 +746,22 @@ extern "C" srt_error srt_model_destroy(srt_ModelHandle *handle) {
 // --------------------------------------------------------------------------
 extern "C" srt_TaskState srt_task_state(srt_TaskHandle *handle) {
     if (!handle) {
+        srt::c::detail::setLastError("srt_task_state: handle is null",
+                                     SRT_ERR_INVALID_HANDLE);
         return SRT_TASK_STATE_FAILED;
     }
     try {
         HandleId id = decodeTaskHandle(handle);
         auto task = taskTable().lookup(id);
         if (!task) {
+            srt::c::detail::setLastError("srt_task_state: invalid handle",
+                                         SRT_ERR_INVALID_HANDLE);
             return SRT_TASK_STATE_FAILED;
         }
-        std::lock_guard<std::mutex> lock(task->mutex);
-        return task->state;
+        std::lock_guard<std::mutex> lock(task->m_mutex);
+        return task->m_state;
     } catch (...) {
+        srt::c::detail::setLastError("srt_task_state: unknown exception");
         return SRT_TASK_STATE_FAILED;
     }
 }
@@ -767,20 +780,20 @@ extern "C" srt_error srt_task_wait(srt_TaskHandle *handle, int timeout_ms) {
                                          SRT_ERR_INVALID_HANDLE);
             return SRT_ERR_INVALID_HANDLE;
         }
-        std::unique_lock<std::mutex> lock(task->mutex);
-        bool terminal = (task->state == SRT_TASK_STATE_SUCCEEDED ||
-                         task->state == SRT_TASK_STATE_FAILED ||
-                         task->state == SRT_TASK_STATE_CANCELLED);
+        std::unique_lock<std::mutex> lock(task->m_mutex);
+        bool terminal = (task->m_state == SRT_TASK_STATE_SUCCEEDED ||
+                         task->m_state == SRT_TASK_STATE_FAILED ||
+                         task->m_state == SRT_TASK_STATE_CANCELLED);
         if (!terminal) {
             auto pred = [&] {
-                return task->state == SRT_TASK_STATE_SUCCEEDED ||
-                       task->state == SRT_TASK_STATE_FAILED ||
-                       task->state == SRT_TASK_STATE_CANCELLED;
+                return task->m_state == SRT_TASK_STATE_SUCCEEDED ||
+                       task->m_state == SRT_TASK_STATE_FAILED ||
+                       task->m_state == SRT_TASK_STATE_CANCELLED;
             };
             if (timeout_ms < 0) {
-                task->cv.wait(lock, pred);
+                task->m_cv.wait(lock, pred);
             } else {
-                if (!task->cv.wait_for(lock,
+                if (!task->m_cv.wait_for(lock,
                                        std::chrono::milliseconds(timeout_ms), pred)) {
                     return SRT_ERR_TIMEOUT;
                 }
@@ -808,8 +821,8 @@ extern "C" srt_error srt_task_cancel(srt_TaskHandle *handle) {
             return SRT_ERR_INVALID_HANDLE;
         }
         {
-            std::lock_guard<std::mutex> lock(task->mutex);
-            task->cancelRequested = true;
+            std::lock_guard<std::mutex> lock(task->m_mutex);
+            task->m_cancelRequested = true;
             // Cooperative: the worker transitions to CANCELLED when it observes
             // the flag. If already terminal, leave the state as-is.
         }
@@ -830,8 +843,15 @@ extern "C" void srt_task_destroy(srt_TaskHandle *handle) {
         // shared_ptr refs held by running watcher threads keep TaskData alive
         // until the refresh completes; destroying here only drops the table's
         // strong reference. The task handle becomes invalid immediately.
+    } catch (const std::exception &e) {
+        // destroy must not throw across the extern "C" boundary.
+        const std::string msg = std::string("srt_task_destroy: ") + e.what();
+        srt::c::detail::setLastError(msg);
+        cApiLog.srtWarning(msg);
     } catch (...) {
         // destroy must not throw across the extern "C" boundary.
+        srt::c::detail::setLastError("srt_task_destroy: unknown exception");
+        cApiLog.srtWarning("srt_task_destroy: unknown exception swallowed");
     }
 }
 
@@ -852,19 +872,19 @@ extern "C" const char *srt_task_result_json(srt_TaskHandle *handle, size_t *out_
                                          SRT_ERR_INVALID_HANDLE);
             return nullptr;
         }
-        std::lock_guard<std::mutex> lock(task->mutex);
-        if (task->state != SRT_TASK_STATE_SUCCEEDED || task->resultJson.empty()) {
+        std::lock_guard<std::mutex> lock(task->m_mutex);
+        if (task->m_state != SRT_TASK_STATE_SUCCEEDED || task->m_resultJson.empty()) {
             return nullptr;
         }
         // Allocate a fresh copy the caller frees with srt_free_buffer.
-        size_t len = task->resultJson.size();
+        size_t len = task->m_resultJson.size();
         char *buf = static_cast<char *>(std::malloc(len + 1));
         if (!buf) {
             srt::c::detail::setLastError("srt_task_result_json: out of memory",
                                          SRT_ERR_OUT_OF_MEM);
             return nullptr;
         }
-        std::memcpy(buf, task->resultJson.data(), len);
+        std::memcpy(buf, task->m_resultJson.data(), len);
         buf[len] = '\0';
         if (out_size) {
             *out_size = len;

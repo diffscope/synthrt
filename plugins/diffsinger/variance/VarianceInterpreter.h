@@ -1,5 +1,4 @@
-#ifndef DSINFER_VARIANCEINTERPRETER_H
-#define DSINFER_VARIANCEINTERPRETER_H
+#pragma once
 
 #include <synthrt/SVS/InferenceInterpreter.h>
 
@@ -26,5 +25,3 @@ namespace srt::svs {
     };
 
 }
-
-#endif // DSINFER_VARIANCEINTERPRETER_H

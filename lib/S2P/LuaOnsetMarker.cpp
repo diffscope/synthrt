@@ -39,7 +39,8 @@ namespace srt::s2p {
         Private() = default;
 
         Private(Private &&other) noexcept
-            : environment(std::move(other.environment)), markOnsetRef(other.markOnsetRef) {
+            : environment(std::move(other.environment)), markOnsetRef(other.markOnsetRef),
+              scriptId(std::move(other.scriptId)) {
             other.markOnsetRef = LUA_NOREF;
         }
 
@@ -50,6 +51,7 @@ namespace srt::s2p {
                 }
                 environment = std::move(other.environment);
                 markOnsetRef = other.markOnsetRef;
+                scriptId = std::move(other.scriptId);
                 other.markOnsetRef = LUA_NOREF;
             }
             return *this;
@@ -63,6 +65,7 @@ namespace srt::s2p {
 
         Internal::LuaExecutionEnvironment environment;
         int markOnsetRef{LUA_NOREF};
+        std::string scriptId;
     };
 
     LuaOnsetMarker::LuaOnsetMarker() : d(std::make_unique<Private>()) {
@@ -83,6 +86,7 @@ namespace srt::s2p {
             // throw std::runtime_error if luaL_newstate() fails (OOM).
             obj = std::unique_ptr<LuaOnsetMarker>(new LuaOnsetMarker());
             obj->d->environment.loadAndRun(luaScript);
+            obj->d->scriptId = luaScript.chunkName();
             obj->d->markOnsetRef = obj->d->environment.getGlobalFunctionRef("markonset");
         } catch (const std::exception &e) {
             return srt::core::Error(srt::core::ErrorCode::S2pScriptError, e.what());
@@ -110,8 +114,10 @@ namespace srt::s2p {
         }
 
         if (d->environment.pcall(1, 1, 0) != 0) {
+            const auto luaError = d->environment.errorString();
             return srt::core::Error(srt::core::ErrorCode::S2pScriptError,
-                "LuaOnsetMarker error: markonset failed: " + d->environment.errorString());
+                "LuaOnsetMarker error: markonset failed: " + luaError)
+                .withExtraContext({{"scriptId", d->scriptId}, {"luaError", luaError}});
         }
 
         if (!lua_istable(state, -1)) {

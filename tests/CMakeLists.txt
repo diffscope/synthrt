@@ -20,7 +20,7 @@ function(synthrt_add_cross_test target source)
 endfunction()
 
 add_executable(tst_synthrt_v3_smoke
-    Catch2SmokeTest.cpp
+    tst_catch2_smoke.cpp
 )
 
 target_link_libraries(tst_synthrt_v3_smoke PRIVATE Catch2::Catch2WithMain)

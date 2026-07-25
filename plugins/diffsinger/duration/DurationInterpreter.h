@@ -1,5 +1,4 @@
-#ifndef DSINFER_DURATIONINTERPRETER_H
-#define DSINFER_DURATIONINTERPRETER_H
+#pragma once
 
 #include <synthrt/SVS/InferenceInterpreter.h>
 
@@ -26,5 +25,3 @@ namespace srt::svs {
     };
 
 }
-
-#endif // DSINFER_DURATIONINTERPRETER_H

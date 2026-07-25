@@ -55,9 +55,9 @@ namespace ds::bank {
         const std::vector<ValidationItem> &items() const;
 
     protected:
-        std::vector<ValidationItem> _items;
-        bool _hasErrors = false;
-        bool _hasWarnings = false;
+        std::vector<ValidationItem> m_items;
+        bool m_hasErrors = false;
+        bool m_hasWarnings = false;
     };
 
 }

@@ -42,9 +42,9 @@ namespace srt::dependency {
         std::vector<ModuleMetadata> getGlobalModuleInitializationOrder(
             std::vector<ModuleMetadata> *cycleMembers = nullptr) const;
 
-        NodeMap nodeMap;
-        MainModuleMap mainModuleMap;
-        bool graphBuilt = false;
+        NodeMap m_nodeMap;
+        MainModuleMap m_mainModuleMap;
+        bool m_graphBuilt = false;
     };
 
 } // namespace srt::dependency

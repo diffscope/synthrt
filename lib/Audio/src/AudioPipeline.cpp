@@ -36,6 +36,18 @@ AudioBuffer mergeBuffers(const std::vector<AudioBuffer> &chunks) {
 
     return result;
 }
+
+// BUG-AUDIO-01: RAII guard that closes the decoder on every error return
+// path. FfmpegAudioDecoder::close() is null-safe and idempotent (its
+// Impl::cleanup() checks every FFmpeg pointer before freeing), so invoking
+// it when probe() failed before open() is a no-op. Set `committed = true`
+// on the success path right before the explicit m_decoder->close() call to
+// avoid a double close.
+struct DecoderCloseGuard {
+    IAudioDecoder *d;
+    bool committed = false;
+    ~DecoderCloseGuard() { if (!committed && d) d->close(); }
+};
 } // anonymous namespace
 
 AudioPipeline AudioPipeline::create() {
@@ -52,6 +64,12 @@ srt::core::Expected<AudioFormatInfo> AudioPipeline::probe(const std::string &pat
 
 srt::core::Expected<AudioBuffer> AudioPipeline::decodeAndResample(const std::string &path,
                                                                    const ResampleConfig &config) {
+    // BUG-AUDIO-01: Ensure m_decoder->close() runs on every error return
+    // path to avoid leaking FFmpeg AVFormatContext/AVCodecContext (and
+    // exhausting fds on repeated failures). The guard is a no-op on the
+    // success path where we set committed = true before the explicit close.
+    DecoderCloseGuard guard{m_decoder.get(), false};
+
     // 1. Probe format
     auto infoExp = m_decoder->probe(path);
     if (!infoExp) {
@@ -80,11 +98,20 @@ srt::core::Expected<AudioBuffer> AudioPipeline::decodeAndResample(const std::str
 
         auto resampledExp = m_resampler->convert(chunk, info.sampleRate, config);
         if (!resampledExp) {
+            // BUG-14: Explicitly close the decoder to mark the pipeline state
+            // as terminal after convert failure. Without this, the decoder is
+            // only closed via DecoderCloseGuard's destructor (RAII), leaving
+            // the state transition implicit and the already-consumed chunk's
+            // position lost. Explicit close() makes the error state clear and
+            // prevents operating on a half-consumed decoder (ROBUST-05).
+            m_decoder->close();
+            guard.committed = true;
             return resampledExp.takeError();
         }
         chunks.push_back(resampledExp.take());
     }
 
+    guard.committed = true;
     m_decoder->close();
 
     // 4. Merge all chunks
@@ -100,6 +127,12 @@ srt::core::Expected<AudioBuffer> AudioPipeline::decodeSegmentAndResample(const s
                                                                           double startSec,
                                                                           double endSec,
                                                                           const ResampleConfig &config) {
+    // BUG-AUDIO-01: Ensure m_decoder->close() runs on every error return
+    // path to avoid leaking FFmpeg AVFormatContext/AVCodecContext (and
+    // exhausting fds on repeated failures). The guard is a no-op on the
+    // success path where we set committed = true before the explicit close.
+    DecoderCloseGuard guard{m_decoder.get(), false};
+
     // 1. Probe format
     auto infoExp = m_decoder->probe(path);
     if (!infoExp) {
@@ -139,12 +172,20 @@ srt::core::Expected<AudioBuffer> AudioPipeline::decodeSegmentAndResample(const s
 
         auto resampledExp = m_resampler->convert(chunk, info.sampleRate, config);
         if (!resampledExp) {
+            // BUG-14: Explicitly close the decoder to mark the pipeline state
+            // as terminal after convert failure (see decodeAndResample for
+            // rationale). Avoids relying solely on RAII guard so the error
+            // state transition is observable and the decoder cannot be
+            // accidentally reused mid-stream (ROBUST-05).
+            m_decoder->close();
+            guard.committed = true;
             return resampledExp.takeError();
         }
         chunks.push_back(resampledExp.take());
         remainingFrames -= chunk.frameCount();
     }
 
+    guard.committed = true;
     m_decoder->close();
 
     if (chunks.empty()) {

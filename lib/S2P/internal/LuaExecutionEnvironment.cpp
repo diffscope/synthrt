@@ -40,7 +40,15 @@ namespace srt::s2p::Internal {
             for (auto i = 1; i <= count; ++i) {
                 lua_pushvalue(state, tostringIndex);
                 lua_pushvalue(state, i);
-                lua_call(state, 1, 1);
+                // Use pcall instead of lua_call: lua_call would long-jump out of
+                // this C++ function on error, bypassing destructors of `chunkName`
+                // and `arguments` (UB). If tostring errors (e.g. a __tostring
+                // metamethod raises), push a placeholder so print still works.
+                if (lua_pcall(state, 1, 1, 0) != 0) {
+                    lua_pop(state, 1); // pop error message
+                    arguments.emplace_back("<error>");
+                    continue;
+                }
 
                 std::size_t length = 0;
                 const auto *text = lua_tolstring(state, -1, &length);
@@ -143,10 +151,20 @@ namespace srt::s2p::Internal {
         int normalizePosition(lua_State *state, int index, std::size_t size, int defaultValue) {
             const auto position = static_cast<long long>(luaL_optinteger(state, index, defaultValue));
             if (position > 0) {
+                if (position > static_cast<long long>(std::numeric_limits<int>::max())) {
+                    return luaL_error(state, "position out of range: %d",
+                                      static_cast<lua_Integer>(position));
+                }
                 return static_cast<int>(position);
             }
             if (position < 0) {
-                return static_cast<int>(static_cast<long long>(size) + position + 1);
+                const auto result = static_cast<long long>(size) + position + 1;
+                if (result > static_cast<long long>(std::numeric_limits<int>::max()) ||
+                    result < static_cast<long long>(std::numeric_limits<int>::min())) {
+                    return luaL_error(state, "position out of range: %d",
+                                      static_cast<lua_Integer>(position));
+                }
+                return static_cast<int>(result);
             }
             return 0;
         }

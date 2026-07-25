@@ -1,1 +1,1 @@
-synthrt_add_cross_test(synthrt-test-runtime-bootstrap RuntimeBootstrapSkeletonTest.cpp)
+synthrt_add_cross_test(synthrt-test-runtime-bootstrap tst_runtime_bootstrap_skeleton.cpp)

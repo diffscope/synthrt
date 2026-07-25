@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_TASK_TASK_H
-#define SRT_CORE_TASK_TASK_H
+#pragma once
 
 #include <cstdint>
 #include <filesystem>
@@ -73,5 +72,3 @@ namespace srt::core {
     };
 
 } // namespace srt::core
-
-#endif // SRT_CORE_TASK_TASK_H

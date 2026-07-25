@@ -1,5 +1,4 @@
-#ifndef SYNTHRT_PLUGIN_EXTRACT_GAME_GAMEEXTRACTOR_H
-#define SYNTHRT_PLUGIN_EXTRACT_GAME_GAMEEXTRACTOR_H
+#pragma once
 
 #include <filesystem>
 #include <vector>
@@ -13,6 +12,8 @@
 namespace srt::core {
     class Runtime;
 }
+
+namespace srt::extract::plugins::Game {
 
 /// GameExtractor - MIDI 提取器实现（从 ds-editor-lite game-infer 迁移）。
 ///
@@ -121,4 +122,4 @@ private:
     int m_language = 0;              ///< 语言（config.json "languages"）
 };
 
-#endif // SYNTHRT_PLUGIN_EXTRACT_GAME_GAMEEXTRACTOR_H
+}

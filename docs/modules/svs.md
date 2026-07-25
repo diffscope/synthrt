@@ -1,6 +1,6 @@
 # SVS 模块 (`srt::svs`)
 
-namespace: `srt::svs` | target: `synthrt::svs` | 头文件: `include/synthrt/SVS/`
+namespace: `srt::svs` | target: `srt::svs` | 头文件: `include/synthrt/SVS/`
 
 ---
 

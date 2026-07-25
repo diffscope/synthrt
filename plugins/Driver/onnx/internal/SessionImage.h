@@ -1,6 +1,6 @@
-#ifndef SRT_DRIVER_ONNX_SESSIONIMAGE_P_H
-#define SRT_DRIVER_ONNX_SESSIONIMAGE_P_H
+#pragma once
 
+#include <atomic>
 #include <filesystem>
 
 #include <synthrt/Core/Support/Expected.h>
@@ -25,8 +25,14 @@ namespace srt::driver::onnx {
 
         Ort::Env env;
         Ort::Session session;
+
+        // BUG-DRIVER-01: Tracks in-flight Ort::RunAsync calls so that
+        // Session::close() can refuse to delete this image while ORT is still
+        // using session. Incremented before RunAsync, decremented in
+        // runAsyncCallback. Simplified scheme: close() returns an error when
+        // this is non-zero instead of waiting (callers must wait for async
+        // completion before closing).
+        std::atomic<int> inFlightCount{0};
     };
 
 }
-
-#endif // SRT_DRIVER_ONNX_SESSIONIMAGE_P_H

@@ -4,8 +4,7 @@
 #include <stdcorelib/path.h>
 #include <stdcorelib/str.h>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     srt::core::Expected<void> DictStep::configure(const srt::g2p::ModuleSpec *spec,
                                                    const srt::core::JsonObject &config)
     {
@@ -103,4 +102,4 @@ namespace srt::g2p::plugins::ChainG2p
         return result;
     }
 
-} // namespace srt::g2p::plugins::ChainG2p
+}

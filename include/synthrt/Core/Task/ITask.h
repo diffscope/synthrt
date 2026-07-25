@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_TASK_ITASK_H
-#define SRT_CORE_TASK_ITASK_H
+#pragma once
 
 #include <functional>
 
@@ -84,5 +83,3 @@ namespace srt::core {
     };
 
 }
-
-#endif // SRT_CORE_TASK_ITASK_H

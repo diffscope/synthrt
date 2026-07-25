@@ -4,8 +4,7 @@
 #include <cpp-pinyin/Pinyin.h>
 #include <cpp-pinyin/ManTone.h>
 
-namespace srt::g2p::plugins::MandarinG2p::Internal::V1
-{
+namespace srt::g2p::plugins::MandarinG2p::Internal::V1 {
 
     MandarinG2pTaskImpl::MandarinG2pTaskImpl(const srt::g2p::ModuleSpec *spec)
         : PinyinG2pTaskImplBase(spec, {"dictPath", "Mandarin"}) {}
@@ -23,4 +22,4 @@ namespace srt::g2p::plugins::MandarinG2p::Internal::V1
         return m_engine->hanziToPinyin(input, Pinyin::ManTone::NORMAL, Pinyin::Default, true, false, false);
     }
 
-} // namespace srt::g2p::plugins::MandarinG2p::Internal::V1
+}

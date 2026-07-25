@@ -40,14 +40,12 @@ namespace srt::core {
             plugins.insert(pos, plugin);
     }
 
-    PluginFactory::Impl::Impl(PluginFactory *decl) : _decl(decl) {
+    PluginFactory::Impl::Impl(PluginFactory *q) : m_q(q) {
     }
 
-    PluginFactory::Impl::~Impl() {
-        for (const auto &item : std::as_const(libraryInstances)) {
-            delete item.second;
-        }
-    }
+    // CODING-04: destructor is defaulted — m_libraryInstances now holds
+    // unique_ptr<SharedLibrary>, so cleanup is automatic.
+    PluginFactory::Impl::~Impl() = default;
 
     bool PluginFactory::Impl::preloadSharedLibraries(const fs::path &sharedDir) const {
         std::error_code ec;
@@ -62,12 +60,12 @@ namespace srt::core {
                 continue;
 
             const auto &key = p.native();
-            if (preloadedLibraries.count(key))
+            if (m_preloadedLibraries.count(key))
                 continue;
 
             stdc::SharedLibrary lib;
             if (lib.open(p)) {
-                preloadedLibraries.emplace(key,
+                m_preloadedLibraries.emplace(key,
                                            std::make_unique<stdc::SharedLibrary>(std::move(lib)));
             } else {
                 allLoaded = false;
@@ -92,10 +90,10 @@ namespace srt::core {
     }
 
     void PluginFactory::Impl::scanPlugins(const char *iid) const {
-        auto &plugins = allPlugins[iid];
+        auto &plugins = m_allPlugins[iid];
 
         // Add runtime plugins
-        for (const auto &plugin : runtimePlugins) {
+        for (const auto &plugin : m_runtimePlugins) {
             if (strcmp(iid, plugin->iid()) == 0) {
                 std::ignore = plugins.insert(std::make_pair(plugin->key(), plugin));
             }
@@ -103,20 +101,20 @@ namespace srt::core {
 
         // Pre-load each global shared directory once, on the first scan that references it.
         bool sharedPreloadPending = false;
-        if (auto sharedDirIt = sharedDirs.find(iid); sharedDirIt != sharedDirs.end()) {
+        if (auto sharedDirIt = m_sharedDirs.find(iid); sharedDirIt != m_sharedDirs.end()) {
             for (const auto &sharedDir : sharedDirIt->second) {
                 const auto key = sharedDir.native();
-                if (loadedSharedDirs.count(key))
+                if (m_loadedSharedDirs.count(key))
                     continue;
                 if (preloadSharedLibraries(sharedDir))
-                    loadedSharedDirs.insert(key);
+                    m_loadedSharedDirs.insert(key);
                 else
                     sharedPreloadPending = true;
             }
         }
 
-        auto dirIt = pluginDirs.find(iid);
-        if (dirIt != pluginDirs.end()) {
+        auto dirIt = m_pluginDirs.find(iid);
+        if (dirIt != m_pluginDirs.end()) {
             for (const auto &pluginDir : dirIt->second) {
                 fs::path descPath = pluginDir / "plugin.json";
                 if (!fs::exists(descPath)) {
@@ -126,7 +124,7 @@ namespace srt::core {
                 }
 
                 std::string pluginDirStr = stdc::path::to_utf8(pluginDir);
-                if (scannedPluginDirs.count(pluginDirStr) > 0)
+                if (m_scannedPluginDirs.count(pluginDirStr) > 0)
                     continue;
 
                 // Parse plugin.json
@@ -172,7 +170,7 @@ namespace srt::core {
                     continue;
                 }
 
-                if (libraryInstances.count(dllPath))
+                if (m_libraryInstances.count(dllPath))
                     continue;
 
                 stdc::SharedLibrary so;
@@ -198,8 +196,15 @@ namespace srt::core {
                     continue;
                 }
                 if (strcmp(iid, plugin->iid()) != 0) {
-                    PluginLog.srtWarning("scanPlugins: plugin iid mismatch in %1: expected %2, got %3, skipping",
-                                         stdc::path::to_utf8(dllPath), iid, plugin->iid());
+                    // A collection directory may legitimately host plugins of
+                    // different iids (e.g. diffsinger/inferenceinterpreters/
+                    // holds acoustic/duration/pitch/variance/vocoder side by
+                    // side). Skipping non-matching iids is normal discovery
+                    // behavior, not a warning-worthy condition. Demoted from
+                    // Warning to Trace to avoid noisy logs when a host scans
+                    // a shared plugin root for multiple iids.
+                    PluginLog.srtTrace("scanPlugins: plugin iid mismatch in %1: expected %2, got %3, skipping",
+                                       stdc::path::to_utf8(dllPath), iid, plugin->iid());
                     continue;
                 }
                 if (!plugins.insert(std::make_pair(plugin->key(), plugin)).second) {
@@ -208,15 +213,16 @@ namespace srt::core {
                     continue;
                 }
 
-                libraryInstances[dllPath] = new stdc::SharedLibrary(std::move(so));
-                scannedPluginDirs.insert(pluginDirStr);
+                // CODING-04: own the SharedLibrary via unique_ptr (no bare new).
+                m_libraryInstances.emplace(dllPath, std::make_unique<stdc::SharedLibrary>(std::move(so)));
+                m_scannedPluginDirs.insert(pluginDirStr);
             }
         }
 
         if (plugins.empty())
-            allPlugins.erase(iid);
+            m_allPlugins.erase(iid);
         if (!sharedPreloadPending)
-            pluginsDirty.erase(iid);
+            m_pluginsDirty.erase(iid);
     }
 
     PluginFactory::PluginFactory() : _impl(new Impl(this)) {
@@ -259,59 +265,66 @@ namespace srt::core {
 
     void PluginFactory::addRuntimePlugin(Plugin *plugin) {
         __stdc_impl_t;
-        std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
-        impl.runtimePlugins.emplace(plugin);
-        impl.pluginsDirty.insert(plugin->iid());
+        std::unique_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
+        impl.m_runtimePlugins.emplace(plugin);
+        impl.m_pluginsDirty.insert(plugin->iid());
     }
 
     std::vector<Plugin *> PluginFactory::runtimePlugins() const {
         __stdc_impl_t;
-        std::shared_lock<std::shared_mutex> lock(impl.plugins_mtx);
-        return {impl.runtimePlugins.begin(), impl.runtimePlugins.end()};
+        std::shared_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
+        return {impl.m_runtimePlugins.begin(), impl.m_runtimePlugins.end()};
     }
 
     void PluginFactory::addPluginPath(const char *iid, const std::filesystem::path &path) {
         __stdc_impl_t;
 
-        std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
-        auto &sharedDirs = impl.sharedDirs[iid];
+        std::unique_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
+        auto &sharedDirs = impl.m_sharedDirs[iid];
         const auto sharedDir = Impl::sharedLibraryPath(path);
         if (std::find(sharedDirs.begin(), sharedDirs.end(), sharedDir) == sharedDirs.end())
             sharedDirs.push_back(sharedDir);
 
         std::error_code ec;
         if (!fs::is_directory(path, ec)) {
-            impl.pluginsDirty.insert(iid);
+            impl.m_pluginsDirty.insert(iid);
             return;
         }
 
         const fs::path canonicalPath = fs::canonical(path, ec);
         if (ec) {
-            impl.pluginsDirty.insert(iid);
+            impl.m_pluginsDirty.insert(iid);
             return;
         }
 
         // Scan subdirectories for plugin.json descriptors
-        for (const auto &entry : fs::directory_iterator(canonicalPath)) {
-            if (!entry.is_directory()) {
-                continue;
+        try {
+            for (const auto &entry : fs::directory_iterator(canonicalPath)) {
+                if (!entry.is_directory()) {
+                    continue;
+                }
+                const auto &pluginDir = fs::canonical(entry.path());
+                if (fs::path descPath = pluginDir / "plugin.json"; fs::exists(descPath)) {
+                    impl.m_pluginDirs[iid].push_back(pluginDir);
+                }
             }
-            const auto &pluginDir = fs::canonical(entry.path());
-            if (fs::path descPath = pluginDir / "plugin.json"; fs::exists(descPath)) {
-                impl.pluginDirs[iid].push_back(pluginDir);
-            }
+        } catch (const std::exception &e) {
+            PluginLog.srtWarning("addPluginPath: failed to scan plugin path %1: %2",
+                                 canonicalPath.string(), e.what());
+            impl.m_pluginsDirty.insert(iid);
+            return;
         }
 
-        impl.pluginsDirty.insert(iid);
+        impl.m_pluginsDirty.insert(iid);
     }
 
     void PluginFactory::setPluginPaths(const char *iid,
                                        stdc::array_view<std::filesystem::path> paths) {
         __stdc_impl_t;
-        std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
+        std::unique_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
 
-        impl.pluginDirs.erase(iid);
-        impl.sharedDirs.erase(iid);
+        impl.m_pluginDirs.erase(iid);
+        impl.m_sharedDirs.erase(iid);
 
         if (!paths.empty()) {
             llvm::SmallVector<fs::path> dirs;
@@ -324,31 +337,37 @@ namespace srt::core {
                 if (!fs::is_directory(path, ec)) continue;
                 fs::path canonicalPath = fs::canonical(path, ec);
                 if (ec) continue;
-                for (const auto &entry : fs::directory_iterator(canonicalPath)) {
-                    if (!entry.is_directory()) continue;
-                    const auto &pluginDir = fs::canonical(entry.path());
-                    if (fs::path descPath = pluginDir / "plugin.json"; fs::exists(descPath)) {
-                        dirs.push_back(pluginDir);
+                try {
+                    for (const auto &entry : fs::directory_iterator(canonicalPath)) {
+                        if (!entry.is_directory()) continue;
+                        const auto &pluginDir = fs::canonical(entry.path());
+                        if (fs::path descPath = pluginDir / "plugin.json"; fs::exists(descPath)) {
+                            dirs.push_back(pluginDir);
+                        }
                     }
+                } catch (const std::exception &e) {
+                    PluginLog.srtWarning("setPluginPaths: failed to scan plugin path %1: %2",
+                                         canonicalPath.string(), e.what());
+                    continue;
                 }
             }
             if (!dirs.empty()) {
-                impl.pluginDirs[iid] = dirs;
+                impl.m_pluginDirs[iid] = dirs;
             }
             if (!sharedDirs.empty()) {
-                impl.sharedDirs[iid] = std::move(sharedDirs);
+                impl.m_sharedDirs[iid] = std::move(sharedDirs);
             }
         }
 
-        impl.pluginsDirty.insert(iid);
+        impl.m_pluginsDirty.insert(iid);
     }
 
     std::vector<std::filesystem::path> PluginFactory::pluginPaths(const char *iid) const {
         __stdc_impl_t;
 
-        std::shared_lock<std::shared_mutex> lock(impl.plugins_mtx);
-        auto it = impl.pluginDirs.find(iid);
-        if (it == impl.pluginDirs.end()) {
+        std::shared_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
+        auto it = impl.m_pluginDirs.find(iid);
+        if (it == impl.m_pluginDirs.end()) {
             return {};
         }
         return {it->second.begin(), it->second.end()};
@@ -357,13 +376,13 @@ namespace srt::core {
     Plugin *PluginFactory::plugin(const char *iid, const char *key) const {
         __stdc_impl_t;
 
-        std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
-        if (impl.pluginsDirty.count(iid)) {
+        std::unique_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
+        if (impl.m_pluginsDirty.count(iid)) {
             impl.scanPlugins(iid);
         }
 
-        auto it = impl.allPlugins.find(iid);
-        if (it == impl.allPlugins.end()) {
+        auto it = impl.m_allPlugins.find(iid);
+        if (it == impl.m_allPlugins.end()) {
             return nullptr;
         }
 

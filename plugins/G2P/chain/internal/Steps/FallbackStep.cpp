@@ -1,8 +1,7 @@
 #include "FallbackStep.h"
 #include <synthrt/Core/Support/ConfigAccessor.h>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     srt::core::Expected<void> FallbackStep::configure(const srt::g2p::ModuleSpec *spec,
                                                       const srt::core::JsonObject &config)
     {
@@ -43,4 +42,4 @@ namespace srt::g2p::plugins::ChainG2p
         }
     }
 
-} // namespace srt::g2p::plugins::ChainG2p
+}

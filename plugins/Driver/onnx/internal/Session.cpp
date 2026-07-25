@@ -13,6 +13,7 @@
 #include <numeric>
 #include <iomanip>
 #include <utility>
+#include <limits>
 
 #include <stdcorelib/path.h>
 #include <stdcorelib/pimpl.h>
@@ -153,6 +154,14 @@ namespace srt::driver::onnx {
         std::unique_ptr<SessionAsyncRunContext> asyncContext;
         srt::core::NO<SessionResult> sessionResult;
 
+        // BUG-DRIVER-02 / BUG-DRIVER-07: Protects sessionResult and runOptions
+        // against concurrent access. result() takes a shared_lock; run(),
+        // runAsync(), runAsyncCallback(), sessionRun(), sessionRunAsync() and
+        // terminate() synchronize through unique_lock / shared_lock as
+        // appropriate. Reuses a single shared_mutex to avoid introducing new
+        // concurrency primitives beyond what Session.cpp already uses.
+        mutable std::shared_mutex m_stateMutex;
+
         Impl() : sessionResult(srt::core::NO<SessionResult>::create()) {
         }
 
@@ -239,6 +248,17 @@ namespace srt::driver::onnx {
                 return Ort::Value(nullptr);
             }
             const size_t byteCount = dataLength * elementSize;
+            // BUG-DRIVER-05: Validate that the source tensor's raw buffer is
+            // large enough for the requested copy. ITensor::rawData() returns a
+            // bare pointer, so use byteSize() to obtain the backing buffer size
+            // and refuse to read past the end of it.
+            if (tensor->byteSize() < byteCount) {
+                if (error) {
+                    *error = {srt::core::Error::InvalidArgument,
+                              "Tensor raw buffer size is smaller than required"};
+                }
+                return Ort::Value(nullptr);
+            }
             for (size_t i = 0; i < byteCount; ++i) {
                 dest[i] = rawBuffer[i];
             }
@@ -285,6 +305,18 @@ namespace srt::driver::onnx {
 
             auto rawData =
                 static_cast<const std::byte *>(ortValue.GetTensorData<void>());
+            // BUG-DRIVER-06: Guard against multiplication overflow when
+            // computing the byte length of the ORT tensor's data. Without this
+            // check a malformed shape could wrap around and produce a short
+            // array_view, leading to out-of-bounds reads downstream.
+            if (elementSize > 0 &&
+                totalSize > (std::numeric_limits<size_t>::max)() / elementSize) {
+                if (error) {
+                    *error = {srt::core::Error::InvalidArgument,
+                              "ONNX tensor element count * element size overflows size_t"};
+                }
+                return {};
+            }
             stdc::array_view<std::byte> data{rawData, rawData + totalSize * elementSize};
 
             if (auto exp = srt::core::Tensor::createFromRawView(tensorType, shape, data); exp) {
@@ -358,6 +390,20 @@ namespace srt::driver::onnx {
         static void runAsyncCallback(void *user_data, OrtValue **outputs, size_t num_outputs,
                                      OrtStatusPtr status) {
             auto &impl = *static_cast<Impl *>(user_data);
+            // BUG-DRIVER-01: Decrement inFlightCount on every exit path so
+            // that close() can detect when the async run is no longer using
+            // the image. We reference impl.image (not a captured `this`)
+            // because close() defers deletion of the image while
+            // inFlightCount > 0, keeping both impl and impl.image alive for
+            // the duration of this callback.
+            struct InFlightRelease {
+                SessionImage *img;
+                ~InFlightRelease() { if (img) --img->inFlightCount; }
+            } inflightRelease{impl.image};
+            // BUG-DRIVER-02: Serialize sessionResult writes against concurrent
+            // result()/run()/runAsync() calls. Declared after inflightRelease
+            // so the lock is released before inFlightCount is decremented.
+            std::unique_lock<std::shared_mutex> lock(impl.m_stateMutex);
             auto &ctx = *impl.context;
             impl.sessionResult->outputs.clear();
             Ort::Status runStatus(status);
@@ -460,10 +506,19 @@ namespace srt::driver::onnx {
                 for (auto &name : sessionStartInput->outputs) {
                     ctx.outputNames.push_back(name.c_str());
                 }
-                if (!runOptions) {
-                    runOptions = std::make_unique<Ort::RunOptions>();
+                // BUG-DRIVER-07: Protect runOptions creation/init against
+                // concurrent terminate(). The lock is released before Run()
+                // so that terminate() can still interrupt an in-flight run
+                // (ORT's RunOptions::SetTerminate is designed to be called
+                // concurrently with Run). runOptions stays valid because it
+                // is owned by Impl and only replaced under this lock.
+                {
+                    std::unique_lock<std::shared_mutex> optLock(m_stateMutex);
+                    if (!runOptions) {
+                        runOptions = std::make_unique<Ort::RunOptions>();
+                    }
+                    runOptions->UnsetTerminate();
                 }
-                runOptions->UnsetTerminate();
 
                 Ort::Status statusRun(Ort::GetApi().Run(
                     image->session, *runOptions, ctx.inputNames.data(), ctx.inputValuePtrs.data(),
@@ -500,7 +555,12 @@ namespace srt::driver::onnx {
                         ctx.outputNames[i],
                         exp.take());
                 }
-                sessionResult = result;
+                // BUG-DRIVER-02: Publish the completed result under the lock so
+                // concurrent result() readers observe a consistent pointer.
+                {
+                    std::unique_lock<std::shared_mutex> resLock(m_stateMutex);
+                    sessionResult = result;
+                }
                 return result;
             } catch (const Ort::Exception &err) {
                 if (error) {
@@ -588,17 +648,36 @@ namespace srt::driver::onnx {
                 for (auto &name : sessionStartInput->outputs) {
                     ctx.outputNames.push_back(name.c_str());
                 }
-                if (!runOptions) {
-                    runOptions = std::make_unique<Ort::RunOptions>();
+                // BUG-DRIVER-07: Protect runOptions creation/init against
+                // concurrent terminate(), mirroring sessionRun(). Released
+                // before RunAsync() so terminate() can still interrupt.
+                {
+                    std::unique_lock<std::shared_mutex> optLock(m_stateMutex);
+                    if (!runOptions) {
+                        runOptions = std::make_unique<Ort::RunOptions>();
+                    }
+                    runOptions->UnsetTerminate();
                 }
-                runOptions->UnsetTerminate();
 
                 asyncContext->callback = callback;
+                // BUG-DRIVER-01: Account for the in-flight RunAsync before
+                // handing control to ORT so that close() can detect it. The
+                // guard undoes the increment on every non-success path
+                // (RunAsync returning an error status or throwing); on success
+                // the callback takes ownership of the decrement.
+                struct InFlightGuard {
+                    SessionImage *img;
+                    bool committed = false;
+                    ~InFlightGuard() { if (!committed && img) --img->inFlightCount; }
+                } inflightGuard{image, false};
+                ++image->inFlightCount;
                 Ort::Status statusRun(Ort::GetApi().RunAsync(
                     image->session, *runOptions, ctx.inputNames.data(), ctx.inputValuePtrs.data(),
                     inputCount, ctx.outputNames.data(), outputCount, ctx.outputValuePtrs.data(),
                     runAsyncCallback, static_cast<void *>(this)));
                 if (!statusRun.IsOK()) {
+                    // RunAsync failed synchronously: the callback will not be
+                    // invoked, so the guard undoes the increment.
                     ctx.releaseOutputValues();
                     if (error) {
                         *error = srt::core::Error(srt::core::Error::SessionError,
@@ -606,6 +685,7 @@ namespace srt::driver::onnx {
                     }
                     return false;
                 }
+                inflightGuard.committed = true;
                 return true;
             } catch (const Ort::Exception &err) {
                 if (error) {
@@ -622,7 +702,7 @@ namespace srt::driver::onnx {
         }
     };
 
-    Session::Session() : _impl(std::make_unique<Impl>()) {
+    Session::Session() : m_impl(std::make_unique<Impl>()) {
     }
 
     Session::~Session() {
@@ -630,14 +710,14 @@ namespace srt::driver::onnx {
     }
 
     Session::Session(Session &&other) noexcept {
-        std::swap(_impl, other._impl);
+        std::swap(m_impl, other.m_impl);
     }
 
     Session &Session::operator=(Session &&other) noexcept {
         if (this == &other) {
             return *this;
         }
-        std::swap(_impl, other._impl);
+        std::swap(m_impl, other.m_impl);
         return *this;
     }
 
@@ -682,7 +762,7 @@ namespace srt::driver::onnx {
 
     srt::core::Expected<void> Session::open(const fs::path &path,
                                             const srt::core::NO<SessionOpenArgs> &args) {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
 
         if (isOpen()) {
             Log.srtWarning("Session - Session %1 is already open!", stdc::path::to_utf8(path));
@@ -795,7 +875,7 @@ namespace srt::driver::onnx {
             delete image;
             return srt::core::Error{
                 srt::core::Error::FileNotOpen,
-                "failed to read file: " + error1,
+                "failed to open ONNX session: " + error1,
             };
         }
 
@@ -830,7 +910,7 @@ namespace srt::driver::onnx {
     }
 
     srt::core::Expected<void> Session::close() {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
 
         if (!impl.group)
             return srt::core::Error(srt::core::Error::SessionError, "session is not open");
@@ -853,6 +933,20 @@ namespace srt::driver::onnx {
                 goto out_success;
             }
             Log.srtDebug("SessionImage [%1] - delete", filename);
+            // BUG-DRIVER-01: Refuse to delete the image (which owns the
+            // Ort::Session) while an async RunAsync is still using it.
+            // Callers must wait for the async callback to fire before
+            // calling close(). Simplified scheme: fail loudly instead of
+            // blocking here, to avoid synchronizing with ORT internal
+            // threads. ErrorCode::SessionBusy is not defined in the public
+            // enum, so reuse SessionError with a descriptive message.
+            if (data.image && data.image->inFlightCount.load() > 0) {
+                // Restore the ref count we just decremented so a later
+                // close() after the async run completes can succeed.
+                ++data.count;
+                return srt::core::Error(srt::core::Error::SessionError,
+                                        "cannot close session: async run in progress");
+            }
             delete it->second.image;
             images.erase(it);
         }
@@ -877,12 +971,12 @@ namespace srt::driver::onnx {
     }
 
     const std::filesystem::path &Session::path() const {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         return impl.realPath;
     }
 
     bool Session::isOpen() const {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         return impl.group != nullptr;
     }
 
@@ -892,7 +986,7 @@ namespace srt::driver::onnx {
     }
 
     const std::vector<std::string> &Session::inputNames() const {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         if (!impl.image) {
             return shared_empty_names();
         }
@@ -900,62 +994,84 @@ namespace srt::driver::onnx {
     }
 
     const std::vector<std::string> &Session::outputNames() const {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         if (!impl.image) {
             return shared_empty_names();
         }
         return impl.image->outputNames;
     }
 
-    void Session::terminate() {
-        __stdc_impl_t;
+    bool Session::terminate() {
+        auto &impl = *m_impl;
+        // BUG-DRIVER-07: Protect the runOptions pointer read against
+        // concurrent sessionRun()/sessionRunAsync() which may (re)create it.
+        // A shared_lock is sufficient because RunOptions::SetTerminate is
+        // thread-safe by design and may be called concurrently with an
+        // in-flight Run/RunAsync; multiple terminate() calls may also overlap.
+        std::shared_lock<std::shared_mutex> lock(impl.m_stateMutex);
         if (impl.runOptions) {
             impl.runOptions->SetTerminate();
+            return true;
         }
+        // runOptions 为 null 表示 session 未 open 或未运行，stop() 无意义
+        return false;
     }
 
     srt::core::Expected<srt::core::NO<srt::core::TaskResult>>
         Session::run(const srt::core::NO<srt::core::TaskStartInput> &input) {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         srt::core::Error tmpError;
         if (!(input && input->objectName() == API_NAME)) {
             tmpError = {srt::core::Error::InvalidArgument, "invalid task start input"};
+            // BUG-DRIVER-02: Serialize sessionResult writes against
+            // result()/runAsyncCallback() readers.
+            std::unique_lock<std::shared_mutex> lock(impl.m_stateMutex);
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
         if (!impl.group) {
             tmpError = {srt::core::Error::SessionError, "session is not open"};
+            std::unique_lock<std::shared_mutex> lock(impl.m_stateMutex);
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
         auto startInput = input.as<SessionStartInput>();
         auto result = impl.sessionRun(startInput, &tmpError);
         if (!result) {
+            std::unique_lock<std::shared_mutex> lock(impl.m_stateMutex);
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
-        impl.sessionResult = result;
+        {
+            std::unique_lock<std::shared_mutex> lock(impl.m_stateMutex);
+            impl.sessionResult = result;
+        }
         return result;
     }
 
     srt::core::Expected<void>
         Session::runAsync(const srt::core::NO<srt::core::TaskStartInput> &input,
                           const srt::core::ITask::StartAsyncCallback &callback) {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         srt::core::Error tmpError;
         if (!(input && input->objectName() == API_NAME)) {
             tmpError = {srt::core::Error::InvalidArgument, "invalid task start input"};
+            // BUG-DRIVER-02: Serialize sessionResult writes against
+            // result()/runAsyncCallback() readers.
+            std::unique_lock<std::shared_mutex> lock(impl.m_stateMutex);
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
         if (!impl.group) {
             tmpError = {srt::core::Error::SessionError, "session is not open"};
+            std::unique_lock<std::shared_mutex> lock(impl.m_stateMutex);
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
         auto startInput = input.as<SessionStartInput>();
         bool ok = impl.sessionRunAsync(startInput, callback, &tmpError);
         if (!ok) {
+            std::unique_lock<std::shared_mutex> lock(impl.m_stateMutex);
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
@@ -963,7 +1079,11 @@ namespace srt::driver::onnx {
     }
 
     srt::core::NO<srt::core::TaskResult> Session::result() const {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
+        // BUG-DRIVER-02: Take a shared_lock so that concurrent writers in
+        // run()/runAsync()/runAsyncCallback() cannot tear the sessionResult
+        // pointer while we read it. Multiple result() calls may overlap.
+        std::shared_lock<std::shared_mutex> lock(impl.m_stateMutex);
         return impl.sessionResult.as<srt::core::TaskResult>();
     }
 }

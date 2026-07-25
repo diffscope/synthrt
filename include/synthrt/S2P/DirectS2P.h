@@ -1,5 +1,4 @@
-#ifndef SRT_S2P_DIRECTS2P_H
-#define SRT_S2P_DIRECTS2P_H
+#pragma once
 
 #include <memory>
 #include <string>
@@ -33,5 +32,3 @@ namespace srt::s2p {
     };
 
 }
-
-#endif // SRT_S2P_DIRECTS2P_H

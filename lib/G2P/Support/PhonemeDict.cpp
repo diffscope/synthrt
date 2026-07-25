@@ -85,7 +85,15 @@ namespace srt::g2p
         const std::streamsize file_size = file.tellg();
         file.seekg(0, std::ios::beg);
 
-        filebuf.resize(file_size + 1); // +1 for terminator
+        // Guard against tellg() failure (pipes, special files, stream errors).
+        // A negative file_size would cause negative resize/read and OOB writes.
+        if (file_size < 0) {
+            if (ec)
+                *ec = make_last_error();
+            return false;
+        }
+
+        filebuf.resize(static_cast<size_t>(file_size) + 1); // +1 for terminator
         if (!file.read(filebuf.data(), file_size)) {
             if (ec)
                 *ec = std::error_code(errno, std::system_category());
@@ -118,7 +126,6 @@ namespace srt::g2p
                 if (start >= buffer_end)
                     break;
 
-                const char *value_start = nullptr;
                 uint32_t value_cnt = 0;
 
                 // Find tab or line break
@@ -135,20 +142,52 @@ namespace srt::g2p
 
                 // Tab found at p
                 *p = '\0';
-                value_start = p + 1;
-
-                // Count values until line end
                 ++p; // move past tab
-                while (p < buffer_end) {
+
+                // Skip leading spaces after tab
+                while (p < buffer_end && *p == ' ') {
+                    *p = '\0';
+                    ++p;
+                }
+                char *value_start = p;
+
+                // Null-terminate all spaces and the line-ending newline/cr.
+                // A compaction pass below removes empty strings caused by
+                // consecutive/trailing spaces (consistent with
+                // DirectS2P::convert which skips empty tokens).
+                while (p < buffer_end && *p != '\r' && *p != '\n') {
                     if (*p == ' ') {
-                        value_cnt++;
                         *p = '\0';
-                    } else if (*p == '\r' || *p == '\n') {
-                        value_cnt++;
-                        *p = '\0';
-                        break;
                     }
                     ++p;
+                }
+                if (p < buffer_end) {
+                    *p = '\0'; // null-terminate the line ending
+                }
+
+                // Compact phoneme values: remove empty strings so the
+                // PhonemeList iterator (which advances by strlen+1) never
+                // returns spurious empty phonemes.
+                {
+                    char *read = value_start;
+                    char *write = value_start;
+                    const char *end = (p < buffer_end) ? p : (buffer_end - 1);
+                    uint32_t compacted_count = 0;
+                    while (read <= end) {
+                        const size_t len = std::strlen(read);
+                        if (len > 0) {
+                            if (read != write) {
+                                std::memmove(write, read, len + 1);
+                            }
+                            write += len + 1;
+                            ++compacted_count;
+                        }
+                        read += len + 1;
+                        if (read > end) {
+                            break;
+                        }
+                    }
+                    value_cnt = compacted_count;
                 }
 
                 map[start] = Impl::Entry{static_cast<uint32_t>(value_start - buffer_begin), value_cnt};

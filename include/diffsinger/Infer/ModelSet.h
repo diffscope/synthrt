@@ -56,6 +56,34 @@ namespace ds::infer {
         void markStale() noexcept;
         bool isStale() const noexcept;
 
+        /// Clear the stale flag set by \c markStale(), allowing the ModelSet
+        /// instance to be reused for subsequent \c load()/start() calls.
+        ///
+        /// This is an opt-in escape hatch for callers that cannot easily
+        /// rebuild a fresh ModelSet instance (e.g. long-lived session shells
+        /// that need to preserve their StageSet binding across reloads).
+        ///
+        /// \par Contract (ROBUST-04)
+        /// - The caller MUST ensure no \c start() is in flight on any stage
+        ///   before calling \c clearStale(). Use \c stop() / \c unload() to
+        ///   drain running work first.
+        /// - \c clearStale() does NOT release already-loaded Inference
+        ///   objects, reset per-stage \c epochSlot values, or clear retained
+        ///   TaskResult entries. After \c clearStale(), the caller MUST
+        ///   \c unload() (or \c unloadAll()) any stage whose underlying
+        ///   spec / package may have changed before re-\c load()ing it, so
+        ///   that the next \c load() re-creates the Inference from the
+        ///   (potentially updated) spec snapshot.
+        /// - \c clearStale() does NOT auto-rebuild; the StageSet stored at
+        ///   construction is unchanged.
+        ///
+        /// \note The default lifecycle pattern (per ARCH-05) remains: when a
+        ///       package is reloaded, mark the old ModelSet stale and build a
+        ///       new ModelSet from the fresh StageSet. \c clearStale() is
+        ///       provided for callers that explicitly opt into instance reuse
+        ///       and accept the additional bookkeeping responsibility.
+        void clearStale() noexcept;
+
         /// Get the loaded model NO reference. Returns an empty NO if not loaded.
         srt::core::NO<srt::svs::Inference> &model(StageKind kind) noexcept;
         const srt::core::NO<srt::svs::Inference> &model(StageKind kind) const noexcept;

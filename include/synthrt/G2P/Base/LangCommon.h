@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_BASE_LANGCOMMON_H
-#define SRT_G2P_BASE_LANGCOMMON_H
+#pragma once
 
 #include <string>
 #include <utility>
@@ -117,5 +116,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_BASE_LANGCOMMON_H

@@ -17,6 +17,8 @@
 #include <synthrt/Extract/AudioPreprocessor.h>
 #include <synthrt/Extract/ExtractorDriver.h>
 
+namespace srt::extract::plugins::Game {
+
 // ============================================================================
 // 文件局部辅助函数（从 GameModel.cpp 迁移）
 // ============================================================================
@@ -400,8 +402,15 @@ std::vector<uint8_t> GameExtractor::runSegmenter(
     // 提取 maskT 数据
     auto maskTData = maskT->rawView();
     std::vector<bool> maskTBool(static_cast<size_t>(T));
+    // BUG-PLUGIN-GAME-01: Guard against abnormally-sized tensors returned by
+    // the ONNX model to avoid out-of-bounds reads. Mirrors the bounds-check
+    // pattern used in inferSlice() (see line ~770).
     for (int64_t i = 0; i < T; ++i) {
-        maskTBool[static_cast<size_t>(i)] = maskTData[static_cast<size_t>(i)] != std::byte{0};
+        if (static_cast<size_t>(i) < maskTData.size()) {
+            maskTBool[static_cast<size_t>(i)] = maskTData[static_cast<size_t>(i)] != std::byte{0};
+        } else {
+            maskTBool[static_cast<size_t>(i)] = false;
+        }
     }
 
     // 提取 xSeg 数据
@@ -413,6 +422,12 @@ std::vector<uint8_t> GameExtractor::runSegmenter(
     }
     xSegData = xSegExp.take();
 
+    // BUG-PLUGIN-GAME-03: Validate xSeg dimensionality before indexing
+    // shape[0]/shape[1]/shape[2]; an abnormal ONNX output must not cause an
+    // out-of-bounds shape read (ROBUST-05).
+    if (xSegShape.size() < 3) {
+        throw std::runtime_error("runSegmenter: xSeg shape has fewer than 3 dimensions");
+    }
     std::vector<int64_t> xSegShapeArr = {xSegShape[0], xSegShape[1], xSegShape[2]};
 
     std::vector<uint8_t> currentBoundaries = prevBoundaries;
@@ -631,8 +646,15 @@ GameExtractor::runEstimator(const srt::core::NO<srt::core::ITensor> &xEst,
     auto maskTData = maskT->rawView();
     std::vector<uint8_t> maskTVec;
     maskTVec.reserve(static_cast<size_t>(T));
+    // BUG-PLUGIN-GAME-02: Guard against abnormally-sized tensors returned by
+    // the ONNX model to avoid out-of-bounds reads. Mirrors the bounds-check
+    // pattern used in inferSlice() (see line ~770).
     for (int64_t i = 0; i < T; ++i) {
-        maskTVec.push_back(maskTData[static_cast<size_t>(i)] != std::byte{0} ? 1 : 0);
+        if (static_cast<size_t>(i) < maskTData.size()) {
+            maskTVec.push_back(maskTData[static_cast<size_t>(i)] != std::byte{0} ? 1 : 0);
+        } else {
+            maskTVec.push_back(0);
+        }
     }
 
     // 调整 boundaries 大小
@@ -874,4 +896,6 @@ std::vector<srt::extract::MidiNote> GameExtractor::buildMidiNotes(
     }
 
     return midiData;
+}
+
 }

@@ -1,16 +1,14 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2P_STEPS_TAGANDVALIDATESTEP_H
-#define SRT_G2P_PLUGINS_CHAING2P_STEPS_TAGANDVALIDATESTEP_H
+#pragma once
 
 #include "../Core/G2pStep.h"
 #include <synthrt/Core/Support/ConfigAccessor.h>
-#include <InferUtil/Verifier.h>
+#include <inferutil/Verifier.h>
 #include <vector>
 #include <string>
 #include <memory>
 #include <re2/re2.h>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     /// TagAndValidateStep - 标记和验证步骤
     ///
     /// 使用正则表达式对输入词进行分类，决定 copy/convert 模式
@@ -46,6 +44,4 @@ namespace srt::g2p::plugins::ChainG2p
         void compileEntries();
     };
 
-} // namespace srt::g2p::plugins::ChainG2p
-
-#endif // SRT_G2P_PLUGINS_CHAING2P_STEPS_TAGANDVALIDATESTEP_H
+}

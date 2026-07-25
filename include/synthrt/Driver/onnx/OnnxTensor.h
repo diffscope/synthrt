@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_ONNX_ONNXTENSOR_H
-#define SRT_DRIVER_ONNX_ONNXTENSOR_H
+#pragma once
 
 #include <algorithm>
 
@@ -232,5 +231,3 @@ namespace srt::driver::onnx {
         return tensor;
     }
 }
-
-#endif // SRT_DRIVER_ONNX_ONNXTENSOR_H

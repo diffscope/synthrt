@@ -14,7 +14,7 @@
 
 #include <cpp-pinyin/G2pglobal.h>
 
-#include <InferUtil/Verifier.h>
+#include <inferutil/Verifier.h>
 
 namespace srt::g2p::plugins::Common
 {
@@ -27,8 +27,6 @@ namespace srt::g2p::plugins::Common
 
     srt::core::Expected<void> PinyinG2pTaskImplBase::initialize() {
         std::unique_lock lock(m_mutex);
-
-        m_result.reset();
 
         auto cfg = srt::core::config(m_spec);
 
@@ -157,20 +155,25 @@ namespace srt::g2p::plugins::Common
                 newRes.lyric = std::string(hanzi);
                 newRes.g2pId = std::string(m_spec->id());
                 newRes.pronunciation = std::string(pinyin);
-                newRes.candidates = std::vector<std::string>();
+                newRes.candidates = std::vector<std::string>(candidates.begin(), candidates.end());
+                if (newRes.candidates.empty() && !newRes.pronunciation.empty()) {
+                    newRes.candidates.push_back(newRes.pronunciation);
+                }
                 newRes.mode = std::string(mode);
                 newRes.errorType = wordErrorType;
                 g2pResult->g2pResult.emplace_back(newRes);
             }
         }
 
-        m_result = g2pResult;
         return g2pResult;
     }
 
     std::string PinyinG2pTaskImplBase::getConfig() const {
-        if (!m_config.empty()) {
-            return m_config;
+        {
+            std::shared_lock<std::shared_mutex> lock(m_mutex);
+            if (!m_config.empty()) {
+                return m_config;
+            }
         }
 
         srt::core::JsonObject configObj;

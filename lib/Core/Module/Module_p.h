@@ -20,7 +20,7 @@
 namespace srt::core {
 
     // Impl 为独立式（非继承 NamedObject::Impl）：ModuleSpec 不继承 NamedObject，
-    // 故 Impl 无 _decl 反向指针，与继承式 Impl（如 PackageManager::Impl）风格不同。
+    // 故 Impl 无 m_q 反向指针，与继承式 Impl（如 PackageManager::Impl）风格不同。
     //
     // 与 LangCore 版本的差异（部分迁移）：
     //   - DisplayText 未迁移：name / configurationDisplayNames 改用 std::string
@@ -28,7 +28,7 @@ namespace srt::core {
     //   - ContextKey 已迁入 srt::core::ContextKey（见 Support/ContextKey.h）
     class ModuleSpec::Impl {
     public:
-        explicit Impl(std::string category) : category(std::move(category)), state(Invalid) {}
+        explicit Impl(std::string category) : m_category(std::move(category)), m_state(Invalid) {}
         virtual ~Impl() = default;
 
         // v2 Phase 5: inlined so derived Impl classes in separate DLLs (srt-svs)
@@ -38,54 +38,54 @@ namespace srt::core {
             // Full manifest parsing requires PackageManager (not yet migrated).
             auto it = obj.find("id");
             if (it != obj.end() && it->second.isString()) {
-                id = it->second.toString();
+                m_id = it->second.toString();
             }
             it = obj.find("className");
             if (it != obj.end() && it->second.isString()) {
-                className = it->second.toString();
+                m_className = it->second.toString();
             }
             it = obj.find("apiLevel");
             if (it != obj.end() && it->second.isInt()) {
-                apiLevel = static_cast<int>(it->second.toInt());
+                m_apiLevel = static_cast<int>(it->second.toInt());
             }
             it = obj.find("configuration");
             if (it != obj.end() && it->second.isObject()) {
-                manifestConfiguration = it->second.toObject();
+                m_manifestConfiguration = it->second.toObject();
             }
-            path = basePath;
+            m_path = basePath;
             return {};
         }
 
-        std::string id;
+        std::string m_id;
 
-        std::string category;
+        std::string m_category;
 
-        std::filesystem::path path;
+        std::filesystem::path m_path;
 
-        std::string className;
+        std::string m_className;
 
         // TODO: DisplayText not yet migrated; using std::string as placeholder.
-        std::string name;
-        int apiLevel = 0;
+        std::string m_name;
+        int m_apiLevel = 0;
 
-        JsonObject manifestConfiguration;
-        NO<TaskConfiguration> configuration;
+        JsonObject m_manifestConfiguration;
+        NO<TaskConfiguration> m_configuration;
 
         // TODO: DisplayText not yet migrated; using std::string values.
-        std::map<std::string, std::string> configurationDisplayNames;
+        std::map<std::string, std::string> m_configurationDisplayNames;
 
-        stdc::VersionNumber fmtVersion;
+        stdc::VersionNumber m_fmtVersion;
 
-        State state;
+        State m_state;
 
         // PackageData 未迁移，使用 packageId + packageVersion 标识所属包。
-        std::string packageId;
-        stdc::VersionNumber packageVersion;
+        std::string m_packageId;
+        stdc::VersionNumber m_packageVersion;
 
         // 模块所属 context（createModuleTask 阶段注入；parseSpec/loadSpec 阶段为默认值）
-        ContextKey contextKey;
+        ContextKey m_contextKey;
 
-        Runtime *runtime = nullptr;
+        Runtime *m_runtime = nullptr;
     };
 
     // ModuleCategory::Impl 继承 ObjectPool::Impl（ModuleCategory 继承 ObjectPool）。
@@ -99,24 +99,24 @@ namespace srt::core {
     class ModuleCategory::Impl : public ObjectPool::Impl {
     public:
         explicit Impl(ModuleCategory *decl, std::string name, void *mgr) :
-            ObjectPool::Impl(decl), name(std::move(name)), mgr(mgr) {}
+            ObjectPool::Impl(decl), m_name(std::move(name)), m_mgr(mgr) {}
         explicit Impl(ModuleCategory *decl, std::string name, Runtime *runtime) :
-            ObjectPool::Impl(decl), name(std::move(name)), mgr(runtime), runtime(runtime) {}
+            ObjectPool::Impl(decl), m_name(std::move(name)), m_mgr(runtime), m_runtime(runtime) {}
         ~Impl() override;
 
-        std::string name;
-        void *mgr;
-        Runtime *runtime = nullptr;
+        std::string m_name;
+        void *m_mgr;
+        Runtime *m_runtime = nullptr;
 
-        std::list<ModuleSpec *> modules;
+        std::list<ModuleSpec *> m_modules;
         std::map<
             std::string,
-            std::unordered_map<stdc::VersionNumber, std::map<std::string, std::map<int, decltype(modules)::iterator>>>>
-            indexes;
+            std::unordered_map<stdc::VersionNumber, std::map<std::string, std::map<int, decltype(m_modules)::iterator>>>>
+            m_indexes;
 
         // TODO: 临时本地锁；PackageManager 迁移后应改回 mgr->_impl->su_mtx。
-        mutable std::shared_mutex su_mtx;
-        std::shared_mutex &suMtx() const { return su_mtx; }
+        mutable std::shared_mutex m_su_mtx;
+        std::shared_mutex &suMtx() const { return m_su_mtx; }
 
         std::vector<ModuleSpec *> findModuleSpecs(const ModuleLocator &loc) const;
     };

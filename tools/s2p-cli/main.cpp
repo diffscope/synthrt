@@ -6,20 +6,15 @@
 
 #include <synthrt/S2P/LanguageResource.h>
 
+// TD-CLI-06: 复用 tools/common 的公共 JSON 转义实现，消除重复定义
+#include "json_escape.h"
+
 namespace {
-    std::string escapeJson(const std::string &text) {
-        std::string out;
-        for (const char ch : text) {
-            switch (ch) {
-                case '\\': out += "\\\\"; break;
-                case '"': out += "\\\""; break;
-                case '\n': out += "\\n"; break;
-                case '\r': out += "\\r"; break;
-                case '\t': out += "\\t"; break;
-                default: out += ch; break;
-            }
-        }
-        return out;
+    namespace json_common = synthrt::tools::common;
+
+    // 保留旧名 escapeJson 作为 thin wrapper，避免大面积改写 main.cpp 调用点。
+    inline std::string escapeJson(const std::string &text) {
+        return json_common::escapeJsonString(text);
     }
 
     void printResult(const std::vector<std::string> &phonemes, const std::vector<bool> &onsets) {

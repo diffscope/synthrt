@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_INFERENCESESSION_H
-#define SRT_DRIVER_INFERENCESESSION_H
+#pragma once
 
 #include <cstdint>
 #include <filesystem>
@@ -66,5 +65,3 @@ namespace srt::driver {
     };
 
 }
-
-#endif // SRT_DRIVER_INFERENCESESSION_H

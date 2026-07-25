@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_SRT_CORE_GLOBAL_H
-#define SRT_CORE_SRT_CORE_GLOBAL_H
+#pragma once
 
 #include <stdcorelib/stdc_global.h>
 
@@ -18,5 +17,3 @@
 #ifndef SYNTHRT_EXPORT
 #  define SYNTHRT_EXPORT SRT_CORE_EXPORT
 #endif
-
-#endif // SRT_CORE_SRT_CORE_GLOBAL_H

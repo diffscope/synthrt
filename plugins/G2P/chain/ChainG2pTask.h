@@ -1,13 +1,12 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2PTASK_H
-#define SRT_G2P_PLUGINS_CHAING2PTASK_H
+#pragma once
 
 #include <synthrt/G2P/Task/Task.h>
 #include <synthrt/G2P/Task/VersionedTaskManager.h>
 #include <synthrt/Core/Module/Module.h>
 #include <memory>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
+
     class ChainG2pTask : public srt::g2p::Task {
     public:
         explicit ChainG2pTask(const srt::g2p::ModuleSpec *spec);
@@ -23,9 +22,7 @@ namespace srt::g2p::plugins::ChainG2p
         std::string getConfig() const override;
 
     private:
-        srt::g2p::VersionedTaskManager _manager;
+        srt::g2p::VersionedTaskManager m_manager;
     };
 
-} // namespace srt::g2p::plugins::ChainG2p
-
-#endif // SRT_G2P_PLUGINS_CHAING2PTASK_H
+}

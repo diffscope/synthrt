@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_CORE_MANAGER_H
-#define SRT_G2P_CORE_MANAGER_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -82,5 +81,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_CORE_MANAGER_H

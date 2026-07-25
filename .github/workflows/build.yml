@@ -13,6 +13,11 @@ env:
   # restored on subsequent runs, avoiding lengthy rebuilds.
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
+# Cancel superseded runs on the same ref to save runner minutes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-and-test:
     name: ${{ matrix.os }}
@@ -29,18 +34,34 @@ jobs:
             runner: macos-latest
 
     steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      # actions/checkout@v5 runs on Node 24 (v4 was Node 20, deprecated).
+      # No submodules: the vcpkg-overlay was removed as a submodule and is
+      # cloned in a dedicated step below. The overlay repo has no nested
+      # submodules, so a plain checkout is sufficient.
+      - uses: actions/checkout@v5
 
       # Export the GH Actions cache URL and token so that vcpkg's x-gha
       # binary source can read/write compiled packages.
+      # actions/github-script@v7 is the latest stable major; its latest patch
+      # already runs on Node 24.
       - name: Export GitHub Actions cache variables
         uses: actions/github-script@v7
         with:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      # Clone the vcpkg overlay (custom ports + triplets) on every run.
+      # The overlay is no longer a git submodule to avoid CI breakage when
+      # the overlay remote force-pushes or moves on. We always clone the
+      # latest main of stdware/vcpkg-overlay, which is the authoritative
+      # source for synthrt's custom ports (qmsetup, stdcorelib, cpp-pinyin,
+      # syscmdline, synthrt itself, etc.) and per-platform triplets.
+      - name: Clone vcpkg overlay (latest main)
+        shell: bash
+        run: |
+          git clone --depth 1 https://github.com/stdware/vcpkg-overlay.git scripts/vcpkg
+          echo "Overlay HEAD: $(git -C scripts/vcpkg log -1 --oneline)"
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
@@ -57,7 +78,7 @@ jobs:
       # images ship a moving (and sometimes shallow) vcpkg clone, which cannot
       # reliably resolve a manifest baseline.
       - name: Check out vcpkg
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: microsoft/vcpkg
           ref: 97b19caab97ab0c8d36c93230046c8c45fcd41d0
@@ -85,9 +106,12 @@ jobs:
         run: |
           "${VCPKG_ROOT}/vcpkg" version
 
+      # ONNX Runtime cache: large binary download (~200 MB), cache keyed by
+      # platform + arch + version. Bump the v1 suffix when setup-onnxruntime.cmake
+      # changes its version or download URL.
       - name: Cache ONNX Runtime
         id: cache-ort
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: build/onnxruntime
           key: onnxruntime-${{ matrix.os }}-${{ runner.arch }}-1.17.3-v1
@@ -100,6 +124,35 @@ jobs:
           file(TO_CMAKE_PATH "${ws}" ws)
           set(CMAKE_BINARY_DIR "${ws}/build")
           include(${ws}/scripts/setup-onnxruntime.cmake)
+
+      # sccache accelerates C++ recompilation across runs by caching object
+      # files in the GH Actions cache backend. Only enabled on Linux/macOS
+      # where SCCACHE_GHA_ENABLED is supported out of the box; Windows uses
+      # the same GH Actions cache backend via SCCACHE_GHA_ENABLED=true.
+      - name: Set up sccache (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y sccache
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
+
+      - name: Set up sccache (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install sccache
+          echo "SCCACHE_GHA_ENABLED=true" >> "$GITHUB_ENV"
+          echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
+          echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> "$GITHUB_ENV"
+
+      - name: Set up sccache (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # sccache is preinstalled on windows-latest; just enable GH Actions backend.
+          "SCCACHE_GHA_ENABLED=true" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CMAKE_C_COMPILER_LAUNCHER=sccache" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "CMAKE_CXX_COMPILER_LAUNCHER=sccache" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Configure CMake
         shell: bash

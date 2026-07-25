@@ -54,6 +54,10 @@ namespace ds::bank {
     public:
         std::vector<std::filesystem::path> searchPaths;
         std::vector<SingerSnapshot> snapshots;
+        // TD-01 (D-39 #2): full manifests for valid packages. Ordered by
+        // discovery, matching the order of valid entries in the statuses
+        // vector returned by refresh(). Invalid packages are skipped.
+        std::vector<PackageManifest> manifests;
         // Multi-version storage (V3-01 §1.6): all (packageId, version) pairs
         // survive, in discovery order. The legacy packageDirs map collapsed
         // same-packageId entries to the last seen; this map keeps one vector
@@ -86,11 +90,13 @@ namespace ds::bank {
     void VoicebankScanner::clear() {
         _impl->searchPaths.clear();
         _impl->snapshots.clear();
+        _impl->manifests.clear();
         _impl->packageDirs.clear();
     }
 
     srt::core::Expected<std::vector<PackageStatus>> VoicebankScanner::refresh() {
         _impl->snapshots.clear();
+        _impl->manifests.clear();
         _impl->packageDirs.clear();
 
         std::vector<PackageStatus> statuses;
@@ -200,6 +206,11 @@ namespace ds::bank {
             status.version = package.version();
             status.dependencies = package.dependencies();
             status.valid = true;
+            // TD-01 (D-39 #2): retain the full manifest so VoicebankSnapshot
+            // can expose author/description/license/singers/speakers/languages
+            // without re-parsing desc.json. All fields used above were copied
+            // out before this move, so moving package is safe.
+            _impl->manifests.push_back(std::move(package));
             statuses.push_back(std::move(status));
         };
 
@@ -257,6 +268,10 @@ namespace ds::bank {
         return _impl->snapshots;
     }
 
+    const std::vector<PackageManifest> &VoicebankScanner::manifests() const {
+        return _impl->manifests;
+    }
+
     srt::core::Expected<SingerSnapshot> VoicebankScanner::singerSnapshot(
         const SingerRef &ref) const {
         const auto *snap = _impl->findSnapshot(ref);
@@ -309,9 +324,11 @@ namespace ds::bank {
 
     std::filesystem::path VoicebankScanner::packageDirectory(
         const std::string &packageId) const {
-        // Legacy: return the first matching entry's path (single-version
-        // backward compat). Deprecated warning is emitted at the call site
-        // via the [[deprecated]] attribute in the header, not here.
+        // Legacy: return the first matching entry's path. Deprecated warning
+        // is emitted at the call site via the [[deprecated]] attribute in the
+        // header, not here. Multi-version callers should use packageDirectories()
+        // to explicitly choose; this legacy API preserves "first wins" semantics
+        // for backward compatibility (tests 167/183/205 verify this contract).
         const auto it = _impl->packageDirs.find(packageId);
         if (it == _impl->packageDirs.end() || it->second.empty()) {
             return {};

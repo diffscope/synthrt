@@ -1,0 +1,5 @@
+include_guard(GLOBAL)
+find_path(SPARSEPP_INCLUDE_DIRS NAMES "sparsepp/spp.h")
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(SparsePP DEFAULT_MSG SPARSEPP_INCLUDE_DIRS)
+mark_as_advanced(SPARSEPP_INCLUDE_DIRS)

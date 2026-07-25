@@ -1,5 +1,4 @@
-#ifndef DSINFER_API_COMMONAPIL1_H
-#define DSINFER_API_COMMONAPIL1_H
+#pragma once
 
 #include <optional>
 #include <string>
@@ -113,5 +112,3 @@ namespace srt::svs::Api::Common::L1 {
     };
 
 }
-
-#endif // DSINFER_API_COMMONAPIL1_H

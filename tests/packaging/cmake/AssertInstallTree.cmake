@@ -34,7 +34,26 @@ if(DEFINED SELF_TEST_ROOT AND NOT SELF_TEST_ROOT STREQUAL "")
         set(_package_dir "${_prefix}/${_libdir}/cmake/${_package}")
         file(MAKE_DIRECTORY "${_package_dir}")
         file(WRITE "${_package_dir}/${_package}Config.cmake" "# relocatable fake config\n")
-        file(WRITE "${_package_dir}/${_package}Targets.cmake" "# relocatable fake targets\n")
+        # BI-24: synthrtTargets.cmake must contain the aggregate and bundled
+        # target names so the self-test exercises the same assertion as real
+        # install trees.
+        if(_package STREQUAL "synthrt")
+            file(WRITE "${_package_dir}/${_package}Targets.cmake"
+                "# relocatable fake targets\n"
+                "# Provides: srt::session, srt::synthrt, srt::diffsinger\n"
+                # T-09: the bundled srt-ds-session library is installed into the
+                # synthrtTargets export set with EXPORT_NAME=session under
+                # NAMESPACE srt:: (see domains/ds-session/lib/CMakeLists.txt +
+                # the top-level install(EXPORT synthrtTargets NAMESPACE srt::)),
+                # so the imported target name is srt::session, NOT the
+                # build-tree alias srt-ds::session (aliases are never exported).
+                "add_library(srt::session SHARED IMPORTED)\n"
+                "add_library(srt::synthrt INTERFACE IMPORTED)\n"
+                "add_library(srt::diffsinger INTERFACE IMPORTED)\n"
+            )
+        else()
+            file(WRITE "${_package_dir}/${_package}Targets.cmake" "# relocatable fake targets\n")
+        endif()
         file(WRITE "${_package_dir}/${_package}Targets-release.cmake" "# fake per-config targets\n")
         list(APPEND _manifest_entries
             "${_package_dir}/${_package}Config.cmake"
@@ -178,6 +197,46 @@ foreach(_package_file IN LISTS _package_files)
             endif()
         endif()
     endforeach()
+endforeach()
+
+# BI-24 / T-09: Verify aggregate and bundled targets are exported as IMPORTED
+# libraries in synthrtTargets.cmake. The synthrtTargets export set
+# (install(EXPORT synthrtTargets NAMESPACE srt::) in the top-level
+# CMakeLists.txt) declares exactly three add_library(... IMPORTED) targets:
+#   - srt::synthrt     aggregate of core runtime + DiffSinger domain libs
+#   - srt::diffsinger  aggregate for DiffSinger (g2p, ds-bank, ds-infer)
+#   - srt::session     srt-ds-session bundled into synthrtTargets. EXPORT_NAME
+#                      =session + NAMESPACE=srt:: yield the imported name
+#                      srt::session; the build-tree ALIAS srt-ds::session is
+#                      consumed by aggregate COMPONENTS and rewritten to the
+#                      exported name on install (aliases are never exported).
+# Sub-package targets (srt::core / srt::g2p / srt::c ...) are NOT declared
+# here; they ship in their own *Targets.cmake (srt-core, srt-g2p, srt-c) and
+# are pulled in via find_dependency() in synthrtConfig.cmake, so asserting
+# their presence in synthrtTargets.cmake would be incorrect attribution.
+# T-09 tightens the BI-24 check from a bare substring search to a regex that
+# requires a real add_library(<target> ... IMPORTED) declaration, so a target
+# name merely mentioned in INTERFACE_LINK_LIBRARIES no longer satisfies it.
+set(_synthrt_targets_file "${_package_root}/synthrt/synthrtTargets.cmake")
+if(NOT EXISTS "${_synthrt_targets_file}")
+    message(FATAL_ERROR "synthrtTargets.cmake is missing: ${_synthrt_targets_file}")
+endif()
+file(READ "${_synthrt_targets_file}" _synthrt_targets_contents)
+set(_expected_imported_targets
+    "srt::session"
+    "srt::synthrt"
+    "srt::diffsinger"
+)
+foreach(_expected_target IN LISTS _expected_imported_targets)
+    string(REGEX MATCH "add_library\\(${_expected_target}[ ]+[^)]*IMPORTED[^)]*\\)"
+        _target_match "${_synthrt_targets_contents}")
+    if(_target_match STREQUAL "")
+        message(FATAL_ERROR
+            "Expected IMPORTED target '${_expected_target}' is not declared via "
+            "add_library(... IMPORTED) in synthrtTargets.cmake: "
+            "${_synthrt_targets_file}"
+        )
+    endif()
 endforeach()
 
 set(_resources "${INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/synthrt/G2pPackages")

@@ -62,7 +62,7 @@ namespace srt::svs {
     SingerSpec::~SingerSpec() = default;
 
     const std::string &SingerSpec::className() const {
-        return _impl->className;
+        return _impl->m_className;
     }
 
     core::DisplayText SingerSpec::name() const {
@@ -71,11 +71,11 @@ namespace srt::svs {
     }
 
     int SingerSpec::apiLevel() const {
-        return _impl->apiLevel;
+        return _impl->m_apiLevel;
     }
 
     const core::JsonObject &SingerSpec::manifestConfiguration() const {
-        return _impl->manifestConfiguration;
+        return _impl->m_manifestConfiguration;
     }
 
     core::NO<SingerConfiguration> SingerSpec::configuration() const {
@@ -89,7 +89,7 @@ namespace srt::svs {
     }
 
     const std::filesystem::path &SingerSpec::path() const {
-        return _impl->path;
+        return _impl->m_path;
     }
 
     // ============================================================================
@@ -156,7 +156,7 @@ namespace srt::svs {
         {
             auto it = obj.find("id");
             if (it != obj.end() && it->second.isString()) {
-                impl.id = it->second.toString();
+                impl.m_id = it->second.toString();
             }
         }
         // class (string, optional) -> className. Voice bank singers usually
@@ -164,23 +164,23 @@ namespace srt::svs {
         {
             auto it = obj.find("class");
             if (it != obj.end() && it->second.isString()) {
-                impl.className = it->second.toString();
+                impl.m_className = it->second.toString();
             }
         }
         // level (int) -> apiLevel, default 1
         {
             auto it = obj.find("level");
             if (it != obj.end() && it->second.isInt()) {
-                impl.apiLevel = static_cast<int>(it->second.toInt());
+                impl.m_apiLevel = static_cast<int>(it->second.toInt());
             } else {
-                impl.apiLevel = 1;
+                impl.m_apiLevel = 1;
             }
         }
         // configuration (object) -> manifestConfiguration
         {
             auto it = obj.find("configuration");
             if (it != obj.end() && it->second.isObject()) {
-                impl.manifestConfiguration = it->second.toObject();
+                impl.m_manifestConfiguration = it->second.toObject();
             }
         }
         // name (string or object) -> displayName (optional)
@@ -245,7 +245,7 @@ namespace srt::svs {
             }
         }
 
-        impl.path = basePath;
+        impl.m_path = basePath;
         return spec;
     }
 
@@ -290,8 +290,8 @@ namespace srt::svs {
                             // the singer's own package identity (packageId +
                             // packageVersion). Multiple packages can reuse
                             // inference ids like "pitch" safely.
-                            if (infSpec->packageId() == impl.packageId &&
-                                infSpec->packageVersion() == impl.packageVersion) {
+                            if (infSpec->packageId() == impl.m_packageId &&
+                                infSpec->packageVersion() == impl.m_packageVersion) {
                                 found = infSpec;
                                 break;
                             }
@@ -320,8 +320,8 @@ namespace srt::svs {
                     } else {
                         std::string pkgDesc;
                         if (import._declaredPackage.empty()) {
-                            pkgDesc = impl.packageId + "[" +
-                                      impl.packageVersion.toString() + "]";
+                            pkgDesc = impl.m_packageId + "[" +
+                                      impl.m_packageVersion.toString() + "]";
                         } else {
                             pkgDesc = import._declaredPackage + "[" +
                                       (import._declaredVersion.empty() ||
@@ -330,9 +330,18 @@ namespace srt::svs {
                                            : import._declaredVersion) +
                                       "]";
                         }
+                        // ROBUST-05: loadSpecBase(Initialized) 已将 spec 加入
+                        // modules 列表，若此处直接返回错误，调用方（Runtime::
+                        // loadPackage）会认为 initResult 失败而不再调用
+                        // loadSpec(Deleted)，导致 spec 仍在列表中但已被 unique_ptr
+                        // 释放，~Impl() 将再次 delete 同一指针 → 双重释放 →
+                        // 堆 corruption (tests 635/636)。修复：返回错误前先回滚
+                        // loadSpecBase 的副作用，维持 "loadSpec 返回错误则 spec
+                        // 不在 modules 列表" 的契约。
+                        (void) loadSpecBase(spec, core::ModuleSpec::Deleted);
                         return core::Error{
                             core::Error::InvalidArgument,
-                            "singer '" + impl.id + "' import '" + inferenceId +
+                            "singer '" + impl.m_id + "' import '" + inferenceId +
                                 "' not found in package " + pkgDesc};
                     }
                 }

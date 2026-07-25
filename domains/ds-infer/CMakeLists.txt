@@ -12,19 +12,9 @@ option(DSINFER_ENABLE_CUDA "Enable CUDA provider" ON)
 option(DSINFER_ENABLE_STATIC_PLUGINS "Enable static plugin linking" OFF) # TODO: Implement this option
 
 # ----------------------------------
-# Project Variables
-# ----------------------------------
-set(DSINFER_INSTALL ${SYNTHRT_INSTALL})
-set(DSINFER_VERSION ${PROJECT_VERSION})
-set(DSINFER_INSTALL_NAME ${PROJECT_NAME})
-
-# ----------------------------------
 # Configure BuildAPI
 # ----------------------------------
-set(DSINFER_AUTHOR "Team OpenVPI")
-set(DSINFER_START_YEAR 2023)
-set(DSINFER_INCLUDE_DIR ../../include)
-include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
+synthrt_declare_target(dsinfer "${PROJECT_NAME}" ${PROJECT_VERSION} "Team OpenVPI" 2023 "../../include")
 
 # ----------------------------------
 # Add source modules
@@ -37,4 +27,4 @@ if(SYNTHRT_BUILD_TESTS)
     add_subdirectory(unittests)
 endif()
 
-dsinfer_install()
+synthrt_install()

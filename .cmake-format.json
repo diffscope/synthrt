@@ -1,0 +1,88 @@
+{
+  "_comment": "Based on cmake-format 0.613. Custom commands registered after scanning cmake/BuildAPI.cmake, cmake/synthrtHelpers.cmake, cmake/synthrt_unittest.cmake, cmake/synthrtAggregate.cmake and qmsetup usage.",
+  "additional_commands": {
+    "synthrt_add_library": {
+      "flags": [],
+      "kwargs": {
+        "NO_INSTALL": "*",
+        "INCLUDE_DIRS": "*",
+        "TARGETS": "*",
+        "SOURCES": "*"
+      }
+    },
+    "synthrt_add_executable": {
+      "flags": [],
+      "kwargs": {
+        "SOURCES": "*"
+      }
+    },
+    "synthrt_add_plugin": {
+      "flags": [],
+      "kwargs": {
+        "CATEGORY": 1,
+        "FOLDER": 1,
+        "SOURCES": "*"
+      }
+    },
+    "synthrt_add_unittest": {
+      "flags": [],
+      "kwargs": {
+        "SOURCES": "*"
+      }
+    },
+    "synthrt_declare_target": {
+      "flags": [],
+      "kwargs": {}
+    },
+    "synthrt_setup_aggregate": {
+      "flags": [],
+      "kwargs": {
+        "TARGET": 1,
+        "ALIAS": 1,
+        "EXPORT_NAME": 1,
+        "FOLDER": 1,
+        "COMPONENTS": "*"
+      }
+    },
+    "synthrt_install": {
+      "flags": [
+        "NO_EXPORT",
+        "NO_INCLUDE"
+      ],
+      "kwargs": {}
+    },
+    "qm_import": {
+      "flags": [],
+      "kwargs": {}
+    },
+    "qm_init_directories": {
+      "flags": [],
+      "kwargs": {}
+    }
+  },
+  "format": {
+    "disable": false,
+    "line_width": 100,
+    "tab_size": 4,
+    "use_tabchars": false,
+    "fractional_tab_policy": "use-space",
+    "max_subgroups_hwrap": 2,
+    "max_pargs_hwrap": 2,
+    "max_rows_cmdline": 2,
+    "separate_ctrl_name_with_space": true,
+    "separate_fn_name_with_space": false,
+    "dangle_parens": false,
+    "dangle_align": "child",
+    "min_prefix_chars": 4,
+    "max_prefix_chars": 10,
+    "max_lines_hwrap": 2,
+    "line_ending": "unix",
+    "command_case": "lower",
+    "keyword_case": "upper",
+    "always_wrap": [],
+    "enable_sort": true,
+    "autosort": false,
+    "require_valid_layout": false,
+    "layout_passes": {}
+  }
+}

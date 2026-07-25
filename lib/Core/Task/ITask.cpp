@@ -22,12 +22,12 @@ namespace srt::core {
 
     ITask::State ITask::state() const {
         __stdc_impl_t;
-        return impl.state;
+        return impl.m_state;
     }
 
     void ITask::setState(State state) {
         __stdc_impl_t;
-        impl.state = state;
+        impl.m_state = state;
     }
 
     ITask::ITask(Impl &impl) : NamedObject(impl) {

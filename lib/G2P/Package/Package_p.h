@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_PACKAGE_PACKAGE_P_H
-#define SRT_G2P_PACKAGE_PACKAGE_P_H
+#pragma once
 
 #include <filesystem>
 #include <map>
@@ -28,7 +27,7 @@ namespace srt::g2p {
     /// NotImplementedError; full manifest parsing lands in P3.2.
     class PackageData {
     public:
-        explicit PackageData(PackageManager *mgr) : mgr(mgr) {}
+        explicit PackageData(PackageManager *mgr) : m_mgr(mgr) {}
         ~PackageData();
 
         /// Parse package.json from `dir` and populate fields.
@@ -42,29 +41,27 @@ namespace srt::g2p {
         /// Implemented in P3.1 (used by PackageManager for package discovery).
         static srt::core::Expected<srt::core::JsonObject> readDesc(const std::filesystem::path &descPath);
 
-        PackageManager *mgr;
+        PackageManager *m_mgr;
 
-        std::filesystem::path path;
-        std::string id;
+        std::filesystem::path m_path;
+        std::string m_id;
 
-        stdc::VersionNumber version;
-        stdc::VersionNumber compatVersion;
+        stdc::VersionNumber m_version;
+        stdc::VersionNumber m_compatVersion;
 
-        DisplayText description;
-        DisplayText vendor;
-        DisplayText copyright;
-        std::filesystem::path readme;
-        std::string url;
+        DisplayText m_description;
+        DisplayText m_vendor;
+        DisplayText m_copyright;
+        std::filesystem::path m_readme;
+        std::string m_url;
 
-        int level = 1;
+        int m_level = 1;
 
         std::map<std::string, std::map<std::string, srt::core::ModuleSpec *, std::less<>>, std::less<>>
-            moduleSpecs;
+            m_moduleSpecs;
 
-        Error err;
-        bool loaded = false;
+        Error m_err;
+        bool m_loaded = false;
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_PACKAGE_PACKAGE_P_H

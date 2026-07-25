@@ -5,12 +5,14 @@
 #include <mutex>
 #include <set>
 #include <shared_mutex>
+#include <system_error>
 #include <utility>
 
 #include <stdcorelib/path.h>
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
 
+#include <synthrt/Core/Support/Logging.h>
 #include <synthrt/G2P/Base/LangCommon.h>
 #include <synthrt/G2P/Package/Package.h>
 #include <synthrt/G2P/Support/ContextUtils.h>
@@ -27,6 +29,8 @@ namespace fs = std::filesystem;
 namespace srt::g2p {
 
     namespace {
+        srt::core::LogCategory pkgMgrLog("g2p.packagemanager");
+
         /// Minimal ModuleSpec subclass for the "g2p" category.
         /// G2pCategory is declared as friend so parseSpec can access the
         /// protected _impl member inherited from ModuleSpec.
@@ -171,9 +175,9 @@ namespace srt::g2p {
 
             const auto &obj = config.toObject();
             auto f = extractModuleEntryFields(obj);
-            impl.id = std::move(f.id);
-            impl.className = std::move(f.className);
-            impl.apiLevel = f.level;
+            impl.m_id = std::move(f.id);
+            impl.m_className = std::move(f.className);
+            impl.m_apiLevel = f.level;
 
             // Default path is the package directory; when a config file is
             // referenced, relative paths inside it resolve relative to the
@@ -183,15 +187,15 @@ namespace srt::g2p {
                 auto configFilePath = basePath / f.configFileRel;
                 LoadedConfig lc;
                 if (loadConfigFile(configFilePath, lc)) {
-                    impl.manifestConfiguration = std::move(lc.configuration);
-                    impl.apiLevel = lc.apiLevel;
+                    impl.m_manifestConfiguration = std::move(lc.configuration);
+                    impl.m_apiLevel = lc.apiLevel;
                     resolvedPath = configFilePath.parent_path();
                 }
             } else if (f.hasInlineConfig) {
-                impl.manifestConfiguration = std::move(f.inlineConfig);
+                impl.m_manifestConfiguration = std::move(f.inlineConfig);
             }
 
-            impl.path = resolvedPath;
+            impl.m_path = resolvedPath;
             return spec;
         }
 
@@ -208,51 +212,61 @@ namespace srt::g2p {
 
             const auto &obj = config.toObject();
             auto f = extractModuleEntryFields(obj);
-            impl.id = std::move(f.id);
-            impl.className = std::move(f.className);
-            impl.apiLevel = f.level;
+            impl.m_id = std::move(f.id);
+            impl.m_className = std::move(f.className);
+            impl.m_apiLevel = f.level;
 
             std::filesystem::path resolvedPath = basePath;
             if (!f.configFileRel.empty()) {
                 auto configFilePath = basePath / f.configFileRel;
                 LoadedConfig lc;
                 if (loadConfigFile(configFilePath, lc)) {
-                    impl.manifestConfiguration = std::move(lc.configuration);
-                    impl.apiLevel = lc.apiLevel;
+                    impl.m_manifestConfiguration = std::move(lc.configuration);
+                    impl.m_apiLevel = lc.apiLevel;
                     resolvedPath = configFilePath.parent_path();
                 }
             } else if (f.hasInlineConfig) {
-                impl.manifestConfiguration = std::move(f.inlineConfig);
+                impl.m_manifestConfiguration = std::move(f.inlineConfig);
             }
 
-            impl.path = resolvedPath;
+            impl.m_path = resolvedPath;
             return spec;
         }
     } // namespace
 
-    PackageManager::Impl::Impl(PackageManager *decl) : decl(decl) {
-        categories[kG2pCategory] = new G2pCategory(decl);
-        categories[kDictCategory] = new DictCategory(decl);
-        categories[kDriverCategory] = new DriverCategory(decl);
+    PackageManager::Impl::Impl(PackageManager *q) : m_q(q) {
+        m_categories[kG2pCategory] = new G2pCategory(q);
+        m_categories[kDictCategory] = new DictCategory(q);
+        m_categories[kDriverCategory] = new DriverCategory(q);
     }
 
     PackageManager::Impl::~Impl() {
         // Tasks retain non-owning ModuleSpec pointers owned by loaded packages.
         // Release every task reference before the corresponding packages.
-        tasks.clear();
-        for (const auto &[_, cate] : categories) {
+        m_tasks.clear();
+        // closePackage() invokes ModuleCategory::loadSpec() on each contribute
+        // to transition ModuleSpec states (Finished/Deleted), so loaded packages
+        // must be closed while the categories are still alive. Deleting the
+        // categories first leaves m_categories empty and makes the .at() lookup
+        // in closePackage throw during cleanup.
+        closeAllLoadedPackages();
+        for (const auto &[_, cate] : m_categories) {
             delete cate;
         }
-        categories.clear();
-        cateKeyMap.clear();
-        closeAllLoadedPackages();
+        m_categories.clear();
+        m_cateKeyMap.clear();
     }
 
     void PackageManager::Impl::refreshPackageIndexes(const srt::core::ContextKey &ctxKey) {
-        auto &cachedIndexes = contextCachedIndexes[ctxKey];
+        // 失效所有 ctxKey 的缓存（不仅当前 ctxKey），避免跨 ctxKey 命中陈旧缓存
+        m_contextCachedIndexes.clear();
+        m_contextModuleInfos.clear();
+        m_packagePathsDirty = false;
+
+        auto &cachedIndexes = m_contextCachedIndexes[ctxKey];
         cachedIndexes.clear();
-        auto pathsIt = contextPackagePaths.find(ctxKey);
-        if (pathsIt == contextPackagePaths.end()) return;
+        auto pathsIt = m_contextPackagePaths.find(ctxKey);
+        if (pathsIt == m_contextPackagePaths.end()) return;
 
         for (const auto &path : pathsIt->second) {
             if (!fs::is_directory(path)) continue;
@@ -263,7 +277,13 @@ namespace srt::g2p {
                 if (!fs::exists(pkgJson)) continue;
 
                 auto expObj = PackageData::readDesc(pkgJson);
-                if (!expObj) continue;
+                if (!expObj) {
+                    // ROBUST-05: log skip reason instead of silently continuing.
+                    pkgMgrLog.srtWarning(
+                        "PackageManager: skipping package at '%1': failed to read package.json: %2",
+                        stdc::path::to_utf8(pkgJson), expObj.errorString());
+                    continue;
+                }
                 auto obj = expObj.take();
 
                 auto idIt = obj.find("packageId");
@@ -283,7 +303,18 @@ namespace srt::g2p {
                 cachedIndexes[pkgId][version] = {fs::canonical(entry.path()), compatVersion};
             }
         }
-        packagePathsDirty = false;
+    }
+
+    void PackageManager::Impl::eraseContextState(const srt::core::ContextKey &ctxKey) {
+        // TD-02: centralized retire of per-context state. Callers must hold
+        // m_su_mtx (unique) — the 7 maps below are guarded by it.
+        m_contextPackagePaths.erase(ctxKey);
+        m_contextStates.erase(ctxKey);
+        m_contextDependencyErrors.erase(ctxKey);
+        m_contextModuleInfos.erase(ctxKey);
+        m_contextDependencyResolved.erase(ctxKey);
+        m_contextDependencyGraphs.erase(ctxKey);
+        m_contextCachedIndexes.erase(ctxKey);
     }
 
     srt::core::Expected<PackageData *> PackageManager::Impl::openPackage(const fs::path &path) {
@@ -293,8 +324,8 @@ namespace srt::g2p {
         }
 
         {
-            std::unique_lock lock(su_mtx);
-            auto &pkgMap = loadedPackageMap;
+            std::unique_lock lock(m_su_mtx);
+            auto &pkgMap = m_loadedPackageMap;
             if (auto it = pkgMap.pathIndexes.find(canonicalPath); it != pkgMap.pathIndexes.end()) {
                 auto &pkg = *it->second;
                 pkg.ref++;
@@ -302,9 +333,9 @@ namespace srt::g2p {
             }
         }
 
-        auto *pd = new PackageData(decl);
+        auto *pd = new PackageData(m_q);
 
-        auto parseExp = pd->parse(canonicalPath, categories, nullptr);
+        auto parseExp = pd->parse(canonicalPath, m_categories, nullptr);
         if (!parseExp) {
             delete pd;
             return parseExp.error();
@@ -312,37 +343,37 @@ namespace srt::g2p {
 
         // Get contributes from moduleSpecs
         llvm::SmallVector<srt::core::ModuleSpec *> contributes;
-        for (const auto &[cat, byId] : pd->moduleSpecs) {
+        for (const auto &[cat, byId] : pd->m_moduleSpecs) {
             for (const auto &[mid, spec] : byId) {
                 contributes.push_back(spec);
-                spec->_impl->packageId = pd->id;
-                spec->_impl->packageVersion = pd->version;
+                spec->_impl->m_packageId = pd->m_id;
+                spec->_impl->m_packageVersion = pd->m_version;
             }
         }
 
         // Check duplicates
         {
-            std::unique_lock lock(su_mtx);
-            auto &pkgMap = loadedPackageMap;
+            std::unique_lock lock(m_su_mtx);
+            auto &pkgMap = m_loadedPackageMap;
 
-            if (auto it = pkgMap.idIndexes.find(pd->id); it != pkgMap.idIndexes.end()) {
+            if (auto it = pkgMap.idIndexes.find(pd->m_id); it != pkgMap.idIndexes.end()) {
                 auto &versionMap = it->second;
-                if (auto it2 = versionMap.find(pd->version); it2 != versionMap.end()) {
-                    pd->err = Error(ErrorCode::G2pFileSystemError,
-                        stdc::formatN("duplicate package %1[%2]", pd->id, pd->version.toString()));
-                    resourcePackages.insert(pd);
+                if (auto it2 = versionMap.find(pd->m_version); it2 != versionMap.end()) {
+                    pd->m_err = Error(ErrorCode::G2pFileSystemError,
+                        stdc::formatN("duplicate package %1[%2]", pd->m_id, pd->m_version.toString()));
+                    m_resourcePackages.insert(pd);
                     return pd;
                 }
             }
-            if (auto it = pendingPackages.find(pd->id); it != pendingPackages.end()) {
-                if (it->second.count(pd->version)) {
-                    pd->err = Error(ErrorCode::G2pDependencyError,
-                        stdc::formatN("recursive dependency: %1[%2]", pd->id, pd->version.toString()));
-                    resourcePackages.insert(pd);
+            if (auto it = m_pendingPackages.find(pd->m_id); it != m_pendingPackages.end()) {
+                if (it->second.count(pd->m_version)) {
+                    pd->m_err = Error(ErrorCode::G2pDependencyError,
+                        stdc::formatN("recursive dependency: %1[%2]", pd->m_id, pd->m_version.toString()));
+                    m_resourcePackages.insert(pd);
                     return pd;
                 }
             }
-            pendingPackages[pd->id][pd->version] = pd->path;
+            m_pendingPackages[pd->m_id][pd->m_version] = pd->m_path;
         }
 
         // Initialize contributes through categories
@@ -352,8 +383,8 @@ namespace srt::g2p {
             int i = 0;
             for (; i < (int)contributes.size(); ++i) {
                 auto *spec = contributes[i];
-                auto catIt = categories.find(spec->category());
-                if (catIt == categories.end()) {
+                auto catIt = m_categories.find(spec->category());
+                if (catIt == m_categories.end()) {
                     error1 = Error(ErrorCode::G2pNotImplementedError,
                         "category not found: " + spec->category());
                     failed = true;
@@ -365,21 +396,30 @@ namespace srt::g2p {
                     failed = true;
                     break;
                 }
-                spec->_impl->state = srt::core::ModuleSpec::Initialized;
+                spec->_impl->m_state = srt::core::ModuleSpec::Initialized;
             }
             if (failed) {
                 for (; i >= 0; --i) {
                     auto *spec = contributes[i];
-                    auto *cc = categories.at(spec->category());
-                    std::ignore = cc->loadSpec(spec, srt::core::ModuleSpec::Deleted);
-                    spec->_impl->state = srt::core::ModuleSpec::Deleted;
+                    auto catIt = m_categories.find(spec->category());
+                    if (catIt == m_categories.end()) continue;
+                    auto *cc = catIt->second;
+                    auto delResult = cc->loadSpec(spec, srt::core::ModuleSpec::Deleted);
+                    if (!delResult) {
+                        // ROBUST-05: log rollback failure instead of swallowing.
+                        pkgMgrLog.srtWarning(
+                            "PackageManager: failed to roll back spec '%1' with "
+                            "Deleted after Initialized failure: %2",
+                            spec->id(), delResult.errorString());
+                    }
+                    spec->_impl->m_state = srt::core::ModuleSpec::Deleted;
                 }
-                pd->err = error1;
-                std::unique_lock lock(su_mtx);
-                pendingPackages.erase(pd->id);
-                if (pendingPackages[pd->id].empty())
-                    pendingPackages.erase(pd->id);
-                resourcePackages.insert(pd);
+                pd->m_err = error1;
+                std::unique_lock lock(m_su_mtx);
+                auto &pp = m_pendingPackages[pd->m_id];
+                pp.erase(pd->m_version);
+                if (pp.empty()) m_pendingPackages.erase(pd->m_id);
+                m_resourcePackages.insert(pd);
                 return pd;
             }
         }
@@ -391,38 +431,56 @@ namespace srt::g2p {
             int i = 0;
             for (; i < (int)contributes.size(); ++i) {
                 auto *spec = contributes[i];
-                auto *cc = categories.at(spec->category());
+                auto *cc = m_categories.at(spec->category());
                 if (auto exp = cc->loadSpec(spec, srt::core::ModuleSpec::Ready); !exp) {
                     error1 = Error(exp.error().code(), exp.error().message());
                     failed = true;
                     break;
                 }
-                spec->_impl->state = srt::core::ModuleSpec::Ready;
+                spec->_impl->m_state = srt::core::ModuleSpec::Ready;
             }
             if (failed) {
                 for (; i >= 0; --i) {
                     auto *spec = contributes[i];
-                    auto *cc = categories.at(spec->category());
-                    std::ignore = cc->loadSpec(spec, srt::core::ModuleSpec::Finished);
-                    spec->_impl->state = srt::core::ModuleSpec::Finished;
+                    auto catIt = m_categories.find(spec->category());
+                    if (catIt == m_categories.end()) continue;
+                    auto *cc = catIt->second;
+                    auto finResult = cc->loadSpec(spec, srt::core::ModuleSpec::Finished);
+                    if (!finResult) {
+                        // ROBUST-05: log rollback failure instead of swallowing.
+                        pkgMgrLog.srtWarning(
+                            "PackageManager: failed to roll back spec '%1' with "
+                            "Finished after Ready failure: %2",
+                            spec->id(), finResult.errorString());
+                    }
+                    spec->_impl->m_state = srt::core::ModuleSpec::Finished;
                 }
                 for (i = (int)contributes.size() - 1; i >= 0; i--) {
                     auto *spec = contributes[i];
-                    auto *cc = categories.at(spec->category());
-                    std::ignore = cc->loadSpec(spec, srt::core::ModuleSpec::Deleted);
-                    spec->_impl->state = srt::core::ModuleSpec::Deleted;
+                    auto catIt = m_categories.find(spec->category());
+                    if (catIt == m_categories.end()) continue;
+                    auto *cc = catIt->second;
+                    auto delResult = cc->loadSpec(spec, srt::core::ModuleSpec::Deleted);
+                    if (!delResult) {
+                        // ROBUST-05: log rollback failure instead of swallowing.
+                        pkgMgrLog.srtWarning(
+                            "PackageManager: failed to roll back spec '%1' with "
+                            "Deleted after Ready failure: %2",
+                            spec->id(), delResult.errorString());
+                    }
+                    spec->_impl->m_state = srt::core::ModuleSpec::Deleted;
                 }
-                pd->err = error1;
-                std::unique_lock lock(su_mtx);
-                auto &pp = pendingPackages[pd->id];
-                pp.erase(pd->version);
-                if (pp.empty()) pendingPackages.erase(pd->id);
-                resourcePackages.insert(pd);
+                pd->m_err = error1;
+                std::unique_lock lock(m_su_mtx);
+                auto &pp = m_pendingPackages[pd->m_id];
+                pp.erase(pd->m_version);
+                if (pp.empty()) m_pendingPackages.erase(pd->m_id);
+                m_resourcePackages.insert(pd);
                 return pd;
             }
         }
 
-        pd->loaded = true;
+        pd->m_loaded = true;
 
         {
             LoadedPackageBlock pkg;
@@ -430,15 +488,15 @@ namespace srt::g2p {
             pkg.ref = 1;
             pkg.contributes = std::move(contributes);
 
-            std::unique_lock lock(su_mtx);
-            auto &pp = pendingPackages[pd->id];
-            pp.erase(pd->version);
-            if (pp.empty()) pendingPackages.erase(pd->id);
+            std::unique_lock lock(m_su_mtx);
+            auto &pp = m_pendingPackages[pd->m_id];
+            pp.erase(pd->m_version);
+            if (pp.empty()) m_pendingPackages.erase(pd->m_id);
 
-            auto &[packages, pathIndexes, idIndexes, pointerIndexes] = loadedPackageMap;
+            auto &[packages, pathIndexes, idIndexes, pointerIndexes] = m_loadedPackageMap;
             auto it = packages.insert(packages.end(), std::move(pkg));
-            pathIndexes[pd->path] = it;
-            idIndexes[pd->id][pd->version] = it;
+            pathIndexes[pd->m_path] = it;
+            idIndexes[pd->m_id][pd->m_version] = it;
             pointerIndexes[pd] = it;
         }
 
@@ -446,19 +504,19 @@ namespace srt::g2p {
     }
 
     bool PackageManager::Impl::closePackage(PackageData *spec) {
-        if (!spec->loaded) {
-            std::unique_lock lock(su_mtx);
-            auto it = resourcePackages.find(spec);
-            if (it == resourcePackages.end()) return false;
-            resourcePackages.erase(it);
+        if (!spec->m_loaded) {
+            std::unique_lock lock(m_su_mtx);
+            auto it = m_resourcePackages.find(spec);
+            if (it == m_resourcePackages.end()) return false;
+            m_resourcePackages.erase(it);
             delete spec;
             return true;
         }
 
         LoadedPackageBlock pkgToClose;
         {
-            std::unique_lock lock(su_mtx);
-            auto &[packages, pathIndexes, idIndexes, pointerIndexes] = loadedPackageMap;
+            std::unique_lock lock(m_su_mtx);
+            auto &[packages, pathIndexes, idIndexes, pointerIndexes] = m_loadedPackageMap;
             auto it = pointerIndexes.find(spec);
             if (it == pointerIndexes.end()) return false;
             auto it1 = it->second;
@@ -468,27 +526,44 @@ namespace srt::g2p {
             pkgToClose = std::move(pkg);
             packages.erase(it1);
             pointerIndexes.erase(it);
-            pathIndexes.erase(spec->path);
-            auto it2 = idIndexes.find(spec->id);
+            pathIndexes.erase(spec->m_path);
+            auto it2 = idIndexes.find(spec->m_id);
             if (it2 != idIndexes.end()) {
-                it2->second.erase(spec->version);
+                it2->second.erase(spec->m_version);
                 if (it2->second.empty()) idIndexes.erase(it2);
             }
         }
 
         for (auto it = pkgToClose.contributes.rbegin(); it != pkgToClose.contributes.rend(); ++it) {
-            auto &cc = categories.at((*it)->category());
-            std::ignore = cc->loadSpec(*it, srt::core::ModuleSpec::Finished);
-            (*it)->_impl->state = srt::core::ModuleSpec::Finished;
+            auto &cc = m_categories.at((*it)->category());
+            auto finResult = cc->loadSpec(*it, srt::core::ModuleSpec::Finished);
+            if (!finResult) {
+                // ROBUST-05: log unload failure instead of swallowing.
+                pkgMgrLog.srtWarning(
+                    "PackageManager: failed to unload spec '%1' with Finished: %2",
+                    (*it)->id(), finResult.errorString());
+            }
+            (*it)->_impl->m_state = srt::core::ModuleSpec::Finished;
         }
         for (auto it = pkgToClose.contributes.rbegin(); it != pkgToClose.contributes.rend(); ++it) {
-            auto &cc = categories.at((*it)->category());
-            std::ignore = cc->loadSpec(*it, srt::core::ModuleSpec::Deleted);
-            (*it)->_impl->state = srt::core::ModuleSpec::Deleted;
+            auto &cc = m_categories.at((*it)->category());
+            auto delResult = cc->loadSpec(*it, srt::core::ModuleSpec::Deleted);
+            if (!delResult) {
+                // ROBUST-05: log unload failure instead of swallowing.
+                pkgMgrLog.srtWarning(
+                    "PackageManager: failed to unload spec '%1' with Deleted: %2",
+                    (*it)->id(), delResult.errorString());
+            }
+            (*it)->_impl->m_state = srt::core::ModuleSpec::Deleted;
         }
 
         for (auto it = pkgToClose.linked.rbegin(); it != pkgToClose.linked.rend(); ++it) {
-            std::ignore = closePackage(*it);
+            // ROBUST-05: closePackage returns bool; log failure instead of
+            // swallowing (no error detail available without API change).
+            if (!closePackage(*it)) {
+                pkgMgrLog.srtWarning(
+                    "PackageManager: failed to close linked package during cleanup");
+            }
         }
 
         delete spec;
@@ -496,15 +571,20 @@ namespace srt::g2p {
     }
 
     void PackageManager::Impl::closeAllLoadedPackages() {
-        while (!loadedPackageMap.packages.empty()) {
-            auto spec = loadedPackageMap.packages.back().spec;
-            std::ignore = closePackage(spec);
+        while (!m_loadedPackageMap.packages.empty()) {
+            auto spec = m_loadedPackageMap.packages.back().spec;
+            // ROBUST-05: closePackage returns bool; log failure instead of
+            // swallowing (no error detail available without API change).
+            if (!closePackage(spec)) {
+                pkgMgrLog.srtWarning(
+                    "PackageManager: failed to close package during cleanup");
+            }
         }
         // Clean up resource packages
-        for (auto *rp : resourcePackages) {
+        for (auto *rp : m_resourcePackages) {
             delete rp;
         }
-        resourcePackages.clear();
+        m_resourcePackages.clear();
     }
 
     // ============================================================================
@@ -520,16 +600,16 @@ namespace srt::g2p {
 
     srt::core::ModuleCategory *PackageManager::category(const std::string_view &name) const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        const auto it = impl.categories.find(name);
-        if (it == impl.categories.end()) return nullptr;
+        const auto it = impl.m_categories.find(name);
+        if (it == impl.m_categories.end()) return nullptr;
         return it->second;
     }
 
     std::vector<std::string> PackageManager::getDependencyErrors() const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock lock(impl.su_mtx);
+        std::shared_lock lock(impl.m_su_mtx);
         std::vector<std::string> all;
-        for (const auto &[_, errs] : impl.contextDependencyErrors) {
+        for (const auto &[_, errs] : impl.m_contextDependencyErrors) {
             all.insert(all.end(), errs.begin(), errs.end());
         }
         return all;
@@ -538,9 +618,9 @@ namespace srt::g2p {
     std::vector<std::string> PackageManager::getDependencyErrors(
         const srt::core::ContextKey &ctxKey) const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock lock(impl.su_mtx);
-        auto it = impl.contextDependencyErrors.find(ctxKey);
-        if (it == impl.contextDependencyErrors.end()) return {};
+        std::shared_lock lock(impl.m_su_mtx);
+        auto it = impl.m_contextDependencyErrors.find(ctxKey);
+        if (it == impl.m_contextDependencyErrors.end()) return {};
         return it->second;
     }
 
@@ -550,21 +630,28 @@ namespace srt::g2p {
             return exp.error();
 
         auto &impl = *static_cast<Impl *>(_impl.get());
-        if (!fs::exists(path) || !fs::is_directory(path)) {
+        std::error_code ec;
+        if (!fs::exists(path, ec) || !fs::is_directory(path, ec)) {
             return Error(ErrorCode::G2pFileSystemError,
-                stdc::formatN("Package path does not exist or is not a directory: %1", path));
+                stdc::formatN("Package path does not exist or is not a directory: %1",
+                              stdc::path::to_utf8(path)));
         }
 
-        auto canonical = fs::canonical(path);
+        auto canonical = fs::canonical(path, ec);
+        if (ec) {
+            return Error(ErrorCode::G2pFileSystemError,
+                stdc::formatN("Package path cannot be canonicalized: %1",
+                              stdc::path::to_utf8(path)));
+        }
         srt::core::ContextKey ctxKey(context);
 
-        std::unique_lock lock(impl.su_mtx);
-        auto &paths = impl.contextPackagePaths[ctxKey];
+        std::unique_lock lock(impl.m_su_mtx);
+        auto &paths = impl.m_contextPackagePaths[ctxKey];
         for (const auto &existing : paths) {
             if (existing == canonical) return {};
         }
         paths.push_back(canonical);
-        impl.packagePathsDirty = true;
+        impl.m_packagePathsDirty = true;
         return {};
     }
 
@@ -581,21 +668,28 @@ namespace srt::g2p {
                 "Context '" + context + "': version cannot be empty for a versioned context");
 
         auto &impl = *static_cast<Impl *>(_impl.get());
-        if (!fs::exists(path) || !fs::is_directory(path)) {
+        std::error_code ec;
+        if (!fs::exists(path, ec) || !fs::is_directory(path, ec)) {
             return Error(ErrorCode::G2pFileSystemError,
-                stdc::formatN("Package path does not exist or is not a directory: %1", path));
+                stdc::formatN("Package path does not exist or is not a directory: %1",
+                              stdc::path::to_utf8(path)));
         }
 
-        auto canonical = fs::canonical(path);
+        auto canonical = fs::canonical(path, ec);
+        if (ec) {
+            return Error(ErrorCode::G2pFileSystemError,
+                stdc::formatN("Package path cannot be canonicalized: %1",
+                              stdc::path::to_utf8(path)));
+        }
         srt::core::ContextKey ctxKey(context, version);
 
-        std::unique_lock lock(impl.su_mtx);
-        auto &paths = impl.contextPackagePaths[ctxKey];
+        std::unique_lock lock(impl.m_su_mtx);
+        auto &paths = impl.m_contextPackagePaths[ctxKey];
         for (const auto &existing : paths) {
             if (existing == canonical) return {};
         }
         paths.push_back(canonical);
-        impl.packagePathsDirty = true;
+        impl.m_packagePathsDirty = true;
         return {};
     }
 
@@ -606,14 +700,14 @@ namespace srt::g2p {
 
         auto &impl = *static_cast<Impl *>(_impl.get());
         srt::core::ContextKey ctxKey(context);
-        std::unique_lock lock(impl.su_mtx);
-        auto &ctxPaths = impl.contextPackagePaths[ctxKey];
+        std::unique_lock lock(impl.m_su_mtx);
+        auto &ctxPaths = impl.m_contextPackagePaths[ctxKey];
         ctxPaths.clear();
         for (const auto &path : paths) {
             if (!fs::is_directory(path)) continue;
             ctxPaths.push_back(fs::canonical(path));
         }
-        impl.packagePathsDirty = true;
+        impl.m_packagePathsDirty = true;
         return {};
     }
 
@@ -631,14 +725,14 @@ namespace srt::g2p {
 
         auto &impl = *static_cast<Impl *>(_impl.get());
         srt::core::ContextKey ctxKey(context, version);
-        std::unique_lock lock(impl.su_mtx);
-        auto &ctxPaths = impl.contextPackagePaths[ctxKey];
+        std::unique_lock lock(impl.m_su_mtx);
+        auto &ctxPaths = impl.m_contextPackagePaths[ctxKey];
         ctxPaths.clear();
         for (const auto &path : paths) {
             if (!fs::is_directory(path)) continue;
             ctxPaths.push_back(fs::canonical(path));
         }
-        impl.packagePathsDirty = true;
+        impl.m_packagePathsDirty = true;
         return {};
     }
 
@@ -651,26 +745,26 @@ namespace srt::g2p {
         const std::string &context, const stdc::VersionNumber &version) const {
         auto &impl = *static_cast<Impl *>(_impl.get());
         srt::core::ContextKey ctxKey(context, version);
-        std::shared_lock lock(impl.su_mtx);
-        auto it = impl.contextPackagePaths.find(ctxKey);
-        if (it == impl.contextPackagePaths.end()) return {};
+        std::shared_lock lock(impl.m_su_mtx);
+        auto it = impl.m_contextPackagePaths.find(ctxKey);
+        if (it == impl.m_contextPackagePaths.end()) return {};
         return {it->second.begin(), it->second.end()};
     }
 
     std::vector<std::string> PackageManager::contexts() const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock lock(impl.su_mtx);
+        std::shared_lock lock(impl.m_su_mtx);
         std::vector<std::string> result;
-        for (const auto &[ctxKey, _] : impl.contextPackagePaths)
+        for (const auto &[ctxKey, _] : impl.m_contextPackagePaths)
             result.push_back(ctxKey.context);
         return result;
     }
 
     std::vector<srt::core::ContextKey> PackageManager::contextKeys() const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock lock(impl.su_mtx);
+        std::shared_lock lock(impl.m_su_mtx);
         std::vector<srt::core::ContextKey> result;
-        for (const auto &[ctxKey, _] : impl.contextPackagePaths)
+        for (const auto &[ctxKey, _] : impl.m_contextPackagePaths)
             result.push_back(ctxKey);
         return result;
     }
@@ -689,15 +783,15 @@ namespace srt::g2p {
 
         auto &impl = *static_cast<Impl *>(_impl.get());
 
-        // Collect matching ContextKeys and erase per-context state under su_mtx.
+        // Collect matching ContextKeys and erase per-context state under m_su_mtx.
         // A prefix match is on ctxKey.context only (e.g. prefix "pkg1__"
         // matches "pkg1__singerA" and "pkg1__singerB" at every version).
         std::vector<srt::core::ContextKey> matching;
         size_t removed = 0;
         {
-            std::unique_lock lock(impl.su_mtx);
+            std::unique_lock lock(impl.m_su_mtx);
 
-            if (impl.initialized) {
+            if (impl.m_initialized) {
                 // Manager::initialize() has been called: contexts are immutable.
                 // Caller must restart the host process for G2P changes.
                 return Error(ErrorCode::G2pAlreadyInitialized,
@@ -706,7 +800,7 @@ namespace srt::g2p {
                     "for G2P changes.");
             }
 
-            for (const auto &[ctxKey, _] : impl.contextPackagePaths) {
+            for (const auto &[ctxKey, _] : impl.m_contextPackagePaths) {
                 if (ctxKey.context.starts_with(prefix)) {
                     matching.push_back(ctxKey);
                 }
@@ -714,27 +808,21 @@ namespace srt::g2p {
 
             removed = matching.size();
             for (const auto &ctxKey : matching) {
-                impl.contextPackagePaths.erase(ctxKey);
-                impl.contextStates.erase(ctxKey);
-                impl.contextDependencyErrors.erase(ctxKey);
-                impl.contextModuleInfos.erase(ctxKey);
-                impl.contextDependencyResolved.erase(ctxKey);
-                impl.contextDependencyGraphs.erase(ctxKey);
-                impl.contextCachedIndexes.erase(ctxKey);
+                impl.eraseContextState(ctxKey);
             }
 
             if (removed > 0) {
-                impl.packagePathsDirty = true;
+                impl.m_packagePathsDirty = true;
             }
         }
 
-        // Clean up the tasks map under its own mutex. When !initialized this
+        // Clean up the tasks map under its own mutex. When !m_initialized this
         // map is normally empty (tasks are created during initialize()), but
-        // we erase defensively. Acquired after su_mtx is released to avoid
+        // we erase defensively. Acquired after m_su_mtx is released to avoid
         // holding both locks simultaneously.
         if (!matching.empty()) {
-            std::unique_lock<std::shared_mutex> tasksLock(impl.tasks_mtx);
-            for (auto &[category, ctxMap] : impl.tasks) {
+            std::unique_lock<std::shared_mutex> tasksLock(impl.m_tasks_mtx);
+            for (auto &[category, ctxMap] : impl.m_tasks) {
                 for (const auto &ctxKey : matching) {
                     ctxMap.erase(ctxKey);
                 }
@@ -762,9 +850,9 @@ namespace srt::g2p {
         std::vector<srt::core::ContextKey> matching;
         size_t removed = 0;
         {
-            std::unique_lock lock(impl.su_mtx);
+            std::unique_lock lock(impl.m_su_mtx);
 
-            if (impl.initialized) {
+            if (impl.m_initialized) {
                 return Error(ErrorCode::G2pAlreadyInitialized,
                     "removeContextsByPrefix: Manager::initialize() already "
                     "called; contexts are immutable. Restart the host process "
@@ -774,7 +862,7 @@ namespace srt::g2p {
             // Match ctxKey.context prefix AND ctxKey.version exactly. Empty
             // version matches only unversioned contexts (those registered via
             // the 2-arg addPackagePath overload).
-            for (const auto &[ctxKey, _] : impl.contextPackagePaths) {
+            for (const auto &[ctxKey, _] : impl.m_contextPackagePaths) {
                 if (ctxKey.context.starts_with(prefix) && ctxKey.version == version) {
                     matching.push_back(ctxKey);
                 }
@@ -782,23 +870,17 @@ namespace srt::g2p {
 
             removed = matching.size();
             for (const auto &ctxKey : matching) {
-                impl.contextPackagePaths.erase(ctxKey);
-                impl.contextStates.erase(ctxKey);
-                impl.contextDependencyErrors.erase(ctxKey);
-                impl.contextModuleInfos.erase(ctxKey);
-                impl.contextDependencyResolved.erase(ctxKey);
-                impl.contextDependencyGraphs.erase(ctxKey);
-                impl.contextCachedIndexes.erase(ctxKey);
+                impl.eraseContextState(ctxKey);
             }
 
             if (removed > 0) {
-                impl.packagePathsDirty = true;
+                impl.m_packagePathsDirty = true;
             }
         }
 
         if (!matching.empty()) {
-            std::unique_lock<std::shared_mutex> tasksLock(impl.tasks_mtx);
-            for (auto &[category, ctxMap] : impl.tasks) {
+            std::unique_lock<std::shared_mutex> tasksLock(impl.m_tasks_mtx);
+            for (auto &[category, ctxMap] : impl.m_tasks) {
                 for (const auto &ctxKey : matching) {
                     ctxMap.erase(ctxKey);
                 }
@@ -810,19 +892,19 @@ namespace srt::g2p {
 
     ContextState PackageManager::contextState(const srt::core::ContextKey &ctxKey) const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock lock(impl.su_mtx);
-        const auto it = impl.contextStates.find(ctxKey);
-        if (it != impl.contextStates.end()) return it->second;
-        if (impl.contextPackagePaths.find(ctxKey) != impl.contextPackagePaths.end())
+        std::shared_lock lock(impl.m_su_mtx);
+        const auto it = impl.m_contextStates.find(ctxKey);
+        if (it != impl.m_contextStates.end()) return it->second;
+        if (impl.m_contextPackagePaths.find(ctxKey) != impl.m_contextPackagePaths.end())
             return ContextState::Pending;
         return ContextState::NotRegistered;
     }
 
     std::vector<srt::core::ContextKey> PackageManager::failedContexts() const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock lock(impl.su_mtx);
+        std::shared_lock lock(impl.m_su_mtx);
         std::vector<srt::core::ContextKey> result;
-        for (const auto &[ctxKey, state] : impl.contextStates) {
+        for (const auto &[ctxKey, state] : impl.m_contextStates) {
             if (state == ContextState::Failed && !ctxKey.isDefault())
                 result.push_back(ctxKey);
         }
@@ -841,8 +923,8 @@ namespace srt::g2p {
     Package PackageManager::find(const std::string_view &id,
                                   const stdc::VersionNumber &version) const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock lock(impl.su_mtx);
-        auto &pkgMap = impl.loadedPackageMap;
+        std::shared_lock lock(impl.m_su_mtx);
+        auto &pkgMap = impl.m_loadedPackageMap;
         auto it = pkgMap.idIndexes.find(id);
         if (it == pkgMap.idIndexes.end()) return {};
         auto it2 = it->second.find(version);
@@ -852,8 +934,8 @@ namespace srt::g2p {
 
     std::vector<Package> PackageManager::find(const std::string_view &id) const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock lock(impl.su_mtx);
-        auto &pkgMap = impl.loadedPackageMap;
+        std::shared_lock lock(impl.m_su_mtx);
+        auto &pkgMap = impl.m_loadedPackageMap;
         auto it = pkgMap.idIndexes.find(id);
         if (it == pkgMap.idIndexes.end()) return {};
         std::vector<Package> res;
@@ -864,9 +946,9 @@ namespace srt::g2p {
 
     std::vector<Package> PackageManager::packages() const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock lock(impl.su_mtx);
+        std::shared_lock lock(impl.m_su_mtx);
         std::vector<Package> res;
-        for (const auto &item : impl.loadedPackageMap.packages)
+        for (const auto &item : impl.m_loadedPackageMap.packages)
             res.push_back(Package(item.spec));
         return res;
     }
@@ -881,7 +963,7 @@ namespace srt::g2p {
                 {}, moduleInfo.packageId);
         }
 
-        moduleSpec->_impl->contextKey = srt::core::ContextKey(moduleInfo.context, moduleInfo.contextVersion);
+        moduleSpec->_impl->m_contextKey = srt::core::ContextKey(moduleInfo.context, moduleInfo.contextVersion);
 
         auto *taskPlugin = this->plugin<TaskPlugin>(moduleInfo.iid.c_str());
         if (!taskPlugin) {
@@ -911,22 +993,22 @@ namespace srt::g2p {
 
         // Check cache
         {
-            std::shared_lock lock(impl.su_mtx);
-            auto it = impl.contextModuleInfos.find(ctxKey);
-            if (it != impl.contextModuleInfos.end() && !impl.packagePathsDirty)
+            std::shared_lock lock(impl.m_su_mtx);
+            auto it = impl.m_contextModuleInfos.find(ctxKey);
+            if (it != impl.m_contextModuleInfos.end() && !impl.m_packagePathsDirty)
                 return it->second;
         }
 
         // Refresh package indexes if dirty
-        std::unique_lock lock(impl.su_mtx);
-        if (impl.packagePathsDirty) {
+        std::unique_lock lock(impl.m_su_mtx);
+        if (impl.m_packagePathsDirty) {
             impl.refreshPackageIndexes(ctxKey);
         }
 
         // Scan for modules
         std::vector<srt::dependency::ModuleMetadata> metadatas;
-        auto pathsIt = impl.contextPackagePaths.find(ctxKey);
-        if (pathsIt == impl.contextPackagePaths.end()) return {};
+        auto pathsIt = impl.m_contextPackagePaths.find(ctxKey);
+        if (pathsIt == impl.m_contextPackagePaths.end()) return {};
 
         for (const auto &basePath : pathsIt->second) {
             if (!fs::is_directory(basePath)) continue;
@@ -938,7 +1020,13 @@ namespace srt::g2p {
                 if (!fs::exists(pkgJson)) continue;
 
                 auto expObj = PackageData::readDesc(pkgJson);
-                if (!expObj) continue;
+                if (!expObj) {
+                    // ROBUST-05: log skip reason instead of silently continuing.
+                    pkgMgrLog.srtWarning(
+                        "PackageManager: skipping package at '%1': failed to read package.json: %2",
+                        stdc::path::to_utf8(pkgJson), expObj.errorString());
+                    continue;
+                }
                 auto root = expObj.take();
 
                 // packageId
@@ -1017,7 +1105,7 @@ namespace srt::g2p {
             }
         }
 
-        impl.contextModuleInfos[ctxKey] = metadatas;
+        impl.m_contextModuleInfos[ctxKey] = metadatas;
         return metadatas;
     }
 

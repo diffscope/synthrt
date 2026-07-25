@@ -56,15 +56,15 @@ namespace ds::bank {
         void setImports(std::vector<SingerImportInfo> imports);
 
     protected:
-        std::string _singerId;
-        std::string _packageId;
-        stdc::VersionNumber _packageVersion;
-        std::string _name;
-        double _phonemeLength;
-        std::vector<LanguageInfo> _languages;
-        std::vector<SpeakerInfo> _speakers;
-        std::string _defaultLanguage;
-        std::vector<SingerImportInfo> _imports;
+        std::string m_singerId;
+        std::string m_packageId;
+        stdc::VersionNumber m_packageVersion;
+        std::string m_name;
+        double m_phonemeLength;
+        std::vector<LanguageInfo> m_languages;
+        std::vector<SpeakerInfo> m_speakers;
+        std::string m_defaultLanguage;
+        std::vector<SingerImportInfo> m_imports;
     };
 
 }

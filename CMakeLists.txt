@@ -20,6 +20,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(CMakeDependentOption)
 
 option(SYNTHRT_BUILD_TESTS "Build test cases" OFF)
+option(SYNTHRT_ENABLE_L2_TESTS "Enable L2 end-to-end tests with real plugins" OFF)
 option(SYNTHRT_BUILD_EXAMPLES "Build examples" OFF)
 option(SYNTHRT_BUILD_TOOLS "Build command line tools" ON)
 option(SYNTHRT_INSTALL "Install library" ON)
@@ -29,6 +30,26 @@ cmake_dependent_option(SYNTHRT_INSTALL_TOOLS "Install command line tools" ON
     "SYNTHRT_INSTALL;SYNTHRT_BUILD_TOOLS" OFF)
 option(SYNTHRT_INSTALL_DEPLOY "Install with deploying dependencies" OFF)
 option(SYNTHRT_INSTALL_MSVC_RUNTIME "Install MSVC runtime" OFF)
+option(SYNTHRT_ENABLE_CLANG_TIDY "Enable clang-tidy warnings (warn-only)" OFF)
+if(SYNTHRT_ENABLE_CLANG_TIDY)
+    find_program(CLANG_TIDY_EXE NAMES clang-tidy clang-tidy-16)
+    if(CLANG_TIDY_EXE)
+        message(STATUS "clang-tidy found: ${CLANG_TIDY_EXE}")
+        set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE};--warnings-as-errors=")
+    else()
+        message(WARNING "clang-tidy not found but SYNTHRT_ENABLE_CLANG_TIDY=ON")
+    endif()
+endif()
+
+option(SYNTHRT_ENABLE_COVERAGE "Enable code coverage" OFF)
+if(SYNTHRT_ENABLE_COVERAGE)
+    if(NOT CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        message(WARNING "Coverage only supported on GCC, ignoring SYNTHRT_ENABLE_COVERAGE")
+    else()
+        add_compile_options(--coverage -O0 -g)
+        link_libraries(--coverage)
+    endif()
+endif()
 
 if(NOT DEFINED BUILD_TESTING)
     set(BUILD_TESTING ${SYNTHRT_BUILD_TESTS} CACHE BOOL "Build tests")
@@ -52,6 +73,40 @@ if(MSVC)
 
     if(NOT DEFINED CMAKE_DEBUG_POSTFIX)
         set(CMAKE_DEBUG_POSTFIX "d")
+    endif()
+
+    # RC compiler (resource) needs system include paths to find windows.h.
+    # CMake's cmcldeps wrapper invokes rc.exe without forwarding the INCLUDE
+    # environment variable (which is normally set by vcvarsall.bat), so
+    # #include <windows.h> in .rc files fails with C1083.
+    # Workaround: derive MSVC + Windows SDK include paths from the CXX
+    # compiler location and add them as -I flags to CMAKE_RC_FLAGS.
+    if(NOT DEFINED _SYNTHRT_RC_FLAGS_INITIALIZED)
+        set(_rc_extra_flags "")
+        # MSVC STL headers (e.g. <string>, <memory>): derive from cl.exe path
+        # cl.exe at: <MSVC_ROOT>/bin/Hostx64/x64/cl.exe
+        # include at: <MSVC_ROOT>/include
+        get_filename_component(_msvc_bin_dir "${CMAKE_CXX_COMPILER}" DIRECTORY)
+        get_filename_component(_msvc_tools_root "${_msvc_bin_dir}/../../.." ABSOLUTE)
+        if(EXISTS "${_msvc_tools_root}/include")
+            string(APPEND _rc_extra_flags " -I\"${_msvc_tools_root}/include\"")
+        endif()
+
+        # Windows SDK headers (windows.h, winres.h, etc.)
+        # Look under C:/Program Files (x86)/Windows Kits/10/Include/*/um
+        file(GLOB _win_sdk_inc_dirs
+            "C:/Program Files (x86)/Windows Kits/10/Include/*/um"
+            "C:/Program Files (x86)/Windows Kits/10/Include/*/shared"
+            "C:/Program Files (x86)/Windows Kits/10/Include/*/ucrt")
+        foreach(_dir ${_win_sdk_inc_dirs})
+            string(APPEND _rc_extra_flags " -I\"${_dir}\"")
+        endforeach()
+
+        if(_rc_extra_flags)
+            set(CMAKE_RC_FLAGS "${CMAKE_RC_FLAGS}${_rc_extra_flags}" CACHE STRING "RC flags (with system include paths)" FORCE)
+            message(STATUS "CMAKE_RC_FLAGS augmented with system include paths for windows.h")
+        endif()
+        set(_SYNTHRT_RC_FLAGS_INITIALIZED TRUE CACHE INTERNAL "")
     endif()
 elseif(MINGW)
     set(CMAKE_STATIC_LIBRARY_PREFIX "")
@@ -97,6 +152,11 @@ endif()
 # ----------------------------------
 # Add source modules
 # ----------------------------------
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+# Load synthrt_declare_target macro (unified BuildAPI entry point) so all
+# lib/, domains/ and plugins/ subdirectories can call it. Must be included
+# before any add_subdirectory that uses synthrt_declare_target.
+include(synthrtHelpers)
 set(CMAKE_FOLDER "ThirdParty")
 add_subdirectory(third-party)
 
@@ -140,33 +200,32 @@ if(SYNTHRT_BUILD_TOOLS)
     add_subdirectory(tools)
 endif()
 
-# Aggregate target: synthrt::synthrt — links all core runtime libraries
-if(NOT TARGET synthrt-synthrt)
-    add_library(synthrt-synthrt INTERFACE)
-    add_library(synthrt::synthrt ALIAS synthrt-synthrt)
-    target_link_libraries(synthrt-synthrt INTERFACE
-        srt::core srt::driver srt::s2p srt::svs srt-ds::bank srt-ds::session)
-    set_target_properties(synthrt-synthrt PROPERTIES FOLDER "Domains")
-endif()
+# Aggregate targets: link core runtime + DiffSinger domain libraries.
+# Per-target creation / alias / EXPORT_NAME / install(TARGETS EXPORT) is
+# encapsulated in cmake/synthrtAggregate.cmake (CM-06); config-level install
+# (export file, package config, resources) remains below.
+include(synthrtAggregate)
 
-# Domain-specific aggregate: srt::diffsinger — adds G2P and ds-infer on top
-if(NOT TARGET srt-diffsinger)
-    add_library(srt-diffsinger INTERFACE)
-    add_library(srt::diffsinger ALIAS srt-diffsinger)
-    target_link_libraries(srt-diffsinger INTERFACE
-        srt::g2p srt-ds::bank srt-ds::infer srt-ds::session)
-    set_target_properties(srt-diffsinger PROPERTIES FOLDER "Domains")
-endif()
+synthrt_setup_aggregate(
+    TARGET synthrt-synthrt
+    ALIAS srt::synthrt
+    EXPORT_NAME synthrt
+    FOLDER "Domains"
+    COMPONENTS srt::core srt::driver srt::s2p srt::svs srt-ds::bank srt-ds::session
+)
+
+synthrt_setup_aggregate(
+    TARGET srt-diffsinger
+    ALIAS srt::diffsinger
+    EXPORT_NAME diffsinger
+    FOLDER "Domains"
+    COMPONENTS srt::g2p srt-ds::bank srt-ds::infer srt-ds::session
+)
 
 # ----------------------------------
 # Export aggregate targets for find_package(synthrt)
 # ----------------------------------
 if(SYNTHRT_INSTALL)
-    set_target_properties(synthrt-synthrt PROPERTIES EXPORT_NAME synthrt)
-    set_target_properties(srt-diffsinger PROPERTIES EXPORT_NAME diffsinger)
-    install(TARGETS synthrt-synthrt srt-diffsinger
-        EXPORT synthrtTargets
-    )
     install(EXPORT synthrtTargets
         NAMESPACE srt::
         FILE synthrtTargets.cmake
@@ -189,8 +248,21 @@ if(SYNTHRT_INSTALL)
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/synthrt
     )
 
-    # The English package is excluded by default until its dictionary and model
-    # redistribution provenance is documented.
+    # The English package (Phonetic-Suite-Eng) is excluded by default until its
+    # dictionary and model redistribution provenance is documented.
+    #
+    # BI-25: The exclusion is applied defensively in two layers to guarantee
+    # that Phonetic-Suite-Eng is never installed:
+    #   1. install(CODE remove_recurse) below runs at install time and deletes
+    #      the directory if it was copied by any prior install(DIRECTORY) rule.
+    #      This is the "cleanup" backstop.
+    #   2. install(DIRECTORY ... PATTERN ... EXCLUDE) skips the directory during
+    #      the copy itself. This is the primary exclusion mechanism.
+    # The double exclusion is intentionally redundant: if a CMake version or
+    # edge-case causes the PATTERN EXCLUDE to miss the directory, the
+    # remove_recurse layer still ensures the install tree is clean. The
+    # outcome is asserted by tests/packaging/cmake/AssertInstallTree.cmake
+    # (Phonetic-Suite-Eng must not exist in the install tree).
     install(CODE
         "file(REMOVE_RECURSE \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/synthrt/G2pPackages/Phonetic-Suite-Eng\")"
     )

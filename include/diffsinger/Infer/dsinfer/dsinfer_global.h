@@ -1,5 +1,4 @@
-#ifndef DSINFER_DSINFER_GLOBAL_H
-#define DSINFER_DSINFER_GLOBAL_H
+#pragma once
 
 #include <stdcorelib/stdc_global.h>
 
@@ -14,5 +13,3 @@
 #    endif
 #  endif
 #endif
-
-#endif // DSINFER_DSINFER_GLOBAL_H

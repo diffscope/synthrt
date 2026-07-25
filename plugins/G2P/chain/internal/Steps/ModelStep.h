@@ -1,13 +1,11 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2P_STEPS_MODELSTEP_H
-#define SRT_G2P_PLUGINS_CHAING2P_STEPS_MODELSTEP_H
+#pragma once
 
 #include "../Core/G2pStep.h"
 #include <synthrt/G2P/Task/Task.h>
 #include <synthrt/G2P/Task/G2pTask.h>
 #include <memory>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     /// ModelStep - 模型推理步骤
     ///
     /// 使用 AI 模型生成发音
@@ -39,6 +37,4 @@ namespace srt::g2p::plugins::ChainG2p
                          const std::vector<std::string> &words);
     };
 
-} // namespace srt::g2p::plugins::ChainG2p
-
-#endif // SRT_G2P_PLUGINS_CHAING2P_STEPS_MODELSTEP_H
+}

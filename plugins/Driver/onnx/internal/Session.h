@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_ONNX_SESSION_H
-#define SRT_DRIVER_ONNX_SESSION_H
+#pragma once
 
 #include <map>
 #include <memory>
@@ -62,7 +61,7 @@ namespace srt::driver::onnx {
             runAsync(const srt::core::NO<srt::core::TaskStartInput> &input,
                      const srt::core::ITask::StartAsyncCallback &callback);
 
-        void terminate();
+        bool terminate();
 
         const std::filesystem::path &path() const;
         bool isOpen() const;
@@ -71,9 +70,7 @@ namespace srt::driver::onnx {
 
     protected:
         class Impl;
-        std::unique_ptr<Impl> _impl;
+        std::unique_ptr<Impl> m_impl;
     };
 
 }
-
-#endif // SRT_DRIVER_ONNX_SESSION_H

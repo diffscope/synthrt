@@ -7,8 +7,7 @@
 
 #include <stdcorelib/path.h>
 
-namespace srt::g2p::plugins::DsDict::Internal::V1
-{
+namespace srt::g2p::plugins::DsDict::Internal::V1 {
     static srt::LogCategory Log("DsDict");
 
     // Static dedup map: canonical-path -> weak_ptr<Dictionary>
@@ -20,9 +19,9 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
     // ============================================================
 
     bool Dictionary::lookup(const std::string &key, std::string &value) const {
-        std::shared_lock lock(_mutex);
-        auto it = _entries.find(key);
-        if (it != _entries.end()) {
+        std::shared_lock lock(m_mutex);
+        auto it = m_entries.find(key);
+        if (it != m_entries.end()) {
             value = it->second.value;
             return true;
         }
@@ -30,13 +29,13 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
     }
 
     bool Dictionary::contains(const std::string &key) const {
-        std::shared_lock lock(_mutex);
-        return _entries.find(key) != _entries.end();
+        std::shared_lock lock(m_mutex);
+        return m_entries.find(key) != m_entries.end();
     }
 
     size_t Dictionary::size() const {
-        std::shared_lock lock(_mutex);
-        return _entries.size();
+        std::shared_lock lock(m_mutex);
+        return m_entries.size();
     }
 
     // ============================================================
@@ -44,11 +43,11 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
     // ============================================================
 
     DsDictTaskImpl::DsDictTaskImpl(const srt::g2p::ModuleSpec *spec)
-        : _spec(spec) {
+        : m_spec(spec) {
     }
 
     srt::core::Expected<void> DsDictTaskImpl::initialize() {
-        auto cfg = srt::core::config(_spec);
+        auto cfg = srt::core::config(m_spec);
 
         // Read the raw config JSON to iterate dictionary entries.
         // Config format:
@@ -101,7 +100,7 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
             }
         }
 
-        Log.srtInfo("DsDictTaskImpl initialized with %1 dictionaries", _dictionaries.size());
+        Log.srtInfo("DsDictTaskImpl initialized with %1 dictionaries", m_dictionaries.size());
         return {};
     }
 
@@ -130,8 +129,8 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
                                                              const std::filesystem::path &path) {
         // Check for duplicate dictId
         {
-            std::shared_lock lock(_dictMutex);
-            if (_dictionaries.find(dictId) != _dictionaries.end()) {
+            std::shared_lock lock(m_dictMutex);
+            if (m_dictionaries.find(dictId) != m_dictionaries.end()) {
                 return srt::g2p::Error(srt::g2p::Error::RuntimeError,
                                        "Dictionary '" + dictId + "' already loaded");
             }
@@ -153,8 +152,8 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
             if (it != s_loadedFiles.end()) {
                 if (auto existing = it->second.lock()) {
                     // Reuse: same physical file already parsed
-                    std::unique_lock lock(_dictMutex);
-                    _dictionaries[dictId] = existing;
+                    std::unique_lock lock(m_dictMutex);
+                    m_dictionaries[dictId] = existing;
                     Log.srtInfo("DsDict: reusing already-loaded file '%1' for dict '%2' (dedup)",
                                      canonicalStr, dictId);
                     return {};
@@ -191,7 +190,7 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
         // Pre-allocate: estimate line count for large files
         if (fileSize > 1024 * 1024) {
             size_t lineCount = std::count(buf.begin(), buf.end(), '\n') + 1;
-            dict->_entries.reserve(lineCount);
+            dict->m_entries.reserve(lineCount);
         }
 
         // Parse lines: key\tvalue
@@ -226,7 +225,7 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
             std::string key = buf.substr(pos, tabPos - pos);
             std::string value = buf.substr(tabPos + 1, eol - tabPos - 1);
 
-            dict->_entries.emplace(std::move(key), DictEntry(std::move(value)));
+            dict->m_entries.emplace(std::move(key), DictEntry(std::move(value)));
 
             pos = (eol < buf.size() && buf[eol] == '\r' && eol + 1 < buf.size() && buf[eol + 1] == '\n')
                       ? eol + 2
@@ -235,8 +234,8 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
 
         // Register in instance map and global dedup map
         {
-            std::unique_lock lock(_dictMutex);
-            _dictionaries[dictId] = dict;
+            std::unique_lock lock(m_dictMutex);
+            m_dictionaries[dictId] = dict;
         }
         {
             std::lock_guard fileLock(s_loadedFilesMutex);
@@ -249,9 +248,9 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
     }
 
     std::shared_ptr<Dictionary> DsDictTaskImpl::getDictionary(const std::string &dictId) const {
-        std::shared_lock lock(_dictMutex);
-        auto it = _dictionaries.find(dictId);
-        if (it != _dictionaries.end()) {
+        std::shared_lock lock(m_dictMutex);
+        auto it = m_dictionaries.find(dictId);
+        if (it != m_dictionaries.end()) {
             return it->second;
         }
         return nullptr;
@@ -288,4 +287,4 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
         return result;
     }
 
-} // namespace srt::g2p::plugins::DsDict::Internal::V1
+}

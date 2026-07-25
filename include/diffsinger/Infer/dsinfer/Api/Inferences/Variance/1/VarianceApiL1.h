@@ -1,5 +1,4 @@
-#ifndef DSINFER_API_VARIANCEAPIL1_H
-#define DSINFER_API_VARIANCEAPIL1_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -133,5 +132,3 @@ namespace srt::svs::Api::Variance::L1 {
     };
 
 }
-
-#endif // DSINFER_API_VARIANCEAPIL1_H

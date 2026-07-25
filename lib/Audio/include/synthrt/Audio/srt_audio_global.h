@@ -1,5 +1,4 @@
-#ifndef SRT_AUDIO_SRT_AUDIO_GLOBAL_H
-#define SRT_AUDIO_SRT_AUDIO_GLOBAL_H
+#pragma once
 
 #include <stdcorelib/stdc_global.h>
 
@@ -14,5 +13,3 @@
 #    endif
 #  endif
 #endif
-
-#endif // SRT_AUDIO_SRT_AUDIO_GLOBAL_H

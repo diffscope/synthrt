@@ -32,6 +32,7 @@
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
+#include <dsinfer/Api/Inferences/Vocoder/2/VocoderApiL2.h>
 #include <synthrt/Driver/OnnxSetup.h>
 
 #include "CliArgs.h"
@@ -62,6 +63,7 @@ namespace dsinfer_cli {
         namespace Pit = srt::svs::Api::Pitch::L1;
         namespace Var = srt::svs::Api::Variance::L1;
         namespace Vo = srt::svs::Api::Vocoder::L1;
+        namespace Vo_L2 = srt::svs::Api::Vocoder::L2;
         using srt::core::NO;
 
         ds::infer::InferenceResult result;
@@ -292,24 +294,48 @@ namespace dsinfer_cli {
                 result.error = resExp.error();
                 return result;
             }
-            auto voResult = resExp.value().as<Vo::VocoderResult>();
-            if (!voResult || voResult->error.code() != srt::core::ErrorCode::None) {
-                result.error = voResult ? voResult->error
-                                         : srt::core::Error(srt::core::Error::SessionError,
-                                                              "vocoder result type mismatch");
-                return result;
+            auto voTaskResult = resExp.value();
+            // Dispatch L2 vs L1 by objectName(): NO<>::as<>() uses
+            // static_pointer_cast, so a blind cast to the wrong sibling
+            // VocoderResult type would be UB.
+            if (voTaskResult->objectName() == Vo_L2::API_NAME) {
+                // L2 path: float audioData + sampleRate/channels on the result.
+                auto voResult = voTaskResult.as<Vo_L2::VocoderResult>();
+                if (voResult->error.code() != srt::core::ErrorCode::None) {
+                    result.error = voResult->error;
+                    return result;
+                }
+                result.audio = std::move(voResult->audioData);
+                result.sampleRate = voResult->sampleRate;
+                result.channels = voResult->channels;
+            } else {
+                // L1 fallback: legacy vocoder plugin returns vector<uint8_t>.
+                auto voResult = voTaskResult.as<Vo::VocoderResult>();
+                if (voResult->error.code() != srt::core::ErrorCode::None) {
+                    result.error = voResult->error;
+                    return result;
+                }
+                const auto &audioData = voResult->audioData;
+                // BUG-21: validate size is a multiple of sizeof(float) before
+                // reinterpreting bytes as float32 PCM.
+                if (!audioData.empty()) {
+                    if (audioData.size() % sizeof(float) != 0) {
+                        result.error = srt::core::Error(
+                            srt::core::Error::SessionError,
+                            "vocoder audioData size is not a multiple of sizeof(float)");
+                        return result;
+                    }
+                    const auto sampleCount = audioData.size() / sizeof(float);
+                    result.audio.resize(sampleCount);
+                    std::memcpy(result.audio.data(), audioData.data(), audioData.size());
+                }
+                const auto vocoderConfig =
+                    stages.vocoder.spec->configuration().as<Vo::VocoderConfiguration>();
+                if (vocoderConfig) {
+                    result.sampleRate = vocoderConfig->sampleRate;
+                }
+                result.channels = 1;
             }
-            const auto &audioData = voResult->audioData;
-            if (!audioData.empty()) {
-                const auto sampleCount = audioData.size() / sizeof(float);
-                result.audio.resize(sampleCount);
-                std::memcpy(result.audio.data(), audioData.data(), audioData.size());
-            }
-            const auto vocoderConfig = stages.vocoder.spec->configuration().as<Vo::VocoderConfiguration>();
-            if (vocoderConfig) {
-                result.sampleRate = vocoderConfig->sampleRate;
-            }
-            result.channels = 1;
         }
 
         // --- Lifecycle test: stop, unload, reload, unloadAll ---
@@ -591,24 +617,21 @@ namespace dsinfer_cli {
 } // namespace dsinfer_cli
 
 int main(int argc, char *argv[]) {
-    if (argc >= 2 && std::strcmp(argv[1], "--version") == 0) {
-        std::printf("%s\n", TOOL_VERSION);
-        return 0;
-    }
-
     using namespace dsinfer_cli;
 
     CliArgs args;
     if (!args.parse(argc, argv)) {
-        return args.exitCode;
+        return args.exitCode;  // --version / --help / 用法错误均在此统一处理
     }
 
-    installLogCallback();
-
     try {
+        installLogCallback();
         return execPipeline(args);
     } catch (const std::exception &e) {
         stdc::console::critical("Error: %1", e.what());
+        return -1;
+    } catch (...) {
+        stdc::console::critical("Error: unknown exception");
         return -1;
     }
 }

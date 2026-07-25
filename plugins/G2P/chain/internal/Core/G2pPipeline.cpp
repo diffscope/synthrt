@@ -2,8 +2,7 @@
 #include <synthrt/G2P/Support/Error.h>
 #include <stdcorelib/str.h>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     /// 格式化步骤错误消息
     /// @param stepIndex 步骤索引
     /// @param stepType 步骤类型
@@ -144,4 +143,4 @@ namespace srt::g2p::plugins::ChainG2p
         m_steps.clear();
     }
 
-} // namespace srt::g2p::plugins::ChainG2p
+}

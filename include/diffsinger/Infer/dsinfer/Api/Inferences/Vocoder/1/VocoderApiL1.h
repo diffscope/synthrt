@@ -1,5 +1,4 @@
-#ifndef DSINFER_API_VOCODERAPIL1_H
-#define DSINFER_API_VOCODERAPIL1_H
+#pragma once
 
 #include <synthrt/SVS/InferenceInterpreter.h>
 #include <synthrt/SVS/Inference.h>
@@ -112,5 +111,3 @@ namespace srt::svs::Api::Vocoder::L1 {
     };
 
 }
-
-#endif // DSINFER_API_VOCODERAPIL1_H

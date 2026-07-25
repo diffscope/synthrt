@@ -1,5 +1,4 @@
-#ifndef SRT_EXTRACT_PITCHEXTRACTOR_H
-#define SRT_EXTRACT_PITCHEXTRACTOR_H
+#pragma once
 
 #include <filesystem>
 #include <functional>
@@ -68,5 +67,3 @@ namespace srt::extract {
     };
 
 } // namespace srt::extract
-
-#endif // SRT_EXTRACT_PITCHEXTRACTOR_H

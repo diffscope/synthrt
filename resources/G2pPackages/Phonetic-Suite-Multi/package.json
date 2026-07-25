@@ -1,0 +1,15 @@
+{
+  "packageId": "multi-official",
+  "version": "1.0.0",
+  "vendor": "MultiG2p",
+  "copyright": "Copyright (C) MultiG2p",
+  "modules": {
+    "g2p": [
+      {
+        "moduleId": "g2p-multig2p-multi-official",
+        "class": "g2p.model.Multig2pInference",
+        "configuration": "modules/Multig2p-Multi/config.json"
+      }
+    ]
+  }
+}

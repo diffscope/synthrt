@@ -85,6 +85,46 @@ namespace srt::core {
         /// a \c PackageRef stub; package state is now tracked internally.
         Expected<void> loadPackage(const std::filesystem::path &path);
 
+        /// Unload a DiffSinger voice bank package previously loaded via
+        /// \c loadPackage(). The \c path argument must match the path passed
+        /// to \c loadPackage() (path identity is checked against the internal
+        /// loaded-package list).
+        ///
+        /// Internally this:
+        ///   1. Looks up the package by \c path and retrieves its pkgId.
+        ///   2. Iterates the inference and singer module categories, finds
+        ///      every spec whose \c packageId() matches, and transitions it
+        ///      through \c ModuleSpec::Deleted (removing it from the category
+        ///      and freeing its memory).
+        ///
+        /// \warning The caller MUST ensure no active ModelSet handles
+        ///          reference specs from this package before calling
+        ///          unloadPackage. This API performs no active-reference
+        ///          check itself; unloading a package that is still in use
+        ///          results in undefined behavior (dangling spec references
+        ///          in the upper layer). \c VoicebankSession::unloadVoicebank
+        ///          provides reference counting (via \c activeHandleCount,
+        ///          returning \c PackageInUse when handles are outstanding)
+        ///          to enforce this; direct Runtime consumers must implement
+        ///          their own guard. Per ROBUST-04, the unload order is:
+        ///          unload models first, then unload the package.
+        ///
+        /// \note ARCH-03 layering: Runtime (srt::core) only unloads the
+        ///       ModuleSpec entries it owns. Callers that maintain a
+        ///       \c ds::infer::ModelRegistry MUST additionally invoke
+        ///       \c ModelRegistry::unbindPackage(pkgId) to evict cached
+        ///       InferenceSession objects. Callers that maintain a
+        ///       \c ds::infer::ModelSet MUST additionally invoke
+        ///       \c ModelSet::markStale() (or rebuild the ModelSet) to
+        ///       invalidate handles that still reference the unloaded
+        ///       package's specs (ROBUST-04). Failing to do so leaves
+        ///       dangling references in the upper layer.
+        ///
+        /// \note The recommended unload order is: (1) mark ModelSet stale
+        ///       and stop in-flight inference, (2) call this API to remove
+        ///       specs, (3) call \c ModelRegistry::unbindPackage(pkgId).
+        Expected<void> unloadPackage(const std::filesystem::path &path);
+
     protected:
         static void registerModuleCategoryFactory(ModuleCategory *(*fac)(Runtime *));
 

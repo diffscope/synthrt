@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_TASK_TASKPLUGIN_H
-#define SRT_CORE_TASK_TASKPLUGIN_H
+#pragma once
 
 #include <synthrt/Core/Plugin/Plugin.h>
 #include <synthrt/Core/Support/Expected.h>
@@ -39,5 +38,3 @@ namespace srt::core {
     };
 
 } // namespace srt::core
-
-#endif // SRT_CORE_TASK_TASKPLUGIN_H

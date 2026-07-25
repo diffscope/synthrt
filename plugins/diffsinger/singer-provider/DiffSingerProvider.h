@@ -1,5 +1,4 @@
-#ifndef DSINFER_DIFFSINGERPROVIDER_H
-#define DSINFER_DIFFSINGERPROVIDER_H
+#pragma once
 
 #include <synthrt/SVS/SingerProvider.h>
 
@@ -18,5 +17,3 @@ namespace srt::svs {
     };
 
 }
-
-#endif // DSINFER_DIFFSINGERPROVIDER_H

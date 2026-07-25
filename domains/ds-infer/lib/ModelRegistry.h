@@ -46,6 +46,17 @@ namespace ds::infer {
             getBoundSession(const std::string &packageId,
                             const std::string &inferenceId) const;
 
+        /// Remove the cached session for (packageId, inferenceId) and close it.
+        /// Returns true if a session was removed. Safe to call on unknown keys
+        /// (returns false). Callers MUST ensure no inference is running on the
+        /// session before calling unbind (ROBUST-04).
+        bool unbind(const std::string &packageId, const std::string &inferenceId);
+
+        /// Remove all cached sessions belonging to a package and close them.
+        /// Used when a voicebank package is unloaded. Returns the number of
+        /// sessions removed.
+        size_t unbindPackage(const std::string &packageId);
+
     private:
         class Impl;
         std::unique_ptr<Impl> _impl;

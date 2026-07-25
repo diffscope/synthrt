@@ -1,6 +1,6 @@
 # Core 模块 (`srt::core`)
 
-namespace: `srt::core` | target: `synthrt::core` | 头文件: `include/synthrt/Core/`
+namespace: `srt::core` | target: `srt::core` | 头文件: `include/synthrt/Core/`
 
 ---
 

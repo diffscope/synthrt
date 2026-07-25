@@ -17,11 +17,16 @@ namespace ds::infer {
         // from different packages (ARCH-06). Without packageId, the second
         // package's setMapping would silently overwrite the first package's
         // table.
+        std::unique_lock lock(m_mutex);
         m_mappings[{packageId, inferenceId}] = std::move(mapping);
     }
 
     void SpeakerMapper::loadFromInferenceInfo(const std::string &inferenceId,
                                               const ds::bank::InferenceInfo &info) {
+        // Build the local table unlocked (only reads `info`); the actual write
+        // into m_mappings goes through setMapping, which takes the write lock.
+        // Taking a lock here as well would self-deadlock (shared_mutex is not
+        // reentrant).
         SpeakerMapping mapping;
         for (const auto &entry : info.speakerEmbeddings) {
             // Key is the singer speaker id; store the embedding path string as
@@ -37,6 +42,7 @@ namespace ds::infer {
         SpeakerMapper::resolve(const std::string &packageId,
                                const std::string &inferenceId,
                                const std::string &singerSpeaker) const {
+        std::shared_lock lock(m_mutex);
         auto it = m_mappings.find({packageId, inferenceId});
         if (it == m_mappings.end()) {
             return srt::core::Error(

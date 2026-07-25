@@ -1,6 +1,6 @@
 # S2P 模块 (`srt::s2p`)
 
-namespace: `srt::s2p` | target: `synthrt::s2p` | 头文件: `include/synthrt/S2P/`
+namespace: `srt::s2p` | target: `srt::s2p` | 头文件: `include/synthrt/S2P/`
 
 ---
 

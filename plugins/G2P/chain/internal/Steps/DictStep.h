@@ -1,12 +1,10 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2P_STEPS_DICTSTEP_H
-#define SRT_G2P_PLUGINS_CHAING2P_STEPS_DICTSTEP_H
+#pragma once
 
 #include "../Core/G2pStep.h"
 #include <synthrt/G2P/Support/PhonemeDict.h>
 #include <memory>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     /// DictStep - 字典查找步骤
     ///
     /// 从字典中查找发音
@@ -32,6 +30,4 @@ namespace srt::g2p::plugins::ChainG2p
         std::vector<std::string> lookup(const std::string &key) const;
     };
 
-} // namespace srt::g2p::plugins::ChainG2p
-
-#endif // SRT_G2P_PLUGINS_CHAING2P_STEPS_DICTSTEP_H
+}

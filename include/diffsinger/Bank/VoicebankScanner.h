@@ -9,6 +9,7 @@
 
 #include <synthrt/Core/Support/Expected.h>
 
+#include <diffsinger/Bank/PackageManifest.h>
 #include <diffsinger/Bank/PackageStatus.h>
 #include <diffsinger/Bank/SingerRef.h>
 #include <diffsinger/Bank/SingerSnapshot.h>
@@ -53,6 +54,15 @@ namespace ds::bank {
         /// Cached results after refresh().
         const std::vector<SingerSnapshot> &singers() const;
 
+        /// TD-01 (D-39 #2): Cached manifests for valid packages after
+        /// refresh(). Ordered by discovery, matching the order of valid
+        /// entries in the PackageStatus vector returned by refresh(). Invalid
+        /// packages (parse failures) contribute only their PackageStatus.error
+        /// and have no manifest here. Lets callers read the full manifest
+        /// (name/description/author/license/singers/speakers/languages/
+        /// inferences) without re-parsing desc.json.
+        const std::vector<PackageManifest> &manifests() const;
+
         /// Lookup singer by ref.
         srt::core::Expected<SingerSnapshot> singerSnapshot(
             const SingerRef &ref) const;
@@ -82,6 +92,9 @@ namespace ds::bank {
         /// Multi-version same-packageId voicebanks collapse to one entry here —
         /// callers needing full version isolation must migrate to
         /// packageDirectories(packageId).
+        /// Note: returns empty path when the packageId has multiple versions
+        /// installed (D-42 multi-version ambiguity guard). Callers must
+        /// migrate to packageDirectories() to disambiguate explicitly.
         [[deprecated("Use packageDirectories(packageId). Will be removed in Level=3.")]]
         std::filesystem::path packageDirectory(
             const std::string &packageId) const;

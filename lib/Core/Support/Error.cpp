@@ -3,6 +3,8 @@
 #include <filesystem>
 #include <format>
 
+#include <stdcorelib/path.h>
+
 namespace srt::core {
 
     // === errorCodeCategory ===
@@ -166,9 +168,11 @@ namespace srt::core {
 
     // === Error::formatLocation ===
     std::string Error::formatLocation(const std::source_location &loc) {
-        // Only keep the filename, not the full path
+        // Only keep the filename, not the full path.
+        // CODING-03: use stdc::path::to_utf8 to avoid filesystem_error / mojibake
+        // on Windows non-ANSI paths (p.filename().string() would throw).
         std::filesystem::path p(loc.file_name());
-        return std::format("{}:{}:{}", p.filename().string(), loc.line(), loc.function_name());
+        return std::format("{}:{}:{}", stdc::path::to_utf8(p.filename()), loc.line(), loc.function_name());
     }
 
     // === Error::toString ===
@@ -224,6 +228,23 @@ namespace srt::core {
         return result;
     }
 
+    // === Error::messageWithLocation ===
+    std::string Error::messageWithLocation() const {
+        if (ok()) {
+            return {};
+        }
+        std::string result;
+        if (!_diagnostic->moduleId.empty()) {
+            result = std::format("[{}] {}", _diagnostic->moduleId, *_msg);
+        } else {
+            result = *_msg;
+        }
+        if (!_diagnostic->location.empty()) {
+            result += " at " + _diagnostic->location;
+        }
+        return result;
+    }
+
     // === Error::appendTrace ===
     void Error::appendTrace(std::string entry) {
         _diagnostic->trace.push_back(std::move(entry));
@@ -259,6 +280,57 @@ namespace srt::core {
             _diagnostic->language = std::move(language);
         }
         return *this;
+    }
+
+    Error &Error::withExtraContext(
+        std::vector<std::pair<std::string, std::string>> entries) {
+        for (auto &entry : entries) {
+            _diagnostic->extraContext.push_back(std::move(entry));
+        }
+        return *this;
+    }
+
+    std::string Error::formatContext() const {
+        const auto &d = *_diagnostic;
+        std::string result;
+        // Named context fields
+        if (!d.packageId.empty()) {
+            result += "packageId=" + d.packageId + ", ";
+        }
+        if (!d.singerId.empty()) {
+            result += "singerId=" + d.singerId + ", ";
+        }
+        if (!d.language.empty()) {
+            result += "language=" + d.language + ", ";
+        }
+        if (!d.moduleId.empty()) {
+            result += "moduleId=" + d.moduleId + ", ";
+        }
+        if (!d.providerKey.empty()) {
+            result += "providerKey=" + d.providerKey + ", ";
+        }
+        // Extra context key-value pairs
+        for (const auto &[key, value] : d.extraContext) {
+            result += key + "=" + value + ", ";
+        }
+        // Remove trailing ", " if any context was added
+        if (result.size() >= 2 && result.substr(result.size() - 2) == ", ") {
+            result.resize(result.size() - 2);
+        }
+        // Append message
+        if (!result.empty()) {
+            result = "[" + result + "] " + d.message;
+        } else {
+            result = d.message;
+        }
+        // Append trace if present
+        if (!d.trace.empty()) {
+            result += "\nTrace:";
+            for (const auto &entry : d.trace) {
+                result += "\n  " + entry;
+            }
+        }
+        return result;
     }
 
     // === Factory functions ===

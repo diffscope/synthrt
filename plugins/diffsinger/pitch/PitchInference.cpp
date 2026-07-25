@@ -28,6 +28,7 @@
 #include <inferutil/LinguisticEncoder.h>
 #include <inferutil/SpeakerEmbedding.h>
 #include <inferutil/Speedup.h>
+#include <inferutil/PluginCommon.h>
 
 namespace srt::svs {
 
@@ -36,23 +37,9 @@ namespace srt::svs {
     namespace Onnx = srt::driver::onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
+    static constexpr auto kLogPrefix = "[Pitch]";
+
     static srt::LogCategory Log("diffsinger.pitch");
-
-    static inline srt::core::Expected<srt::core::NO<Pit::PitchConfiguration>>
-        getConfig(const srt::svs::InferenceSpec *spec) {
-
-        const auto genericConfig = spec->configuration();
-        if (!genericConfig) {
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Pitch] configuration is nullptr");
-        }
-        if (!(genericConfig->className() == Pit::API_CLASS &&
-              genericConfig->objectName() == Pit::API_NAME)) {
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Pitch] invalid configuration");
-        }
-        return genericConfig.as<Pit::PitchConfiguration>();
-    }
 
     class PitchInference::Impl {
     public:
@@ -64,26 +51,28 @@ namespace srt::svs {
     };
 
     PitchInference::PitchInference(const srt::svs::InferenceSpec *spec)
-        : Inference(spec), _impl(std::make_unique<Impl>()) {
+        : Inference(spec), m_impl(std::make_unique<Impl>()) {
     }
 
     PitchInference::~PitchInference() = default;
 
     srt::core::Expected<void> PitchInference::initialize(const srt::core::NO<srt::core::TaskInitArgs> &args) {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
-        if (!args) {
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Pitch] task init args is nullptr");
-        }
-        if (auto name = args->objectName(); name != Pit::API_NAME) {
-            return srt::core::Error(
-                srt::core::ErrorCode::InvalidArgument,
-                stdc::formatN(R"([Pitch] invalid task init args name: expected "%1", got "%2")",
-                              Pit::API_NAME, name));
+        if (auto res = ds::infer::inferutil::validateInitArgs(args, Pit::API_NAME, kLogPrefix); !res) {
+            setState(Failed);
+            Log.srtCritical("%1 initialize: %2", kLogPrefix, res.error().message());
+            return res.takeError();
         }
         auto pitchArgs = args.as<Pit::PitchInitArgs>();
+        if (!pitchArgs) {
+            setState(Failed);
+            Log.srtCritical("%1 initialize: type mismatch, expected PitchInitArgs", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
+                              "[Pitch] type mismatch, expected PitchInitArgs",
+                              {}, "pitch");
+        }
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
 
@@ -94,40 +83,40 @@ namespace srt::svs {
             impl.driver = res.take();
         } else {
             setState(Failed);
-            Log.srtCritical("[Pitch] initialize: failed to get inference driver: %1",
-                            res.error().message());
+            Log.srtCritical("%1 initialize: failed to get inference driver: %2",
+                            kLogPrefix, res.error().message());
             return res.takeError();
         }
 
         // Get pitch config
-        auto expConfig = getConfig(spec());
+        auto expConfig = ds::infer::inferutil::getTypedConfig<Pit::PitchConfiguration>(spec(), Pit::API_CLASS, Pit::API_NAME, kLogPrefix);
         if (!expConfig) {
             setState(Failed);
-            Log.srtCritical("[Pitch] initialize: %1", expConfig.error().message());
+            Log.srtCritical("%1 initialize: %2", kLogPrefix, expConfig.error().message());
             return expConfig.takeError();
         }
         const auto config = expConfig.take();
 
         // Open pitch session (encoder)
-        impl.encoderSession = impl.driver->createSession();
-        auto encoderOpenArgs = srt::core::NO<Onnx::SessionOpenArgs>::create();
-        encoderOpenArgs->useCpu = false;
-        if (auto res = impl.encoderSession->open(config->encoder, encoderOpenArgs); !res) {
+        if (auto exp = ds::infer::inferutil::openOnnxSession(
+                impl.driver, config->encoder, false, "encoder", kLogPrefix);
+            exp) {
+            impl.encoderSession = exp.take();
+        } else {
             setState(Failed);
-            Log.srtCritical("[Pitch] initialize: failed to open encoder session for model %1",
-                            stdc::path::to_utf8(config->encoder));
-            return res;
+            Log.srtCritical("%1", exp.error().message());
+            return exp.takeError();
         }
 
         // Open pitch session (predictor)
-        impl.predictorSession = impl.driver->createSession();
-        auto predictorOpenArgs = srt::core::NO<Onnx::SessionOpenArgs>::create();
-        predictorOpenArgs->useCpu = false;
-        if (auto res = impl.predictorSession->open(config->predictor, predictorOpenArgs); !res) {
+        if (auto exp = ds::infer::inferutil::openOnnxSession(
+                impl.driver, config->predictor, false, "predictor", kLogPrefix);
+            exp) {
+            impl.predictorSession = exp.take();
+        } else {
             setState(Failed);
-            Log.srtCritical("[Pitch] initialize: failed to open predictor session for model %1",
-                            stdc::path::to_utf8(config->predictor));
-            return res;
+            Log.srtCritical("%1", exp.error().message());
+            return exp.takeError();
         }
 
         // Initialize inference state
@@ -138,57 +127,51 @@ namespace srt::svs {
     }
 
     srt::core::Expected<srt::core::NO<srt::core::TaskResult>> PitchInference::start(const srt::core::NO<srt::core::TaskStartInput> &input) {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
 
         {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.driver) {
+            if (auto res = ds::infer::inferutil::checkDriverReady(impl.driver, kLogPrefix); !res) {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: inference driver not initialized");
-                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
-                                  "[Pitch] inference driver not initialized");
+                Log.srtCritical("%1", res.error().message());
+                return res.takeError();
             }
         }
 
         setState(Running);
 
         // Get pitch config
-        auto expConfig = getConfig(spec());
+        auto expConfig = ds::infer::inferutil::getTypedConfig<Pit::PitchConfiguration>(spec(), Pit::API_CLASS, Pit::API_NAME, kLogPrefix);
         if (!expConfig) {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: %1", expConfig.error().message());
+            Log.srtCritical("%1 start: %2", kLogPrefix, expConfig.error().message());
             return expConfig.takeError();
         }
         const auto config = expConfig.take();
 
-        if (!input) {
+        if (auto res = ds::infer::inferutil::validateStartInput(input, Pit::API_NAME, kLogPrefix); !res) {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: input is nullptr");
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Pitch] input is nullptr");
-        }
-
-        if (const auto &name = input->objectName(); name != Pit::API_NAME) {
-            setState(Failed);
-            Log.srtCritical("[Pitch] start: invalid input name: expected %1, got %2",
-                            Pit::API_NAME, name);
-            return srt::core::Error(
-                srt::core::ErrorCode::InvalidArgument,
-                stdc::formatN(R"([Pitch] invalid input name: expected "%1", got "%2")",
-                              Pit::API_NAME, name));
+            Log.srtCritical("%1", res.error().message());
+            return res.takeError();
         }
 
         auto pitchInput = input.as<Pit::PitchStartInput>();
+        if (!pitchInput) {
+            setState(Failed);
+            Log.srtCritical("%1 start: type mismatch, expected PitchStartInput", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
+                              "[Pitch] type mismatch, expected PitchStartInput",
+                              {}, "pitch");
+        }
         // ...
 
         auto sessionInput = srt::core::NO<Onnx::SessionStartInput>::create();
 
         double frameWidth = config->frameWidth;
-        if (!std::isfinite(frameWidth) || frameWidth <= 0) {
+        if (auto res = ds::infer::inferutil::validateFrameWidth(frameWidth, kLogPrefix); !res) {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: frame width must be positive");
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Pitch] frame width must be positive");
+            Log.srtCritical("%1", res.error().message());
+            return res.takeError();
         }
 
         // Part 1: Linguistic Encoder Inference
@@ -196,14 +179,21 @@ namespace srt::svs {
             // Auto-detect linguistic mode from ONNX model input names
             auto linguisticMode = config->linguisticMode;
             {
+                // BUG-PLUGIN-PIT-01: Protect encoderSession access with a shared
+                // lock so that initialize()/close() (which take a unique_lock)
+                // cannot reassign or destroy encoderSession while inputNames()
+                // and the returned reference are in use. The reference points
+                // into the session's internals, so the lock must outlive the
+                // use of `names`.
+                std::shared_lock<std::shared_mutex> lock(impl.mutex);
                 const auto &names = impl.encoderSession->inputNames();
                 bool hasWordDiv = std::find(names.begin(), names.end(), "word_div") != names.end();
                 bool hasPhDur = std::find(names.begin(), names.end(), "ph_dur") != names.end();
                 if (hasWordDiv && linguisticMode != Co::LinguisticMode::LM_Word) {
-                    Log.srtWarning("[Pitch] start: model expects word mode, overriding");
+                    Log.srtWarning("%1 start: model expects word mode, overriding", kLogPrefix);
                     linguisticMode = Co::LinguisticMode::LM_Word;
                 } else if (!hasWordDiv && hasPhDur && linguisticMode != Co::LinguisticMode::LM_Phoneme) {
-                    Log.srtWarning("[Pitch] start: model expects phoneme mode, overriding");
+                    Log.srtWarning("%1 start: model expects phoneme mode, overriding", kLogPrefix);
                     linguisticMode = Co::LinguisticMode::LM_Phoneme;
                 }
             }
@@ -217,8 +207,8 @@ namespace srt::svs {
                         linguisticInput = exp.take();
                     } else {
                         setState(Failed);
-                        Log.srtCritical("[Pitch] start: preprocessLinguisticWord failed: %1",
-                                        exp.error().message());
+                        Log.srtCritical("%1 start: preprocessLinguisticWord failed: %2",
+                                        kLogPrefix, exp.error().message());
                         return exp.takeError();
                     }
                     break;
@@ -230,33 +220,35 @@ namespace srt::svs {
                         linguisticInput = exp.take();
                     } else {
                         setState(Failed);
-                        Log.srtCritical("[Pitch] start: preprocessLinguisticPhoneme failed: %1",
-                                        exp.error().message());
+                        Log.srtCritical("%1 start: preprocessLinguisticPhoneme failed: %2",
+                                        kLogPrefix, exp.error().message());
                         return exp.takeError();
                     }
                     break;
                 default:
                     setState(Failed);
-                    Log.srtCritical("[Pitch] start: invalid LinguisticMode");
-                    return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
-                                      "[Pitch] invalid LinguisticMode");
+                    Log.srtCritical("%1 start: invalid LinguisticMode", kLogPrefix);
+                    return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
+                                      "[Pitch] invalid LinguisticMode",
+                                      {}, "pitch");
             }
 
             // Run Linguistic Encoder Inference
             std::unique_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: linguistic encoder session is not initialized");
-                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
-                                  "[Pitch] linguistic encoder session is not initialized");
+                Log.srtCritical("%1 start: linguistic encoder session is not initialized", kLogPrefix);
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceStartFailed,
+                                  "[Pitch] linguistic encoder session is not initialized",
+                                  {}, "pitch");
             }
             if (auto encoderSessionExp =
                     ds::infer::inferutil::runEncoder(impl.encoderSession, linguisticInput,
                                                   /* out */ sessionInput, false);
                 !encoderSessionExp) {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: runEncoder failed: %1",
-                                encoderSessionExp.error().message());
+                Log.srtCritical("%1 start: runEncoder failed: %2",
+                                kLogPrefix, encoderSessionExp.error().message());
                 return encoderSessionExp.takeError();
             }
         }
@@ -291,9 +283,10 @@ namespace srt::svs {
 
         if (!ds::infer::inferutil::fillRestMidiWithNearestInPlace<float>(noteMidi, noteRest)) {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: failed to fill rest notes");
-            return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
-                              "[Pitch] failed to fill rest notes");
+            Log.srtCritical("%1 start: failed to fill rest notes", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
+                              "[Pitch] failed to fill rest notes",
+                              {}, "pitch");
         }
 
         auto tensorFrom1DArray = [&](const auto &vec) {
@@ -305,8 +298,8 @@ namespace srt::svs {
             sessionInput->inputs.emplace("note_midi", exp.take());
         } else {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: failed to create note_midi tensor: %1",
-                            exp.error().message());
+            Log.srtCritical("%1 start: failed to create note_midi tensor: %2",
+                            kLogPrefix, exp.error().message());
             return exp.takeError();
         }
 
@@ -321,8 +314,8 @@ namespace srt::svs {
                 sessionInput->inputs.emplace("note_rest", exp.take());
             } else {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: failed to create note_rest tensor: %1",
-                                exp.error().message());
+                Log.srtCritical("%1 start: failed to create note_rest tensor: %2",
+                                kLogPrefix, exp.error().message());
                 return exp.takeError();
             }
         }
@@ -331,8 +324,8 @@ namespace srt::svs {
             sessionInput->inputs.emplace("note_dur", exp.take());
         } else {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: failed to create note_dur tensor: %1",
-                            exp.error().message());
+            Log.srtCritical("%1 start: failed to create note_dur tensor: %2",
+                            kLogPrefix, exp.error().message());
             return exp.takeError();
         }
 
@@ -342,8 +335,8 @@ namespace srt::svs {
             sessionInput->inputs.emplace("ph_dur", exp.take());
         } else {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: preprocessPhonemeDurations failed: %1",
-                            exp.error().message());
+            Log.srtCritical("%1 start: preprocessPhonemeDurations failed: %2",
+                            kLogPrefix, exp.error().message());
             return exp.takeError();
         }
 
@@ -360,12 +353,12 @@ namespace srt::svs {
                                                        targetLength, true);
             if (samples.size() != targetLength) {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: parameter %1 resample failed (size=%2, expected=%3)",
-                                std::string(param.tag.name()), samples.size(), targetLength);
-                return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
+                Log.srtCritical("%1 start: parameter %2 resample failed (size=%3, expected=%4)",
+                                kLogPrefix, std::string(param.tag.name()), samples.size(), targetLength);
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
                                 "[Pitch] parameter " +
                                 std::string(param.tag.name()) +
-                                " resample failed");
+                                " resample failed", {}, "pitch");
             }
 
             if (isPitch) {
@@ -373,17 +366,19 @@ namespace srt::svs {
                     auto pitchTensor = exp.take();
                     if (pitchTensor->elementCount() != targetLength) {
                         setState(Failed);
-                        Log.srtCritical("[Pitch] start: pitch tensor element count does not match target length");
-                        return srt::core::Error(
+                        Log.srtCritical("%1 start: pitch tensor element count does not match target length", kLogPrefix);
+                        return srt::core::Error::inferenceError(
                             srt::core::ErrorCode::InferenceTensorCreateFailed,
-                            "[Pitch] pitch tensor element count does not match target length");
+                            "[Pitch] pitch tensor element count does not match target length",
+                            {}, "pitch");
                     }
                     auto pitchBuffer = pitchTensor->mutableData<float>();
                     if (!pitchBuffer) {
                         setState(Failed);
-                        Log.srtCritical("[Pitch] start: failed to create pitch tensor");
-                        return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
-                                          "[Pitch] failed to create pitch tensor");
+                        Log.srtCritical("%1 start: failed to create pitch tensor", kLogPrefix);
+                        return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceTensorCreateFailed,
+                                          "[Pitch] failed to create pitch tensor",
+                                          {}, "pitch");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
                         pitchBuffer[i] = static_cast<float>(samples[i]);
@@ -391,8 +386,8 @@ namespace srt::svs {
                     sessionInput->inputs.emplace("pitch", std::move(pitchTensor));
                 } else {
                     setState(Failed);
-                    Log.srtCritical("[Pitch] start: failed to create pitch tensor: %1",
-                                    exp.error().message());
+                    Log.srtCritical("%1 start: failed to create pitch tensor: %2",
+                                    kLogPrefix, exp.error().message());
                     return exp.takeError();
                 }
                 // Retake
@@ -418,8 +413,8 @@ namespace srt::svs {
                     sessionInput->inputs.emplace("retake", exp.take());
                 } else {
                     setState(Failed);
-                    Log.srtCritical("[Pitch] start: failed to create retake tensor: %1",
-                                    exp.error().message());
+                    Log.srtCritical("%1 start: failed to create retake tensor: %2",
+                                    kLogPrefix, exp.error().message());
                     return exp.takeError();
                 }
                 satisfyPitch = true;
@@ -428,16 +423,18 @@ namespace srt::svs {
                     auto exprTensor = exp.take();
                     if (exprTensor->elementCount() != targetLength) {
                         setState(Failed);
-                        Log.srtCritical("[Pitch] start: expr tensor element count does not match target length");
-                        return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
-                                          "[Pitch] expr tensor element count does not match target length");
+                        Log.srtCritical("%1 start: expr tensor element count does not match target length", kLogPrefix);
+                        return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceTensorCreateFailed,
+                                          "[Pitch] expr tensor element count does not match target length",
+                                          {}, "pitch");
                     }
                     auto exprBuffer = exprTensor->mutableData<float>();
                     if (!exprBuffer) {
                         setState(Failed);
-                        Log.srtCritical("[Pitch] start: failed to create expr tensor");
-                        return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
-                                          "[Pitch] failed to create expr tensor");
+                        Log.srtCritical("%1 start: failed to create expr tensor", kLogPrefix);
+                        return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceTensorCreateFailed,
+                                          "[Pitch] failed to create expr tensor",
+                                          {}, "pitch");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
                         exprBuffer[i] = static_cast<float>(samples[i]);
@@ -446,8 +443,8 @@ namespace srt::svs {
                     satisfyExpr = true;
                 } else {
                     setState(Failed);
-                    Log.srtCritical("[Pitch] start: failed to create expr tensor: %1",
-                                    exp.error().message());
+                    Log.srtCritical("%1 start: failed to create expr tensor: %2",
+                                    kLogPrefix, exp.error().message());
                     return exp.takeError();
                 }
             }
@@ -460,8 +457,8 @@ namespace srt::svs {
                 sessionInput->inputs.emplace("pitch", exp.take());
             } else {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: failed to create pitch fallback tensor: %1",
-                                exp.error().message());
+                Log.srtCritical("%1 start: failed to create pitch fallback tensor: %2",
+                                kLogPrefix, exp.error().message());
                 return exp.takeError();
             }
             if (auto exp = srt::core::Tensor::createFromRawData(srt::core::ITensor::Bool, {1, targetLength},
@@ -471,8 +468,8 @@ namespace srt::svs {
                 satisfyPitch = true;
             } else {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: failed to create retake fallback tensor: %1",
-                                exp.error().message());
+                Log.srtCritical("%1 start: failed to create retake fallback tensor: %2",
+                                kLogPrefix, exp.error().message());
                 return exp.takeError();
             }
         }
@@ -485,8 +482,8 @@ namespace srt::svs {
                 satisfyExpr = true;
             } else {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: failed to create expr fallback tensor: %1",
-                                exp.error().message());
+                Log.srtCritical("%1 start: failed to create expr fallback tensor: %2",
+                                kLogPrefix, exp.error().message());
                 return exp.takeError();
             }
         }
@@ -495,9 +492,10 @@ namespace srt::svs {
         if (config->useSpeakerEmbedding) {
             if (pitchInput->speakers.empty()) {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: no speakers found in input");
-                return srt::core::Error(srt::core::ErrorCode::InferenceSpeakerNotFound,
-                                  "[Pitch] no speakers found in input");
+                Log.srtCritical("%1 start: no speakers found in input", kLogPrefix);
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceSpeakerNotFound,
+                                  "[Pitch] no speakers found in input",
+                                  {}, "pitch");
             }
 
             auto exp = ds::infer::inferutil::preprocessSpeakerEmbeddingFrames(
@@ -507,8 +505,8 @@ namespace srt::svs {
                 sessionInput->inputs["spk_embed"] = exp.take();
             } else {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: preprocessSpeakerEmbeddingFrames failed: %1",
-                                exp.error().message());
+                Log.srtCritical("%1 start: preprocessSpeakerEmbeddingFrames failed: %2",
+                                kLogPrefix, exp.error().message());
                 return exp.takeError();
             }
         } else {
@@ -524,8 +522,8 @@ namespace srt::svs {
             auto exp = srt::core::Tensor::createScalar<int64_t>(acceleration);
             if (!exp) {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: failed to create steps/speedup tensor: %1",
-                                exp.error().message());
+                Log.srtCritical("%1 start: failed to create steps/speedup tensor: %2",
+                                kLogPrefix, exp.error().message());
                 return exp.takeError();
             }
             if (config->useContinuousAcceleration) {
@@ -541,17 +539,18 @@ namespace srt::svs {
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: predictor session is not initialized");
-            return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
-                              "[Pitch] predictor session is not initialized");
+            Log.srtCritical("%1 start: predictor session is not initialized", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceStartFailed,
+                              "[Pitch] predictor session is not initialized",
+                              {}, "pitch");
         }
 
         srt::core::NO<srt::core::TaskResult> sessionTaskResult;
         auto sessionExp = impl.predictorSession->start(sessionInput);
         if (!sessionExp) {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: predictor session->start failed: %1",
-                            sessionExp.error().message());
+            Log.srtCritical("%1 start: predictor session->start failed: %2",
+                            kLogPrefix, sessionExp.error().message());
             return sessionExp.takeError();
         } else {
             sessionTaskResult = sessionExp.take();
@@ -562,42 +561,54 @@ namespace srt::svs {
         // Get session results
         if (!sessionTaskResult) {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: predictor session result is nullptr");
-            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
-                              "[Pitch] predictor session result is nullptr");
+            Log.srtCritical("%1 start: predictor session result is nullptr", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceOutputEmpty,
+                              "[Pitch] predictor session result is nullptr",
+                              {}, "pitch");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: invalid result API name: %1",
-                            sessionTaskResult->objectName());
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Pitch] invalid result API name");
+            Log.srtCritical("%1 start: invalid result API name: %2",
+                            kLogPrefix, sessionTaskResult->objectName());
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InvalidArgument,
+                              "[Pitch] invalid result API name",
+                              {}, "pitch");
         }
         auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
+        if (!sessionResult) {
+            setState(Failed);
+            Log.srtCritical("%1 start: type mismatch, expected SessionResult", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceRunFailed,
+                              "[Pitch] type mismatch, expected SessionResult",
+                              {}, "pitch");
+        }
         if (auto it_pred = sessionResult->outputs.find(outParamPitchPred);
             it_pred != sessionResult->outputs.end()) {
             // Extract onnx model result and copy to pitch final result vector (float -> double)
             auto output = std::move(it_pred->second);
             if (output->dataType() != srt::core::ITensor::Float) {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: model output is not float");
-                return srt::core::Error(srt::core::ErrorCode::InferenceDataTypeMismatch,
-                                  "[Pitch] model output is not float");
+                Log.srtCritical("%1 start: model output is not float", kLogPrefix);
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceDataTypeMismatch,
+                                  "[Pitch] model output is not float",
+                                  {}, "pitch");
             }
             const auto view = output->view<float>();
             if (view.empty()) {
                 setState(Failed);
-                Log.srtCritical("[Pitch] start: model output is empty");
-                return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
-                                  "[Pitch] model output is empty");
+                Log.srtCritical("%1 start: model output is empty", kLogPrefix);
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceOutputEmpty,
+                                  "[Pitch] model output is empty",
+                                  {}, "pitch");
             }
             pitchResult->interval = frameWidth;
             pitchResult->pitch.assign(view.begin(), view.end());
         } else {
             setState(Failed);
-            Log.srtCritical("[Pitch] start: output 'pitch_pred' not found in session result");
-            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
-                              "[Pitch] output 'pitch_pred' not found in session result");
+            Log.srtCritical("%1 start: output 'pitch_pred' not found in session result", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceOutputEmpty,
+                              "[Pitch] output 'pitch_pred' not found in session result",
+                              {}, "pitch");
         }
         impl.result = pitchResult;
 
@@ -612,7 +623,7 @@ namespace srt::svs {
     }
 
     bool PitchInference::stop() {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         bool flag = true;
         for (auto &session : {impl.encoderSession, impl.predictorSession}) {
             if (session) {
@@ -624,7 +635,7 @@ namespace srt::svs {
     }
 
     srt::core::NO<srt::core::TaskResult> PitchInference::result() const {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         std::shared_lock<std::shared_mutex> lock(impl.mutex);
         return impl.result;
     }

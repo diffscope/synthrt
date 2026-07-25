@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_PLUGINS_COMMON_PINYING2PTASKIMPLBASE_H
-#define SRT_G2P_PLUGINS_COMMON_PINYING2PTASKIMPLBASE_H
+#pragma once
 
 #include <synthrt/G2P/Task/VersionedTaskImplBase.h>
 #include <memory>
@@ -11,7 +10,7 @@
 #include <synthrt/G2P/Task/G2pTask.h>
 #include <synthrt/G2P/Core/PackageManager.h>
 #include <synthrt/Core/Support/ConfigAccessor.h>
-#include <InferUtil/Verifier.h>
+#include <inferutil/Verifier.h>
 #include <cpp-pinyin/G2pglobal.h>
 #include <cpp-pinyin/PinyinRes.h>
 
@@ -49,12 +48,9 @@ private:
     groupLyrics(const std::vector<srt::g2p::G2pRes> &input);
 
     Config m_langConfig;
-    srt::core::NO<srt::g2p::G2pResultV1> m_result;
     std::unique_ptr<srt::g2p::plugins::InferUtil::Verifier> m_verifier;
     mutable std::shared_mutex m_mutex;
     mutable std::string m_config;
 };
 
 } // namespace srt::g2p::plugins::Common
-
-#endif // SRT_G2P_PLUGINS_COMMON_PINYING2PTASKIMPLBASE_H

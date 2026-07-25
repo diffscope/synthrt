@@ -2,12 +2,25 @@
 
 # synthrt - SVS Synthesis Runtime Library
 # find_package(synthrt) provides:
-#   synthrt::synthrt  — aggregate of all core libraries (core, driver, s2p, svs, ds-bank)
+#   srt::synthrt     — aggregate of all core libraries (core, driver, s2p, svs, ds-bank)
 #   srt::diffsinger   — aggregate for DiffSinger (g2p, ds-bank, ds-infer)
+#
+# Note on srt::session (BI-20):
+#   srt-ds-session is NOT an independent CMake package and therefore has no
+#   find_dependency() entry here. It is installed directly into the
+#   synthrtTargets export set by domains/ds-session/lib/CMakeLists.txt
+#   (install(TARGETS srt-ds-session EXPORT synthrtTargets) with
+#   EXPORT_NAME=session), so the srt::session target is imported when
+#   synthrtTargets.cmake is included below. This differs from srt-ds-bank,
+#   which ships its own package config and requires find_dependency(srt-ds-bank).
+#   The asymmetry is intentional (T-P1-02 decision: srt-ds-session is a
+#   component of the synthrt aggregate).
 
 include(CMakeFindDependencyMacro)
 
-# Find all sub-package configs
+# Find all sub-package configs.
+# Note: srt-ds-session is bundled into synthrtTargets (see header comment),
+# so it does not appear in this list.
 find_dependency(srt-core)
 find_dependency(srt-driver)
 find_dependency(srt-s2p)

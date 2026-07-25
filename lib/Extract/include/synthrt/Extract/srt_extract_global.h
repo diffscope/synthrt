@@ -1,5 +1,4 @@
-#ifndef SRT_EXTRACT_SRT_EXTRACT_GLOBAL_H
-#define SRT_EXTRACT_SRT_EXTRACT_GLOBAL_H
+#pragma once
 
 #include <stdcorelib/stdc_global.h>
 
@@ -14,5 +13,3 @@
 #    endif
 #  endif
 #endif
-
-#endif // SRT_EXTRACT_SRT_EXTRACT_GLOBAL_H

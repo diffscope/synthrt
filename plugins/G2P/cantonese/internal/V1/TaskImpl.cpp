@@ -4,8 +4,7 @@
 #include <cpp-pinyin/Jyutping.h>
 #include <cpp-pinyin/CanTone.h>
 
-namespace srt::g2p::plugins::CantoneseG2p::Internal::V1
-{
+namespace srt::g2p::plugins::CantoneseG2p::Internal::V1 {
 
     CantoneseG2pTaskImpl::CantoneseG2pTaskImpl(const srt::g2p::ModuleSpec *spec)
         : PinyinG2pTaskImplBase(spec, {"dictPath", "Cantonese"}) {}
@@ -23,4 +22,4 @@ namespace srt::g2p::plugins::CantoneseG2p::Internal::V1
         return m_engine->hanziToPinyin(input, Pinyin::CanTone::NORMAL, Pinyin::Default, true);
     }
 
-} // namespace srt::g2p::plugins::CantoneseG2p::Internal::V1
+}

@@ -223,10 +223,41 @@ ds::infer::InferenceResult result = service.run(request);
 | InputWord | `InputWord.cpp` | 音素预处理（token/language） |
 | LinguisticEncoder | `LinguisticEncoder.cpp` | 语言编码器输入构建 |
 | SpeakerEmbedding | `SpeakerEmbedding.cpp` | 说话人嵌入 |
+| PluginCommon | `PluginCommon.h` | 推理插件共享的模板化参数校验与流程级工具（见下文） |
 | InputParser | `InputParser/` | 5 个 stage 的输入解析器 |
 | WavFile | `WavFile/` | WAV 文件读写（使用 dr_wav） |
 
-Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorithm/TensorHelper/VersionUtils 以及 v4 新增的 `test_modelset_errors.cpp`（错误路径 + BF-24 回归）、`test_singer_resolver_ambiguity.cpp`（BF-23 回归）、`test_speaker_mapper.cpp`（BF-22 + BF-31 跨包隔离回归）、`test_model_registry.cpp`（BF-31 跨包同 id 推理隔离）、`test_package_isolation.cpp`（BF-29/BF-30 多版本隔离与跨包声明）。`test_version_utils.cpp` / `test_version_utils_complex.cpp` 在原有 normalizeVersion/compareVersions/VersionRange/VersionResolver 基础用例之上，新增 `[extreme]` 极端用例（仅 v/V 前缀、多段 pre-release、首尾点、全非数字段、空串/溢出段比较、COMPATIBLE 单段、反向 hyphen 区间、parseError 校验、selectHighestVersion 空/单元素、重复版本去重、level=-1 回退请求方 level、0.0.0 可选）与 BF-32 多约束回归。
+### PluginCommon.h
+
+5 个推理插件（acoustic/duration/pitch/variance/vocoder）的 `.cpp` 中 `getConfig` / `initialize` 前置校验 / `start` 前置校验 / driver 检查 / session 打开 / frameWidth 校验等模板高度一致（CODING-05 >60% 重叠），提取为模板/内联函数。两阶段实施：阶段 1（commit `64d0012`）提取 4 个参数校验函数，阶段 2（commit `c1f46c8`）提取 3 个流程级函数。
+
+**设计约束**：
+- D-11：仅提取内部实现，不动 `srt::svs::Inference` 公共类签名
+- ARCH-01：不引入新职责，仅工具函数组合；不调用 `setState(Failed)`，状态机由调用方控制
+- ARCH-03：组合优于继承，不引入中间基类
+- CODING-04：工具函数不含 mutex 加锁，由调用方显式控制（`shared_lock` / `unique_lock`）
+- ROBUST-03：所有指针/句柄参数均防空
+- ROBUST-05：错误消息保留 logPrefix，不丢失上下文
+
+**API 列表**（namespace `ds::infer::inferutil`）：
+
+| 函数 | 签名 | 错误码 | 用途 |
+|---|---|---|---|
+| `getTypedConfig<T>` | `(spec, apiClass, apiName, logPrefix) → Expected<NO<T>>` | `InvalidArgument` | 获取并校验 `InferenceSpec::configuration()` 的 typed configuration |
+| `getTypedSchema<T>` | `(spec, apiClass, apiName, logPrefix) → Expected<NO<T>>` | `InvalidArgument` | 获取并校验 `InferenceSpec::schema()` 的 typed schema（仅 VarianceInference 使用） |
+| `validateInitArgs` | `(args, apiName, logPrefix) → Expected<void>` | `InvalidArgument` | 校验 `Inference::initialize()` 的 args 非空且 objectName 匹配 |
+| `validateStartInput` | `(input, apiName, logPrefix) → Expected<void>` | `InvalidArgument` | 校验 `Inference::start()` 的 input 非空且 objectName 匹配 |
+| `checkDriverReady` | `(driver, logPrefix) → Expected<void>` | `InferenceStartFailed` | 校验 `InferenceDriver` 已初始化（用于 `start()` 开头） |
+| `openOnnxSession` | `(driver, modelPath, useCpu, sessionName, logPrefix) → Expected<NO<InferenceSession>>` | `InvalidArgument` / `InferenceStartFailed` | 创建并打开 ONNX session（用于 `initialize()` 中 encoder/predictor session） |
+| `validateFrameWidth` | `(frameWidth, logPrefix) → Expected<void>` | `InvalidArgument` | 校验 frameWidth 为正有限数（`std::isfinite && > 0`） |
+
+**错误码差异**：`checkDriverReady` 返回 `InferenceStartFailed`（运行时状态错误，driver 应已初始化但未初始化），其余空指针路径返回 `InvalidArgument`（参数错误）。这反映了 lite 调用模式差异——lite 调用 `start()` 时若 driver 为空属于运行时状态错误，而非参数错误。
+
+**lite 调用模式**：lite 只调 `inference->start(input)`，不调 `initialize()`（由 `ModelSetHandle::load()` 内部触发）。`start()` 开头的 `checkDriverReady` 是 stale session 的主要防护边界（`SingerModelSession.cpp:42-43` 注释："Lite calls Inference::start() directly so this acquire-time check is the primary staleness boundary."）。
+
+**测试覆盖**：`test_plugin_common_extreme.cpp`（commit `dd535cf`）覆盖 7 个函数的极端情况（BF-43 ~ BF-49，27 个测试用例 / 84 个断言），包括 NaN/Inf/0/负 frameWidth、null driver/args/input/spec、session open 失败（FailOpenDriver/FailOpenSession mock）、name 不匹配、logPrefix 保留一致性。`getTypedConfig` / `getTypedSchema` 的 `configuration=nullptr` / `class/name 不匹配` 路径需 `InferenceSpec` 实例（构造函数 protected，且 `configuration()` 非 virtual），由 5 个插件 `.cpp` 集成测试覆盖。
+
+Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorithm/TensorHelper/VersionUtils 以及 v4 新增的 `test_modelset_errors.cpp`（错误路径 + BF-24 回归）、`test_singer_resolver_ambiguity.cpp`（BF-23 回归）、`test_speaker_mapper.cpp`（BF-22 + BF-31 跨包隔离回归）、`test_model_registry.cpp`（BF-31 跨包同 id 推理隔离）、`test_package_isolation.cpp`（BF-29/BF-30 多版本隔离与跨包声明）、`test_plugin_common_extreme.cpp`（BF-43 ~ BF-49，PluginCommon.h 7 个工具函数的极端情况，含 FailOpenDriver/FailOpenSession mock）。`test_version_utils.cpp` / `test_version_utils_complex.cpp` 在原有 normalizeVersion/compareVersions/VersionRange/VersionResolver 基础用例之上，新增 `[extreme]` 极端用例（仅 v/V 前缀、多段 pre-release、首尾点、全非数字段、空串/溢出段比较、COMPATIBLE 单段、反向 hyphen 区间、parseError 校验、selectHighestVersion 空/单元素、重复版本去重、level=-1 回退请求方 level、0.0.0 可选）与 BF-32 多约束回归。
 
 ---
 
@@ -258,6 +289,13 @@ Catch2 单元测试位于 `domains/ds-infer/unittests/catch2/`，覆盖 Algorith
 | BF-40 | `OnnxTensor::createFromRawView` 在 `std::memcpy` 前未校验 `data.size() == tensor->_bytesSize`：`data.size() > _bytesSize` 导致堆缓冲区溢出（OOB 写），`data.size() < _bytesSize` 导致张量缓冲区部分未初始化。修复：在拷贝前增加显式大小匹配校验，不匹配时返回 `InvalidArgument` 错误（包含两边字节数） |
 | BF-41 | `preprocessPhonemeDurations`（InputWord.cpp）和 `preprocessLinguisticWord`（LinguisticEncoder.cpp）除以 `frameWidth` 时无本地校验。四个推理插件（Duration/Pitch/Variance/Acoustic）在调用前已校验 `frameWidth > 0`，但工具函数本身无防御性检查（defense-in-depth）。修复：在两个函数入口增加 `std::isfinite && > 0` 校验，返回 `InvalidArgument`，与插件侧模式一致 |
 | BF-42 | `resample()`/`interpolate()`（Algorithm.h）三处崩溃与静默错误：(1) `interpolate()` 在 `referencePoints.front()/back()` 前未校验非空，空引用数组触发 UB；(2) `resample()` timestep 校验为 `== 0` 漏掉负值，负 timestep 使 `arange()` 返回空 → `interpolate()` 返回空 → `targetSamples.back()` 在空 vector 上崩溃；(3) `preprocessSpeakerEmbeddingFrames` 未校验 `frameWidth > 0`，且 BF-34 的 `interval == 0` 校验漏掉负值，导致 `resample()` 返回空后 speaker 被静默跳过（ROBUST-05）。修复：`interpolate()` 增加空引用数组早返回；`resample()` timestep 校验改为 `<= 0`，并在 `.back()` 前增加 `!empty()` 防御；`preprocessSpeakerEmbeddingFrames` 入口校验 `frameWidth > 0`，BF-34 interval 校验改为 `<= 0` |
+| BF-43 | `validateFrameWidth`（PluginCommon.h）极端值测试覆盖：NaN / +Inf / -Inf / 0 / 负数 / subnormal 正数 / 正常正数。验证 `!std::isfinite \|\| <= 0` 条件分支完整。错误码 `InvalidArgument`，错误消息保留 logPrefix（ROBUST-05）。测试文件 `test_plugin_common_extreme.cpp` |
+| BF-44 | `checkDriverReady`（PluginCommon.h）空 driver 测试覆盖：默认构造 `NO<InferenceDriver>` 等价于 nullptr。错误码 `InferenceStartFailed`（非 `InvalidArgument`，因为 driver 未初始化属于运行时状态错误，而非参数错误）。错误消息保留 logPrefix |
+| BF-45 | `validateInitArgs`（PluginCommon.h）空 args / name 不匹配测试覆盖：错误消息包含 `expected`/`got` 对比，便于排查。验证空 apiName 与非空 args name 不匹配返回错误 |
+| BF-46 | `validateStartInput`（PluginCommon.h）空 input / name 不匹配测试覆盖：同 BF-45，但错误消息包含 `start:` 前缀以与 `validateInitArgs` 区分 |
+| BF-47 | `getTypedConfig`（PluginCommon.h）空 spec 测试覆盖：ROBUST-03 防空。`configuration=nullptr` 与 `class/name 不匹配` 路径需 InferenceSpec 实例（构造函数 protected，且 `configuration()` 非 virtual），由 5 个插件 .cpp 集成测试覆盖 |
+| BF-48 | `getTypedSchema`（PluginCommon.h）空 spec 测试覆盖：同 BF-47，调用 `spec->schema()` |
+| BF-49 | `openOnnxSession`（PluginCommon.h）空 driver / session open 失败测试覆盖：使用 `FailOpenDriver`/`FailOpenSession` mock 验证错误传播。错误消息包含 logPrefix / sessionName（"encoder"/"predictor"）/ modelPath（ROBUST-05 不丢失上下文）。验证 useCpu 标志不影响错误路径 |
 | D-46 | `Algorithm.h::arange()` 对 NaN/inf 输入无防护——`static_cast<size_t>(std::ceil(NaN))` 是 UB（MSVC x64 上通常为 0 或 SIZE_MAX），`ceil(inf)` 产生 inf 同样 UB；subnormal step 使 `(stop-start)/step` 极大，`reserve()` 抛 `bad_alloc`。`resample()` 的 `timestep <= 0` 检查无法拦截 NaN（`NaN <= 0` 为 false），inf 会触发 `arange(0, inf, targetTimestep)` 的巨大分配。修复：`arange()` 添加 `!std::isfinite` 检查 + 100M 大小上限；`resample()` 添加 `!std::isfinite(timestep/targetTimestep)` 前置检查。同时修正 9 个测试错误期望（arange 负步长对称性、fillRestMidi 紧邻值填充、preprocessPhonemeDurations 帧分配、DynamicMix 线性插值、DictionaryS2P 空格容忍）以对齐实现实际行为 |
 
 ## Speaker Embedding Inline API

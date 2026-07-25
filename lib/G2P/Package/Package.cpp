@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <system_error>
 
 #include <stdcorelib/path.h>
 #include <stdcorelib/str.h>
@@ -18,7 +19,7 @@ namespace srt::g2p {
     // ============================================================================
 
     PackageData::~PackageData() {
-        for (const auto &[_, byId] : std::as_const(moduleSpecs)) {
+        for (const auto &[_, byId] : std::as_const(m_moduleSpecs)) {
             for (const auto &[__, spec] : byId) {
                 delete spec;
             }
@@ -30,9 +31,11 @@ namespace srt::g2p {
         const std::map<std::string, srt::core::ModuleCategory *, std::less<>> &categories,
         llvm::SmallVectorImpl<srt::core::ModuleSpec *> *outModules) {
         auto manifestPath = dir / "package.json";
-        if (!fs::exists(manifestPath)) {
+        std::error_code ec;
+        if (!fs::exists(manifestPath, ec)) {
             return Error(Error::FileSystemError,
-                         stdc::formatN("Package manifest not found: %1", manifestPath));
+                         stdc::formatN("Package manifest not found: %1",
+                                       stdc::path::to_utf8(manifestPath)));
         }
 
         auto expObj = readDesc(manifestPath);
@@ -44,7 +47,7 @@ namespace srt::g2p {
             auto it = root.find("packageId");
             if (it == root.end() || !it->second.isString())
                 return Error(Error::ConfigError, "package.json missing required field: packageId");
-            id = it->second.toString();
+            m_id = it->second.toString();
         }
 
         // Required: version
@@ -52,8 +55,8 @@ namespace srt::g2p {
             auto it = root.find("version");
             if (it == root.end() || !it->second.isString())
                 return Error(Error::ConfigError, "package.json missing required field: version");
-            version = stdc::VersionNumber::fromString(it->second.toString());
-            if (version.isEmpty())
+            m_version = stdc::VersionNumber::fromString(it->second.toString());
+            if (m_version.isEmpty())
                 return Error(Error::ConfigError, "package.json version is empty/zero");
         }
 
@@ -61,9 +64,9 @@ namespace srt::g2p {
         {
             auto it = root.find("compatVersion");
             if (it != root.end() && it->second.isString()) {
-                compatVersion = stdc::VersionNumber::fromString(it->second.toString());
+                m_compatVersion = stdc::VersionNumber::fromString(it->second.toString());
             } else {
-                compatVersion = version;
+                m_compatVersion = m_version;
             }
         }
 
@@ -71,44 +74,37 @@ namespace srt::g2p {
         {
             auto it = root.find("level");
             if (it != root.end() && it->second.isNumber())
-                level = it->second.toInt();
+                m_level = it->second.toInt();
         }
 
         // Optional: vendor / copyright / description / url
         auto readDisplayText = [&](const std::string &key) -> DisplayText {
-            DisplayText dt;
             auto it = root.find(key);
-            if (it == root.end()) return dt;
-            if (it->second.isString()) {
-                dt.set("en", it->second.toString());
-            } else if (it->second.isObject()) {
-                for (const auto &[lang, val] : it->second.toObject()) {
-                    if (val.isString()) dt.set(lang, val.toString());
-                }
-            }
-            return dt;
+            if (it == root.end()) return DisplayText{};
+            return DisplayText{it->second}; // 走 JsonValue 构造，正确处理 defaultText
         };
-        description = readDisplayText("description");
-        vendor = readDisplayText("vendor");
-        copyright = readDisplayText("copyright");
+        m_description = readDisplayText("description");
+        m_vendor = readDisplayText("vendor");
+        m_copyright = readDisplayText("copyright");
         {
             auto it = root.find("url");
             if (it != root.end() && it->second.isString())
-                url = it->second.toString();
+                m_url = it->second.toString();
         }
         // readme
         {
             auto readmePath = dir / "README.md";
-            if (fs::exists(readmePath))
-                readme = readmePath;
+            std::error_code ec;
+            if (fs::exists(readmePath, ec))
+                m_readme = readmePath;
         }
 
-        path = dir;
+        m_path = dir;
 
         // Process modules array
         auto it = root.find("modules");
         if (it == root.end() || !it->second.isObject()) {
-            loaded = true;
+            m_loaded = true;
             return {};
         }
         const auto &modulesObj = it->second.toObject();
@@ -140,14 +136,14 @@ namespace srt::g2p {
                 auto *spec = specExp.take();
 
                 // Register in package
-                moduleSpecs[categoryName][moduleId] = spec;
+                m_moduleSpecs[categoryName][moduleId] = spec;
                 if (outModules) {
                     outModules->push_back(spec);
                 }
             }
         }
 
-        loaded = true;
+        m_loaded = true;
         return {};
     }
 
@@ -202,7 +198,7 @@ namespace srt::g2p {
     Package::~Package() = default;
 
     bool Package::close() {
-        if (!_data->mgr) {
+        if (!_data->m_mgr) {
             return true;
         }
         // P3.2+: call PackageManager::Impl::close(_data) to decrement refcount
@@ -212,24 +208,24 @@ namespace srt::g2p {
         return true;
     }
 
-    const std::string &Package::id() const { return _data->id; }
+    const std::string &Package::id() const { return _data->m_id; }
 
-    stdc::VersionNumber Package::version() const { return _data->version; }
+    stdc::VersionNumber Package::version() const { return _data->m_version; }
 
-    stdc::VersionNumber Package::compatVersion() const { return _data->compatVersion; }
+    stdc::VersionNumber Package::compatVersion() const { return _data->m_compatVersion; }
 
-    DisplayText Package::description() const { return _data->description; }
+    DisplayText Package::description() const { return _data->m_description; }
 
-    DisplayText Package::vendor() const { return _data->vendor; }
+    DisplayText Package::vendor() const { return _data->m_vendor; }
 
-    DisplayText Package::copyright() const { return _data->copyright; }
+    DisplayText Package::copyright() const { return _data->m_copyright; }
 
-    const std::filesystem::path &Package::readme() const { return _data->readme; }
+    const std::filesystem::path &Package::readme() const { return _data->m_readme; }
 
-    const std::string &Package::url() const { return _data->url; }
+    const std::string &Package::url() const { return _data->m_url; }
 
     std::vector<srt::core::ModuleSpec *> Package::moduleSpecs(const std::string_view &category) const {
-        auto &modules = _data->moduleSpecs;
+        auto &modules = _data->m_moduleSpecs;
         const auto it = modules.find(category);
         if (it == modules.end()) {
             return {};
@@ -246,7 +242,7 @@ namespace srt::g2p {
 
     srt::core::ModuleSpec *Package::moduleSpec(const std::string_view &category,
                                                 const std::string_view &id) const {
-        auto &modules = _data->moduleSpecs;
+        auto &modules = _data->m_moduleSpecs;
         const auto it = modules.find(category);
         if (it == modules.end()) {
             return nullptr;
@@ -260,13 +256,13 @@ namespace srt::g2p {
         return it2->second;
     }
 
-    const std::filesystem::path &Package::path() const { return _data->path; }
+    const std::filesystem::path &Package::path() const { return _data->m_path; }
 
-    Error Package::error() const { return _data->err; }
+    Error Package::error() const { return _data->m_err; }
 
-    bool Package::isLoaded() const { return _data->loaded; }
+    bool Package::isLoaded() const { return _data->m_loaded; }
 
-    PackageManager *Package::Mgr() const { return _data->mgr; }
+    PackageManager *Package::Mgr() const { return _data->m_mgr; }
 
     // ============================================================================
     // ScopedPackageRef

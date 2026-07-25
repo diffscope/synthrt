@@ -1,5 +1,4 @@
-#ifndef DSINFER_API_DURATIONAPIL1_H
-#define DSINFER_API_DURATIONAPIL1_H
+#pragma once
 
 #include <string>
 #include <vector>
@@ -110,5 +109,3 @@ namespace srt::svs::Api::Duration::L1 {
     };
 
 }
-
-#endif // DSINFER_API_DURATIONAPIL1_H

@@ -1,5 +1,4 @@
-#ifndef SRT_EXTRACT_PITCHEXTRACTORPLUGIN_H
-#define SRT_EXTRACT_PITCHEXTRACTORPLUGIN_H
+#pragma once
 
 #include <synthrt/Core/Plugin/Plugin.h>
 #include <synthrt/Extract/PitchExtractor.h>
@@ -38,5 +37,3 @@ namespace srt::extract {
     };
 
 } // namespace srt::extract
-
-#endif // SRT_EXTRACT_PITCHEXTRACTORPLUGIN_H

@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_SUPPORT_DISPLAYTEXT_H
-#define SRT_G2P_SUPPORT_DISPLAYTEXT_H
+#pragma once
 
 #include <map>
 #include <memory>
@@ -70,5 +69,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_SUPPORT_DISPLAYTEXT_H

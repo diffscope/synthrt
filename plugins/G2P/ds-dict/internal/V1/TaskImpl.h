@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_PLUGINS_DSDICT_INTERNAL_V1_TASKIMPL_H
-#define SRT_G2P_PLUGINS_DSDICT_INTERNAL_V1_TASKIMPL_H
+#pragma once
 
 #include <synthrt/G2P/Task/DictTask.h>
 #include <synthrt/G2P/Task/VersionedTaskImplBase.h>
@@ -9,8 +8,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace srt::g2p::plugins::DsDict::Internal::V1
-{
+namespace srt::g2p::plugins::DsDict::Internal::V1 {
     /// Dictionary entry with value (phoneme string etc.)
     struct DictEntry {
         std::string value;
@@ -24,7 +22,7 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
     public:
         Dictionary() = default;
         explicit Dictionary(std::string id, std::string canonicalPath)
-            : _id(std::move(id)), _canonicalPath(std::move(canonicalPath)) {}
+            : m_id(std::move(id)), m_canonicalPath(std::move(canonicalPath)) {}
 
         /// Lookup a key in the dictionary
         bool lookup(const std::string &key, std::string &value) const;
@@ -33,19 +31,19 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
         bool contains(const std::string &key) const;
 
         /// Get dictionary ID
-        const std::string &id() const { return _id; }
+        const std::string &id() const { return m_id; }
 
         /// Get the canonical file path this dictionary was loaded from
-        const std::string &canonicalPath() const { return _canonicalPath; }
+        const std::string &canonicalPath() const { return m_canonicalPath; }
 
         /// Get entry count
         size_t size() const;
 
     private:
-        std::string _id;
-        std::string _canonicalPath;
-        std::unordered_map<std::string, DictEntry> _entries;
-        mutable std::shared_mutex _mutex;
+        std::string m_id;
+        std::string m_canonicalPath;
+        std::unordered_map<std::string, DictEntry> m_entries;
+        mutable std::shared_mutex m_mutex;
 
         friend class DsDictTaskImpl;
     };
@@ -64,11 +62,11 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
         std::string getConfig() const override;
 
     private:
-        const srt::g2p::ModuleSpec *_spec;
+        const srt::g2p::ModuleSpec *m_spec;
 
         /// Dictionary storage: dictId -> Dictionary
-        std::unordered_map<std::string, std::shared_ptr<Dictionary>> _dictionaries;
-        mutable std::shared_mutex _dictMutex;
+        std::unordered_map<std::string, std::shared_ptr<Dictionary>> m_dictionaries;
+        mutable std::shared_mutex m_dictMutex;
 
         /// Dedup: canonical file path -> already-loaded Dictionary (avoids re-parsing
         /// the same file when multiple dictIds reference the same physical file).
@@ -87,6 +85,4 @@ namespace srt::g2p::plugins::DsDict::Internal::V1
         processQuery(const srt::g2p::DictInputV1 &input) const;
     };
 
-} // namespace srt::g2p::plugins::DsDict::Internal::V1
-
-#endif // SRT_G2P_PLUGINS_DSDICT_INTERNAL_V1_TASKIMPL_H
+}

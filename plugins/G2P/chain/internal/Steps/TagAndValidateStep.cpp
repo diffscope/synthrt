@@ -3,8 +3,7 @@
 #include <synthrt/G2P/Support/PhonemeDict.h>
 #include <re2/re2.h>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     srt::core::Expected<void> TagAndValidateStep::configure(const srt::g2p::ModuleSpec *spec,
                                                             const srt::core::JsonObject &config)
     {
@@ -115,4 +114,4 @@ namespace srt::g2p::plugins::ChainG2p
         return false;
     }
 
-} // namespace srt::g2p::plugins::ChainG2p
+}

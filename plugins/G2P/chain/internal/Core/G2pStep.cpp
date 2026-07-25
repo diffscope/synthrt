@@ -7,8 +7,7 @@
 #include <synthrt/G2P/Support/Error.h>
 #include <algorithm>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
 
     srt::core::Expected<std::shared_ptr<G2pStep>> G2pStepFactory::create(const std::string &stepType)
     {
@@ -56,4 +55,4 @@ namespace srt::g2p::plugins::ChainG2p
         return result;
     }
 
-} // namespace srt::g2p::plugins::ChainG2p
+}

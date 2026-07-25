@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_INFERENCEDRIVERPLUGIN_H
-#define SRT_DRIVER_INFERENCEDRIVERPLUGIN_H
+#pragma once
 
 #include <synthrt/Core/Plugin/Plugin.h>
 #include <synthrt/Driver/InferenceDriver.h>
@@ -29,5 +28,3 @@ namespace srt::driver {
     };
 
 }
-
-#endif // SRT_DRIVER_INFERENCEDRIVERPLUGIN_H

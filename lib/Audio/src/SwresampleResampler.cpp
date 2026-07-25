@@ -57,6 +57,17 @@ struct SwresampleResampler::Impl {
         auto srcCh = input.channelCount();
         auto dstCh = (config.targetChannelCount > 0) ? config.targetChannelCount : srcCh;
 
+        // BUG-AUDIO-06: validate parameters to prevent division by zero
+        // (bytesPerSample(Unknown) == 0) and invalid resampler state.
+        if (srcCh <= 0 || dstCh <= 0 || srcRate <= 0 || dstRate <= 0 ||
+            srcFmt == AV_SAMPLE_FMT_NONE || dstFmt == AV_SAMPLE_FMT_NONE) {
+            return srt::core::Error(srt::core::ErrorCode::AudioResampleFailed,
+                                    "init: invalid resample parameters (srcCh=" + std::to_string(srcCh) +
+                                        ", dstCh=" + std::to_string(dstCh) +
+                                        ", srcRate=" + std::to_string(srcRate) +
+                                        ", dstRate=" + std::to_string(dstRate) + ")");
+        }
+
         // If no change needed, skip swresample
         bool same = (srcFmt == dstFmt) && (srcRate == dstRate) && (srcCh == dstCh);
         if (same) {
@@ -91,6 +102,7 @@ struct SwresampleResampler::Impl {
         av_channel_layout_uninit(&outChLayout);
 
         if (ret < 0) {
+            cleanup(); // ROBUST-05 / CODING-04: 释放 swr_alloc_set_opts2 可能部分分配的 swrCtx
             return srt::core::Error(srt::core::ErrorCode::AudioResampleFailed,
                                     "init: failed to set resampler options: " + ffmpegError(ret));
         }
@@ -153,6 +165,18 @@ SwresampleResampler::convert(const AudioBuffer &input, int inputSampleRate, cons
     int dstBps = bytesPerSample(fromAVSampleFormat(d->outFormat));
     int outCh = d->outChannels;
 
+    // BUG-AUDIO-06: defensive guard — init() already validates, but ensure
+    // no division by zero at the outFrames computation and no overflow in
+    // byte-size arithmetic (ROBUST-05).
+    if (outCh <= 0 || dstBps <= 0 || srcBps <= 0) {
+        return srt::core::Error(srt::core::ErrorCode::AudioResampleFailed,
+                                "convert: invalid sample format (outCh=" + std::to_string(outCh) +
+                                    ", dstBps=" + std::to_string(dstBps) +
+                                    ", srcBps=" + std::to_string(srcBps) + ")");
+    }
+    const size_t dstFrameBytes = static_cast<size_t>(outCh) * static_cast<size_t>(dstBps);
+    const size_t srcFrameBytes = static_cast<size_t>(input.channelCount()) * static_cast<size_t>(srcBps);
+
     // Estimate output frames
     int64_t estimatedOutFrames = swr_get_out_samples(d->swrCtx, static_cast<int>(input.frameCount()));
     if (estimatedOutFrames <= 0) {
@@ -160,22 +184,29 @@ SwresampleResampler::convert(const AudioBuffer &input, int inputSampleRate, cons
     }
 
     std::vector<uint8_t> outData;
-    outData.reserve(static_cast<size_t>(estimatedOutFrames * outCh * dstBps));
+    outData.reserve(static_cast<size_t>(estimatedOutFrames) * dstFrameBytes);
 
     const auto *inData = reinterpret_cast<const uint8_t *>(input.rawData());
-    int inFrames = static_cast<int>(input.frameCount());
+    // BUG-AUDIO-06: keep int64_t to avoid truncation on large inputs
+    int64_t inFrames = input.frameCount();
 
     // Convert in chunks to avoid large intermediate buffers
-    constexpr int kChunkFrames = 4096;
-    int inOffset = 0;
+    constexpr int64_t kChunkFrames = 4096;
+    int64_t inOffset = 0;
     std::vector<uint8_t> chunkBuf; // Reused across iterations
 
     while (inOffset < inFrames) {
-        int chunkFrames = std::min(kChunkFrames, inFrames - inOffset);
-        const uint8_t *inPtr = inData + inOffset * input.channelCount() * srcBps;
+        int chunkFrames = static_cast<int>(std::min(kChunkFrames, inFrames - inOffset));
+        const uint8_t *inPtr = inData + static_cast<size_t>(inOffset) * srcFrameBytes;
 
         int outSamples = swr_get_out_samples(d->swrCtx, chunkFrames);
-        chunkBuf.resize(outSamples * outCh * dstBps);
+        // BUG-AUDIO-07: swr_get_out_samples 可能返回负值，static_cast<size_t>(负数)
+        // 会变成巨大无符号值，乘以 dstFrameBytes 后触发 std::bad_alloc / OOM。
+        if (outSamples <= 0) {
+            return srt::core::Error(srt::core::ErrorCode::AudioResampleFailed,
+                                    "convert: swr_get_out_samples returned " + std::to_string(outSamples));
+        }
+        chunkBuf.resize(static_cast<size_t>(outSamples) * dstFrameBytes);
         auto *outPtr = chunkBuf.data();
 
         int converted = swr_convert(d->swrCtx, &outPtr, outSamples, &inPtr, chunkFrames);
@@ -184,7 +215,8 @@ SwresampleResampler::convert(const AudioBuffer &input, int inputSampleRate, cons
                                     "convert: swr_convert failed: " + ffmpegError(converted));
         }
         if (converted > 0) {
-            outData.insert(outData.end(), chunkBuf.begin(), chunkBuf.begin() + converted * outCh * dstBps);
+            outData.insert(outData.end(), chunkBuf.begin(),
+                           chunkBuf.begin() + static_cast<ptrdiff_t>(converted) * static_cast<ptrdiff_t>(dstFrameBytes));
         }
 
         inOffset += chunkFrames;
@@ -194,7 +226,7 @@ SwresampleResampler::convert(const AudioBuffer &input, int inputSampleRate, cons
     {
         int outSamples = swr_get_out_samples(d->swrCtx, 0);
         if (outSamples > 0) {
-            std::vector<uint8_t> flushBuf(outSamples * outCh * dstBps);
+            std::vector<uint8_t> flushBuf(static_cast<size_t>(outSamples) * dstFrameBytes);
             auto *outPtr = flushBuf.data();
             int converted = swr_convert(d->swrCtx, &outPtr, outSamples, nullptr, 0);
             if (converted < 0) {
@@ -202,13 +234,15 @@ SwresampleResampler::convert(const AudioBuffer &input, int inputSampleRate, cons
                                         "convert: swr_convert flush failed: " + ffmpegError(converted));
             }
             if (converted > 0) {
-                outData.insert(outData.end(), flushBuf.begin(), flushBuf.begin() + converted * outCh * dstBps);
+                outData.insert(outData.end(), flushBuf.begin(),
+                               flushBuf.begin() + static_cast<ptrdiff_t>(converted) * static_cast<ptrdiff_t>(dstFrameBytes));
             }
         }
     }
 
     auto outFormat = fromAVSampleFormat(d->outFormat);
-    int64_t outFrames = static_cast<int64_t>(outData.size() / (outCh * dstBps));
+    // BUG-AUDIO-06: dstFrameBytes > 0 guaranteed by guard above (no div-by-zero)
+    int64_t outFrames = static_cast<int64_t>(outData.size() / dstFrameBytes);
     return AudioBuffer::fromVector(std::move(outData), outFrames, outCh, outFormat);
 }
 

@@ -1,8 +1,7 @@
 #include "FormatStep.h"
 #include <cctype>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     srt::core::Expected<void> FormatStep::configure(const srt::g2p::ModuleSpec *spec,
                                                     const srt::core::JsonObject &config)
     {
@@ -71,4 +70,4 @@ namespace srt::g2p::plugins::ChainG2p
         return result;
     }
 
-} // namespace srt::g2p::plugins::ChainG2p
+}

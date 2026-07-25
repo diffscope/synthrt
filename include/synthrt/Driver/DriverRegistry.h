@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_DRIVERREGISTRY_H
-#define SRT_DRIVER_DRIVERREGISTRY_H
+#pragma once
 
 #include <memory>
 #include <shared_mutex>
@@ -63,5 +62,3 @@ namespace srt::driver {
     };
 
 }
-
-#endif // SRT_DRIVER_DRIVERREGISTRY_H

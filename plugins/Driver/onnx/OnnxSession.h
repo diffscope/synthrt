@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_ONNX_ONNXSESSION_H
-#define SRT_DRIVER_ONNX_ONNXSESSION_H
+#pragma once
 
 #include <synthrt/Driver/InferenceSession.h>
 
@@ -32,11 +31,9 @@ namespace srt::driver::onnx {
 
     protected:
         class Impl;
-        std::unique_ptr<Impl> _impl;
+        std::unique_ptr<Impl> m_impl;
 
         friend class OnnxTask;
     };
 
 }
-
-#endif // SRT_DRIVER_ONNX_ONNXSESSION_H

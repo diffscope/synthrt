@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_CORE_PACKAGEMANAGER_H
-#define SRT_G2P_CORE_PACKAGEMANAGER_H
+#pragma once
 
 #include <filesystem>
 #include <string>
@@ -58,11 +57,20 @@ namespace srt::g2p {
 
         srt::core::ModuleCategory *category(const std::string_view &name) const;
 
+        // Legacy unversioned overloads (deprecated, V3-01). These create
+        // unversioned ContextKeys and cannot coexist with multi-version
+        // same-packageId voicebanks. Internally delegate to / parallel the
+        // version-aware overloads with an empty version. Migrate to the
+        // version-aware API; will be removed in Level=3 (D-11 / INFRA-02).
+        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
         srt::core::Expected<void> addPackagePath(const std::string &context,
                                                   const std::filesystem::path &path);
+        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
         srt::core::Expected<void> setPackagePaths(const std::string &context,
                                                    const std::vector<std::filesystem::path> &paths);
+        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
         std::vector<std::filesystem::path> packagePaths(const std::string &context) const;
+        [[deprecated("Use contextKeys() instead. Will be removed in Level=3.")]]
         std::vector<std::string> contexts() const;
 
         srt::core::Expected<void> addPackagePath(const std::string &context,
@@ -85,6 +93,8 @@ namespace srt::g2p {
         /// Returns the number of contexts actually removed. Errors:
         ///   - G2pAlreadyInitialized: Manager::initialize() was already called;
         ///     caller must restart the host process.
+        [[deprecated("Use the version-aware overload with explicit version. "
+                     "Will be removed in Level=3.")]]
         srt::core::Expected<size_t> removeContextsByPrefix(const std::string &prefix);
 
         /// Version-aware overload (V3-01 §2.4 / D-43): removes contexts whose
@@ -139,5 +149,3 @@ namespace srt::g2p {
     };
 
 } // namespace srt::g2p
-
-#endif // SRT_G2P_CORE_PACKAGEMANAGER_H

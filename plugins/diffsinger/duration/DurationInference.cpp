@@ -26,6 +26,7 @@
 #include <inferutil/InputWord.h>
 #include <inferutil/LinguisticEncoder.h>
 #include <inferutil/Algorithm.h>
+#include <inferutil/PluginCommon.h>
 
 namespace srt::svs {
 
@@ -34,23 +35,9 @@ namespace srt::svs {
     namespace Onnx = srt::driver::onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
+    static constexpr auto kLogPrefix = "[Duration]";
+
     static srt::LogCategory Log("diffsinger.duration");
-
-    static inline srt::core::Expected<srt::core::NO<Dur::DurationConfiguration>>
-        getConfig(const srt::svs::InferenceSpec *spec) {
-
-        const auto genericConfig = spec->configuration();
-        if (!genericConfig) {
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Duration] configuration is nullptr");
-        }
-        if (!(genericConfig->className() == Dur::API_CLASS &&
-              genericConfig->objectName() == Dur::API_NAME)) {
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Duration] invalid configuration class/name");
-        }
-        return genericConfig.as<Dur::DurationConfiguration>();
-    }
 
     static inline srt::core::Expected<srt::core::NO<srt::core::ITensor>>
         preprocessPhonemeMidi(const std::vector<Api::Common::L1::InputWordInfo> &words) {
@@ -88,8 +75,9 @@ namespace srt::svs {
             }
 
             if (!ds::infer::inferutil::fillRestMidiWithNearestInPlace<int64_t>(phMidi, isRest)) {
-                return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
-                                  "[Duration] failed to fill rest notes");
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
+                                  "[Duration] failed to fill rest notes",
+                                  {}, "duration");
             }
         }
 
@@ -112,26 +100,28 @@ namespace srt::svs {
     };
 
     DurationInference::DurationInference(const srt::svs::InferenceSpec *spec)
-        : Inference(spec), _impl(std::make_unique<Impl>()) {
+        : Inference(spec), m_impl(std::make_unique<Impl>()) {
     }
 
     DurationInference::~DurationInference() = default;
 
     srt::core::Expected<void> DurationInference::initialize(const srt::core::NO<srt::core::TaskInitArgs> &args) {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
-        if (!args) {
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Duration] task init args is nullptr");
-        }
-        if (auto name = args->objectName(); name != Dur::API_NAME) {
-            return srt::core::Error(
-                srt::core::ErrorCode::InvalidArgument,
-                stdc::formatN(R"([Duration] invalid task init args name: expected "%1", got "%2")",
-                              Dur::API_NAME, name));
+        if (auto res = ds::infer::inferutil::validateInitArgs(args, Dur::API_NAME, kLogPrefix); !res) {
+            setState(Failed);
+            Log.srtCritical("%1 initialize: %2", kLogPrefix, res.error().message());
+            return res.takeError();
         }
         auto durationArgs = args.as<Dur::DurationInitArgs>();
+        if (!durationArgs) {
+            setState(Failed);
+            Log.srtCritical("%1 initialize: type mismatch, expected DurationInitArgs", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
+                              "[Duration] type mismatch, expected DurationInitArgs",
+                              {}, "duration");
+        }
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
 
@@ -142,40 +132,40 @@ namespace srt::svs {
             impl.driver = res.take();
         } else {
             setState(Failed);
-            Log.srtCritical("[Duration] initialize: failed to get inference driver: %1",
-                            res.error().message());
+            Log.srtCritical("%1 initialize: failed to get inference driver: %2",
+                            kLogPrefix, res.error().message());
             return res.takeError();
         }
 
         // Get duration config
-        auto expConfig = getConfig(spec());
+        auto expConfig = ds::infer::inferutil::getTypedConfig<Dur::DurationConfiguration>(spec(), Dur::API_CLASS, Dur::API_NAME, kLogPrefix);
         if (!expConfig) {
             setState(Failed);
-            Log.srtCritical("[Duration] initialize: %1", expConfig.error().message());
+            Log.srtCritical("%1 initialize: %2", kLogPrefix, expConfig.error().message());
             return expConfig.takeError();
         }
         const auto config = expConfig.take();
 
         // Open duration session (encoder)
-        impl.encoderSession = impl.driver->createSession();
-        auto encoderOpenArgs = srt::core::NO<Onnx::SessionOpenArgs>::create();
-        encoderOpenArgs->useCpu = false;
-        if (auto res = impl.encoderSession->open(config->encoder, encoderOpenArgs); !res) {
+        if (auto exp = ds::infer::inferutil::openOnnxSession(
+                impl.driver, config->encoder, false, "encoder", kLogPrefix);
+            exp) {
+            impl.encoderSession = exp.take();
+        } else {
             setState(Failed);
-            Log.srtCritical("[Duration] initialize: failed to open encoder session for model %1",
-                            stdc::path::to_utf8(config->encoder));
-            return res;
+            Log.srtCritical("%1", exp.error().message());
+            return exp.takeError();
         }
 
         // Open duration session (predictor)
-        impl.predictorSession = impl.driver->createSession();
-        auto predictorOpenArgs = srt::core::NO<Onnx::SessionOpenArgs>::create();
-        predictorOpenArgs->useCpu = false;
-        if (auto res = impl.predictorSession->open(config->predictor, predictorOpenArgs); !res) {
+        if (auto exp = ds::infer::inferutil::openOnnxSession(
+                impl.driver, config->predictor, false, "predictor", kLogPrefix);
+            exp) {
+            impl.predictorSession = exp.take();
+        } else {
             setState(Failed);
-            Log.srtCritical("[Duration] initialize: failed to open predictor session for model %1",
-                            stdc::path::to_utf8(config->predictor));
-            return res;
+            Log.srtCritical("%1", exp.error().message());
+            return exp.takeError();
         }
 
         // Initialize inference state
@@ -188,57 +178,51 @@ namespace srt::svs {
     srt::core::Expected<srt::core::NO<srt::core::TaskResult>>
         DurationInference::start(const srt::core::NO<srt::core::TaskStartInput> &input) {
 
-        __stdc_impl_t;
+        auto &impl = *m_impl;
 
         {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.driver) {
+            if (auto res = ds::infer::inferutil::checkDriverReady(impl.driver, kLogPrefix); !res) {
                 setState(Failed);
-                Log.srtCritical("[Duration] start: inference driver not initialized");
-                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
-                                  "[Duration] inference driver not initialized");
+                Log.srtCritical("%1", res.error().message());
+                return res.takeError();
             }
         }
 
         setState(Running);
 
         // Get duration config
-        auto expConfig = getConfig(spec());
+        auto expConfig = ds::infer::inferutil::getTypedConfig<Dur::DurationConfiguration>(spec(), Dur::API_CLASS, Dur::API_NAME, kLogPrefix);
         if (!expConfig) {
             setState(Failed);
-            Log.srtCritical("[Duration] start: %1", expConfig.error().message());
+            Log.srtCritical("%1 start: %2", kLogPrefix, expConfig.error().message());
             return expConfig.takeError();
         }
         const auto config = expConfig.take();
 
-        if (!input) {
+        if (auto res = ds::infer::inferutil::validateStartInput(input, Dur::API_NAME, kLogPrefix); !res) {
             setState(Failed);
-            Log.srtCritical("[Duration] start: input is nullptr");
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Duration] input is nullptr");
-        }
-
-        if (const auto &name = input->objectName(); name != Dur::API_NAME) {
-            setState(Failed);
-            Log.srtCritical("[Duration] start: invalid input name: expected %1, got %2",
-                            Dur::API_NAME, name);
-            return srt::core::Error(
-                srt::core::ErrorCode::InvalidArgument,
-                stdc::formatN(R"([Duration] invalid input name: expected "%1", got "%2")",
-                              Dur::API_NAME, name));
+            Log.srtCritical("%1", res.error().message());
+            return res.takeError();
         }
 
         auto durationInput = input.as<Dur::DurationStartInput>();
+        if (!durationInput) {
+            setState(Failed);
+            Log.srtCritical("%1 start: type mismatch, expected DurationStartInput", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
+                              "[Duration] type mismatch, expected DurationStartInput",
+                              {}, "duration");
+        }
         // ...
 
         auto sessionInput = srt::core::NO<Onnx::SessionStartInput>::create();
 
         double frameWidth = config->frameWidth;
-        if (!std::isfinite(frameWidth) || frameWidth <= 0) {
+        if (auto res = ds::infer::inferutil::validateFrameWidth(frameWidth, kLogPrefix); !res) {
             setState(Failed);
-            Log.srtCritical("[Duration] start: frame width must be positive");
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Duration] frame width must be positive");
+            Log.srtCritical("%1", res.error().message());
+            return res.takeError();
         }
 
         // Part 1: Linguistic Encoder Inference
@@ -250,23 +234,24 @@ namespace srt::svs {
             std::unique_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
                 setState(Failed);
-                Log.srtCritical("[Duration] start: linguistic encoder session is not initialized");
-                return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
-                                  "[Duration] linguistic encoder session is not initialized");
+                Log.srtCritical("%1 start: linguistic encoder session is not initialized", kLogPrefix);
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceStartFailed,
+                                  "[Duration] linguistic encoder session is not initialized",
+                                  {}, "duration");
             }
             if (auto encoderSessionExp =
                     ds::infer::inferutil::runEncoder(impl.encoderSession, exp.take(),
                                                   /* out */ sessionInput);
                 !encoderSessionExp) {
                 setState(Failed);
-                Log.srtCritical("[Duration] start: runEncoder failed: %1",
-                                encoderSessionExp.error().message());
+                Log.srtCritical("%1 start: runEncoder failed: %2",
+                                kLogPrefix, encoderSessionExp.error().message());
                 return encoderSessionExp.takeError();
             }
         } else {
             setState(Failed);
-            Log.srtCritical("[Duration] start: preprocessLinguisticWord failed: %1",
-                            exp.error().message());
+            Log.srtCritical("%1 start: preprocessLinguisticWord failed: %2",
+                            kLogPrefix, exp.error().message());
             return exp.takeError();
         }
 
@@ -275,8 +260,8 @@ namespace srt::svs {
             sessionInput->inputs["ph_midi"] = exp.take();
         } else {
             setState(Failed);
-            Log.srtCritical("[Duration] start: preprocessPhonemeMidi failed: %1",
-                            exp.error().message());
+            Log.srtCritical("%1 start: preprocessPhonemeMidi failed: %2",
+                            kLogPrefix, exp.error().message());
             return exp.takeError();
         }
 
@@ -289,9 +274,10 @@ namespace srt::svs {
                 auto buffer = tensor->mutableData<float>();
                 if (!buffer) {
                     setState(Failed);
-                    Log.srtCritical("[Duration] start: failed to create spk_embed tensor");
-                    return srt::core::Error(srt::core::ErrorCode::InferenceTensorCreateFailed,
-                                      "[Duration] failed to create spk_embed tensor");
+                    Log.srtCritical("%1 start: failed to create spk_embed tensor", kLogPrefix);
+                    return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceTensorCreateFailed,
+                                      "[Duration] failed to create spk_embed tensor",
+                                      {}, "duration");
                 }
 
                 // mix speaker embedding
@@ -300,11 +286,12 @@ namespace srt::svs {
                     for (const auto &phone : word.phones) {
                         if (phone.speakers.empty()) {
                             setState(Failed);
-                            Log.srtCritical("[Duration] start: phoneme %1 missing speakers",
-                                            phone.token);
-                            return srt::core::Error(
+                            Log.srtCritical("%1 start: phoneme %2 missing speakers",
+                                            kLogPrefix, phone.token);
+                            return srt::core::Error::inferenceError(
                                 srt::core::ErrorCode::InferenceSpeakerNotFound,
-                                stdc::formatN("[Duration] phoneme %1 missing speakers", phone.token));
+                                stdc::formatN("[Duration] phoneme %1 missing speakers", phone.token),
+                                {}, "duration");
                         }
                         for (const auto &speaker : phone.speakers) {
                             const std::vector<float> *embeddingPtr = nullptr;
@@ -323,23 +310,25 @@ namespace srt::svs {
                                 // embedding as all-zeros. Now returns an error
                                 // per ROBUST-05.
                                 setState(Failed);
-                                Log.srtCritical("[Duration] start: speaker %1 not found for "
-                                                "phoneme %2 and no inline embedding provided",
-                                                speaker.name, phone.token);
-                                return srt::core::Error(
+                                Log.srtCritical("%1 start: speaker %2 not found for "
+                                                "phoneme %3 and no inline embedding provided",
+                                                kLogPrefix, speaker.name, phone.token);
+                                return srt::core::Error::inferenceError(
                                     srt::core::ErrorCode::InferenceSpeakerNotFound,
                                     stdc::formatN("[Duration] speaker %1 not found in voice bank "
                                                   "and no inline embedding provided (phoneme %2)",
-                                                  speaker.name, phone.token));
+                                                  speaker.name, phone.token),
+                                    {}, "duration");
                             }
 
                             const auto &embedding = *embeddingPtr;
                             if (embedding.size() != static_cast<size_t>(config->hiddenSize)) {
                                 setState(Failed);
-                                Log.srtCritical("[Duration] start: speaker embedding vector length does not match hiddenSize");
-                                return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
+                                Log.srtCritical("%1 start: speaker embedding vector length does not match hiddenSize", kLogPrefix);
+                                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
                                                   "[Duration] speaker embedding vector length does not "
-                                                  "match hiddenSize");
+                                                  "match hiddenSize",
+                                                  {}, "duration");
                             }
                             for (size_t j = 0; j < embedding.size(); ++j) {
                                 float &val = buffer[currPhoneIndex * embedding.size() + j];
@@ -353,8 +342,8 @@ namespace srt::svs {
                 sessionInput->inputs["spk_embed"] = tensor;
             } else {
                 setState(Failed);
-                Log.srtCritical("[Duration] start: failed to create spk_embed tensor shape: %1",
-                                exp.error().message());
+                Log.srtCritical("%1 start: failed to create spk_embed tensor shape: %2",
+                                kLogPrefix, exp.error().message());
                 return exp.takeError();
             }
         } else {
@@ -367,17 +356,18 @@ namespace srt::svs {
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
             setState(Failed);
-            Log.srtCritical("[Duration] start: predictor session is not initialized");
-            return srt::core::Error(srt::core::ErrorCode::InferenceStartFailed,
-                              "[Duration] predictor session is not initialized");
+            Log.srtCritical("%1 start: predictor session is not initialized", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceStartFailed,
+                              "[Duration] predictor session is not initialized",
+                              {}, "duration");
         }
 
         srt::core::NO<srt::core::TaskResult> sessionTaskResult;
         auto sessionExp = impl.predictorSession->start(sessionInput);
         if (!sessionExp) {
             setState(Failed);
-            Log.srtCritical("[Duration] start: predictor session->start failed: %1",
-                            sessionExp.error().message());
+            Log.srtCritical("%1 start: predictor session->start failed: %2",
+                            kLogPrefix, sessionExp.error().message());
             return sessionExp.takeError();
         } else {
             sessionTaskResult = sessionExp.take();
@@ -388,34 +378,45 @@ namespace srt::svs {
         // Get session results
         if (!sessionTaskResult) {
             setState(Failed);
-            Log.srtCritical("[Duration] start: predictor session result is nullptr");
-            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
-                              "[Duration] predictor session result is nullptr");
+            Log.srtCritical("%1 start: predictor session result is nullptr", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceOutputEmpty,
+                              "[Duration] predictor session result is nullptr",
+                              {}, "duration");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
-            Log.srtCritical("[Duration] start: invalid result API name: %1",
-                            sessionTaskResult->objectName());
-            return srt::core::Error(srt::core::ErrorCode::InvalidArgument,
-                              "[Duration] invalid result API name");
+            Log.srtCritical("%1 start: invalid result API name: %2",
+                            kLogPrefix, sessionTaskResult->objectName());
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InvalidArgument,
+                              "[Duration] invalid result API name",
+                              {}, "duration");
         }
         auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
+        if (!sessionResult) {
+            setState(Failed);
+            Log.srtCritical("%1 start: type mismatch, expected SessionResult", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceRunFailed,
+                              "[Duration] type mismatch, expected SessionResult",
+                              {}, "duration");
+        }
         if (auto it_pred = sessionResult->outputs.find(outParamPhDurPred);
             it_pred != sessionResult->outputs.end()) {
             // Extract onnx model result and copy to duration final result vector (float -> double)
             auto output = std::move(it_pred->second);
             if (output->dataType() != srt::core::ITensor::Float) {
                 setState(Failed);
-                Log.srtCritical("[Duration] start: model output is not float");
-                return srt::core::Error(srt::core::ErrorCode::InferenceDataTypeMismatch,
-                                  "[Duration] model output is not float");
+                Log.srtCritical("%1 start: model output is not float", kLogPrefix);
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceDataTypeMismatch,
+                                  "[Duration] model output is not float",
+                                  {}, "duration");
             }
             const auto view = output->view<float>();
             if (view.empty()) {
                 setState(Failed);
-                Log.srtCritical("[Duration] start: model output is empty");
-                return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
-                                  "[Duration] model output is empty");
+                Log.srtCritical("%1 start: model output is empty", kLogPrefix);
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceOutputEmpty,
+                                  "[Duration] model output is empty",
+                                  {}, "duration");
             }
             auto &durationVector = durationResult->durations;
             durationVector.assign(view.begin(), view.end());
@@ -425,9 +426,10 @@ namespace srt::svs {
             for (const auto &word : durationInput->words) {
                 if (word.phones.empty()) {
                     setState(Failed);
-                    Log.srtCritical("[Duration] start: error scaling duration results: index out of bounds");
-                    return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
-                                      "[Duration] error scaling duration results: index out of bounds");
+                    Log.srtCritical("%1 start: error scaling duration results: index out of bounds", kLogPrefix);
+                    return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
+                                      "[Duration] error scaling duration results: index out of bounds",
+                                      {}, "duration");
                 }
                 auto phNum = word.phones.size();
                 auto wordDur = ds::infer::inferutil::getWordDuration(word);
@@ -441,12 +443,13 @@ namespace srt::svs {
                 }
                 if (predWordDur == 0 || std::isnan(predWordDur) || std::isinf(predWordDur)) {
                     setState(Failed);
-                    Log.srtCritical("[Duration] start: error scaling duration results: invalid predicted word duration: %1",
-                                    predWordDur);
-                    return srt::core::Error(srt::core::ErrorCode::InferenceRunFailed,
+                    Log.srtCritical("%1 start: error scaling duration results: invalid predicted word duration: %2",
+                                    kLogPrefix, predWordDur);
+                    return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceRunFailed,
                                       "[Duration] error scaling duration results: "
                                       "invalid predicted word duration: " +
-                                          std::to_string(predWordDur));
+                                          std::to_string(predWordDur),
+                                      {}, "duration");
                 }
                 const double scaleFactor = wordDur / predWordDur;
                 for (size_t i = begin; i < end; ++i) {
@@ -456,19 +459,21 @@ namespace srt::svs {
             }
         } else {
             setState(Failed);
-            Log.srtCritical("[Duration] start: output 'ph_dur_pred' not found in session result");
-            return srt::core::Error(srt::core::ErrorCode::InferenceOutputEmpty,
-                              "[Duration] output 'ph_dur_pred' not found in session result");
+            Log.srtCritical("%1 start: output 'ph_dur_pred' not found in session result", kLogPrefix);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceOutputEmpty,
+                              "[Duration] output 'ph_dur_pred' not found in session result",
+                              {}, "duration");
         }
 
         const auto predictedPhoneCount = durationResult->durations.size();
         if (predictedPhoneCount != phoneCount) {
             setState(Failed);
-            Log.srtCritical("[Duration] start: predicted phoneme count mismatch: expected %1, got %2",
-                            phoneCount, predictedPhoneCount);
-            return srt::core::Error(srt::core::ErrorCode::InferenceRunFailed,
+            Log.srtCritical("%1 start: predicted phoneme count mismatch: expected %2, got %3",
+                            kLogPrefix, phoneCount, predictedPhoneCount);
+            return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceRunFailed,
                               stdc::formatN("[Duration] predicted phoneme count mismatch: expected %1, got %2",
-                                            phoneCount, predictedPhoneCount));
+                                            phoneCount, predictedPhoneCount),
+                              {}, "duration");
         }
         impl.result = durationResult;
 
@@ -483,7 +488,7 @@ namespace srt::svs {
     }
 
     bool DurationInference::stop() {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         bool flag = true;
         for (auto &session : {impl.encoderSession, impl.predictorSession}) {
             if (session) {
@@ -495,7 +500,7 @@ namespace srt::svs {
     }
 
     srt::core::NO<srt::core::TaskResult> DurationInference::result() const {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
         std::shared_lock<std::shared_mutex> lock(impl.mutex);
         return impl.result;
     }

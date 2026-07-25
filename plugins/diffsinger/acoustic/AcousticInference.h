@@ -1,5 +1,4 @@
-#ifndef DSINFER_ACOUSTICINFERENCE_H
-#define DSINFER_ACOUSTICINFERENCE_H
+#pragma once
 
 #include <synthrt/SVS/Inference.h>
 
@@ -23,9 +22,7 @@ namespace srt::svs {
 
     protected:
         class Impl;
-        std::unique_ptr<Impl> _impl;
+        std::unique_ptr<Impl> m_impl;
     };
 
 }
-
-#endif // DSINFER_ACOUSTICINFERENCE_H

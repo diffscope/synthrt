@@ -31,7 +31,7 @@ namespace ds::bank {
         if (package.empty()) {
             return false;
         }
-        auto versionStr = token.substr(openBracket + 1, token.size() - openBracket - 1);
+        auto versionStr = token.substr(openBracket + 1, token.size() - openBracket - 2);
         version = stdc::VersionNumber::fromString(versionStr);
         return !version.isEmpty();
     }
@@ -96,8 +96,8 @@ namespace ds::bank {
                 if (!parsePackageIdVersion(id, package, version)) {
                     continue;
                 }
-                pkg._id = std::move(package);
-                pkg._version = std::move(version);
+                pkg.m_id = std::move(package);
+                pkg.m_version = std::move(version);
             }
             // relativeLocation
             {
@@ -109,7 +109,7 @@ namespace ds::bank {
                 if (path_.empty()) {
                     continue;
                 }
-                pkg._relativeLocation = stdc::path::from_utf8(path_);
+                pkg.m_relativeLocation = stdc::path::from_utf8(path_);
             }
             // metadata
             {
@@ -126,7 +126,7 @@ namespace ds::bank {
                     if (it3 == metadataObj.end() || !it3->second.isBool()) {
                         break;
                     }
-                    metadata_._hasSinger = it3->second.toBool();
+                    metadata_.m_hasSinger = it3->second.toBool();
                 } while (false);
 
                 // installedTimestamp (optional)
@@ -135,41 +135,41 @@ namespace ds::bank {
                     if (it3 == metadataObj.end() || !it3->second.isInt()) {
                         break;
                     }
-                    metadata_._installedTimestamp =
+                    metadata_.m_installedTimestamp =
                         static_cast<std::time_t>(it3->second.toInt());
                 } while (false);
 
-                pkg._metadata = std::move(metadata_);
+                pkg.m_metadata = std::move(metadata_);
             }
             pkgs.emplace_back(pkg);
         }
 
-        _packages = std::move(pkgs);
+        m_packages = std::move(pkgs);
         return Expected<void>();
     }
 
     Expected<void> PackageListConfig::save(const std::filesystem::path &path) const {
         JsonArray packagesArr;
-        for (const auto &packageItem : _packages) {
+        for (const auto &packageItem : m_packages) {
             JsonObject pkgObj;
 
             // id
             pkgObj["id"] =
-                stdc::formatN("%1[%2]", packageItem._id, packageItem._version.toString());
+                stdc::formatN("%1[%2]", packageItem.m_id, packageItem.m_version.toString());
 
             // relativeLocation
-            pkgObj["relativeLocation"] = stdc::path::to_utf8(packageItem._relativeLocation);
+            pkgObj["relativeLocation"] = stdc::path::to_utf8(packageItem.m_relativeLocation);
 
             // metadata
             {
                 JsonObject metadataObj;
-                const auto &metadata = packageItem._metadata;
+                const auto &metadata = packageItem.m_metadata;
 
                 // hasSinger
-                metadataObj["hasSinger"] = metadata._hasSinger;
+                metadataObj["hasSinger"] = metadata.m_hasSinger;
 
                 // installedTimestamp
-                const auto installedTimestamp = static_cast<int64_t>(metadata._installedTimestamp);
+                const auto installedTimestamp = static_cast<int64_t>(metadata.m_installedTimestamp);
                 if (installedTimestamp != 0) {
                     metadataObj["installedTimestamp"] = installedTimestamp;
                 }

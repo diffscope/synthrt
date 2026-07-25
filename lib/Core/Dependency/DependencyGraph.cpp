@@ -79,7 +79,7 @@ namespace srt::dependency {
     }
 
     bool DependencyGraph::Impl::buildGraph() {
-        if (graphBuilt) {
+        if (m_graphBuilt) {
             // TODO: Re-enable logging when srt::core::Logger is migrated
             // MgrLog.langCoreWarning("Graph already built");
             return true;
@@ -87,7 +87,7 @@ namespace srt::dependency {
 
         bool success = true;
 
-        for (const auto &[key, node] : nodeMap) {
+        for (const auto &[key, node] : m_nodeMap) {
             for (const auto &dep : node->module.resolvedDependencies) {
                 auto depNodes = findNodesByDependency(dep);
 
@@ -98,7 +98,7 @@ namespace srt::dependency {
                     // MgrLog.langCoreCritical("  Missing dependency: %1:%2 (v%3, level %4)", dep.packageId, dep.moduleId,
                     //                                        dep.version, dep.level);
                     // MgrLog.langCoreCritical("  Available modules in graph:");
-                    // for (const auto &[existingKey, existingNode] : nodeMap) {
+                    // for (const auto &[existingKey, existingNode] : m_nodeMap) {
                     //     MgrLog.langCoreCritical("    - %1:%2 (v%3, level %4)", existingNode->module.packageId,
                     //                             existingNode->module.moduleId, existingNode->module.version,
                     //                             existingNode->module.level);
@@ -126,26 +126,31 @@ namespace srt::dependency {
             }
         }
 
-        graphBuilt = success;
+        m_graphBuilt = success;
         return success;
     }
 
     std::shared_ptr<DependencyGraph::Impl::GraphNode>
     DependencyGraph::Impl::getOrCreateNode(const ModuleMetadata &module) {
         const auto key = module.key();
-        if (const auto it = nodeMap.find(key); it != nodeMap.end())
+        if (const auto it = m_nodeMap.find(key); it != m_nodeMap.end())
             return it->second;
 
         auto node = std::make_shared<GraphNode>(module);
-        nodeMap[key] = node;
-        mainModuleMap[module].push_back(node);
+        m_nodeMap[key] = node;
+        m_mainModuleMap[module].push_back(node);
         return node;
     }
 
     void DependencyGraph::Impl::clear() {
-        nodeMap.clear();
-        mainModuleMap.clear();
-        graphBuilt = false;
+        // Break reference-count cycles (A<->B mutual edges) before releasing
+        // the map entries; otherwise shared_ptr cycles keep nodes alive.
+        for (auto &kv : m_nodeMap) {
+            kv.second->neighbors.clear();
+        }
+        m_nodeMap.clear();
+        m_mainModuleMap.clear();
+        m_graphBuilt = false;
     }
 
     std::vector<std::vector<ModuleMetadata>> DependencyGraph::Impl::getCycles() const {
@@ -153,12 +158,12 @@ namespace srt::dependency {
         // modules remaining after topological sort exhaustion are in cycles.
         std::unordered_map<std::string, int> inDegree;
 
-        for (const auto &[key, node] : nodeMap) {
+        for (const auto &[key, node] : m_nodeMap) {
             inDegree[key] = 0;
         }
 
         // Compute in-degrees from the existing neighbor edges
-        for (const auto &[key, node] : nodeMap) {
+        for (const auto &[key, node] : m_nodeMap) {
             for (const auto &neighbor : node->neighbors) {
                 inDegree[neighbor->module.key()]++;
             }
@@ -175,8 +180,8 @@ namespace srt::dependency {
             auto key = q.front();
             q.pop();
             visited.insert(key);
-            auto nodeIt = nodeMap.find(key);
-            if (nodeIt != nodeMap.end()) {
+            auto nodeIt = m_nodeMap.find(key);
+            if (nodeIt != m_nodeMap.end()) {
                 for (const auto &neighbor : nodeIt->second->neighbors) {
                     auto neighborKey = neighbor->module.key();
                     if (--inDegree[neighborKey] == 0)
@@ -186,12 +191,12 @@ namespace srt::dependency {
         }
 
         // Remaining nodes are in cycles
-        if (visited.size() == nodeMap.size())
+        if (visited.size() == m_nodeMap.size())
             return {};
 
         // Collect all unvisited modules as a single cycle group
         std::vector<ModuleMetadata> cycleMembers;
-        for (const auto &[key, node] : nodeMap) {
+        for (const auto &[key, node] : m_nodeMap) {
             if (visited.find(key) == visited.end()) {
                 cycleMembers.push_back(node->module);
             }
@@ -208,7 +213,7 @@ namespace srt::dependency {
         // rebuilding the adjacency structure from resolvedDependencies.
         std::unordered_map<std::string, int> inDegree;
 
-        for (const auto &[key, node] : nodeMap) {
+        for (const auto &[key, node] : m_nodeMap) {
             inDegree[key] = 0;
         }
 
@@ -227,13 +232,13 @@ namespace srt::dependency {
         // neighbor -> node means "neighbor must come before node".
         // In-degree of node = number of its dependencies = node->neighbors.size().
 
-        for (const auto &[key, node] : nodeMap) {
+        for (const auto &[key, node] : m_nodeMap) {
             inDegree[key] = static_cast<int>(node->neighbors.size());
         }
 
         // Build reverse adjacency: for each dependency, track which nodes depend on it.
         std::unordered_map<std::string, std::vector<const GraphNode *>> reverseDeps;
-        for (const auto &[key, node] : nodeMap) {
+        for (const auto &[key, node] : m_nodeMap) {
             for (const auto &neighbor : node->neighbors) {
                 reverseDeps[neighbor->module.key()].push_back(node.get());
             }
@@ -242,7 +247,7 @@ namespace srt::dependency {
         std::vector<ModuleMetadata> order;
         std::queue<const GraphNode *> zeroInDegreeNodes;
 
-        for (const auto &[key, node] : nodeMap) {
+        for (const auto &[key, node] : m_nodeMap) {
             if (inDegree[key] == 0) {
                 zeroInDegreeNodes.push(node.get());
             }
@@ -263,12 +268,12 @@ namespace srt::dependency {
             }
         }
 
-        if (order.size() != nodeMap.size()) {
+        if (order.size() != m_nodeMap.size()) {
             // Cycle detected — collect remaining nodes
             if (cycleMembers) {
                 std::unordered_set<std::string> visited;
                 for (const auto &m : order) visited.insert(m.key());
-                for (const auto &[key, node] : nodeMap) {
+                for (const auto &[key, node] : m_nodeMap) {
                     if (visited.find(key) == visited.end())
                         cycleMembers->push_back(node->module);
                 }
@@ -307,8 +312,8 @@ namespace srt::dependency {
 
     std::vector<ModuleMetadata> DependencyGraph::Impl::getAllModules() const {
         std::vector<ModuleMetadata> modules;
-        modules.reserve(nodeMap.size());
-        for (const auto &[_, node] : nodeMap)
+        modules.reserve(m_nodeMap.size());
+        for (const auto &[_, node] : m_nodeMap)
             modules.push_back(node->module);
         return modules;
     }
@@ -317,7 +322,7 @@ namespace srt::dependency {
     DependencyGraph::Impl::findNodesByDependency(const ResolvedDependency &dep) {
         std::vector<std::shared_ptr<GraphNode>> result;
 
-        for (auto &[_, node] : nodeMap) {
+        for (auto &[_, node] : m_nodeMap) {
             if (node->module.packageId == dep.packageId && node->module.moduleId == dep.moduleId &&
                 node->module.level == dep.level && node->module.version == dep.version) {
                 result.push_back(node);

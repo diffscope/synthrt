@@ -1,5 +1,4 @@
-#ifndef SRT_S2P_LUAONSETMARKER_H
-#define SRT_S2P_LUAONSETMARKER_H
+#pragma once
 
 #include <memory>
 #include <stdexcept>
@@ -49,5 +48,3 @@ namespace srt::s2p {
     };
 
 }
-
-#endif // SRT_S2P_LUAONSETMARKER_H

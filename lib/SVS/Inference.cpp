@@ -2,26 +2,23 @@
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/Core/Core/Runtime.h>
 
-namespace srt::svs {
+#include "Inference_p.h"
 
-    class Inference::Impl {
-    public:
-        const InferenceSpec *spec = nullptr;
-    };
+namespace srt::svs {
 
     Inference::Inference(const InferenceSpec *spec)
         : _impl(std::make_unique<Impl>()) {
-        _impl->spec = spec;
+        _impl->m_spec = spec;
     }
 
     Inference::~Inference() = default;
 
     const InferenceSpec *Inference::spec() const {
-        return _impl->spec;
+        return _impl->m_spec;
     }
 
     core::Runtime *Inference::SU() const {
-        return _impl->spec ? _impl->spec->runtime() : nullptr;
+        return _impl->m_spec ? _impl->m_spec->runtime() : nullptr;
     }
 
 }

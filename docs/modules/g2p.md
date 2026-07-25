@@ -1,6 +1,6 @@
 # G2P 模块 (`srt::g2p` / `ds::lang`)
 
-namespace: `srt::g2p` (G2P 框架) / `ds::lang` (LanguageService) | target: `synthrt::g2p` | 头文件: `include/synthrt/G2P/`
+namespace: `srt::g2p` (G2P 框架) / `ds::lang` (LanguageService) | target: `srt::g2p` | 头文件: `include/synthrt/G2P/`
 
 ---
 
@@ -351,3 +351,87 @@ G2pRes(std::string lyric, ..., std::string pronunciation = {},
 ```
 
 顺序不能颠倒——若先种子 candidates 再做 lyric fallback，pronunciation 为空时 candidates 留空，后续以 candidates 迭代的调用方会漏项。
+
+---
+
+## G2P ONNX Driver Setup helper (A1)
+
+> A3 追加（2026-07-25）。详细设计见
+> [docs/lite-integration/02-synthrt-side-changes.md](file:///d:/projects/synthrt/docs/lite-integration/02-synthrt-side-changes.md) §A1。
+
+### 定位
+
+`srt::g2p::setupG2pOnnxDriver` 是与 `srt::driver::setupOnnxInferenceDriver` 平级的
+low-level setup helper，由 synthrt 提供，避免每个宿主（ds-editor-lite / dsinfer-cli /
+未来 Python 宿主）重复实现 G2P ONNX driver 适配代码（lite 侧原先 110 行 file-local
+adapter 类）。**非新增 facade**：它不包装 `VoicebankSession` 或 `LanguageService`，
+仅做一次性的 driver 注册，调用方按需组合。
+
+头文件：[include/synthrt/G2P/G2pOnnxSetup.h](file:///d:/projects/synthrt/include/synthrt/G2P/G2pOnnxSetup.h)
+
+### 行为
+
+复用 Runtime 的推理 ONNX driver（由 `srt::driver::setupOnnxInferenceDriver` 在
+`inference` 类别下注册的 `"dsdriver"` 对象），为 G2P Manager 注册一个 CPU-only
+SessionFactory adapter：
+
+1. 在进程级 `srt::g2p::Manager` 上调用 `addPluginPath()` 注册 G2P 插件搜索路径
+   （task + driver IID）；
+2. 从 Runtime 的 `inference` 类别取出 `"dsdriver"`，转型为 `srt::driver::InferenceDriver`；
+3. 用一个 CPU-only SessionFactory adapter 包装它，对每次 session `open()` 强制
+   `useCpu=true`（G2P 不得与 GPU 推理争用）；
+4. 在 Manager 的 `kDriverCategory` 类别下以 `kG2pOnnxDriverName`（`"g2pOnnxDriver"`）
+   注册该 adapter。
+
+**幂等**：重复调用安全（plugin path 由 PluginFactory 去重；同名 driver 对象被替换）。
+**不自动 fallback**：若 `"dsdriver"` 缺失，返回 `InferenceNotInitialized`，由调用方
+决定是否继续。
+
+### 调用顺序
+
+```
+srt::driver::setupOnnxInferenceDriver(runtime, ...)   // 1. 先注册推理 ONNX driver
+srt::g2p::setupG2pOnnxDriver(runtime, g2pPluginPaths) // 2. 复用 dsdriver 注册 G2P driver
+LanguageService::initializeMetadata(...)              // 3. 注册 G2P 包路由
+LanguageService::initializeModels()                   // 4. 加载 G2P ONNX 模型
+```
+
+> 当 `VoicebankSession(SessionResources{...})` 的 `languageService` 非空时
+> （实际触发条件为 `if (svc)` 即 `languageService != nullptr`，非 `g2pPluginPaths` 非空），
+> `refresh()` 内部会自动调用 `LanguageService::initializeMetadata/updateMetadata`，
+> 传入 `g2pPluginPaths` + `officialG2pPackages` 作为参数
+> （见 [ds-session.md](ds-session.md)），调用方无需手动执行第 3 步。
+
+### 最小用法
+
+```cpp
+#include <synthrt/Core/Core/Runtime.h>
+#include <synthrt/Driver/OnnxSetup.h>
+#include <synthrt/G2P/G2pOnnxSetup.h>
+
+#include <filesystem>
+#include <vector>
+
+srt::core::Runtime runtime;
+srt::driver::OnnxDriverConfig config;
+// config.ep = srt::driver::onnx::DMLExecutionProvider; ...
+
+// 1. 先注册推理 ONNX driver（在 Runtime 的 "inference" 类别下注册 "dsdriver"）
+srt::driver::setupOnnxInferenceDriver(runtime, pluginRoot, config);
+
+// 2. 复用推理 driver 注册 G2P ONNX driver
+std::vector<std::filesystem::path> g2pPluginPaths = {
+    pluginRoot / "srt-g2p/G2ps",
+    pluginRoot / "srt-g2p/dict",
+};
+auto exp = srt::g2p::setupG2pOnnxDriver(runtime, g2pPluginPaths);
+if (!exp) {
+    // exp.error() 通常是 InferenceNotInitialized（未先调用 setupOnnxInferenceDriver）
+    // 或 SessionError（plugin path / category 注册失败）
+}
+```
+
+### 验证
+
+参见 [docs/lite-integration/05-verification-checklist.md](file:///d:/projects/synthrt/docs/lite-integration/05-verification-checklist.md) §A1（A1-T01 ~ A1-T06）。
+

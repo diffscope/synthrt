@@ -40,13 +40,29 @@ namespace srt::g2p {
 
     srt::core::Expected<void> Manager::loadTasksForCategory(const std::string &category) {
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
-        std::unique_lock<std::shared_mutex> lock(impl.tasks_mtx);
 
-        for (const auto &[ctxKey, state] : impl.contextStates) {
-            if (state != ContextState::Ready)
-                continue;
+        // m_contextStates / m_contextModuleInfos are guarded by m_su_mtx, while
+        // m_tasks is guarded by m_tasks_mtx. Snapshot the Ready contexts and
+        // their module infos under m_su_mtx (shared) first, then populate
+        // m_tasks under m_tasks_mtx. Never hold both locks at once (matches the
+        // convention in removeContextsByPrefix).
+        std::vector<std::pair<srt::core::ContextKey,
+                              std::vector<srt::dependency::ModuleMetadata>>>
+            readyContexts;
+        {
+            std::shared_lock<std::shared_mutex> suLock(impl.m_su_mtx);
+            for (const auto &[ctxKey, state] : impl.m_contextStates) {
+                if (state != ContextState::Ready)
+                    continue;
+                auto it = impl.m_contextModuleInfos.find(ctxKey);
+                if (it == impl.m_contextModuleInfos.end())
+                    continue;
+                readyContexts.emplace_back(ctxKey, it->second);
+            }
+        }
 
-            auto &ctxModuleInfos = impl.contextModuleInfos[ctxKey];
+        std::unique_lock<std::shared_mutex> lock(impl.m_tasks_mtx);
+        for (const auto &[ctxKey, ctxModuleInfos] : readyContexts) {
             for (const auto &moduleInfo : ctxModuleInfos) {
                 if (moduleInfo.type != category)
                     continue;
@@ -60,7 +76,7 @@ namespace srt::g2p {
                 if (!obj)
                     continue;
 
-                impl.tasks[category][ctxKey][moduleInfo.moduleId] = obj.as<Task>();
+                impl.m_tasks[category][ctxKey][moduleInfo.moduleId] = obj.as<Task>();
             }
         }
         return {};
@@ -88,7 +104,7 @@ namespace srt::g2p {
     srt::core::Expected<void> Manager::initialize() {
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
 
-        if (impl.initialized) {
+        if (impl.m_initialized) {
             return Error(ErrorCode::G2pAlreadyInitialized,
                          "Manager::initialize() has already been called");
         }
@@ -108,7 +124,7 @@ namespace srt::g2p {
                              "Ord-1: Default context has no compatible modules after Level check");
             }
 
-            auto &depGraph = impl.contextDependencyGraphs[srt::core::ContextKey("")];
+            auto &depGraph = impl.m_contextDependencyGraphs[srt::core::ContextKey("")];
             depGraph.clear();
             for (const auto &info : compatibleModules)
                 depGraph.addModule(info);
@@ -164,38 +180,38 @@ namespace srt::g2p {
                 return Error(ErrorCode::G2pInitializationError, detail);
             }
 
-            impl.contextStates[defaultCtx] = ContextState::Ready;
+            impl.m_contextStates[defaultCtx] = ContextState::Ready;
         }
 
         // Phase 2: Non-default contexts
-        for (const auto &[ctxKey, _] : impl.contextPackagePaths) {
+        for (const auto &[ctxKey, _] : impl.m_contextPackagePaths) {
             if (ctxKey.isDefault())
                 continue;
 
             const auto moduleInfos = this->getModuleMetadatas(ctxKey);
             if (moduleInfos.empty()) {
-                impl.contextStates[ctxKey] = ContextState::Failed;
+                impl.m_contextStates[ctxKey] = ContextState::Failed;
                 continue;
             }
 
             auto compatibleModules = filterCompatibleModules(moduleInfos);
             if (compatibleModules.empty()) {
-                impl.contextStates[ctxKey] = ContextState::Failed;
+                impl.m_contextStates[ctxKey] = ContextState::Failed;
                 continue;
             }
 
-            auto &depGraph = impl.contextDependencyGraphs[ctxKey];
+            auto &depGraph = impl.m_contextDependencyGraphs[ctxKey];
             depGraph.clear();
             for (const auto &info : compatibleModules)
                 depGraph.addModule(info);
 
             if (!depGraph.buildGraph()) {
-                impl.contextStates[ctxKey] = ContextState::Failed;
+                impl.m_contextStates[ctxKey] = ContextState::Failed;
                 continue;
             }
 
             if (const auto cycles = depGraph.findCycles(); !cycles.empty()) {
-                impl.contextStates[ctxKey] = ContextState::Failed;
+                impl.m_contextStates[ctxKey] = ContextState::Failed;
                 continue;
             }
 
@@ -227,9 +243,9 @@ namespace srt::g2p {
             }
 
             if (allFailed && !packageOrder.empty()) {
-                impl.contextStates[ctxKey] = ContextState::Failed;
+                impl.m_contextStates[ctxKey] = ContextState::Failed;
             } else {
-                impl.contextStates[ctxKey] = ContextState::Ready;
+                impl.m_contextStates[ctxKey] = ContextState::Ready;
             }
         }
 
@@ -240,15 +256,16 @@ namespace srt::g2p {
         }
 
         if (auto result = loadTasksForCategory(kDictCategory); !result) {
-            // dict is optional - silently continue
+            // dict is optional - log warning but continue initialization
+            g2pLog.srtWarning("Dict task init failed - %1", result.error().message());
         }
 
-        impl.initialized = true;
+        impl.m_initialized = true;
         return {};
     }
 
     bool Manager::initialized() const {
-        return static_cast<PackageManager::Impl *>(_impl.get())->initialized;
+        return static_cast<PackageManager::Impl *>(_impl.get())->m_initialized;
     }
 
     srt::core::Expected<srt::core::NO<Task>> Manager::task(
@@ -273,17 +290,17 @@ namespace srt::g2p {
             return Error(ErrorCode::G2pValidationError, "T-4: " + exp.error().message());
 
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
-        std::shared_lock<std::shared_mutex> lock(impl.tasks_mtx);
+        std::shared_lock<std::shared_mutex> lock(impl.m_tasks_mtx);
 
-        auto catIt = impl.tasks.find(category);
-        if (catIt == impl.tasks.end())
+        auto catIt = impl.m_tasks.find(category);
+        if (catIt == impl.m_tasks.end())
             return Error(ErrorCode::G2pRouteNotFound, "T-5: could not find category: " + category);
 
         srt::core::ContextKey ctxKey(context, version);
         auto ctxIt = catIt->second.find(ctxKey);
         if (ctxIt == catIt->second.end()) {
-            auto stateIt = impl.contextStates.find(ctxKey);
-            if (stateIt != impl.contextStates.end() && stateIt->second == ContextState::Failed)
+            auto stateIt = impl.m_contextStates.find(ctxKey);
+            if (stateIt != impl.m_contextStates.end() && stateIt->second == ContextState::Failed)
                 return Error(ErrorCode::G2pContextNotFound,
                              "T-6: context '" + ctxKey.toString() + "' failed initialization");
             return Error(ErrorCode::G2pContextNotFound,
@@ -313,10 +330,10 @@ namespace srt::g2p {
             return exp.error();
 
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
-        std::shared_lock<std::shared_mutex> lock(impl.tasks_mtx);
+        std::shared_lock<std::shared_mutex> lock(impl.m_tasks_mtx);
 
-        auto catIt = impl.tasks.find(category);
-        if (catIt == impl.tasks.end())
+        auto catIt = impl.m_tasks.find(category);
+        if (catIt == impl.m_tasks.end())
             return Error(ErrorCode::G2pRouteNotFound, "could not find category: " + category);
 
         srt::core::ContextKey ctxKey(context, version);
@@ -342,7 +359,7 @@ namespace srt::g2p {
 
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
 
-        if (!impl.initialized) {
+        if (!impl.m_initialized) {
             std::vector<G2pRes> results;
             results.reserve(input.size());
             for (const auto &item : input) {
@@ -408,9 +425,9 @@ namespace srt::g2p {
         for (const auto &group : groups) {
             srt::core::NO<Task> taskObj;
             {
-                std::shared_lock<std::shared_mutex> lock(impl.tasks_mtx);
-                auto catIt = impl.tasks.find(kG2pCategory);
-                if (catIt != impl.tasks.end()) {
+                std::shared_lock<std::shared_mutex> lock(impl.m_tasks_mtx);
+                auto catIt = impl.m_tasks.find(kG2pCategory);
+                if (catIt != impl.m_tasks.end()) {
                     srt::core::ContextKey ctxKey(group.g2pContext, group.g2pContextVersion);
                     auto ctxIt = catIt->second.find(ctxKey);
                     if (ctxIt != catIt->second.end()) {

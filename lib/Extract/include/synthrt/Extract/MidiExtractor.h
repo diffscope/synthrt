@@ -1,5 +1,4 @@
-#ifndef SRT_EXTRACT_MIDIEXTRACTOR_H
-#define SRT_EXTRACT_MIDIEXTRACTOR_H
+#pragma once
 
 #include <filesystem>
 #include <vector>
@@ -60,5 +59,3 @@ namespace srt::extract {
     };
 
 } // namespace srt::extract
-
-#endif // SRT_EXTRACT_MIDIEXTRACTOR_H

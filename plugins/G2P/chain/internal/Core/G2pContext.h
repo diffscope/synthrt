@@ -1,5 +1,4 @@
-#ifndef SRT_G2P_PLUGINS_CHAING2P_G2PCONTEXT_H
-#define SRT_G2P_PLUGINS_CHAING2P_G2PCONTEXT_H
+#pragma once
 
 #include <synthrt/G2P/Base/LangCommon.h>
 #include <synthrt/G2P/Package/Package.h>
@@ -8,8 +7,7 @@
 #include <string>
 #include <vector>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     /// G2pContext - G2p 处理上下文
     ///
     /// 负责在处理步骤之间传递数据和状态
@@ -76,6 +74,4 @@ namespace srt::g2p::plugins::ChainG2p
         bool m_stopProcessing = false;
     };
 
-} // namespace srt::g2p::plugins::ChainG2p
-
-#endif // SRT_G2P_PLUGINS_CHAING2P_G2PCONTEXT_H
+}

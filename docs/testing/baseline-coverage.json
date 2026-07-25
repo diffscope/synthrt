@@ -1,0 +1,17 @@
+{
+  "baseline_date": "2026-07-23",
+  "compiler": "GCC 11.4",
+  "modules": {
+    "Core": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待 T-P0-07 执行后填充"},
+    "G2P": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"},
+    "S2P": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"},
+    "SVS": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"},
+    "Audio": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"},
+    "Extract": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"},
+    "Driver": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"},
+    "C": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"},
+    "ds-bank": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"},
+    "ds-infer": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"},
+    "ds-session": {"line_coverage": 0.0, "branch_coverage": 0.0, "todo": "待填充"}
+  }
+}

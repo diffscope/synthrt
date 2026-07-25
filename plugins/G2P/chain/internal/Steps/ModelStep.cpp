@@ -5,8 +5,7 @@
 #include <synthrt/Core/Support/Logging.h>
 #include <synthrt/G2P/Core/PackageManager.h>
 
-namespace srt::g2p::plugins::ChainG2p
-{
+namespace srt::g2p::plugins::ChainG2p {
     static srt::LogCategory ModelLog("chainG2p.model");
 
     srt::core::Expected<void> ModelStep::configure(const srt::g2p::ModuleSpec *spec,
@@ -193,4 +192,4 @@ namespace srt::g2p::plugins::ChainG2p
         m_onnxTask.reset();
     }
 
-} // namespace srt::g2p::plugins::ChainG2p
+}

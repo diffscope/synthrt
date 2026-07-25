@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_ONNX_SCOPEDTIMER_H
-#define SRT_DRIVER_ONNX_SCOPEDTIMER_H
+#pragma once
 
 #include <chrono>
 #include <functional>
@@ -38,5 +37,3 @@ namespace srt::driver::onnx {
         std::chrono::time_point<std::chrono::steady_clock> m_timeStart;
     };
 }
-
-#endif

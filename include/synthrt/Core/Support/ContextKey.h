@@ -1,5 +1,4 @@
-#ifndef SRT_CORE_SUPPORT_CONTEXTKEY_H
-#define SRT_CORE_SUPPORT_CONTEXTKEY_H
+#pragma once
 
 #include <string>
 #include <string_view>
@@ -60,5 +59,3 @@ namespace srt::core {
     };
 
 } // namespace srt::core
-
-#endif // SRT_CORE_SUPPORT_CONTEXTKEY_H

@@ -1,7 +1,0 @@
-# Util sublibraries for ds-infer.
-# Relocated from domains/ds-infer/util/ in v4 Phase 7. These remain separate
-# static libraries because they are consumed by plugins (inferutil) and tools
-# (wavfile) via BUILD_INTERFACE targets.
-add_subdirectory(InputParser)
-add_subdirectory(InferUtil)
-add_subdirectory(WavFile)

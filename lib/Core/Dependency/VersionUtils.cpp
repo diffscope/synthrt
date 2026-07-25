@@ -1,6 +1,7 @@
 #include <synthrt/Core/Dependency/VersionUtils.h>
 
 #include <algorithm>
+#include <charconv>
 #include <map>
 #include <sstream>
 #include <utility>
@@ -97,8 +98,12 @@ namespace srt::dependency {
                     if (targetParts[0] != testParts[0] || targetParts[1] != testParts[1])
                         return false;
                     auto safeStoi = [](const std::string &s) -> int {
-                        try { return std::stoi(s); }
-                        catch (...) { return 0; }
+                        int value = 0;
+                        auto res = std::from_chars(s.data(), s.data() + s.size(), value);
+                        if (res.ec != std::errc{}) {
+                            return 0; // 非数字版本段按 0 处理（有意容错）
+                        }
+                        return value;
                     };
                     int targetPatch = targetParts.size() > 2 ? safeStoi(targetParts[2]) : 0;
                     int testPatch = testParts.size() > 2 ? safeStoi(testParts[2]) : 0;
@@ -328,14 +333,15 @@ namespace srt::dependency {
             std::string part;
             std::istringstream iss(v);
             while (std::getline(iss, part, '.')) {
-                try {
-                    parts.push_back(std::stoi(part));
-                }
-                catch (...) {
+                int value = 0;
+                auto res = std::from_chars(part.data(), part.data() + part.size(), value);
+                if (res.ec != std::errc{}) {
                     // Non-numeric version part treated as 0
                     // TODO: Re-enable logging when srt::core::Logger is migrated
                     // DependencyLog.langCoreWarning("Non-numeric version part '%1' in version string, treating as 0", part);
                     parts.push_back(0);
+                } else {
+                    parts.push_back(value);
                 }
             }
         };

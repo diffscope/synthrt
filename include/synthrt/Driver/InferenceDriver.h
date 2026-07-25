@@ -1,5 +1,4 @@
-#ifndef SRT_DRIVER_INFERENCEDRIVER_H
-#define SRT_DRIVER_INFERENCEDRIVER_H
+#pragma once
 
 #include <string>
 
@@ -43,5 +42,3 @@ namespace srt::driver {
     };
 
 }
-
-#endif // SRT_DRIVER_INFERENCEDRIVER_H

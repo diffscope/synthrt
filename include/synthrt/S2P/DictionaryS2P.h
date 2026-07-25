@@ -1,5 +1,4 @@
-#ifndef SRT_S2P_DICTIONARYS2P_H
-#define SRT_S2P_DICTIONARYS2P_H
+#pragma once
 
 #include <iosfwd>
 #include <memory>
@@ -46,5 +45,3 @@ namespace srt::s2p {
     };
 
 }
-
-#endif // SRT_S2P_DICTIONARYS2P_H

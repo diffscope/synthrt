@@ -1,9 +1,10 @@
-#ifndef SRT_CORE_SUPPORT_ERROR_H
-#define SRT_CORE_SUPPORT_ERROR_H
+#pragma once
 
-#include <string>
 #include <memory>
 #include <source_location>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include <synthrt/Core/Support/Diagnostic.h>
 #include <synthrt/Core/srt_core_global.h>
@@ -122,6 +123,12 @@ namespace srt::core {
         /// Full error description: "[Category::Code] message\n  at file:line:function"
         SRT_CORE_EXPORT std::string toString() const;
 
+        /// Concise error description: "[stage] msg at file:line:function".
+        /// Includes stage context (moduleId) and location, but omits full
+        /// trace and other context fields. Suitable for secondary error
+        /// paths where toString() would be too verbose.
+        SRT_CORE_EXPORT std::string messageWithLocation() const;
+
         // === Trace append (for cross-layer propagation) ===
         SRT_CORE_EXPORT void appendTrace(std::string entry);
 
@@ -141,6 +148,17 @@ namespace srt::core {
                                            std::string moduleId = {},
                                            std::string packageId = {},
                                            std::string language = {});
+
+        /// S5: Chainable extra-context appender. Adds key-value pairs to
+        /// Diagnostic::extraContext for file-level and count-level diagnostics.
+        /// Example: err.withExtraContext({{"stage", "convert"}, {"manifestFile", path}});
+        SRT_CORE_EXPORT Error &withExtraContext(
+            std::vector<std::pair<std::string, std::string>> entries);
+
+        /// S5: Format all context fields (named + extraContext + trace) into a
+        /// human-readable string for UI display. Differs from toString() which
+        /// focuses on "[Category::Code] message at location".
+        SRT_CORE_EXPORT std::string formatContext() const;
 
         // === Factory functions ===
         SRT_CORE_EXPORT static Error packageError(
@@ -177,5 +195,3 @@ namespace srt::core {
     };
 
 }
-
-#endif // SRT_CORE_SUPPORT_ERROR_H

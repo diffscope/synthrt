@@ -3,6 +3,7 @@
 #include <memory>
 #include <filesystem>
 #include <optional>
+#include <mutex>
 
 #if __has_include(<dml_provider_factory.h>)
 #  define ONNXDRIVER_FOUND_DML
@@ -87,13 +88,19 @@ namespace srt::driver::onnx {
 
     struct DmlLoadGuard {
         DmlLoadGuard() {
-            static bool dmlLoaded = false;
-            if (!dmlLoaded) {
+            // BUG-DRIVER-03: The previous `static bool dmlLoaded` flag was
+            // never set to true, making the branch dead code that re-ran the
+            // library path manipulation on every DML init. Use std::call_once
+            // so the path is manipulated exactly once across the process
+            // lifetime; subsequent guards skip it (DML is already loaded by
+            // then) and their destructors become no-ops.
+            static std::once_flag flag;
+            std::call_once(flag, [this] {
                 auto ortPath = stdc::SharedLibrary::locateLibraryPath(&Ort::GetApi());
                 if (!ortPath.empty()) {
                     orgDllPath = stdc::SharedLibrary::setLibraryPath(ortPath.parent_path());
                 }
-            }
+            });
         }
 
         ~DmlLoadGuard() {

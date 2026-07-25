@@ -124,7 +124,7 @@ namespace srt::driver::onnx {
         const OrtApiBase *ortApiBase = nullptr;
     };
 
-    OnnxDriver::OnnxDriver() : _impl(std::make_unique<Impl>()) {
+    OnnxDriver::OnnxDriver() : m_impl(std::make_unique<Impl>()) {
     }
 
     OnnxDriver::~OnnxDriver() {
@@ -141,7 +141,7 @@ namespace srt::driver::onnx {
 
     srt::core::Expected<void>
         OnnxDriver::initialize(const srt::core::NO<srt::driver::InferenceDriverInitArgs> &args) {
-        __stdc_impl_t;
+        auto &impl = *m_impl;
 
         if (args->objectName() != API_NAME) {
             return std::move(srt::core::Error{

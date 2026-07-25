@@ -14,6 +14,8 @@
 #include <synthrt/Extract/AudioPreprocessor.h>
 #include <synthrt/Extract/ExtractorDriver.h>
 
+namespace srt::extract::plugins::Rmvpe {
+
 RmvpeExtractor::RmvpeExtractor(srt::core::Runtime *runtime)
     : m_runtime(runtime) {
 }
@@ -64,7 +66,7 @@ void RmvpeExtractor::terminate() {
 }
 
 srt::extract::AudioRequirements RmvpeExtractor::audioRequirements() const {
-    return {16000, 1};  // RMVPE requires 16000 Hz mono
+    return {16000, 1};  // RMVPE 要求 16000 Hz 单声道
 }
 
 srt::core::Expected<srt::extract::PitchResult>
@@ -77,9 +79,9 @@ RmvpeExtractor::extract(const srt::audio::AudioBuffer &buffer,
             "extract: RMVPE session is not open");
     }
 
-    // 1. Resample to 16000 Hz mono and slice by RMS.
-    //    Slicer params migrated from Rmvpe.cpp:117; the first argument is
-    //    corrected from 160 (hopSize) to 16000 (sampleRate).
+    // 1. 重采样到 16000 Hz 单声道并按 RMS 切片。
+    //    切片器参数从 Rmvpe.cpp:117 迁移；第一个参数由 160（hopSize）
+    //    修正为 16000（sampleRate）。
     const auto req = audioRequirements();
     srt::audio::Slicer slicer(16000, 0.02f, 160, 160 * 4, 500, 30, 50);
     auto slicesExp = srt::extract::AudioPreprocessor::prepare(
@@ -95,7 +97,7 @@ RmvpeExtractor::extract(const srt::audio::AudioBuffer &buffer,
             "extract: slicer produced no audio chunks");
     }
 
-    // 2. Per-slice forward inference.
+    // 2. 逐切片前向推理。
     srt::extract::PitchResult result;
     constexpr float threshold = 0.03f;
 
@@ -177,7 +179,7 @@ RmvpeExtractor::forward(const std::vector<float> &waveform, float threshold,
             "forward: invalid RMVPE session result type");
     }
 
-    // Extract f0 (float) output.
+    // 提取 f0（float）输出。
     if (auto it = sessionResult->outputs.find("f0");
         it != sessionResult->outputs.end()) {
         const auto &tensor = it->second;
@@ -199,7 +201,7 @@ RmvpeExtractor::forward(const std::vector<float> &waveform, float threshold,
             "forward: missing output 'f0'");
     }
 
-    // Extract uv (bool) output.
+    // 提取 uv（bool）输出。
     if (auto it = sessionResult->outputs.find("uv");
         it != sessionResult->outputs.end()) {
         const auto &tensor = it->second;
@@ -230,7 +232,7 @@ RmvpeExtractor::forward(const std::vector<float> &waveform, float threshold,
 void RmvpeExtractor::interpF0(std::vector<float> &f0, std::vector<bool> &uv) {
     const int n = static_cast<int>(f0.size());
 
-    // Edge case: no unvoiced frames, no interpolation needed.
+    // 边界情况：没有清音帧，无需插值。
     bool allVoiced = true;
     for (int i = 0; i < n; ++i) {
         if (!uv[i]) {
@@ -262,16 +264,16 @@ void RmvpeExtractor::interpF0(std::vector<float> &f0, std::vector<bool> &uv) {
         return;
     }
 
-    // Fill frames before the first unvoiced frame with its value.
+    // 用第一个清音帧的值填充其之前的帧。
     for (int i = 0; i < firstUnvoiced; ++i) {
         f0[i] = f0[firstUnvoiced];
     }
-    // Fill frames after the last unvoiced frame with its value.
+    // 用最后一个清音帧的值填充其之后的帧。
     for (int i = n - 1; i > lastUnvoiced; --i) {
         f0[i] = f0[lastUnvoiced];
     }
 
-    // Interpolate voiced gaps between the first and last unvoiced frames.
+    // 在第一个与最后一个清音帧之间对浊音段间隙进行插值。
     for (int i = firstUnvoiced; i < lastUnvoiced; ++i) {
         if (uv[i]) {
             const int prev = i - 1;
@@ -287,4 +289,6 @@ void RmvpeExtractor::interpF0(std::vector<float> &f0, std::vector<bool> &uv) {
             }
         }
     }
+}
+
 }

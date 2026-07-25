@@ -54,17 +54,17 @@ namespace ds::bank {
         void clearG2pPackageVersion();
 
     protected:
-        std::string _languageId;
-        std::string _name;
-        std::string _g2pVersion;
-        std::string _g2pId;
-        std::filesystem::path _dict;
-        std::string _s2pMode;
-        std::string _onsetMode;
-        std::filesystem::path _s2pFile;
-        std::filesystem::path _onsetFile;
-        std::vector<std::filesystem::path> _g2pPackages;
-        std::optional<stdc::VersionNumber> _g2pPackageVersion;
+        std::string m_languageId;
+        std::string m_name;
+        std::string m_g2pVersion;
+        std::string m_g2pId;
+        std::filesystem::path m_dict;
+        std::string m_s2pMode;
+        std::string m_onsetMode;
+        std::filesystem::path m_s2pFile;
+        std::filesystem::path m_onsetFile;
+        std::vector<std::filesystem::path> m_g2pPackages;
+        std::optional<stdc::VersionNumber> m_g2pPackageVersion;
     };
 
 }

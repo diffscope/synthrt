@@ -102,61 +102,61 @@ namespace srt::core {
     ModuleSpec::~ModuleSpec() = default;
 
     const std::string &ModuleSpec::id() const {
-        return _impl->id;
+        return _impl->m_id;
     }
 
     const std::string &ModuleSpec::category() const {
-        return _impl->category;
+        return _impl->m_category;
     }
 
     const std::string &ModuleSpec::className() const {
-        return _impl->className;
+        return _impl->m_className;
     }
 
     std::string ModuleSpec::name() const {
         // TODO: DisplayText not yet migrated; return raw string.
-        return _impl->name;
+        return _impl->m_name;
     }
 
     int ModuleSpec::apiLevel() const {
-        return _impl->apiLevel;
+        return _impl->m_apiLevel;
     }
 
     const JsonObject &ModuleSpec::manifestConfiguration() const {
-        return _impl->manifestConfiguration;
+        return _impl->m_manifestConfiguration;
     }
 
     NO<TaskConfiguration> ModuleSpec::configuration() const {
-        return _impl->configuration;
+        return _impl->m_configuration;
     }
 
     const std::filesystem::path &ModuleSpec::path() const {
-        return _impl->path;
+        return _impl->m_path;
     }
 
     const std::string &ModuleSpec::packageId() const {
-        return _impl->packageId;
+        return _impl->m_packageId;
     }
 
     const stdc::VersionNumber &ModuleSpec::packageVersion() const {
-        return _impl->packageVersion;
+        return _impl->m_packageVersion;
     }
 
     std::string ModuleSpec::configurationDisplayName(const std::string &configKey) const {
         // TODO: DisplayText not yet migrated; return raw string.
-        auto it = _impl->configurationDisplayNames.find(configKey);
-        if (it != _impl->configurationDisplayNames.end()) {
+        auto it = _impl->m_configurationDisplayNames.find(configKey);
+        if (it != _impl->m_configurationDisplayNames.end()) {
             return it->second;
         }
         return configKey;
     }
 
     ModuleSpec::State ModuleSpec::state() const {
-        return _impl->state;
+        return _impl->m_state;
     }
 
     Runtime *ModuleSpec::runtime() const {
-        return _impl->runtime;
+        return _impl->m_runtime;
     }
 
     // TODO: Package not yet migrated.
@@ -166,7 +166,7 @@ namespace srt::core {
     // PackageManager *ModuleSpec::Mgr() const { ... }
 
     ContextKey ModuleSpec::contextKey() const {
-        return _impl->contextKey;
+        return _impl->m_contextKey;
     }
 
     ModuleSpec::ModuleSpec(Impl &impl) : _impl(&impl) {
@@ -190,17 +190,17 @@ namespace srt::core {
 
     const std::string &ModuleCategory::name() const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        return impl.name;
+        return impl.m_name;
     }
 
     void *ModuleCategory::mgr() const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        return impl.mgr;
+        return impl.m_mgr;
     }
 
     Runtime *ModuleCategory::runtime() const {
         auto &impl = *static_cast<Impl *>(_impl.get());
-        return impl.runtime;
+        return impl.m_runtime;
     }
 
     std::vector<ModuleSpec *> ModuleCategory::findSpec(const ModuleLocator &identifier) const {
@@ -213,8 +213,8 @@ namespace srt::core {
         auto &impl = *static_cast<Impl *>(_impl.get());
         std::shared_lock<std::shared_mutex> lock(impl.suMtx());
         std::vector<ModuleSpec *> res;
-        res.reserve(impl.modules.size());
-        for (const auto &item : impl.modules) {
+        res.reserve(impl.m_modules.size());
+        for (const auto &item : impl.m_modules) {
             res.push_back(static_cast<ModuleSpec *>(item));
         }
         return res;
@@ -237,23 +237,23 @@ namespace srt::core {
         switch (state) {
             case ModuleSpec::Initialized: {
                 std::unique_lock<std::shared_mutex> lock(impl.suMtx());
-                specImpl.state = state;
-                specImpl.runtime = impl.runtime;
-                impl.modules.push_back(spec);
+                specImpl.m_state = state;
+                specImpl.m_runtime = impl.m_runtime;
+                impl.m_modules.push_back(spec);
                 return {};
             }
 
             case ModuleSpec::Ready:
             case ModuleSpec::Finished: {
                 std::unique_lock<std::shared_mutex> lock(impl.suMtx());
-                specImpl.state = state;
+                specImpl.m_state = state;
                 return {};
             }
 
             case ModuleSpec::Deleted: {
                 std::unique_lock<std::shared_mutex> lock(impl.suMtx());
-                impl.modules.remove(spec);
-                specImpl.state = state;
+                impl.m_modules.remove(spec);
+                specImpl.m_state = state;
                 return {};
             }
 
@@ -286,13 +286,21 @@ namespace srt::core {
     // ModuleCategory::Impl
     // ============================================================================
 
-    ModuleCategory::Impl::~Impl() = default;
+    ModuleCategory::Impl::~Impl() {
+        // modules owns its ModuleSpec* entries (push_back in loadSpec takes
+        // ownership). The Runtime rollback path removes specs from the list
+        // via loadSpec(Deleted) before deleting them, so they are no longer
+        // here — safe to delete whatever remains.
+        for (auto *spec : m_modules) {
+            delete spec;
+        }
+    }
 
     std::vector<ModuleSpec *> ModuleCategory::Impl::findModuleSpecs(const ModuleLocator &loc) const {
         // Minimal implementation: linear scan honoring the complete locator.
         // Full implementation uses the indexes map (requires PackageManager).
         std::vector<ModuleSpec *> result;
-        for (auto *spec : modules) {
+        for (auto *spec : m_modules) {
             if (!loc.id().empty() && spec->id() != loc.id()) {
                 continue;
             }

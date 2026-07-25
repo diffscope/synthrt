@@ -19,7 +19,6 @@ namespace dsinfer_cli {
         std::string languageId = "cmn";      // default language
         EP ep = EP::CPUExecutionProvider;
         int deviceIndex = 0;
-        size_t maxSegments = 0;
 
         // Optional named parameters
         std::vector<std::filesystem::path> g2pPackagePaths;  // --g2p-packages
