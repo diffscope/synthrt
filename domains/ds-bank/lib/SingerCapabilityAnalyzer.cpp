@@ -16,6 +16,7 @@
 #include <sstream>
 #include <string>
 
+#include <stdcorelib/path.h>
 #include <stdcorelib/str.h>
 
 #include <synthrt/Core/Support/JSON.h>
@@ -61,7 +62,7 @@ namespace ds::bank {
             if (!file.is_open()) {
                 warnings.emplace_back(stdc::formatN(
                     "%1: phoneme/language table missing or unreadable in stage '%2'",
-                    path.filename().string(), stageLabel));
+                    stdc::path::to_utf8(path.filename()), stageLabel));
                 return false;
             }
             std::stringstream ss;
@@ -70,7 +71,7 @@ namespace ds::bank {
             auto root = srt::core::JsonValue::fromJson(ss.str(), true, &parseErr);
             if (!parseErr.empty() || !root.isObject()) {
                 warnings.emplace_back(stdc::formatN(
-                    "%1: invalid format in stage '%2'", path.filename().string(), stageLabel));
+                    "%1: invalid format in stage '%2'", stdc::path::to_utf8(path.filename()), stageLabel));
                 return false;
             }
             for (const auto &[key, _] : root.toObject()) {

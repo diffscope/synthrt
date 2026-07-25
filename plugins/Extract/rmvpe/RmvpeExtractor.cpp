@@ -5,6 +5,7 @@
 #include <set>
 #include <vector>
 
+#include <stdcorelib/path.h>
 #include <stdcorelib/str.h>
 
 #include <synthrt/Audio/Slicer.h>
@@ -41,7 +42,7 @@ RmvpeExtractor::open(const std::filesystem::path &modelPath) {
         return srt::core::Error(
             srt::core::ErrorCode::ExtractModelOpenFailed,
             stdc::formatN("open: failed to open RMVPE model '%1': %2",
-                          modelPath.string(), exp.error().message()));
+                          stdc::path::to_utf8(modelPath), exp.error().message()));
     }
     m_session = std::move(session);
     return srt::core::Expected<void>();

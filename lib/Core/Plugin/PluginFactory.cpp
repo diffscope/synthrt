@@ -310,7 +310,7 @@ namespace srt::core {
             }
         } catch (const std::exception &e) {
             PluginLog.srtWarning("addPluginPath: failed to scan plugin path %1: %2",
-                                 canonicalPath.string(), e.what());
+                                 stdc::path::to_utf8(canonicalPath), e.what());
             impl.m_pluginsDirty.insert(iid);
             return;
         }
@@ -347,7 +347,7 @@ namespace srt::core {
                     }
                 } catch (const std::exception &e) {
                     PluginLog.srtWarning("setPluginPaths: failed to scan plugin path %1: %2",
-                                         canonicalPath.string(), e.what());
+                                         stdc::path::to_utf8(canonicalPath), e.what());
                     continue;
                 }
             }

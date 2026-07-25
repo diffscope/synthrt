@@ -17,7 +17,7 @@ list(FILTER _src EXCLUDE REGEX "/Support/(Inferutil|Common)/")
 find_package(stdcorelib CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
-# v2 Phase 1: LanguageService (ds::lang) moved from ds-session to lib/G2P.
+# v2 Phase 1: LanguageService (srt::g2p) moved from ds-session to lib/G2P.
 # It depends on ds::bank types (PackageParser, PackageManifest, etc.), so
 # srt-ds::bank must be linked. ds-bank only depends on srt::core, so no
 # circular dependency is introduced.

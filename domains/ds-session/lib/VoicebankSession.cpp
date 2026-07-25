@@ -1252,7 +1252,7 @@ srt::core::Expected<LoadResult>
     if (!loadExp) {
         auto err = loadExp.takeError();
         err.withExtraContext({{"stage", "loadPackage"},
-                              {"packagePath", normalized.string()}});
+                              {"packagePath", stdc::path::to_utf8(normalized)}});
         return std::move(err);
     }
     // 5. Register in loadedPackages

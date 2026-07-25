@@ -25,7 +25,7 @@ int writeWav(const std::filesystem::path &outputPath,
     const int sampleRate = result.sampleRate > 0 ? result.sampleRate : 44100;
 
     srt::audio::AudioFileWriter writer;
-    auto openExp = writer.open(outputPath.string(), sampleRate, channels,
+    auto openExp = writer.open(stdc::path::to_utf8(outputPath), sampleRate, channels,
                                 srt::audio::SampleFormat::Float32);
     if (!openExp) {
         cliLog.srtCritical("Failed to initialize WAV writer: " + openExp.error().message());
