@@ -1185,13 +1185,30 @@ srt::core::Expected<void> VoicebankSession::ensureLanguageReady(
             language, packageId);
     }
     if (!svc->modelsReady()) {
-        auto exp = svc->initializeModels();
-        if (!exp) {
-            return srt::core::Error::inferenceError(
-                srt::core::ErrorCode::LoadFailed,
-                "ensureLanguageReady: LanguageService::initializeModels failed: " +
-                    exp.error().message(),
-                {});
+        // B5: wrap initializeModels in try/catch to mirror convertG2p/convertS2p
+        // boundaries. The underlying Manager::initialize -> loadTasksForCategory
+        // chain is not noexcept and may throw (e.g. plugin dlopen failures, ONNX
+        // session creation, std::bad_alloc). CODING-02 requires third-party
+        // exceptions to be converted to Error at the API boundary.
+        try {
+            auto exp = svc->initializeModels();
+            if (!exp) {
+                return srt::core::Error::inferenceError(
+                    srt::core::ErrorCode::LoadFailed,
+                    "ensureLanguageReady: LanguageService::initializeModels failed: " +
+                        exp.error().message(),
+                    {});
+            }
+        } catch (const std::exception &e) {
+            return srt::core::Error::g2pError(
+                srt::core::ErrorCode::G2pInitializationError,
+                std::string("ensureLanguageReady: initializeModels threw: ") + e.what(),
+                language, packageId);
+        } catch (...) {
+            return srt::core::Error::g2pError(
+                srt::core::ErrorCode::G2pInitializationError,
+                "ensureLanguageReady: initializeModels threw unknown exception",
+                language, packageId);
         }
     }
     return {};
