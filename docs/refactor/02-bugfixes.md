@@ -88,9 +88,9 @@ try {
 
 ---
 
-### B4: `convertG2p` 缺少 try/catch 异常边界 — ⏳ 待核实
+### B4: `convertG2p` 缺少 try/catch 异常边界 — ☑ 已修复（commit 2760ffb）
 
-**结论**：**潜在 Bug**（与 `convertS2p` 异常边界处理不一致），待核实 `Manager::convert` / `Task::start()` 是否真的会抛异常后再决定是否修复。
+**结论**：**真实 Bug**（与 `convertS2p` 异常边界处理不一致，违反 CODING-02）。已修复。
 
 **核实记录**：
 
@@ -129,46 +129,47 @@ VoicebankSession::convertG2p            (无 try/catch)
 - 违反 CODING-02 "第三方边界 try-catch 转换为 Error"
 - lite 侧 `G2pService` / `GetPronunciationTask` 可能未预期该异常，导致进程崩溃
 
-**待核实项**（执行前必须确认）：
-1. `Task::start()` 是否声明 `noexcept`？若声明，则不会抛异常，B4 不成立
-2. `Manager::convert` 是否有上层调用方已 catch？若 lite 调用方已有保护，B4 优先级降低
-3. `LanguageService::convert` 的其他重载（非 version-aware）是否有 try/catch？若历史代码已有保护，说明是遗漏
+**待核实项**（执行前必须确认）— ☑ 已全部核实：
 
-**修复方案（待核实后执行）**：
+1. `Task::start()` 是否声明 `noexcept`？— ☑ 已核实：[ITask.h#L68](file:///d:/projects/synthrt/include/synthrt/Core/Task/ITask.h) `virtual Expected<NO<TaskResult>> start(...) = 0;` **未声明 noexcept**，可能抛异常
+2. `Manager::convert` 是否有上层调用方已 catch？— ☑ 已核实：调用链 `convertG2p` → `LanguageService::convert` → `convertLyric` → `Manager::convert` → `Task::start()` **均无 try/catch**，异常会穿越到 lite
+3. `LanguageService::convert` 的其他重载是否有 try/catch？— ☑ 已核实：version-aware 重载（[LanguageServiceLang.cpp#L930-L956](file:///d:/projects/synthrt/lib/G2P/LanguageServiceLang.cpp)）与 deprecated 重载（[LanguageServiceLang.cpp#L958-L966](file:///d:/projects/synthrt/lib/G2P/LanguageServiceLang.cpp)）**均无 try/catch**
+
+**核实结论**：B4 确认为真实 Bug。`Task::start()` 非 noexcept，调用链上无 try/catch，违反 CODING-02。
+
+**修复方案**（已执行，commit 2760ffb）：
+
+在 [VoicebankSession.cpp#L848-L866](file:///d:/projects/synthrt/domains/ds-session/lib/VoicebankSession.cpp) `convertG2p` 的 `svc->convert(...)` 外加 try/catch，mirror `convertS2p` 的异常边界模式：
 
 ```cpp
-srt::core::Expected<std::vector<srt::g2p::G2pRes>>
-    VoicebankSession::convertG2p(const ds::bank::SingerRef &singerKey,
-                                 const std::string &language,
-                                 const std::vector<srt::g2p::G2pInput> &inputs) const {
-    // ... 前置检查不变 ...
-    const auto version = stdc::VersionNumber::fromString(singerKey.version);
-    try {
-        return svc->convert(singerKey.packageId, version, singerKey.singerId, language, inputs);
-    } catch (const std::exception &e) {
-        return srt::core::Error(srt::core::ErrorCode::G2pConversionFailed,
-                                std::string("VoicebankSession::convertG2p: ") + e.what())
-                .withExtraContext({{"packageId", singerKey.packageId},
-                                   {"singerId", singerKey.singerId},
-                                   {"version", singerKey.version},
-                                   {"language", language}});
-    } catch (...) {
-        return srt::core::Error(srt::core::ErrorCode::G2pConversionFailed,
-                                "VoicebankSession::convertG2p: unknown G2P conversion failure")
-                .withExtraContext({{"packageId", singerKey.packageId},
-                                   {"singerId", singerKey.singerId},
-                                   {"version", singerKey.version},
-                                   {"language", language}});
-    }
+const auto version = stdc::VersionNumber::fromString(singerKey.version);
+try {
+    return svc->convert(singerKey.packageId, version, singerKey.singerId, language, inputs);
+} catch (const std::exception &e) {
+    return srt::core::Error(srt::core::ErrorCode::G2pConversionFailed,
+                            std::string("VoicebankSession::convertG2p: ") + e.what())
+            .withExtraContext({{"packageId", singerKey.packageId},
+                               {"singerId", singerKey.singerId},
+                               {"version", singerKey.version},
+                               {"language", language}});
+} catch (...) {
+    return srt::core::Error(srt::core::ErrorCode::G2pConversionFailed,
+                            "VoicebankSession::convertG2p: unknown G2P conversion failure")
+            .withExtraContext({{"packageId", singerKey.packageId},
+                               {"singerId", singerKey.singerId},
+                               {"version", singerKey.version},
+                               {"language", language}});
 }
 ```
 
 **注意**：
-- 需确认 `ErrorCode::G2pConversionFailed` 是否存在（若不存在，复用 `G2pNotImplementedError` 或新增）
-- 需确认 `Error::withExtraContext` 签名与 `convertS2p` 一致
-- 修复需补单元测试：模拟 `Manager::convert` 抛异常，验证 `convertG2p` 返回 Error 而非崩溃
+- ☑ 已确认 `ErrorCode::G2pConversionFailed` 存在（[Diagnostic.h#L107](file:///d:/projects/synthrt/include/synthrt/Core/Support/Diagnostic.h)）
+- ☑ 已确认 `Error::withExtraContext` 签名与 `convertS2p` 一致（对照 [VoicebankSession.cpp#L889-L892](file:///d:/projects/synthrt/domains/ds-session/lib/VoicebankSession.cpp)）
+- ☑ 已验证编译通过（clion mcp get_file_problems 无错误）
+- ☑ 已验证回归测试通过（tst-ds-session-edge：110 assertions / 18 cases 全过，2 skipped）
+- T3 单元测试（模拟 `Manager::convert` 抛异常）待补，详见 [04-test-coverage.md](file:///d:/projects/synthrt/docs/refactor/04-test-coverage.md) T3
 
-**状态**：⏳ 待核实，核实后更新为 ☑ 已完成 或 ✗ 已驳回（见驳回理由）
+**状态**：☑ 已修复（commit 2760ffb）
 
 ---
 
@@ -183,3 +184,4 @@ srt::core::Expected<std::vector<srt::g2p::G2pRes>>
 | 日期 | 版本 | 说明 |
 |---|---|---|
 | 2026-07-26 | v1 | 初稿：B1/B2/B3 已下结论；B4 待核实 |
+| 2026-07-26 | v2 | B4 已核实（Task::start() 非 noexcept）+ 已修复（commit 2760ffb）；回归测试通过 |

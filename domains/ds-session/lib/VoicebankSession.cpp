@@ -839,8 +839,30 @@ srt::core::Expected<std::vector<srt::g2p::G2pRes>>
     // scenarios route transparently (backward compat). Per-lyric failures are
     // surfaced via G2pRes::isFailed() rather than Expected (R6: don't lose
     // details).
+    //
+    // B4: wrap in try/catch to mirror convertS2p's boundary. The underlying
+    // Manager::convert -> Task::start() chain is not noexcept and may throw
+    // (e.g. ONNX runtime exceptions, std::bad_alloc). CODING-02 requires
+    // third-party exceptions to be converted to Error at the API boundary
+    // instead of crossing into the host (lite / dsinfer-cli / C ABI).
     const auto version = stdc::VersionNumber::fromString(singerKey.version);
-    return svc->convert(singerKey.packageId, version, singerKey.singerId, language, inputs);
+    try {
+        return svc->convert(singerKey.packageId, version, singerKey.singerId, language, inputs);
+    } catch (const std::exception &e) {
+        return srt::core::Error(srt::core::ErrorCode::G2pConversionFailed,
+                                std::string("VoicebankSession::convertG2p: ") + e.what())
+                .withExtraContext({{"packageId", singerKey.packageId},
+                                   {"singerId", singerKey.singerId},
+                                   {"version", singerKey.version},
+                                   {"language", language}});
+    } catch (...) {
+        return srt::core::Error(srt::core::ErrorCode::G2pConversionFailed,
+                                "VoicebankSession::convertG2p: unknown G2P conversion failure")
+                .withExtraContext({{"packageId", singerKey.packageId},
+                                   {"singerId", singerKey.singerId},
+                                   {"version", singerKey.version},
+                                   {"language", language}});
+    }
 }
 
 srt::core::Expected<S2pResult>

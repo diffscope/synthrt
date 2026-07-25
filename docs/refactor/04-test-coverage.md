@@ -32,31 +32,30 @@
 
 ---
 
-### T2: 评估 GameExtractor.cpp CODING-03 修复是否需补路径规范化单测 — ☐ 待评估
+### T2: 评估 GameExtractor.cpp CODING-03 修复是否需补路径规范化单测 — ☑ 已评估（不补单测）
 
-**依赖**：N2 执行后评估。
+**依赖**：N2 已执行（commit 4136a15）。
 
 **核实内容**：
 
-[GameExtractor.cpp#L104](file:///d:/projects/synthrt/plugins/Extract/game/GameExtractor.cpp) 与 [GameExtractor.cpp#L139](file:///d:/projects/synthrt/plugins/Extract/game/GameExtractor.cpp) 的 `.string()` 调用改为 `stdc::path::to_utf8()` 后，需评估：
+[GameExtractor.cpp#L106](file:///d:/projects/synthrt/plugins/Extract/game/GameExtractor.cpp) 与 [GameExtractor.cpp#L141](file:///d:/projects/synthrt/plugins/Extract/game/GameExtractor.cpp) 的 `.string()` 调用已改为 `stdc::path::to_utf8()`。
 
-1. **是否引入新行为**：
-   - `path.string()` 在 Windows 上返回 native 编码（可能含 locale 依赖）
-   - `stdc::path::to_utf8()` 返回 UTF-8 编码
-   - 行为差异：非 ASCII 路径（如中文目录）的错误消息编码不同
-2. **是否需补单测**：
-   - 若 N2 修复后 GameExtractor 的错误消息在非 ASCII 路径下行为改变 → 需补单测
-   - 若行为不变（仅编码规范化，不影响功能）→ 不补单测，由代码审查验证
-
-**评估结论**（待 N2 执行后填写）：
+**评估结论**：
 
 | 项 | 结论 |
 |---|---|
-| N2 修复是否引入新行为？ | 待评估 |
-| 是否需补单测？ | 待评估 |
-| 单测文件路径（若需） | `plugins/Extract/game/unittests/tst_game_extractor_path.cpp`（候选） |
+| N2 修复是否引入新行为？ | ☑ 是（非 ASCII 路径下错误消息编码从 locale 依赖变为 UTF-8） |
+| 是否影响功能正确性？ | ✗ 否（错误消息仅供开发者排查，不影响错误码或控制流） |
+| 是否需补单测？ | ✗ 否（错误消息编码不是测试关注点；补单测成本高、价值低） |
 
-**状态**：☐ 待 N2 执行后评估
+**理由**：
+- `path.string()` 在 Windows 上返回 native 编码（locale 依赖），`stdc::path::to_utf8()` 返回 UTF-8
+- 对 ASCII 路径：行为完全相同
+- 对非 ASCII 路径：错误消息编码改变，但错误码（`ExtractModelOpenFailed`）与控制流不变
+- 现有测试覆盖错误码路径，不覆盖错误消息内容
+- 构造非 ASCII 路径 fixture 的成本高于收益
+
+**状态**：☑ 已评估，不补单测，由代码审查验证
 
 ---
 

@@ -32,7 +32,7 @@
 
 1. **API 表面完整**：synthrt 已提供 lite 全部 voicebank / G2P / S2P / 推理 / 音频 / 抽取所需公共 API，无关键缺口。详见 [03-missing-apis.md](file:///d:/projects/synthrt/docs/refactor/03-missing-apis.md)。
 2. **代码规范化偏差集中在 3 类**：`ds::lang::` 失效 namespace 引用、`.string()` 路径处理违反 CODING-03、仓库根目录遗留 squash 工件。详见 [01-code-normalization.md](file:///d:/projects/synthrt/docs/refactor/01-code-normalization.md)。
-3. **隐藏 bug 已识别 3 项**：B1（docs 笔误，与 N1 合并）、B2（已恢复）、B3（catch(...) 已核实无 bug）、B4（convertG2p 异常边界不一致，待核实）。详见 [02-bugfixes.md](file:///d:/projects/synthrt/docs/refactor/02-bugfixes.md)。
+3. **隐藏 bug 已识别 4 项，全部已下结论**：B1（docs 笔误，与 N1 合并修复）、B2（已恢复）、B3（catch(...) 已核实无 bug）、B4（convertG2p 异常边界不一致，已核实并修复 commit 2760ffb）。详见 [02-bugfixes.md](file:///d:/projects/synthrt/docs/refactor/02-bugfixes.md)。
 4. **测试缺口**：A1/A2 单元测试已通过（v8 状态），C2 端到端冒烟仍待用户更新 vcpkg。详见 [04-test-coverage.md](file:///d:/projects/synthrt/docs/refactor/04-test-coverage.md)。
 
 ---
@@ -54,18 +54,18 @@
 
 | ID | 任务 | 优先级 | 状态 | 提交 hash | 驳回理由 |
 |---|---|---|---|---|---|
-| N1 | 修正 3 个 module docs 中失效的 `ds::lang::LanguageService` 引用 | 中 | ☐ | — | — |
-| N2 | 修正生产代码 `.string()` 路径处理违反 CODING-03 的 2 处（GameExtractor.cpp） | 中 | ☐ | — | — |
-| N3 | 处理仓库根 `_commits_to_squash.txt` + `_squash.ps1` 遗留工件 | 低 | ☐ | — | — |
+| N1 | 修正 4 个 docs 文件中失效的 `ds::lang::` 引用（含 design-guidelines.md） | 中 | ☑ | d81895c | — |
+| N2 | 修正生产代码 `.string()` 路径处理违反 CODING-03 的 2 处（GameExtractor.cpp） | 中 | ☑ | 4136a15 | — |
+| N3 | 处理仓库根 `_commits_to_squash.txt` + `_squash.ps1` 遗留工件 | 低 | ☑ | — | 删除 untracked 临时工件（squash 已完成，4 phase commits 已提交）；无需 git commit |
 
 ### 4.2 Bug 修复（[02](file:///d:/projects/synthrt/docs/refactor/02-bugfixes.md)）
 
 | ID | 任务 | 优先级 | 状态 | 提交 hash | 驳回理由 |
 |---|---|---|---|---|---|
-| B1 | 修正 module docs 中 `ds::lang::` 失效引用（与 N1 同因，合并提交） | 中 | ☐ | — | — |
+| B1 | 修正 module docs 中 `ds::lang::` 失效引用（与 N1 同因，合并提交） | 中 | ☑ | d81895c | — |
 | B2 | docs/lite-integration/ 已恢复（git restore 完成，无需提交） | 高 | ☑ | — | — |
 | B3 | 核实 VoicebankSession.cpp:893 `catch(...)` 是否设置错误 | 低 | ☑ | — | 已核实：catch(...) 正确返回 S2pConversionFailed Error，符合 CODING-02 |
-| B4 | 核实 `convertG2p` 缺少 try/catch 异常边界（与 `convertS2p` 不一致） | 中 | ⏳ | — | 待核实 Task::start() 是否会抛异常 |
+| B4 | 核实 `convertG2p` 缺少 try/catch 异常边界（与 `convertS2p` 不一致） | 中 | ☑ | 2760ffb | 已核实 + 已修复：Task::start() 非 noexcept，调用链无 try/catch；加 try/catch 返回 G2pConversionFailed |
 
 ### 4.3 缺失 API 补充（[03](file:///d:/projects/synthrt/docs/refactor/03-missing-apis.md)）
 
@@ -79,7 +79,7 @@
 | ID | 任务 | 优先级 | 状态 | 提交 hash | 驳回理由 |
 |---|---|---|---|---|---|
 | T1 | 等待用户更新 vcpkg 后执行 C2 端到端冒烟 | 高 | ☐（阻塞） | — | — |
-| T2 | 评估 GameExtractor.cpp CODING-03 修复是否需补路径规范化单测 | 低 | ☐ | — | 待 N2 执行后评估 |
+| T2 | 评估 GameExtractor.cpp CODING-03 修复是否需补路径规范化单测 | 低 | ☑ | — | 已评估：不补单测（错误消息编码非功能行为，成本高于收益） |
 | T3 | B4 修复（若执行）需补异常边界单测 | 低 | ☐（条件性） | — | 待 B4 核实后解锁 |
 
 ---
@@ -101,3 +101,4 @@
 | 日期 | 版本 | 说明 |
 |---|---|---|
 | 2026-07-26 | v1 | 初稿：基于 lite 真实调用方核对，识别 3 类规范化偏差 + 2 项 bug + 1 项 API 待核实 |
+| 2026-07-26 | v2 | N1/N2/N3/B1/B2/B3/B4/M1/M2 全部已下结论；N1(d81895c)/N2(4136a15)/B1(d81895c)/B4(2760ffb) 已提交；M1/M2 不追加 API；T1 阻塞、T2 待评估、T3 待补 |
