@@ -101,7 +101,7 @@ Forwarding headers、旧 target alias、旧 namespace adapter 只有当已有外
 
 ### PACK-02：声库和 G2P 路径配合
 
-`VoicebankScanner` 只扫描 `desc.json`。`LanguageService`（`ds::lang`）只处理 G2P 初始化和语言路由。二者通过 `packageId→directory` 值表协作，不互相递归扫描。
+`VoicebankScanner` 只扫描 `desc.json`。`LanguageService`（`srt::g2p`）只处理 G2P 初始化和语言路由。二者通过 `packageId→directory` 值表协作，不互相递归扫描。
 
 ---
 
@@ -112,7 +112,7 @@ Forwarding headers、旧 target alias、旧 namespace adapter 只有当已有外
 - C++20，4 空格缩进，120 列宽度
 - 头文件保护统一使用 `#pragma once`
 - 命名：`I` 前缀接口，`m_` 前缀成员，`_impl` 私有实现
-- namespace：`srt::core` / `srt::dependency` / `srt::driver` / `srt::audio` / `srt::s2p` / `srt::g2p` / `srt::svs` / `srt::extract` / `srt::c` / `ds::bank` / `ds::infer` / `ds::infer::inferutil` / `ds::session`（`ds::lang` 为 forwarding shim，待删除，见 03-conventions.md §2.2 Q4）
+- namespace：`srt::core` / `srt::dependency` / `srt::driver` / `srt::audio` / `srt::s2p` / `srt::g2p` / `srt::svs` / `srt::extract` / `srt::c` / `ds::bank` / `ds::infer` / `ds::infer::inferutil` / `ds::session`
 
 > **CS-03 冻结说明**（2026-07-25）：公共头文件（`include/`）中 `_` 前缀成员（如 `Module::_id`/`_package`、`InferenceSpec::Impl::_className`/`_apiLevel`、`SingerImport::_declaredPackage`、`VersionRange::constraints_`/`valid_`/`parseError_` 等）属历史公共契约，依 ARCH-02 同一 Level 内不得修改公开字段语义/命名。当前 Level=2，这些字段**冻结至 Level=3** 才能清理。本轮重构不动公共头文件 `_` 前缀成员，仅清理内部实现（`lib/`/`domains/`/`plugins/`/`tests/`）。
 

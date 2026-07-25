@@ -113,7 +113,7 @@ vnext 在 `SRT_ERR_GENERIC` 后追加两个错误码（ARCH-02 append-only）：
 // lib/C/srt_v4.cpp
 struct SrtSession {
     ds::bank::VoicebankScanner scanner;
-    ds::lang::LanguageService langSvc;
+    srt::g2p::LanguageService langSvc;
     srt::core::Runtime runtime;
 };
 ```

@@ -13,7 +13,7 @@
 | Core | `srt::core` | `srt::core` | `include/synthrt/Core/` | [core.md](core.md) |
 | Driver | `srt::driver` | `srt::driver` | `include/synthrt/Driver/` | [driver.md](driver.md) |
 | SVS | `srt::svs` | `srt::svs` | `include/synthrt/SVS/` | [svs.md](svs.md) |
-| G2P | `srt::g2p` / `ds::lang` | `srt::g2p` | `include/synthrt/G2P/` | [g2p.md](g2p.md) |
+| G2P | `srt::g2p` | `srt::g2p` | `include/synthrt/G2P/` | [g2p.md](g2p.md) |
 | S2P | `srt::s2p` | `srt::s2p` | `include/synthrt/S2P/` | [s2p.md](s2p.md) |
 | DS Bank | `ds::bank` | `srt-ds::bank` | `include/diffsinger/Bank/` | [ds-bank.md](ds-bank.md) |
 | DS Infer | `ds::infer` | `srt-ds::infer` | `include/diffsinger/Infer/` | [ds-infer.md](ds-infer.md) |
@@ -118,7 +118,7 @@ scanner.setSearchPaths(voicebankPaths);
 scanner.refresh();
 
 // 3. 初始化语言服务（V3-01 version-aware：传入 PackageDirectoryEntry 向量）
-ds::lang::LanguageService langSvc;
+srt::g2p::LanguageService langSvc;
 std::vector<srt::g2p::PackageDirectoryEntry> pkgDirs;
 for (const auto &e : scanner.packageDirectories(packageId)) {
     pkgDirs.push_back({packageId, e.version, e.path});

@@ -9,6 +9,8 @@
 
 #include <nlohmann/json.hpp>
 
+#include <stdcorelib/path.h>
+
 #include <synthrt/Audio/Slicer.h>
 #include <synthrt/Core/Support/Diagnostic.h>
 #include <synthrt/Core/Tensor/ITensor.h>
@@ -101,7 +103,7 @@ srt::core::Expected<void> GameExtractor::open(const std::filesystem::path &model
         if (!configFile.is_open()) {
             return srt::core::Error(
                 srt::core::ErrorCode::ExtractModelOpenFailed,
-                "Could not open config.json: " + configPath.string());
+                "Could not open config.json: " + stdc::path::to_utf8(configPath));
         }
         nlohmann::json config;
         configFile >> config;
@@ -136,7 +138,7 @@ srt::core::Expected<void> GameExtractor::open(const std::filesystem::path &model
                 return srt::core::Error(
                     srt::core::ErrorCode::ExtractModelOpenFailed,
                     "open: could not create session for " + name +
-                        " (model dir: " + modelPath.string() + ")");
+                        " (model dir: " + stdc::path::to_utf8(modelPath) + ")");
             }
             auto openExp = session->open(
                 modelFile, srt::core::NO<srt::driver::onnx::SessionOpenArgs>::create());

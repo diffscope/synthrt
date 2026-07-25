@@ -1,13 +1,13 @@
-# G2P 模块 (`srt::g2p` / `ds::lang`)
+# G2P 模块 (`srt::g2p`)
 
-namespace: `srt::g2p` (G2P 框架) / `ds::lang` (LanguageService) | target: `srt::g2p` | 头文件: `include/synthrt/G2P/`
+namespace: `srt::g2p` (G2P 框架 + LanguageService) | target: `srt::g2p` | 头文件: `include/synthrt/G2P/`
 
 ---
 
 ## 职责
 
 G2P (Grapheme-to-Phoneme) 模块负责歌词到音素的转换：
-- `LanguageService` (`ds::lang`) — 语言服务入口，初始化 G2P Manager、解析语言路由、批量转换、S2P 资源解析
+- `LanguageService` (`srt::g2p`) — 语言服务入口，初始化 G2P Manager、解析语言路由、批量转换、S2P 资源解析
 - `Manager` (`srt::g2p`) — G2P 管理器（进程级单例）
 - `PackageManager` — G2P 包管理（含版本感知 context 移除）
 - G2P 插件 — chain/lstm/mandarin/cantonese/ds-dict
@@ -139,7 +139,7 @@ context 命名约定（V3-02）：`packageId__singerId`，使用 `__` 而非 `:`
 
 ```cpp
 // include/diffsinger/Lang/LanguageRoute.h  (注：实际位置在 include/synthrt/G2P/LanguageRoute.h)
-namespace ds::lang;
+namespace srt::g2p;
 
 struct LanguageRoute {
     std::string g2pId;
