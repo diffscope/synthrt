@@ -656,7 +656,10 @@ namespace srt::g2p {
     }
 
     srt::core::Expected<void> LanguageService::initializeModels() {
+        langSvcLog.srtInfo("initializeModels: START metadataReady=%1 modelsReady=%2",
+                           _impl->metadataReady, _impl->modelsReady);
         if (!_impl->metadataReady) {
+            langSvcLog.srtWarning("initializeModels: metadata not ready");
             return srt::core::Error(
                 srt::core::ErrorCode::G2pInitializationError,
                 "initializeModels() requires initializeMetadata() first");
@@ -665,6 +668,7 @@ namespace srt::g2p {
         auto mgr = srt::g2p::Manager::instance();
         if (mgr->initialized()) {
             // Idempotent: already initialized by another LanguageService instance.
+            langSvcLog.srtInfo("initializeModels: Manager already initialized, marking modelsReady");
             _impl->modelsReady = true;
             return {};
         }
@@ -672,14 +676,26 @@ namespace srt::g2p {
         // Stage 2: Initialize all registered G2P contexts (load plugins, create
         // ONNX sessions). Failure terminates G2P conversion but route resolution
         // (Stage 1) remains available.
+        langSvcLog.srtInfo("initializeModels: calling Manager::initialize()");
         auto g2pResult = mgr->initialize();
         if (!g2pResult) {
+            // G2pAlreadyInitialized is not a real failure: another thread won
+            // the init race while we were waiting for the init mutex. The
+            // Manager is now initialized, so we can proceed.
+            if (g2pResult.error().code() == srt::core::ErrorCode::G2pAlreadyInitialized) {
+                langSvcLog.srtInfo("initializeModels: Manager already initialized by another thread, marking modelsReady");
+                _impl->modelsReady = true;
+                return {};
+            }
+            langSvcLog.srtWarning("initializeModels: Manager::initialize FAILED: %1",
+                                  g2pResult.error().message());
             return srt::core::Error(
                 srt::core::ErrorCode::G2pInitializationError,
                 "G2P Manager initialization failed: " +
                     g2pResult.error().message());
         }
 
+        langSvcLog.srtInfo("initializeModels: Manager::initialize succeeded, marking modelsReady");
         _impl->modelsReady = true;
         return {};
     }

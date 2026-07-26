@@ -92,6 +92,13 @@ namespace srt::g2p {
 
         bool m_initialized = false;
 
+        // Protects Manager::initialize() against concurrent entry. Without this,
+        // two threads calling initializeModels() simultaneously (e.g.
+        // InitInferEngineTask + GetPronunciationTask) could both pass the
+        // m_initialized check and enter the init path together, causing state
+        // corruption or hangs in ONNX session creation.
+        mutable std::mutex m_init_mtx;
+
         static constexpr int kCurrentLevel = 2;
         static constexpr int kMaximumLevel = 2;
         static constexpr int kMinimumLevel = 1;

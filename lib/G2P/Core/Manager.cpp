@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <mutex>
 #include <shared_mutex>
+#include <thread>
 
 #include <stdcorelib/path.h>
 #include <stdcorelib/pimpl.h>
@@ -88,10 +89,20 @@ namespace srt::g2p {
     srt::core::Expected<void> Manager::initialize() {
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
 
+        // Thread safety: prevent concurrent entry. Without this lock, two
+        // threads calling initializeModels() simultaneously (e.g.
+        // InitInferEngineTask + GetPronunciationTask) could both pass the
+        // m_initialized check and enter the init path together, causing
+        // state corruption or hangs in ONNX session creation.
+        std::lock_guard<std::mutex> initLock(impl.m_init_mtx);
+
         if (impl.m_initialized) {
             return Error(ErrorCode::G2pAlreadyInitialized,
                          "Manager::initialize() has already been called");
         }
+
+        g2pLog.srtInfo("Manager::initialize: START (thread=%1)",
+                       std::hash<std::thread::id>{}(std::this_thread::get_id()));
 
         // Phase 1: Default context (official G2P).
         // Allow empty default context: when no official G2P packages are
@@ -101,8 +112,11 @@ namespace srt::g2p {
         // honors ds-session.md §210: "某 G2P module 初始化失败：仅关联
         // singer-language Disabled，其他语言/声库仍可发布".
         {
+            g2pLog.srtInfo("Manager::initialize: Phase 1 (default context) START");
             srt::core::ContextKey defaultCtx("");
             const auto moduleInfos = this->getModuleMetadatas(defaultCtx);
+            g2pLog.srtInfo("Manager::initialize: Phase 1 moduleMetadatas count=%1",
+                           moduleInfos.size());
             if (moduleInfos.empty()) {
                 // Diagnostic: log registered paths and their filesystem status
                 // to identify why the default context has no modules. Remove
@@ -158,11 +172,18 @@ namespace srt::g2p {
                     }
 
                     auto packageOrder = depGraph.getPackageInitializationOrder();
+                    g2pLog.srtInfo("Manager::initialize: Phase 1 packageOrder size=%1",
+                                   packageOrder.size());
                     int failedPkgCount = 0;
                     std::vector<std::string> pkgErrors;
                     for (const auto &packageInfo : packageOrder) {
+                        g2pLog.srtInfo("Manager::initialize: Phase 1 opening package=%1 path=%2",
+                                       packageInfo.packageId,
+                                       stdc::path::to_utf8(packageInfo.packagePath));
                         auto exp = this->open(packageInfo.packagePath);
                         if (!exp) {
+                            g2pLog.srtWarning("Manager::initialize: Phase 1 open FAILED package=%1: %2",
+                                              packageInfo.packageId, exp.error().message());
                             pkgErrors.push_back(packageInfo.packageId + ": " + exp.error().message());
                             failedPkgCount++;
                             continue;
@@ -170,14 +191,21 @@ namespace srt::g2p {
 
                         Package pkg = exp.take();
                         if (!pkg.isLoaded()) {
+                            g2pLog.srtWarning("Manager::initialize: Phase 1 pkg not loaded package=%1: %2",
+                                              packageInfo.packageId, pkg.error().message());
                             pkgErrors.push_back(packageInfo.packageId + ": " + pkg.error().message());
                             failedPkgCount++;
                             continue;
                         }
 
+                        g2pLog.srtInfo("Manager::initialize: Phase 1 package=%1 loaded, creating %2 tasks",
+                                       packageInfo.packageId, packageInfo.initializationOrder.size());
                         for (const auto &moduleInfo : packageInfo.initializationOrder) {
+                            g2pLog.srtInfo("Manager::initialize: Phase 1 creating task module=%1 type=%2 iid=%3",
+                                           moduleInfo.moduleId, moduleInfo.type, moduleInfo.iid);
                             auto taskExp = createModuleTask(moduleInfo, pkg);
                             if (taskExp) {
+                                g2pLog.srtInfo("Manager::initialize: Phase 1 task created OK module=%1", moduleInfo.moduleId);
                                 const auto fqid = ContextUtils::formatFqid(defaultCtx, moduleInfo.moduleId);
                                 if (auto *cate = this->category(moduleInfo.type)) {
                                     cate->addObject(fqid, taskExp.value());
@@ -199,23 +227,31 @@ namespace srt::g2p {
                     }
 
                     impl.m_contextStates[defaultCtx] = ContextState::Ready;
+                    g2pLog.srtInfo("Manager::initialize: Phase 1 default context Ready");
                 }
             }
         }
+        g2pLog.srtInfo("Manager::initialize: Phase 1 END");
 
         // Phase 2: Non-default contexts
+        g2pLog.srtInfo("Manager::initialize: Phase 2 START, contextPaths=%1",
+                       impl.m_contextPackagePaths.size());
         for (const auto &[ctxKey, _] : impl.m_contextPackagePaths) {
             if (ctxKey.isDefault())
                 continue;
 
+            g2pLog.srtInfo("Manager::initialize: Phase 2 context=%1 v=%2 START",
+                           ctxKey.context, ctxKey.version.toString());
             const auto moduleInfos = this->getModuleMetadatas(ctxKey);
             if (moduleInfos.empty()) {
+                g2pLog.srtWarning("Manager::initialize: Phase 2 context=%1 no modules", ctxKey.context);
                 impl.m_contextStates[ctxKey] = ContextState::Failed;
                 continue;
             }
 
             auto compatibleModules = filterCompatibleModules(moduleInfos);
             if (compatibleModules.empty()) {
+                g2pLog.srtWarning("Manager::initialize: Phase 2 context=%1 no compatible modules", ctxKey.context);
                 impl.m_contextStates[ctxKey] = ContextState::Failed;
                 continue;
             }
@@ -226,26 +262,41 @@ namespace srt::g2p {
                 depGraph.addModule(info);
 
             if (!depGraph.buildGraph()) {
+                g2pLog.srtWarning("Manager::initialize: Phase 2 context=%1 buildGraph failed", ctxKey.context);
                 impl.m_contextStates[ctxKey] = ContextState::Failed;
                 continue;
             }
 
             if (const auto cycles = depGraph.findCycles(); !cycles.empty()) {
+                g2pLog.srtWarning("Manager::initialize: Phase 2 context=%1 cycles detected", ctxKey.context);
                 impl.m_contextStates[ctxKey] = ContextState::Failed;
                 continue;
             }
 
             auto packageOrder = depGraph.getPackageInitializationOrder();
+            g2pLog.srtInfo("Manager::initialize: Phase 2 context=%1 packageOrder size=%2",
+                           ctxKey.context, packageOrder.size());
             bool allFailed = true;
             for (const auto &packageInfo : packageOrder) {
+                g2pLog.srtInfo("Manager::initialize: Phase 2 opening package=%1 path=%2",
+                               packageInfo.packageId,
+                               stdc::path::to_utf8(packageInfo.packagePath));
                 auto exp = this->open(packageInfo.packagePath);
-                if (!exp)
+                if (!exp) {
+                    g2pLog.srtWarning("Manager::initialize: Phase 2 open FAILED package=%1: %2",
+                                      packageInfo.packageId, exp.error().message());
                     continue;
+                }
 
                 Package pkg = exp.take();
-                if (!pkg.isLoaded())
+                if (!pkg.isLoaded()) {
+                    g2pLog.srtWarning("Manager::initialize: Phase 2 pkg not loaded package=%1: %2",
+                                      packageInfo.packageId, pkg.error().message());
                     continue;
+                }
 
+                g2pLog.srtInfo("Manager::initialize: Phase 2 package=%1 loaded, creating %2 tasks",
+                               packageInfo.packageId, packageInfo.initializationOrder.size());
                 allFailed = false;
                 for (const auto &moduleInfo : packageInfo.initializationOrder) {
                     auto taskExp = createModuleTask(moduleInfo, pkg);
@@ -266,21 +317,29 @@ namespace srt::g2p {
                 impl.m_contextStates[ctxKey] = ContextState::Failed;
             } else {
                 impl.m_contextStates[ctxKey] = ContextState::Ready;
+                g2pLog.srtInfo("Manager::initialize: Phase 2 context=%1 Ready", ctxKey.context);
             }
         }
+        g2pLog.srtInfo("Manager::initialize: Phase 2 END");
 
         // Phase 3: Load tasks for categories
+        g2pLog.srtInfo("Manager::initialize: Phase 3 (loadTasksForCategory g2p) START");
         if (auto result = loadTasksForCategory(kG2pCategory); !result) {
+            g2pLog.srtWarning("Manager::initialize: Phase 3 g2p FAILED: %1", result.error().message());
             return std::move(result.takeError()
                 .withTrace(std::source_location::current(), "Manager::initialize"));
         }
+        g2pLog.srtInfo("Manager::initialize: Phase 3 (loadTasksForCategory g2p) END");
 
+        g2pLog.srtInfo("Manager::initialize: Phase 3 (loadTasksForCategory dict) START");
         if (auto result = loadTasksForCategory(kDictCategory); !result) {
             // dict is optional - log warning but continue initialization
             g2pLog.srtWarning("Dict task init failed - %1", result.error().message());
         }
+        g2pLog.srtInfo("Manager::initialize: Phase 3 (loadTasksForCategory dict) END");
 
         impl.m_initialized = true;
+        g2pLog.srtInfo("Manager::initialize: COMPLETE (m_initialized=true)");
         return {};
     }
 

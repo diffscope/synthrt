@@ -959,8 +959,15 @@ namespace srt::g2p {
 
     srt::core::Expected<srt::core::NO<Task>>
         PackageManager::createModuleTask(const srt::dependency::ModuleMetadata &moduleInfo, const Package &pkg) const {
+        // Diagnostic logging: trace each step of task creation to identify hangs.
+        // Remove after root cause is identified.
+        static srt::core::LogCategory pkgMgrLog("PackageManager");
+        pkgMgrLog.srtInfo("createModuleTask: START module=%1 type=%2 iid=%3",
+                          moduleInfo.moduleId, moduleInfo.type, moduleInfo.iid);
+
         auto *moduleSpec = pkg.moduleSpec(moduleInfo.type, moduleInfo.moduleId);
         if (!moduleSpec) {
+            pkgMgrLog.srtWarning("createModuleTask: moduleSpec not found module=%1", moduleInfo.moduleId);
             return Error::g2pError(ErrorCode::G2pPackageNotFound,
                                    stdc::formatN("Module not found: package=%1, moduleId=%2, type=%3",
                                                  moduleInfo.packageId, moduleInfo.moduleId, moduleInfo.type),
@@ -969,22 +976,33 @@ namespace srt::g2p {
 
         moduleSpec->_impl->m_contextKey = srt::core::ContextKey(moduleInfo.context, moduleInfo.contextVersion);
 
+        pkgMgrLog.srtInfo("createModuleTask: looking up task plugin iid=%1", moduleInfo.iid);
         auto *taskPlugin = this->plugin<TaskPlugin>(moduleInfo.iid.c_str());
         if (!taskPlugin) {
+            pkgMgrLog.srtWarning("createModuleTask: task plugin not found iid=%1", moduleInfo.iid);
             return Error::g2pError(ErrorCode::G2pRuntimeError,
                                    stdc::formatN("Task plugin not found for iid: %1", moduleInfo.iid), {},
                                    moduleInfo.packageId);
         }
 
+        pkgMgrLog.srtInfo("createModuleTask: calling createTask module=%1", moduleInfo.moduleId);
         auto taskExp = taskPlugin->createTask(moduleSpec);
-        if (!taskExp)
+        if (!taskExp) {
+            pkgMgrLog.srtWarning("createModuleTask: createTask failed module=%1: %2",
+                                 moduleInfo.moduleId, taskExp.error().message());
             return taskExp.error();
+        }
 
         auto task    = taskExp.take();
+        pkgMgrLog.srtInfo("createModuleTask: calling task->initialize module=%1", moduleInfo.moduleId);
         auto initExp = task->initialize();
-        if (!initExp)
+        if (!initExp) {
+            pkgMgrLog.srtWarning("createModuleTask: task->initialize failed module=%1: %2",
+                                 moduleInfo.moduleId, initExp.error().message());
             return initExp.error();
+        }
 
+        pkgMgrLog.srtInfo("createModuleTask: SUCCESS module=%1", moduleInfo.moduleId);
         return task;
     }
 
