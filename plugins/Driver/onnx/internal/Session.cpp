@@ -771,11 +771,23 @@ namespace srt::driver::onnx {
 
         // Open
         Log.srtDebug("Session - Try open " + stdc::path::to_utf8(path));
-        if (!fs::is_regular_file(path)) {
-            return srt::core::Error(srt::core::Error::FileNotOpen, "not a regular file");
+        // ROBUST-02: Use error_code overloads to avoid filesystem_error
+        // exceptions from fs::is_regular_file and fs::canonical on permission
+        // denied or race conditions (e.g., file removed between check and
+        // canonicalize). Without this, a transient filesystem error would
+        // propagate as an uncaught exception through the Expected<void>
+        // boundary.
+        std::error_code ec;
+        if (!fs::is_regular_file(path, ec)) {
+            return srt::core::Error(srt::core::Error::FileNotOpen,
+                ec ? ("failed to check file: " + ec.message()) : "not a regular file");
         }
 
-        fs::path canonical_path = fs::canonical(path);
+        auto canonical_path = fs::canonical(path, ec);
+        if (ec) {
+            return srt::core::Error(srt::core::Error::FileNotOpen,
+                "failed to canonicalize path: " + ec.message());
+        }
         Log.srtDebug("Session - The canonical path is " + stdc::path::to_utf8(canonical_path));
 
         // Ready to load
@@ -875,7 +887,7 @@ namespace srt::driver::onnx {
             delete image;
             return srt::core::Error{
                 srt::core::Error::FileNotOpen,
-                "failed to open ONNX session: " + error1,
+                "failed to read file: " + error1,
             };
         }
 

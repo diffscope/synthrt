@@ -288,7 +288,7 @@ namespace {
             };
 
             _It it;
-            mutable alignas(_Ref) char _ref_storage[sizeof(_Ref)];
+            alignas(_Ref) mutable char _ref_storage[sizeof(_Ref)];
             mutable bool _ref_valid = false;
 
             _Ref &_ref_get() const noexcept {

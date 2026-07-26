@@ -104,9 +104,37 @@ namespace srt::g2p {
             srt::core::ContextKey defaultCtx("");
             const auto moduleInfos = this->getModuleMetadatas(defaultCtx);
             if (moduleInfos.empty()) {
+                // Diagnostic: log registered paths and their filesystem status
+                // to identify why the default context has no modules. Remove
+                // after root cause is identified.
+                const auto paths = this->packagePaths(defaultCtx.context, defaultCtx.version);
+                std::string diag;
+                for (size_t i = 0; i < paths.size(); ++i) {
+                    if (i > 0) diag += "; ";
+                    diag += stdc::path::to_utf8(paths[i]);
+                    diag += fs::exists(paths[i]) ? " (exists" : " (missing";
+                    if (fs::is_directory(paths[i])) {
+                        diag += ",dir";
+                        std::error_code ec;
+                        int subDirs = 0;
+                        int withPkgJson = 0;
+                        for (const auto &entry : fs::directory_iterator(paths[i], ec)) {
+                            if (!entry.is_directory()) continue;
+                            ++subDirs;
+                            if (fs::exists(entry.path() / "package.json")) ++withPkgJson;
+                        }
+                        diag += ",subDirs=" + std::to_string(subDirs);
+                        diag += ",withPkgJson=" + std::to_string(withPkgJson);
+                    } else {
+                        diag += ",notDir";
+                    }
+                    diag += ")";
+                }
                 g2pLog.srtWarning(
-                    "Ord-1: Default context has no modules; official G2P unavailable "
-                    "(voicebank-private G2P still initializes in Phase 2)");
+                    "Ord-1: Default context has no modules (paths: [%1]); "
+                    "official G2P unavailable "
+                    "(voicebank-private G2P still initializes in Phase 2)",
+                    diag);
             } else {
                 auto compatibleModules = filterCompatibleModules(moduleInfos);
                 if (compatibleModules.empty()) {

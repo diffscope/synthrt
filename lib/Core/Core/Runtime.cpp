@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <mutex>
 #include <sstream>
 #include <utility>
 
@@ -268,15 +269,12 @@ namespace srt::core {
             // so they roll back first — matching the dependency direction).
             for (auto it = committed.rbegin(); it != committed.rend(); ++it) {
                 // ROBUST-05: do not silently swallow rollback errors. Log a
-                // warning. If loadSpec(Deleted) fails, the spec is still in
-                // the category's modules list — do NOT delete it to avoid
-                // double-free when ~ModuleCategory runs (mirrors unloadPackage).
+                // warning and still delete the spec below to avoid leaks.
                 auto delResult = it->cat->loadSpec(it->spec, ModuleSpec::Deleted);
                 if (!delResult) {
                     RuntimeLog.srtWarning(
                         "loadPackage rollback: loadSpec(Deleted) failed for spec '%1': %2",
                         it->spec->id(), delResult.errorString());
-                    continue; // leave spec in modules list; ~Impl will own it
                 }
                 delete it->spec;
             }
@@ -374,13 +372,9 @@ namespace srt::core {
                 auto infDelResult = infCat->loadSpec(spec.get(), ModuleSpec::Deleted);
                 if (!infDelResult) {
                     // ROBUST-05: log the rollback failure instead of swallowing.
-                    // If loadSpec(Deleted) failed, the spec is still in the
-                    // modules list — release ownership to prevent double-free
-                    // when ~ModuleCategory runs (mirrors rollbackCommitted).
                     RuntimeLog.srtWarning(
                         "loadPackage: failed to roll back inference spec '%1' after Ready failure: %2",
                         spec->id(), infDelResult.errorString());
-                    (void) spec.release(); // let ~ModuleCategory own & delete it
                 }
                 rollbackCommitted();
                 return std::move(readyResult.takeError()
@@ -484,13 +478,9 @@ namespace srt::core {
                 auto singerDelResult = singerCat->loadSpec(spec.get(), ModuleSpec::Deleted);
                 if (!singerDelResult) {
                     // ROBUST-05: log the rollback failure instead of swallowing.
-                    // If loadSpec(Deleted) failed, the spec is still in the
-                    // modules list — release ownership to prevent double-free
-                    // when ~ModuleCategory runs (mirrors rollbackCommitted).
                     RuntimeLog.srtWarning(
                         "loadPackage: failed to roll back singer spec '%1' after Ready failure: %2",
                         spec->id(), singerDelResult.errorString());
-                    (void) spec.release(); // let ~ModuleCategory own & delete it
                 }
                 rollbackCommitted();
                 return std::move(readyResult.takeError()

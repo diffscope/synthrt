@@ -12,7 +12,10 @@ synthrt_declare_target(srt_g2p "${PROJECT_NAME}" ${PROJECT_VERSION} "Team OpenVP
 # All public classes live under namespace srt::g2p::
 
 file(GLOB_RECURSE _src CONFIGURE_DEPENDS "*.cpp")
-list(FILTER _src EXCLUDE REGEX "/Support/(Inferutil|Common)/")
+# Case-insensitive EXCLUDE: Windows filesystem may return lowercase paths
+# (e.g. "support/common") while git/Linux uses "Support/Common". The regex
+# uses character classes to match both cases on all platforms.
+list(FILTER _src EXCLUDE REGEX "/[Ss]upport/([Ii]nferutil|[Cc]ommon)/")
 
 find_package(stdcorelib CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)

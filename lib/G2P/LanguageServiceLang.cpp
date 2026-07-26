@@ -285,6 +285,14 @@ namespace srt::g2p {
         // (ER-08).
         const bool alreadyInitialized = mgr->initialized();
 
+        // Diagnostic: log Stage 1.1/1.2 entry conditions. Remove after root
+        // cause of "Default context has no modules" is identified.
+        langSvcLog.srtInfo(
+            "initializeMetadata: alreadyInitialized=%1, pluginPaths=%2, "
+            "officialG2pPaths=%3, packageDirs=%4",
+            alreadyInitialized, pluginSearchPaths.size(),
+            officialG2pPackagePaths.size(), packageDirs.size());
+
         if (!alreadyInitialized) {
             // Stage 1.1: Register G2P/Driver plugin search paths.
             // addPluginPath scans subdirectories for plugin.json descriptors and is
@@ -298,6 +306,8 @@ namespace srt::g2p {
             // Default-context failures block Manager::initialize().
             for (const auto &path : officialG2pPackagePaths) {
                 if (path.empty()) {
+                    langSvcLog.srtWarning(
+                        "initializeMetadata: skipping empty official G2P path entry");
                     continue;
                 }
                 auto exp = mgr->addPackagePath(srt::g2p::kOfficialContext, path);
@@ -307,6 +317,9 @@ namespace srt::g2p {
                         "Failed to register official G2P package path: " +
                             exp.error().message());
                 }
+                langSvcLog.srtInfo(
+                    "initializeMetadata: registered official G2P path: %1",
+                    stdc::path::to_utf8(path));
             }
         }
 
