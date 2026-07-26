@@ -40,29 +40,13 @@ namespace srt::g2p {
 
     srt::core::Expected<void> Manager::loadTasksForCategory(const std::string &category) {
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
-
-        // m_contextStates / m_contextModuleInfos are guarded by m_su_mtx, while
-        // m_tasks is guarded by m_tasks_mtx. Snapshot the Ready contexts and
-        // their module infos under m_su_mtx (shared) first, then populate
-        // m_tasks under m_tasks_mtx. Never hold both locks at once (matches the
-        // convention in removeContextsByPrefix).
-        std::vector<std::pair<srt::core::ContextKey,
-                              std::vector<srt::dependency::ModuleMetadata>>>
-            readyContexts;
-        {
-            std::shared_lock<std::shared_mutex> suLock(impl.m_su_mtx);
-            for (const auto &[ctxKey, state] : impl.m_contextStates) {
-                if (state != ContextState::Ready)
-                    continue;
-                auto it = impl.m_contextModuleInfos.find(ctxKey);
-                if (it == impl.m_contextModuleInfos.end())
-                    continue;
-                readyContexts.emplace_back(ctxKey, it->second);
-            }
-        }
-
         std::unique_lock<std::shared_mutex> lock(impl.m_tasks_mtx);
-        for (const auto &[ctxKey, ctxModuleInfos] : readyContexts) {
+
+        for (const auto &[ctxKey, state] : impl.m_contextStates) {
+            if (state != ContextState::Ready)
+                continue;
+
+            auto &ctxModuleInfos = impl.m_contextModuleInfos[ctxKey];
             for (const auto &moduleInfo : ctxModuleInfos) {
                 if (moduleInfo.type != category)
                     continue;
@@ -109,78 +93,86 @@ namespace srt::g2p {
                          "Manager::initialize() has already been called");
         }
 
-        // Phase 1: Default context
+        // Phase 1: Default context (official G2P).
+        // Allow empty default context: when no official G2P packages are
+        // registered (voicebank-only deployment), skip Phase 1 entirely and
+        // let voicebank contexts (Phase 2) initialize independently. Attempts
+        // to use the default context will return G2pContextNotFound. This
+        // honors ds-session.md §210: "某 G2P module 初始化失败：仅关联
+        // singer-language Disabled，其他语言/声库仍可发布".
         {
             srt::core::ContextKey defaultCtx("");
             const auto moduleInfos = this->getModuleMetadatas(defaultCtx);
             if (moduleInfos.empty()) {
-                return Error(ErrorCode::G2pInitializationError,
-                             "Ord-1: Default context initialization failed: no modules found");
-            }
+                g2pLog.srtWarning(
+                    "Ord-1: Default context has no modules; official G2P unavailable "
+                    "(voicebank-private G2P still initializes in Phase 2)");
+            } else {
+                auto compatibleModules = filterCompatibleModules(moduleInfos);
+                if (compatibleModules.empty()) {
+                    g2pLog.srtWarning(
+                        "Ord-1: Default context has no compatible modules after Level check; "
+                        "official G2P unavailable");
+                } else {
+                    auto &depGraph = impl.m_contextDependencyGraphs[srt::core::ContextKey("")];
+                    depGraph.clear();
+                    for (const auto &info : compatibleModules)
+                        depGraph.addModule(info);
 
-            auto compatibleModules = filterCompatibleModules(moduleInfos);
-            if (compatibleModules.empty()) {
-                return Error(ErrorCode::G2pInitializationError,
-                             "Ord-1: Default context has no compatible modules after Level check");
-            }
-
-            auto &depGraph = impl.m_contextDependencyGraphs[srt::core::ContextKey("")];
-            depGraph.clear();
-            for (const auto &info : compatibleModules)
-                depGraph.addModule(info);
-
-            if (!depGraph.buildGraph()) {
-                return Error(ErrorCode::G2pDependencyError,
-                             "Ord-1: Failed to build dependency graph for default context");
-            }
-
-            if (const auto cycles = depGraph.findCycles(); !cycles.empty()) {
-                return Error(ErrorCode::G2pDependencyError,
-                             "Ord-1: Circular dependencies detected in default context");
-            }
-
-            auto packageOrder = depGraph.getPackageInitializationOrder();
-            int failedPkgCount = 0;
-            std::vector<std::string> pkgErrors;
-            for (const auto &packageInfo : packageOrder) {
-                auto exp = this->open(packageInfo.packagePath);
-                if (!exp) {
-                    pkgErrors.push_back(packageInfo.packageId + ": " + exp.error().message());
-                    failedPkgCount++;
-                    continue;
-                }
-
-                Package pkg = exp.take();
-                if (!pkg.isLoaded()) {
-                    pkgErrors.push_back(packageInfo.packageId + ": " + pkg.error().message());
-                    failedPkgCount++;
-                    continue;
-                }
-
-                for (const auto &moduleInfo : packageInfo.initializationOrder) {
-                    auto taskExp = createModuleTask(moduleInfo, pkg);
-                    if (taskExp) {
-                        const auto fqid = ContextUtils::formatFqid(defaultCtx, moduleInfo.moduleId);
-                        if (auto *cate = this->category(moduleInfo.type)) {
-                            cate->addObject(fqid, taskExp.value());
-                        }
-                    } else {
-                        g2pLog.srtWarning("G2P task init failed: package=%1, module=%2, type=%3 - %4",
-                                          packageInfo.packageId, moduleInfo.moduleId,
-                                          moduleInfo.type, taskExp.error().message());
+                    if (!depGraph.buildGraph()) {
+                        return Error(ErrorCode::G2pDependencyError,
+                                     "Ord-1: Failed to build dependency graph for default context");
                     }
+
+                    if (const auto cycles = depGraph.findCycles(); !cycles.empty()) {
+                        return Error(ErrorCode::G2pDependencyError,
+                                     "Ord-1: Circular dependencies detected in default context");
+                    }
+
+                    auto packageOrder = depGraph.getPackageInitializationOrder();
+                    int failedPkgCount = 0;
+                    std::vector<std::string> pkgErrors;
+                    for (const auto &packageInfo : packageOrder) {
+                        auto exp = this->open(packageInfo.packagePath);
+                        if (!exp) {
+                            pkgErrors.push_back(packageInfo.packageId + ": " + exp.error().message());
+                            failedPkgCount++;
+                            continue;
+                        }
+
+                        Package pkg = exp.take();
+                        if (!pkg.isLoaded()) {
+                            pkgErrors.push_back(packageInfo.packageId + ": " + pkg.error().message());
+                            failedPkgCount++;
+                            continue;
+                        }
+
+                        for (const auto &moduleInfo : packageInfo.initializationOrder) {
+                            auto taskExp = createModuleTask(moduleInfo, pkg);
+                            if (taskExp) {
+                                const auto fqid = ContextUtils::formatFqid(defaultCtx, moduleInfo.moduleId);
+                                if (auto *cate = this->category(moduleInfo.type)) {
+                                    cate->addObject(fqid, taskExp.value());
+                                }
+                            } else {
+                                g2pLog.srtWarning("G2P task init failed: package=%1, module=%2, type=%3 - %4",
+                                                  packageInfo.packageId, moduleInfo.moduleId,
+                                                  moduleInfo.type, taskExp.error().message());
+                            }
+                        }
+                    }
+
+                    if (failedPkgCount > 0 && packageOrder.size() == static_cast<size_t>(failedPkgCount)) {
+                        std::string detail = "Ord-1: All packages failed to load in default context";
+                        for (const auto &e : pkgErrors) {
+                            detail += "\n  " + e;
+                        }
+                        return Error(ErrorCode::G2pInitializationError, detail);
+                    }
+
+                    impl.m_contextStates[defaultCtx] = ContextState::Ready;
                 }
             }
-
-            if (failedPkgCount > 0 && packageOrder.size() == static_cast<size_t>(failedPkgCount)) {
-                std::string detail = "Ord-1: All packages failed to load in default context";
-                for (const auto &e : pkgErrors) {
-                    detail += "\n  " + e;
-                }
-                return Error(ErrorCode::G2pInitializationError, detail);
-            }
-
-            impl.m_contextStates[defaultCtx] = ContextState::Ready;
         }
 
         // Phase 2: Non-default contexts

@@ -187,6 +187,7 @@ Expected<void> LanguageService::initialize(...) {
 - Stage 1.3 始终执行（ER-08 修复），确保多会话场景下 voicebank G2P 正确注册
 - ONNX 驱动 (`g2pOnnxDriver`) 必须在 `initialize()` 之前注册（D-20）
 - `updateMetadata()` 在 `initializeModels()` 之后禁止调用（Manager context 不可变），调用方需重启进程
+- **Manager::initialize() 允许空默认上下文**：当未注册任何官方 G2P 包时（voicebank-only 部署），Phase 1 跳过默认上下文初始化（不写入 `m_contextStates`），仅记录 `srtWarning`，继续执行 Phase 2 声库上下文初始化。尝试使用默认上下文会返回 `G2pContextNotFound`。这符合 ds-session.md §210："某 G2P module 初始化失败：仅关联 singer-language Disabled，其他语言/声库仍可发布"。
 
 ### updateMetadata 热重载 (V3-16 / WP8)
 
