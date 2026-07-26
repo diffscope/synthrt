@@ -18,7 +18,7 @@ file(GLOB_RECURSE _src CONFIGURE_DEPENDS
 )
 
 find_package(stdcorelib CONFIG REQUIRED)
-find_package(FFmpeg REQUIRED)
+find_package(FFMPEG REQUIRED)
 find_package(SndFile CONFIG REQUIRED)
 
 synthrt_add_library(${PROJECT_NAME} SHARED PREFIX srt_audio
