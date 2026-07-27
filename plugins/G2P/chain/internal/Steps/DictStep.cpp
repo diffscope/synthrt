@@ -32,12 +32,12 @@ namespace srt::g2p::plugins::ChainG2p {
 
         // 加载字典
         if (m_dictPath.empty()) {
-            return srt::g2p::Error(srt::g2p::Error::FileSystemError, "Dictionary path is empty");
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pFileSystemError, "Dictionary path is empty");
         }
 
         std::error_code errorCode;
         if (!m_phonemeDict.load(m_dictPath, &errorCode)) {
-            return srt::g2p::Error(srt::g2p::Error::FileSystemError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pFileSystemError,
                                  stdc::formatN("Failed to load dictionary: %1 (%2)",
                                                stdc::path::to_utf8(m_dictPath), errorCode.value()));
         }

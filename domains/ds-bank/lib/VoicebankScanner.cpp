@@ -322,18 +322,4 @@ namespace ds::bank {
         return it->second;
     }
 
-    std::filesystem::path VoicebankScanner::packageDirectory(
-        const std::string &packageId) const {
-        // Legacy: return the first matching entry's path. Deprecated warning
-        // is emitted at the call site via the [[deprecated]] attribute in the
-        // header, not here. Multi-version callers should use packageDirectories()
-        // to explicitly choose; this legacy API preserves "first wins" semantics
-        // for backward compatibility (tests 167/183/205 verify this contract).
-        const auto it = _impl->packageDirs.find(packageId);
-        if (it == _impl->packageDirs.end() || it->second.empty()) {
-            return {};
-        }
-        return it->second.front().path;
-    }
-
 } // namespace ds::bank

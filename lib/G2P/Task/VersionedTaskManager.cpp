@@ -15,15 +15,15 @@ namespace srt::g2p {
 
     srt::core::Expected<void> VersionedTaskManager::initialize() {
         if (_unsupportedLevel > 0)
-            return Error(Error::NotImplementedError,
+            return Error(ErrorCode::G2pNotImplementedError,
                          "apiLevel " + std::to_string(_unsupportedLevel) +
                              " is not supported by this plugin");
         if (!_impl)
-            return Error(Error::NullPointerError,
+            return Error(ErrorCode::G2pNullPointerError,
                          "VersionedTaskManager: impl not set (call setImpl() first)");
         if (_implMinLevel > 0 &&
             (_currentLevel < _implMinLevel || _currentLevel > _implMaxLevel))
-            return Error(Error::NotImplementedError,
+            return Error(ErrorCode::G2pNotImplementedError,
                          "apiLevel " + std::to_string(_currentLevel) +
                              " not in supported range [" + std::to_string(_implMinLevel) +
                              ", " + std::to_string(_implMaxLevel) + "]");
@@ -33,7 +33,7 @@ namespace srt::g2p {
     srt::core::Expected<srt::core::NO<TaskResult>>
     VersionedTaskManager::start(const srt::core::NO<TaskInput> &input) {
         if (!_impl)
-            return Error(Error::NullPointerError,
+            return Error(ErrorCode::G2pNullPointerError,
                          "VersionedTaskManager: impl not set (call setImpl() first)");
         return _impl->start(input);
     }

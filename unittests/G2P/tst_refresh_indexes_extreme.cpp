@@ -506,7 +506,7 @@ TEST_CASE("BF-52-017: addPackagePath registers path for refresh",
     auto addExp = pm.addPackagePath("", v0, root);
     REQUIRE(addExp.hasValue());
 
-    const auto paths = pm.packagePaths("");
+    const auto paths = pm.packagePaths("", v0);
     REQUIRE(paths.size() == 1);
     REQUIRE(std::filesystem::equivalent(paths[0], root));
 

@@ -32,29 +32,11 @@ namespace srt::core {
         impl.texts = {texts.begin(), texts.end()};
     }
 
-    DisplayText::DisplayText(const JsonValue &value) : _impl(std::make_shared<Impl>()) {
-        auto exp = fromJsonValue(value);
-        if (exp) {
-            swap(exp.get());
-        }
-    }
-
     DisplayText::~DisplayText() = default;
 
     DisplayText &DisplayText::operator=(std::string text) {
         __stdc_impl_t;
         impl.defaultText = std::move(text);
-        return *this;
-    }
-
-    DisplayText &DisplayText::operator=(const JsonValue &value) {
-        __stdc_impl_t;
-        auto exp = fromJsonValue(value);
-        if (!exp) {
-            impl.clear();
-            return *this;
-        }
-        swap(exp.get());
         return *this;
     }
 

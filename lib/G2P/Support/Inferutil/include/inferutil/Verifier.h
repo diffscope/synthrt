@@ -97,11 +97,11 @@ namespace srt::g2p::plugins::InferUtil
 
         const auto it = config.find("verify");
         if (it == config.end()) {
-            return srt::g2p::Error(srt::g2p::Error::ConfigError, "verify field is missing");
+            return srt::g2p::Error(ErrorCode::G2pConfigError, "verify field is missing");
         }
 
         if (!it->second.isArray()) {
-            return srt::g2p::Error(srt::g2p::Error::ConfigError, "verify field must be an array");
+            return srt::g2p::Error(ErrorCode::G2pConfigError, "verify field must be an array");
         }
 
         const auto &arr = it->second.toArray();
@@ -110,7 +110,7 @@ namespace srt::g2p::plugins::InferUtil
         for (size_t i = 0; i < arr.size(); ++i) {
             const auto &item = arr[i];
             if (!item.isObject()) {
-                return srt::g2p::Error(srt::g2p::Error::ConfigError,
+                return srt::g2p::Error(ErrorCode::G2pConfigError,
                                        stdc::formatN("verify entry #%1 must be an object", i));
             }
 
@@ -120,7 +120,7 @@ namespace srt::g2p::plugins::InferUtil
             if (const auto typeIt = obj.find("type"); typeIt != obj.end() && typeIt->second.isString()) {
                 entry.type = typeIt->second.toString();
             } else {
-                return srt::g2p::Error(srt::g2p::Error::ConfigError,
+                return srt::g2p::Error(ErrorCode::G2pConfigError,
                                        stdc::formatN("verify entry #%1 missing or invalid 'type' field", i));
             }
 
@@ -137,14 +137,14 @@ namespace srt::g2p::plugins::InferUtil
                     }
                 }
             } else {
-                return srt::g2p::Error(srt::g2p::Error::ConfigError,
+                return srt::g2p::Error(ErrorCode::G2pConfigError,
                                        stdc::formatN("verify entry #%1 missing or invalid 'value' field", i));
             }
 
             if (const auto modeIt = obj.find("mode"); modeIt != obj.end() && modeIt->second.isString()) {
                 entry.mode = modeIt->second.toString();
             } else {
-                return srt::g2p::Error(srt::g2p::Error::ConfigError,
+                return srt::g2p::Error(ErrorCode::G2pConfigError,
                                        stdc::formatN("verify entry #%1 missing or invalid 'mode' field", i));
             }
 

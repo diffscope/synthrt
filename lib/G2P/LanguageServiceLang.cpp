@@ -304,13 +304,17 @@ namespace srt::g2p {
 
             // Stage 1.2: Register official G2P package paths to the default context.
             // Default-context failures block Manager::initialize().
+            // kOfficialContext is "" (default context); per R-8 the default
+            // context must pair with an empty version, so we pass
+            // stdc::VersionNumber{} explicitly to the version-aware overload.
             for (const auto &path : officialG2pPackagePaths) {
                 if (path.empty()) {
                     langSvcLog.srtWarning(
                         "initializeMetadata: skipping empty official G2P path entry");
                     continue;
                 }
-                auto exp = mgr->addPackagePath(srt::g2p::kOfficialContext, path);
+                auto exp = mgr->addPackagePath(srt::g2p::kOfficialContext,
+                                                stdc::VersionNumber{}, path);
                 if (!exp) {
                     return srt::core::Error(
                         srt::core::ErrorCode::G2pSessionError,
@@ -331,21 +335,32 @@ namespace srt::g2p {
         // Uses the manifest cache (R3) so this shares parse work with
         // resolveLanguageRoute().
         //
-        // V3-01 §2.4 context naming change:
+        // V3-01 §2.4 context naming (Level=3 simplified):
         //   - voicebank G2P: context = packageId + "__" + singerId (non-empty)
-        //     + version = voicebank package version (non-empty for the new
-        //     overload) → versioned ContextKey, satisfies PackageManager R-8/R-9.
+        //     + version = voicebank package version (non-empty) → versioned
+        //     ContextKey, satisfies PackageManager R-8/R-9.
         //     ("__" instead of ":" because validateContextName forbids ":" —
         //     reserved for FQID separation. See voicebankContextName() comment.)
-        //   - When voicebank version is empty (deprecated path): use the 2-arg
-        //     addPackagePath(context, path) overload → unversioned ContextKey
-        //     (non-empty context + empty version), also R-8/R-9 compliant.
-        //   - official G2P: unchanged (kOfficialContext + 2-arg addPackagePath
-        //     registered in Stage 1.2).
+        //   - official G2P: kOfficialContext + empty version (Stage 1.2).
+        //
+        // Level=3 (2026-07-28): the deprecated 2-arg addPackagePath(context,
+        // path) overload was removed. Voicebank packages must carry a non-empty
+        // version (per R-8: non-empty context requires non-empty version). An
+        // empty voicebank version is treated as a malformed package and skipped
+        // with a warning (ROBUST-05: explicit error reporting).
         for (const auto &kv : _impl->packageDirs) {
             const auto &packageId = kv.first.first;
             const auto &voicebankVersion = kv.first.second;
             const auto &packageDir = kv.second;
+
+            if (voicebankVersion.isEmpty()) {
+                langSvcLog.srtWarning(
+                    "initializeMetadata: skipping voicebank G2P for packageId=%1 "
+                    "because voicebank version is empty (Level=3 requires non-empty "
+                    "version for versioned contexts)",
+                    packageId);
+                continue;
+            }
 
             auto manifestExp = _impl->getManifestByPath(packageDir);
             if (!manifestExp) {
@@ -373,44 +388,21 @@ namespace srt::g2p {
 
                     const auto context = voicebankContextName(packageId, route.singerId);
                     for (const auto &g2pPath : route.g2pPackages) {
-                        if (voicebankVersion.isEmpty()) {
-                            // Deprecated path (empty voicebank version):
-                            // unversioned context — non-empty context + empty
-                            // version via the 2-arg overload.
-                            auto addExp = mgr->addPackagePath(context, g2pPath);
-                            if (!addExp) {
-                                langSvcLog.srtWarning("addPackagePath failed for context %1, path %2: %3",
-                                                      context,
-                                                      stdc::path::to_utf8(g2pPath),
-                                                      addExp.error().message());
-                                // HB-14: record as Warning diagnostic for callers.
-                                srt::core::Diagnostic _d;
-                                _d.code = addExp.error().code();
-                                _d.severity = srt::core::Severity::Warning;
-                                _d.message = "addPackagePath failed: " + addExp.error().message();
-                                _d.extraContext = {{"context", context},
-                                                   {"g2pPath", stdc::path::to_utf8(g2pPath)}};
-                                _impl->recordPendingDiagnostic(std::move(_d));
-                            }
-                        } else {
-                            // Version-aware path: versioned context — non-empty
-                            // context + non-empty voicebank version.
-                            auto addExp = mgr->addPackagePath(context, voicebankVersion, g2pPath);
-                            if (!addExp) {
-                                langSvcLog.srtWarning("addPackagePath failed for context %1, version %2, path %3: %4",
-                                                      context, voicebankVersion.toString(),
-                                                      stdc::path::to_utf8(g2pPath),
-                                                      addExp.error().message());
-                                // HB-14: record as Warning diagnostic for callers.
-                                srt::core::Diagnostic _d;
-                                _d.code = addExp.error().code();
-                                _d.severity = srt::core::Severity::Warning;
-                                _d.message = "addPackagePath failed: " + addExp.error().message();
-                                _d.extraContext = {{"context", context},
-                                                   {"version", voicebankVersion.toString()},
-                                                   {"g2pPath", stdc::path::to_utf8(g2pPath)}};
-                                _impl->recordPendingDiagnostic(std::move(_d));
-                            }
+                        auto addExp = mgr->addPackagePath(context, voicebankVersion, g2pPath);
+                        if (!addExp) {
+                            langSvcLog.srtWarning("addPackagePath failed for context %1, version %2, path %3: %4",
+                                                  context, voicebankVersion.toString(),
+                                                  stdc::path::to_utf8(g2pPath),
+                                                  addExp.error().message());
+                            // HB-14: record as Warning diagnostic for callers.
+                            srt::core::Diagnostic _d;
+                            _d.code = addExp.error().code();
+                            _d.severity = srt::core::Severity::Warning;
+                            _d.message = "addPackagePath failed: " + addExp.error().message();
+                            _d.extraContext = {{"context", context},
+                                               {"version", voicebankVersion.toString()},
+                                               {"g2pPath", stdc::path::to_utf8(g2pPath)}};
+                            _impl->recordPendingDiagnostic(std::move(_d));
                         }
                     }
                 }
@@ -469,13 +461,17 @@ namespace srt::g2p {
             }
             // Stage 1.2: official G2P package paths (registers to default
             // context so Manager::initialize() Phase 1 can discover them).
+            // kOfficialContext is "" (default context); per R-8 the default
+            // context must pair with an empty version, so we pass
+            // stdc::VersionNumber{} explicitly to the version-aware overload.
             for (const auto &path : officialG2pPackagePaths) {
                 if (path.empty()) {
                     langSvcLog.srtWarning(
                         "updateMetadata: skipping empty official G2P path entry");
                     continue;
                 }
-                auto exp = mgr->addPackagePath(srt::g2p::kOfficialContext, path);
+                auto exp = mgr->addPackagePath(srt::g2p::kOfficialContext,
+                                                stdc::VersionNumber{}, path);
                 if (!exp) {
                     langSvcLog.srtWarning(
                         "updateMetadata: failed to register official G2P path %1: %2",
@@ -592,7 +588,21 @@ namespace srt::g2p {
         //    mark the context Failed). The manifest cache is shared with
         //    resolveLanguageRoute(), so added entries become immediately
         //    resolvable once this call returns.
+        //
+        // Level=3 (2026-07-28): the deprecated 2-arg addPackagePath(context,
+        // path) overload was removed. Voicebank packages must carry a non-empty
+        // version (per R-8). An empty version is treated as a malformed package
+        // and skipped with a warning (ROBUST-05).
         for (const auto &entry : diff.added) {
+            if (entry.version.isEmpty()) {
+                langSvcLog.srtWarning(
+                    "updateMetadata: skipping voicebank G2P for packageId=%1 "
+                    "because version is empty (Level=3 requires non-empty version "
+                    "for versioned contexts)",
+                    entry.packageId);
+                continue;
+            }
+
             auto manifestExp = _impl->getManifestByPath(entry.path);
             if (!manifestExp) {
                 langSvcLog.srtWarning("failed to parse package for G2P registration: %1: %2",
@@ -620,44 +630,21 @@ namespace srt::g2p {
                     const auto context =
                         voicebankContextName(entry.packageId, route.singerId);
                     for (const auto &g2pPath : route.g2pPackages) {
-                        if (entry.version.isEmpty()) {
-                            // Deprecated path (empty voicebank version):
-                            // unversioned context — non-empty context + empty
-                            // version via the 2-arg overload.
-                            auto addExp = mgr->addPackagePath(context, g2pPath);
-                            if (!addExp) {
-                                langSvcLog.srtWarning("addPackagePath failed for context %1, path %2: %3",
-                                                      context,
-                                                      stdc::path::to_utf8(g2pPath),
-                                                      addExp.error().message());
-                                // HB-14: record as Warning diagnostic for callers.
-                                srt::core::Diagnostic _d;
-                                _d.code = addExp.error().code();
-                                _d.severity = srt::core::Severity::Warning;
-                                _d.message = "addPackagePath failed: " + addExp.error().message();
-                                _d.extraContext = {{"context", context},
-                                                   {"g2pPath", stdc::path::to_utf8(g2pPath)}};
-                                _impl->recordPendingDiagnostic(std::move(_d));
-                            }
-                        } else {
-                            // Version-aware path: versioned context — non-empty
-                            // context + non-empty voicebank version.
-                            auto addExp = mgr->addPackagePath(context, entry.version, g2pPath);
-                            if (!addExp) {
-                                langSvcLog.srtWarning("addPackagePath failed for context %1, version %2, path %3: %4",
-                                                      context, entry.version.toString(),
-                                                      stdc::path::to_utf8(g2pPath),
-                                                      addExp.error().message());
-                                // HB-14: record as Warning diagnostic for callers.
-                                srt::core::Diagnostic _d;
-                                _d.code = addExp.error().code();
-                                _d.severity = srt::core::Severity::Warning;
-                                _d.message = "addPackagePath failed: " + addExp.error().message();
-                                _d.extraContext = {{"context", context},
-                                                   {"version", entry.version.toString()},
-                                                   {"g2pPath", stdc::path::to_utf8(g2pPath)}};
-                                _impl->recordPendingDiagnostic(std::move(_d));
-                            }
+                        auto addExp = mgr->addPackagePath(context, entry.version, g2pPath);
+                        if (!addExp) {
+                            langSvcLog.srtWarning("addPackagePath failed for context %1, version %2, path %3: %4",
+                                                  context, entry.version.toString(),
+                                                  stdc::path::to_utf8(g2pPath),
+                                                  addExp.error().message());
+                            // HB-14: record as Warning diagnostic for callers.
+                            srt::core::Diagnostic _d;
+                            _d.code = addExp.error().code();
+                            _d.severity = srt::core::Severity::Warning;
+                            _d.message = "addPackagePath failed: " + addExp.error().message();
+                            _d.extraContext = {{"context", context},
+                                               {"version", entry.version.toString()},
+                                               {"g2pPath", stdc::path::to_utf8(g2pPath)}};
+                            _impl->recordPendingDiagnostic(std::move(_d));
                         }
                     }
                 }
@@ -669,24 +656,6 @@ namespace srt::g2p {
         _impl->packageDirs = std::move(next);
 
         return diff;
-    }
-
-    srt::core::Expected<void> LanguageService::initializeMetadata(
-        const std::vector<std::filesystem::path> &pluginSearchPaths,
-        const std::vector<std::filesystem::path> &officialG2pPackagePaths,
-        const std::unordered_map<std::string, std::filesystem::path> &packageDirs) {
-
-        // Deprecated path (V3-01 §2.2): build a vector<PackageDirectoryEntry>
-        // with empty version for each map entry and delegate to the new
-        // overload. Multi-version same-packageId callers have already
-        // collapsed to one entry in the map (last wins), so this is silently
-        // lossy — callers should migrate to the version-aware overload.
-        std::vector<PackageDirectoryEntry> entries;
-        entries.reserve(packageDirs.size());
-        for (const auto &kv : packageDirs) {
-            entries.push_back(PackageDirectoryEntry{kv.first, stdc::VersionNumber(), kv.second});
-        }
-        return initializeMetadata(pluginSearchPaths, officialG2pPackagePaths, entries);
     }
 
     srt::core::Expected<void> LanguageService::initializeModels() {
@@ -739,12 +708,16 @@ namespace srt::g2p {
         const std::vector<std::filesystem::path> &officialG2pPackagePaths,
         const std::unordered_map<std::string, std::filesystem::path> &packageDirs) {
 
-        // Delegate through the deprecated initializeMetadata overload; it
-        // forwards to the version-aware overload with empty version. This
-        // wrapper itself is not deprecated (legacy hosts call it), so the
-        // deprecation warning is intentionally emitted only at the direct
-        // call sites of initializeMetadata(map).
-        auto exp1 = initializeMetadata(pluginSearchPaths, officialG2pPackagePaths, packageDirs);
+        // Convert legacy unordered_map to vector<PackageDirectoryEntry> with
+        // empty version (single-version compat). The deprecated
+        // initializeMetadata(map) overload was removed in Level=3; this
+        // wrapper now delegates to the version-aware overload directly.
+        std::vector<PackageDirectoryEntry> entries;
+        entries.reserve(packageDirs.size());
+        for (const auto &[packageId, path] : packageDirs) {
+            entries.push_back({packageId, stdc::VersionNumber{}, path});
+        }
+        auto exp1 = initializeMetadata(pluginSearchPaths, officialG2pPackagePaths, entries);
         if (!exp1) {
             return exp1;
         }
@@ -897,28 +870,6 @@ namespace srt::g2p {
         return result;
     }
 
-    srt::core::Expected<LanguageRoute> LanguageService::resolveLanguageRoute(
-        const std::string &packageId,
-        const std::string &singerId,
-        const std::string &languageId) const {
-        // Deprecated path (V3-01 §2.3): delegate to the version-aware overload
-        // with an empty version. Multi-version same-packageId scenarios return
-        // G2pVersionAmbiguous from the new overload.
-        return resolveLanguageRoute(packageId, stdc::VersionNumber(), singerId, languageId);
-    }
-
-    srt::core::Expected<std::shared_ptr<srt::s2p::LanguageResource>>
-    LanguageService::resolveS2pResource(const std::string &packageId,
-                                        const std::string &singerId,
-                                        const std::string &languageId) const {
-        // Deprecated path (V3-01 §2.4): delegate to the version-aware
-        // overload with an empty version. Multi-version same-packageId
-        // scenarios return G2pVersionAmbiguous from the new overload's call
-        // to resolveLanguageRoute.
-        return resolveS2pResource(packageId, stdc::VersionNumber(),
-                                  singerId, languageId);
-    }
-
     srt::core::Expected<std::shared_ptr<srt::s2p::LanguageResource>>
     LanguageService::resolveS2pResource(const std::string &packageId,
                                         const stdc::VersionNumber &version,
@@ -1016,16 +967,6 @@ namespace srt::g2p {
         // callers inspect each result rather than treating the whole call as
         // failed (R6: don't lose error details by collapsing to bool).
         return convertLyric(routed);
-    }
-
-    srt::core::Expected<std::vector<srt::g2p::G2pRes>> LanguageService::convert(
-        const std::string &packageId,
-        const std::string &singerId,
-        const std::string &languageId,
-        const std::vector<srt::g2p::G2pInput> &inputs) const {
-        // Deprecated path (V3-01 §2.6): delegate to the version-aware overload
-        // with an empty version.
-        return convert(packageId, stdc::VersionNumber(), singerId, languageId, inputs);
     }
 
 } // namespace srt::g2p

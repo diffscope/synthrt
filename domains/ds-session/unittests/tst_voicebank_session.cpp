@@ -396,14 +396,12 @@ TEST_CASE("VoicebankSession validatePhonemes returns error when snapshot is empt
 // to L2 tests with real model fixtures.
 // ---------------------------------------------------------------------------
 
-TEST_CASE("VoicebankSession setRuntime/runtime round-trip stores and returns the pointer", "[ds-session][wp4]") {
-    ds::session::VoicebankSession session;
-    REQUIRE(session.runtime() == nullptr);
+TEST_CASE("VoicebankSession SessionResources constructor stores runtime pointer", "[ds-session][wp4]") {
     srt::core::Runtime runtime;
-    session.setRuntime(&runtime);
+    ds::session::SessionResources resources;
+    resources.runtime = &runtime;
+    ds::session::VoicebankSession session(std::move(resources));
     REQUIRE(session.runtime() == &runtime);
-    session.setRuntime(nullptr);
-    REQUIRE(session.runtime() == nullptr);
 }
 
 TEST_CASE("VoicebankSession createModelSet returns SessionError when snapshot is empty", "[ds-session][wp4]") {
@@ -453,16 +451,17 @@ TEST_CASE("VoicebankSession createModelSet returns InferenceNotInitialized when 
 TEST_CASE("VoicebankSession createModelSet returns error when Runtime has no singer package loaded", "[ds-session][wp4]") {
     const auto root = makeRoot();
     makePackage(root);
-    ds::session::VoicebankSession session;
-    session.setRoots({root});
-    REQUIRE(session.refreshAsync().get().succeeded);
 
     // A default-constructed Runtime has no module categories registered and
     // no packages loaded, so SingerStageResolver::resolve() cannot find the
     // singer. createModelSet must propagate the resolve error rather than
     // silently producing an empty handle.
     srt::core::Runtime runtime;
-    session.setRuntime(&runtime);
+    ds::session::SessionResources resources;
+    resources.runtime = &runtime;
+    ds::session::VoicebankSession session(std::move(resources));
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
 
     ds::bank::SingerRef ref("session.test", "test");
     auto exp = session.createModelSet(ref);
@@ -597,14 +596,15 @@ TEST_CASE("VoicebankSession createModelSet returns SvsSingerAmbiguous for multi-
     const auto root = makeRoot();
     makePackage(root);
     makeMultiVersionPackage(root);
-    ds::session::VoicebankSession session;
-    session.setRoots({root});
-    REQUIRE(session.refreshAsync().get().succeeded);
 
     // Even with a Runtime configured, findSinger must reject the ambiguous
     // singer before stage resolution is attempted.
     srt::core::Runtime runtime;
-    session.setRuntime(&runtime);
+    ds::session::SessionResources resources;
+    resources.runtime = &runtime;
+    ds::session::VoicebankSession session(std::move(resources));
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
 
     ds::bank::SingerRef ref("session.test", "test");
     auto exp = session.createModelSet(ref);

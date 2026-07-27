@@ -28,7 +28,7 @@ namespace srt::g2p::plugins::ChainG2p {
         // 解析 onnxG2pId - 从传入的 config 中读取
         auto idIt = config.find("id");
         if (idIt == config.end() || !idIt->second.isString()) {
-            return srt::g2p::Error(srt::g2p::Error::ConfigError, "Missing required field: id");
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError, "Missing required field: id");
         }
         m_onnxG2pId = idIt->second.toString();
 

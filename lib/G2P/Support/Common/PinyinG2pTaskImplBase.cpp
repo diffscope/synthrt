@@ -1,5 +1,6 @@
 #include "PinyinG2pTaskImplBase.h"
 
+#include <filesystem>
 #include <mutex>
 #include <shared_mutex>
 
@@ -47,17 +48,50 @@ namespace srt::g2p::plugins::Common
         }
         m_dictPath = dictPathExp.take();
 
+        // Validate dictionary path before passing to cpp-pinyin.
+        // ConfigAccessor::getResolvedPath() falls back to absolute() when
+        // canonical() fails (e.g. path does not exist), so a non-existent
+        // path can slip through. Without this check, the Pinyin::Pinyin()
+        // constructor may hang indefinitely trying to load non-existent
+        // dictionary files, leaving the G2P module stuck in Loading state.
+        {
+            std::error_code ec;
+            if (!std::filesystem::exists(m_dictPath, ec) ||
+                !std::filesystem::is_directory(m_dictPath, ec)) {
+                return srt::g2p::Error(
+                    ErrorCode::G2pInitializationError,
+                    stdc::formatN("%1: dictionary path does not exist or is not a directory: %2",
+                                  m_langConfig.languageName, stdc::path::to_utf8(m_dictPath)));
+            }
+            // Check directory is not empty (strong signal of deployment issue).
+            bool hasFiles = false;
+            for (const auto &entry : std::filesystem::directory_iterator(m_dictPath, ec)) {
+                hasFiles = true;
+                break;
+            }
+            if (ec || !hasFiles) {
+                return srt::g2p::Error(
+                    ErrorCode::G2pInitializationError,
+                    stdc::formatN("%1: dictionary directory is empty or inaccessible: %2",
+                                  m_langConfig.languageName, stdc::path::to_utf8(m_dictPath)));
+            }
+            pinyinG2pLog.srtInfo("%1: dictionary path resolved: %2",
+                                 m_langConfig.languageName, stdc::path::to_utf8(m_dictPath));
+        }
+
         Pinyin::setDictionaryPath(m_dictPath);
 
+        pinyinG2pLog.srtInfo("%1: initializing cpp-pinyin engine...", m_langConfig.languageName);
         auto initResult = onInitializeEngine();
         if (!initResult) {
             return initResult;
         }
+        pinyinG2pLog.srtInfo("%1: cpp-pinyin engine initialized", m_langConfig.languageName);
 
         m_config = getConfig();
 
         if (!isEngineInitialized())
-            return srt::g2p::Error(srt::g2p::Error::InitializationError,
+            return srt::g2p::Error(ErrorCode::G2pInitializationError,
                                    stdc::formatN("%1: cpp-pinyin library failed to initialize", m_langConfig.languageName));
 
         return {};
@@ -84,12 +118,12 @@ namespace srt::g2p::plugins::Common
         {
             std::shared_lock lock(m_mutex);
             if (!isEngineInitialized())
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError,
+                return srt::g2p::Error(ErrorCode::G2pRuntimeError,
                                        stdc::formatN("%1Task: chinese g2p not initialized", m_langConfig.languageName));
         }
 
         if (!input)
-            return srt::g2p::Error(srt::g2p::Error::ConfigError, "g2p input is nullptr");
+            return srt::g2p::Error(ErrorCode::G2pConfigError, "g2p input is nullptr");
 
         std::vector<srt::g2p::G2pRes> res;
         const auto g2pInput = input.as<srt::g2p::G2pInputV1>();

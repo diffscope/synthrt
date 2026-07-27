@@ -564,12 +564,13 @@ public:
             // publishing. Uses incremental updateMetadata() when the service
             // is already initialized (hot-reload path), falling back to a full
             // initializeMetadata() on first call or on updateMetadata failure.
-            // S1: When SessionResources.g2pPluginPaths is non-empty, pass them
-            // so the session can self-initialize G2P without host intervention.
-            // When empty (legacy behavior), the host must have already called
-            // initializeMetadata. Non-fatal: the snapshot is still published;
-            // language errors surface as Warning diagnostics and the caller can
-            // retry via ensureLanguageReady().
+            // v7 erratum (docs/modules/ds-session.md §21, docs/modules/g2p.md
+            // §402-406): auto-initialization trigger is `languageService !=
+            // nullptr` (`if (svc)`), NOT `g2pPluginPaths` non-empty. Even with
+            // empty g2pPluginPaths, refresh calls initializeMetadata() (Stage 1
+            // only — no plugin DLL loading). Non-fatal: the snapshot is still
+            // published; language errors surface as Warning diagnostics and the
+            // caller can retry via ensureLanguageReady().
             std::shared_ptr<srt::g2p::LanguageService> svc;
             std::vector<std::filesystem::path> pluginPaths;
             std::vector<std::filesystem::path> g2pPaths;
@@ -743,19 +744,9 @@ AvailabilitySummary VoicebankSession::availability() const {
     return view ? view->availability : AvailabilitySummary{};
 }
 
-void VoicebankSession::setLanguageService(std::shared_ptr<srt::g2p::LanguageService> service) {
-    std::lock_guard lock(_impl->mutex);
-    _impl->languageService = std::move(service);
-}
-
 std::shared_ptr<srt::g2p::LanguageService> VoicebankSession::languageService() const {
     std::lock_guard lock(_impl->mutex);
     return _impl->languageService;
-}
-
-void VoicebankSession::setRuntime(srt::core::Runtime *runtime) {
-    std::lock_guard lock(_impl->mutex);
-    _impl->runtime = runtime;
 }
 
 srt::core::Runtime *VoicebankSession::runtime() const {
@@ -1014,7 +1005,7 @@ srt::core::Expected<std::shared_ptr<ModelSetHandle>>
         return srt::core::Error::inferenceError(
             srt::core::ErrorCode::InferenceNotInitialized,
             "VoicebankSession::createModelSet: no Runtime configured; "
-            "call setRuntime() first");
+            "use VoicebankSession(SessionResources) constructor to inject one");
     }
     // S3: Auto-fallback — ensure the singer's package is loaded in Runtime.
     // If not explicitly loaded via loadVoicebank(), do it automatically.
@@ -1167,8 +1158,8 @@ srt::core::Expected<void> VoicebankSession::ensureLanguageReady(
     if (!rt) {
         return srt::core::Error::inferenceError(
             srt::core::ErrorCode::RuntimePackageNotLoaded,
-            "ensureLanguageReady: no Runtime configured; call setRuntime() or "
-            "use VoicebankSession(SessionResources) constructor",
+            "ensureLanguageReady: no Runtime configured; "
+            "use VoicebankSession(SessionResources) constructor to inject one",
             {});
     }
     // 3. Ensure LanguageService is initialized (lazy on first call).

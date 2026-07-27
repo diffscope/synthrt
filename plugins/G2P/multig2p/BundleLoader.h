@@ -68,11 +68,11 @@ namespace srt::g2p::plugins::Multig2p {
     ///   5. （可选）loadConfig()：解析 config.json，读取 inference.default_max_len 等
     class BundleLoader {
     public:
-        /// 加载 bundle.json。失败返回 Error::G2pConfigError。
+        /// 加载 bundle.json。失败返回 ErrorCode::G2pConfigError。
         static srt::core::Expected<BundleMeta>
         loadBundleJson(const std::filesystem::path &bundlePath);
 
-        /// 加载 vocabulary.json。失败返回 Error::G2pConfigError。
+        /// 加载 vocabulary.json。失败返回 ErrorCode::G2pConfigError。
         static srt::core::Expected<VocabularyData>
         loadVocabulary(const std::filesystem::path &vocabPath);
 
@@ -84,7 +84,7 @@ namespace srt::g2p::plugins::Multig2p {
                         const std::string &logicalName);
 
     private:
-        /// 通用 JSON 文件读取：返回 JsonValue，失败返回 Error::FileSystemError。
+        /// 通用 JSON 文件读取：返回 JsonValue，失败返回 ErrorCode::G2pFileSystemError。
         static srt::core::Expected<srt::core::JsonValue>
         readJsonFile(const std::filesystem::path &path);
     };

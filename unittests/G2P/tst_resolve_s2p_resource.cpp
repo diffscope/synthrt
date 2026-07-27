@@ -162,11 +162,11 @@ TEST_CASE("resolveS2pResource cache hit returns same shared_ptr",
     REQUIRE(langSvc.initializeMetadata(
         {}, {}, makeEntries({{pkgA, v1, root / "pkg_a"}})).hasValue());
 
-    auto res1Exp = langSvc.resolveS2pResource(pkgA, singerId, "cmn");
+    auto res1Exp = langSvc.resolveS2pResource(pkgA, stdc::VersionNumber{}, singerId, "cmn");
     REQUIRE(res1Exp.hasValue());
     REQUIRE(*res1Exp != nullptr);
 
-    auto res2Exp = langSvc.resolveS2pResource(pkgA, singerId, "cmn");
+    auto res2Exp = langSvc.resolveS2pResource(pkgA, stdc::VersionNumber{}, singerId, "cmn");
     REQUIRE(res2Exp.hasValue());
     REQUIRE(*res2Exp != nullptr);
 
@@ -208,8 +208,8 @@ TEST_CASE("resolveS2pResource different singer different resource",
         makeEntries({{pkgA, v1, root / "pkg_a"},
                      {pkgB, v1, root / "pkg_b"}})).hasValue());
 
-    auto resAExp = langSvc.resolveS2pResource(pkgA, singerA, "cmn");
-    auto resBExp = langSvc.resolveS2pResource(pkgB, singerB, "cmn");
+    auto resAExp = langSvc.resolveS2pResource(pkgA, stdc::VersionNumber{}, singerA, "cmn");
+    auto resBExp = langSvc.resolveS2pResource(pkgB, stdc::VersionNumber{}, singerB, "cmn");
     REQUIRE(resAExp.hasValue());
     REQUIRE(resBExp.hasValue());
     REQUIRE(*resAExp != nullptr);
@@ -248,8 +248,8 @@ TEST_CASE("resolveS2pResource different language different resource",
     REQUIRE(langSvc.initializeMetadata(
         {}, {}, makeEntries({{pkgA, v1, root / "pkg_a"}})).hasValue());
 
-    auto resCmnExp = langSvc.resolveS2pResource(pkgA, singerId, "cmn");
-    auto resEnExp = langSvc.resolveS2pResource(pkgA, singerId, "en");
+    auto resCmnExp = langSvc.resolveS2pResource(pkgA, stdc::VersionNumber{}, singerId, "cmn");
+    auto resEnExp = langSvc.resolveS2pResource(pkgA, stdc::VersionNumber{}, singerId, "en");
     REQUIRE(resCmnExp.hasValue());
     REQUIRE(resEnExp.hasValue());
     REQUIRE(*resCmnExp != nullptr);
@@ -273,7 +273,7 @@ TEST_CASE("resolveS2pResource empty packageId returns error",
           "[g2p][s2p][error]") {
     LanguageService langSvc;
 
-    auto resExp = langSvc.resolveS2pResource("", "singer_x", "cmn");
+    auto resExp = langSvc.resolveS2pResource("", stdc::VersionNumber{}, "singer_x", "cmn");
     REQUIRE(!resExp.hasValue());
     REQUIRE(resExp.takeError().code() ==
             srt::core::ErrorCode::G2pPackageNotFound);
@@ -297,7 +297,7 @@ TEST_CASE("resolveS2pResource unknown singer returns G2pRouteNotFound",
     REQUIRE(langSvc.initializeMetadata(
         {}, {}, makeEntries({{pkgA, v1, root / "pkg_a"}})).hasValue());
 
-    auto resExp = langSvc.resolveS2pResource(pkgA, "missing_singer", "cmn");
+    auto resExp = langSvc.resolveS2pResource(pkgA, stdc::VersionNumber{}, "missing_singer", "cmn");
     REQUIRE(!resExp.hasValue());
     REQUIRE(resExp.takeError().code() ==
             srt::core::ErrorCode::G2pRouteNotFound);
@@ -330,7 +330,7 @@ TEST_CASE("resolveS2pResource dict mode convert returns expected phonemes",
     REQUIRE(langSvc.initializeMetadata(
         {}, {}, makeEntries({{pkgA, v1, root / "pkg_a"}})).hasValue());
 
-    auto resExp = langSvc.resolveS2pResource(pkgA, singerId, "cmn");
+    auto resExp = langSvc.resolveS2pResource(pkgA, stdc::VersionNumber{}, singerId, "cmn");
     REQUIRE(resExp.hasValue());
     REQUIRE(*resExp != nullptr);
 

@@ -106,18 +106,6 @@ namespace srt::g2p {
             const std::vector<std::filesystem::path> &officialG2pPackagePaths,
             const std::vector<PackageDirectoryEntry> &packageDirs);
 
-        // Legacy Stage 1 entry point (deprecated). Internally delegates to the
-        // version-aware overload with empty version on each entry; multi-version
-        // same-packageId callers will collapse to a single (packageId, empty)
-        // entry and produce PackageDuplicate, which is acceptable for the
-        // deprecated path — migrate to the version-aware overload.
-        [[deprecated("Use the version-aware overload with PackageDirectoryEntry. "
-                     "Will be removed in Level=3.")]]
-        srt::core::Expected<void> initializeMetadata(
-            const std::vector<std::filesystem::path> &pluginSearchPaths,
-            const std::vector<std::filesystem::path> &officialG2pPackagePaths,
-            const std::unordered_map<std::string, std::filesystem::path> &packageDirs);
-
         // === Stage 2: Model initialization (slow, loads ONNX) ===
         //
         // Loads G2P plugin DLLs, creates ONNX sessions, and initializes the
@@ -179,31 +167,8 @@ namespace srt::g2p {
             const std::string &singerId,
             const std::string &languageId) const;
 
-        // Legacy 3-arg route resolution (deprecated). Delegates to the
-        // version-aware overload with an empty version; multi-version same-
-        // packageId scenarios will return G2pVersionAmbiguous.
-        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
-        srt::core::Expected<LanguageRoute> resolveLanguageRoute(
-            const std::string &packageId,
-            const std::string &singerId,
-            const std::string &languageId) const;
-
         // === Per-singer S2P resource ===
         //
-        // Legacy 3-arg resolution (deprecated). Resolves and caches the S2P
-        // LanguageResource for a singer+language. Returns a shared_ptr so the
-        // host can call convert() directly. The resource is cached per
-        // (packageId, version, singerId, languageId) tuple — this overload
-        // passes an empty version, producing "pkg//singer/lang" cache keys
-        // (backward compat with single-version scenarios). Multi-version same-
-        // packageId callers will hit G2pVersionAmbiguous inside route
-        // resolution; migrate to the version-aware overload below.
-        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
-        srt::core::Expected<std::shared_ptr<srt::s2p::LanguageResource>>
-        resolveS2pResource(const std::string &packageId,
-                           const std::string &singerId,
-                           const std::string &languageId) const;
-
         // Version-aware S2P resource resolution (V3-01). Routes via the
         // version-aware resolveLanguageRoute and caches the resource per
         // (packageId, version, singerId, languageId) tuple, so multi-version
@@ -236,16 +201,6 @@ namespace srt::g2p {
         srt::core::Expected<std::vector<srt::g2p::G2pRes>> convert(
             const std::string &packageId,
             const stdc::VersionNumber &version,
-            const std::string &singerId,
-            const std::string &languageId,
-            const std::vector<srt::g2p::G2pInput> &inputs) const;
-
-        // Legacy 4-arg convert (deprecated). Delegates to the version-aware
-        // overload with an empty version; multi-version same-packageId
-        // scenarios will return G2pVersionAmbiguous from route resolution.
-        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
-        srt::core::Expected<std::vector<srt::g2p::G2pRes>> convert(
-            const std::string &packageId,
             const std::string &singerId,
             const std::string &languageId,
             const std::vector<srt::g2p::G2pInput> &inputs) const;

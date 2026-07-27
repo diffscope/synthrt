@@ -24,7 +24,7 @@ namespace srt::g2p::plugins::ChainG2p {
         } else if (stepType == "fallback") {
             step = std::make_shared<FallbackStep>();
         } else {
-            return srt::g2p::Error(srt::g2p::Error::ConfigError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError,
                                  "Unknown step type: " + stepType +
                                  ", supported types: " + joinStrings(supportedTypes(), ", "));
         }

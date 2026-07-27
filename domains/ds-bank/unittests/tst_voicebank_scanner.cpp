@@ -251,7 +251,8 @@ TEST_CASE("VoicebankScanner packageDirectory returns correct path", "[ds-bank][s
     scanner.setSearchPaths({root});
     scanner.refresh();
 
-    auto dir = scanner.packageDirectory("pkg.a");
+    auto dirs = scanner.packageDirectories("pkg.a");
+    auto dir = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
     REQUIRE(!dir.empty());
     REQUIRE(std::filesystem::path(dir).lexically_normal() ==
             pkgDir.lexically_normal());

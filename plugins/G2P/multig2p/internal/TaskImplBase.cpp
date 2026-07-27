@@ -17,7 +17,7 @@ namespace srt::g2p::plugins::Multig2p::Internal {
 
     srt::core::Expected<void> Multig2pTaskImplBase::initialize() {
         if (!m_spec) {
-            return srt::g2p::Error(srt::g2p::Error::NullPointerError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pNullPointerError,
                                    "Multig2p: module spec is nullptr");
         }
 
@@ -87,13 +87,13 @@ namespace srt::g2p::plugins::Multig2p::Internal {
             auto fileOpt = BundleLoader::resolveOnnxFile(bundleMeta, bundleDir, logicalName);
             if (!fileOpt) {
                 return srt::g2p::Error(
-                    srt::g2p::Error::ConfigError,
+                    srt::g2p::ErrorCode::G2pConfigError,
                     stdc::formatN("Multig2p: bundle missing '%1' file", logicalName));
             }
             auto session = m_driver->createSession();
             if (!session) {
                 return srt::g2p::Error(
-                    srt::g2p::Error::RuntimeError,
+                    srt::g2p::ErrorCode::G2pRuntimeError,
                     stdc::formatN("Multig2p: failed to create %1 session", sessionName));
             }
             auto openArgs = srt::core::NO<srt::g2p::SessionOpenArgs>::create();
@@ -101,7 +101,7 @@ namespace srt::g2p::plugins::Multig2p::Internal {
             auto res = session->open(*fileOpt, openArgs);
             if (!res) {
                 return srt::g2p::Error(
-                    srt::g2p::Error::RuntimeError,
+                    srt::g2p::ErrorCode::G2pRuntimeError,
                     stdc::formatN("Multig2p: failed to open %1 session: %2",
                                   sessionName, res.error().message()));
             }
@@ -160,13 +160,13 @@ namespace srt::g2p::plugins::Multig2p::Internal {
     getTensorFromResult(const srt::core::NO<srt::g2p::SessionResult> &result,
                         const std::string &name) {
         if (!result) {
-            return srt::g2p::Error(srt::g2p::Error::RuntimeError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError,
                                    "session result is nullptr");
         }
         const auto it = result->outputs.find(name);
         if (it == result->outputs.end() || !it->second) {
             return srt::g2p::Error(
-                srt::g2p::Error::RuntimeError,
+                srt::g2p::ErrorCode::G2pRuntimeError,
                 stdc::formatN("tensor '%1' not found in session result", name));
         }
         return it->second;

@@ -235,14 +235,6 @@ TEST_CASE("VoicebankScanner duplicate package across paths: first wins packageDi
     // Both singers are in snapshots
     REQUIRE(scanner.singers().size() == 2);
 
-    // V3-01: deprecated packageDirectory(packageId) returns the first
-    // discovered entry (root1/pkg). Multi-version same-packageId callers
-    // should use packageDirectories(packageId) instead.
-    auto dir = scanner.packageDirectory("pkg.dup");
-    REQUIRE(!dir.empty());
-    // The first path wins (root1/pkg)
-    REQUIRE(dir.lexically_normal() == (root1 / "pkg").lexically_normal());
-
     std::filesystem::remove_all(root1);
     std::filesystem::remove_all(root2);
 }
@@ -558,11 +550,11 @@ TEST_CASE("VoicebankScanner clear resets state", "[ds-bank][complex][clear]") {
     scanner.setSearchPaths({root1});
     scanner.refresh();
     REQUIRE(scanner.singers().size() == 1);
-    REQUIRE(!scanner.packageDirectory("pkg.one").empty());
+    REQUIRE(!scanner.packageDirectories("pkg.one").empty());
 
     scanner.clear();
     REQUIRE(scanner.singers().empty());
-    REQUIRE(scanner.packageDirectory("pkg.one").empty());
+    REQUIRE(scanner.packageDirectories("pkg.one").empty());
 
     // Re-scan with different path
     createPackage(root2 / "pkg2", "pkg.two", "1.0.0");
@@ -607,7 +599,8 @@ TEST_CASE("VoicebankScanner packageDirectory for nonexistent package", "[ds-bank
     scanner.setSearchPaths({root});
     scanner.refresh();
 
-    auto dir = scanner.packageDirectory("nonexistent");
+    auto dirs = scanner.packageDirectories("nonexistent");
+    auto dir = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
     REQUIRE(dir.empty());
 
     std::filesystem::remove_all(root);
@@ -620,10 +613,10 @@ TEST_CASE("VoicebankScanner packageDirectory after clear", "[ds-bank][complex][p
     VoicebankScanner scanner;
     scanner.setSearchPaths({root});
     scanner.refresh();
-    REQUIRE(!scanner.packageDirectory("pkg.test").empty());
+    REQUIRE(!scanner.packageDirectories("pkg.test").empty());
 
     scanner.clear();
-    REQUIRE(scanner.packageDirectory("pkg.test").empty());
+    REQUIRE(scanner.packageDirectories("pkg.test").empty());
 
     std::filesystem::remove_all(root);
 }
@@ -673,11 +666,13 @@ TEST_CASE("VoicebankScanner realistic multi-package setup", "[ds-bank][complex][
     REQUIRE(refEn->packageId == "singer.en");
 
     // packageDirectory: singer.zh maps to last seen (v2 directory)
-    auto dir = scanner.packageDirectory("singer.zh");
+    auto dirs = scanner.packageDirectories("singer.zh");
+    auto dir = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
     REQUIRE(!dir.empty());
 
     // singer.en maps to its directory
-    auto dirEn = scanner.packageDirectory("singer.en");
+    auto dirsEn = scanner.packageDirectories("singer.en");
+    auto dirEn = dirsEn.empty() ? std::filesystem::path{} : dirsEn.front().path;
     REQUIRE(!dirEn.empty());
     REQUIRE(dirEn.lexically_normal() == (root / "singer_en").lexically_normal());
 

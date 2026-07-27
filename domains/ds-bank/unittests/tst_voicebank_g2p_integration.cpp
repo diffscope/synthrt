@@ -170,13 +170,14 @@ TEST_CASE("Integration: scan official G2P package and resolve route", "[integrat
 
     // Step 2: Build packageDirs map
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
-    packageDirs["pkg.a"] = scanner.packageDirectory("pkg.a");
+    auto dirs = scanner.packageDirectories("pkg.a");
+    packageDirs["pkg.a"] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
     REQUIRE(!packageDirs["pkg.a"].empty());
 
     // Step 3: Resolve G2P route
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.a", "singer_a", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.a", stdc::VersionNumber{}, "singer_a", "cmn");
     REQUIRE(routeExp.hasValue());
     REQUIRE(routeExp->g2pId == "g2p-cmn-official");
     REQUIRE(routeExp->g2pSource == kG2pSourceOfficial);  // official (R7)
@@ -206,12 +207,13 @@ TEST_CASE("Integration: scan voicebank G2P package and resolve route", "[integra
 
     // Step 2: Build packageDirs
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
-    packageDirs["pkg.vb"] = scanner.packageDirectory("pkg.vb");
+    auto dirs = scanner.packageDirectories("pkg.vb");
+    packageDirs["pkg.vb"] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
 
     // Step 3: Resolve route (voicebank context)
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.vb", "singer_vb", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.vb", stdc::VersionNumber{}, "singer_vb", "cmn");
     REQUIRE(routeExp.hasValue());
     REQUIRE(routeExp->g2pId == "g2p-cmn-custom");
     REQUIRE(routeExp->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
@@ -260,19 +262,20 @@ TEST_CASE("Integration: multi-package with mixed official and voicebank G2P", "[
 
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
     for (const auto &snap : scanner.singers()) {
-        packageDirs[snap.ref.packageId] = scanner.packageDirectory(snap.ref.packageId);
+        auto dirs = scanner.packageDirectories(snap.ref.packageId);
+        packageDirs[snap.ref.packageId] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
     }
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
 
     // Official
-    auto routeOff = langSvc.resolveLanguageRoute("pkg.official", "singer_off", "cmn");
+    auto routeOff = langSvc.resolveLanguageRoute("pkg.official", stdc::VersionNumber{}, "singer_off", "cmn");
     REQUIRE(routeOff.hasValue());
     REQUIRE(routeOff->g2pSource == kG2pSourceOfficial);  // official (R7)
 
     // Voicebank
-    auto routeCus = langSvc.resolveLanguageRoute("pkg.custom", "singer_cus", "cmn");
+    auto routeCus = langSvc.resolveLanguageRoute("pkg.custom", stdc::VersionNumber{}, "singer_cus", "cmn");
     REQUIRE(routeCus.hasValue());
     REQUIRE(routeCus->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     // V3-01: deprecated path yields empty g2pContextVersion.
@@ -325,18 +328,24 @@ TEST_CASE("Integration: same singer across paths with different G2P versions", "
     REQUIRE(ref2->packageId == "pkg.cross2");
 
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
-    packageDirs["pkg.cross"] = scanner.packageDirectory("pkg.cross");
-    packageDirs["pkg.cross2"] = scanner.packageDirectory("pkg.cross2");
+    {
+        auto dirs = scanner.packageDirectories("pkg.cross");
+        packageDirs["pkg.cross"] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
+    }
+    {
+        auto dirs = scanner.packageDirectories("pkg.cross2");
+        packageDirs["pkg.cross2"] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
+    }
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
 
-    auto route1 = langSvc.resolveLanguageRoute("pkg.cross", "shared_singer", "cmn");
+    auto route1 = langSvc.resolveLanguageRoute("pkg.cross", stdc::VersionNumber{}, "shared_singer", "cmn");
     REQUIRE(route1.hasValue());
     // V3-01: deprecated path yields empty g2pContextVersion.
     REQUIRE(route1->g2pContextVersion.toString() == "0.0");
 
-    auto route2 = langSvc.resolveLanguageRoute("pkg.cross2", "shared_singer", "cmn");
+    auto route2 = langSvc.resolveLanguageRoute("pkg.cross2", stdc::VersionNumber{}, "shared_singer", "cmn");
     REQUIRE(route2.hasValue());
     // V3-01: deprecated path yields empty g2pContextVersion.
     REQUIRE(route2->g2pContextVersion.toString() == "0.0");
@@ -395,11 +404,12 @@ TEST_CASE("Integration: voicebank dir with G2P packages and singer configs", "[i
     REQUIRE(scanner.singers().size() == 1);
 
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
-    packageDirs["pkg.combined"] = scanner.packageDirectory("pkg.combined");
+    auto dirs = scanner.packageDirectories("pkg.combined");
+    packageDirs["pkg.combined"] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
-    auto route = langSvc.resolveLanguageRoute("pkg.combined", "singer_combined", "cmn");
+    auto route = langSvc.resolveLanguageRoute("pkg.combined", stdc::VersionNumber{}, "singer_combined", "cmn");
     REQUIRE(route.hasValue());
     REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(route->g2pId == "g2p-cmn-custom");
@@ -473,12 +483,13 @@ TEST_CASE("Integration: packageDirectory map drives LanguageService", "[integrat
     scanner.refresh();
 
     // packageDirectory returns the path for a given packageId.
-    auto dir = scanner.packageDirectory("pkg.map");
+    auto dirs = scanner.packageDirectories("pkg.map");
+    auto dir = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
     REQUIRE(!dir.empty());
     REQUIRE(std::filesystem::exists(dir / "desc.json"));
 
     // Non-existent package returns empty.
-    REQUIRE(scanner.packageDirectory("nonexistent").empty());
+    REQUIRE(scanner.packageDirectories("nonexistent").empty());
 
     std::filesystem::remove_all(root);
 }
@@ -498,7 +509,7 @@ TEST_CASE("Integration: G2pInput context from official route", "[integration][g2
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
-    auto route = langSvc.resolveLanguageRoute("pkg.in", "in_singer", "cmn");
+    auto route = langSvc.resolveLanguageRoute("pkg.in", stdc::VersionNumber{}, "in_singer", "cmn");
     REQUIRE(route.hasValue());
 
     // For official G2P, g2pContext is empty (= kOfficialContext, R7).
@@ -524,7 +535,7 @@ TEST_CASE("Integration: G2pInput context from voicebank route", "[integration][g
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
-    auto route = langSvc.resolveLanguageRoute("pkg.vb-in", "vb_singer", "cmn");
+    auto route = langSvc.resolveLanguageRoute("pkg.vb-in", stdc::VersionNumber{}, "vb_singer", "cmn");
     REQUIRE(route.hasValue());
     REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
 
@@ -619,7 +630,8 @@ TEST_CASE("Integration: realistic multi-singer multi-language voicebank director
     // Step 2: Build packageDirs
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
     for (const auto &snap : scanner.singers()) {
-        packageDirs[snap.ref.packageId] = scanner.packageDirectory(snap.ref.packageId);
+        auto dirs = scanner.packageDirectories(snap.ref.packageId);
+        packageDirs[snap.ref.packageId] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
     }
     REQUIRE(packageDirs.size() == 3);
 
@@ -628,7 +640,7 @@ TEST_CASE("Integration: realistic multi-singer multi-language voicebank director
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
 
     // CN singer: voicebank G2P
-    auto routeCn = langSvc.resolveLanguageRoute("vb.cn", "cn_singer", "cmn");
+    auto routeCn = langSvc.resolveLanguageRoute("vb.cn", stdc::VersionNumber{}, "cn_singer", "cmn");
     REQUIRE(routeCn.hasValue());
     REQUIRE(routeCn->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(routeCn->g2pId == "g2p-cmn-custom");
@@ -636,19 +648,19 @@ TEST_CASE("Integration: realistic multi-singer multi-language voicebank director
     REQUIRE(routeCn->g2pContextVersion.toString() == "0.0");
 
     // EN singer: official G2P
-    auto routeEn = langSvc.resolveLanguageRoute("vb.en", "en_singer", "en");
+    auto routeEn = langSvc.resolveLanguageRoute("vb.en", stdc::VersionNumber{}, "en_singer", "en");
     REQUIRE(routeEn.hasValue());
     REQUIRE(routeEn->g2pSource == kG2pSourceOfficial);  // official (R7)
     REQUIRE(routeEn->g2pId == "g2p-en-official");
 
     // BI singer: cmn = voicebank, en = official
-    auto routeBiCmn = langSvc.resolveLanguageRoute("vb.bi", "bi_singer", "cmn");
+    auto routeBiCmn = langSvc.resolveLanguageRoute("vb.bi", stdc::VersionNumber{}, "bi_singer", "cmn");
     REQUIRE(routeBiCmn.hasValue());
     REQUIRE(routeBiCmn->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     // V3-01: deprecated path yields empty g2pContextVersion.
     REQUIRE(routeBiCmn->g2pContextVersion.toString() == "0.0");
 
-    auto routeBiEn = langSvc.resolveLanguageRoute("vb.bi", "bi_singer", "en");
+    auto routeBiEn = langSvc.resolveLanguageRoute("vb.bi", stdc::VersionNumber{}, "bi_singer", "en");
     REQUIRE(routeBiEn.hasValue());
     REQUIRE(routeBiEn->g2pSource == kG2pSourceOfficial);  // official (R7)
 
@@ -686,12 +698,13 @@ TEST_CASE("Integration: voicebank G2P path doesn't exist on disk", "[integration
     REQUIRE(scanner.singers().size() == 1);
 
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
-    packageDirs["pkg.mg2p"] = scanner.packageDirectory("pkg.mg2p");
+    auto dirs = scanner.packageDirectories("pkg.mg2p");
+    packageDirs["pkg.mg2p"] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
     // Route resolution should still succeed (it reads manifest, not G2P files).
-    auto route = langSvc.resolveLanguageRoute("pkg.mg2p", "singer_mg", "cmn");
+    auto route = langSvc.resolveLanguageRoute("pkg.mg2p", stdc::VersionNumber{}, "singer_mg", "cmn");
     REQUIRE(route.hasValue());
     REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(route->g2pId == "g2p-cmn-custom");
@@ -715,11 +728,12 @@ TEST_CASE("Integration: language with multiple G2P packages", "[integration][g2p
     scanner.refresh();
 
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
-    packageDirs["pkg.mg2p2"] = scanner.packageDirectory("pkg.mg2p2");
+    auto dirs = scanner.packageDirectories("pkg.mg2p2");
+    packageDirs["pkg.mg2p2"] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
-    auto route = langSvc.resolveLanguageRoute("pkg.mg2p2", "singer_mg2", "cmn");
+    auto route = langSvc.resolveLanguageRoute("pkg.mg2p2", stdc::VersionNumber{}, "singer_mg2", "cmn");
     REQUIRE(route.hasValue());
     REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     // V3-01: deprecated path yields empty g2pContextVersion.
@@ -768,13 +782,14 @@ TEST_CASE("Integration: singer with no languages uses defaultLanguage fallback",
     REQUIRE(scanner.singers()[0].languages.empty());
 
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
-    packageDirs["pkg.nolang"] = scanner.packageDirectory("pkg.nolang");
+    auto dirs = scanner.packageDirectories("pkg.nolang");
+    packageDirs["pkg.nolang"] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
     // resolveLanguageRoute with empty singer languages should still work
     // if the language is found in package languages.
-    auto route = langSvc.resolveLanguageRoute("pkg.nolang", "singer_nl", "cmn");
+    auto route = langSvc.resolveLanguageRoute("pkg.nolang", stdc::VersionNumber{}, "singer_nl", "cmn");
     // This may or may not succeed depending on whether the parser merges
     // singer languages into package languages. Either way, no crash.
     if (route.hasValue()) {
@@ -879,11 +894,12 @@ TEST_CASE("Integration: direct package mode with voicebank G2P", "[integration][
     REQUIRE(scanner.singers()[0].ref.packageId == "pkg.direct");
 
     std::unordered_map<std::string, std::filesystem::path> packageDirs;
-    packageDirs["pkg.direct"] = scanner.packageDirectory("pkg.direct");
+    auto dirs = scanner.packageDirectories("pkg.direct");
+    packageDirs["pkg.direct"] = dirs.empty() ? std::filesystem::path{} : dirs.front().path;
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates packageDirs even though it returns error
-    auto route = langSvc.resolveLanguageRoute("pkg.direct", "direct_singer", "cmn");
+    auto route = langSvc.resolveLanguageRoute("pkg.direct", stdc::VersionNumber{}, "direct_singer", "cmn");
     REQUIRE(route.hasValue());
     REQUIRE(route->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
 

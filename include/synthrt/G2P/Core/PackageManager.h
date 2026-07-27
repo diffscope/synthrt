@@ -31,7 +31,7 @@ namespace srt::g2p {
         Failed,        ///< Initialization failed (missing deps / cycle / level
                        ///< incompatible / driver unavailable; does not block
                        ///< other contexts)
-        NotRegistered, ///< Not registered (not enumerated in contexts())
+        NotRegistered, ///< Not registered (not enumerated in contextKeys())
     };
 
     /// PackageManager - manages G2P package loading and module registration.
@@ -57,65 +57,47 @@ namespace srt::g2p {
 
         srt::core::ModuleCategory *category(const std::string_view &name) const;
 
-        // Legacy unversioned overloads (deprecated, V3-01). These create
-        // unversioned ContextKeys and cannot coexist with multi-version
-        // same-packageId voicebanks. Internally delegate to / parallel the
-        // version-aware overloads with an empty version. Migrate to the
-        // version-aware API; will be removed in Level=3 (D-11 / INFRA-02).
-        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
-        srt::core::Expected<void> addPackagePath(const std::string &context,
-                                                  const std::filesystem::path &path);
-        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
-        srt::core::Expected<void> setPackagePaths(const std::string &context,
-                                                   const std::vector<std::filesystem::path> &paths);
-        [[deprecated("Use the version-aware overload. Will be removed in Level=3.")]]
-        std::vector<std::filesystem::path> packagePaths(const std::string &context) const;
-        [[deprecated("Use contextKeys() instead. Will be removed in Level=3.")]]
-        std::vector<std::string> contexts() const;
-
+        /// Register a package path under (context, version). Per R-8:
+        ///   - empty context (default) requires empty version;
+        ///   - non-empty context requires non-empty version.
         srt::core::Expected<void> addPackagePath(const std::string &context,
                                                   const stdc::VersionNumber &version,
                                                   const std::filesystem::path &path);
+        /// Replace all package paths for (context, version). Same R-8 rules.
         srt::core::Expected<void> setPackagePaths(const std::string &context,
                                                    const stdc::VersionNumber &version,
                                                    const std::vector<std::filesystem::path> &paths);
+        /// Query package paths registered under (context, version).
         std::vector<std::filesystem::path> packagePaths(const std::string &context,
                                                          const stdc::VersionNumber &version) const;
+        /// Enumerate all registered (context, version) keys.
         std::vector<srt::core::ContextKey> contextKeys() const;
 
-        /// Remove all contexts whose name starts with \p prefix (V3-16 hot reload).
-        /// Used by LanguageService::updateMetadata to remove retired voicebank G2P
-        /// contexts before re-registering. Only removes contexts whose state is
-        /// Pending (i.e. Manager::initialize() has not been called); after
-        /// initialize() contexts are immutable and this function returns an error
-        /// for any non-Pending matching context.
+        /// Remove contexts whose name starts with \p prefix AND whose version
+        /// matches \p version exactly (V3-01 §2.4 / D-43). Required for
+        /// multi-version same-packageId hot reload: removing one version of a
+        /// packageId must not retire contexts belonging to other versions of
+        /// the same packageId (D-24 multi-version coexistence, ROBUST-05 no
+        /// implicit error swallowing).
+        ///
+        /// An empty \p version matches only unversioned contexts (default
+        /// context). This is rarely the intended behavior for hot reload;
+        /// callers should pass the concrete version being retired.
+        ///
+        /// Used by LanguageService::updateMetadata to remove retired voicebank
+        /// G2P contexts before re-registering. Only removes contexts whose
+        /// state is Pending (i.e. Manager::initialize() has not been called);
+        /// after initialize() contexts are immutable and this function returns
+        /// an error for any non-Pending matching context.
         ///
         /// Returns the number of contexts actually removed. Errors:
         ///   - G2pAlreadyInitialized: Manager::initialize() was already called;
         ///     caller must restart the host process.
-        [[deprecated("Use the version-aware overload with explicit version. "
-                     "Will be removed in Level=3.")]]
-        srt::core::Expected<size_t> removeContextsByPrefix(const std::string &prefix);
-
-        /// Version-aware overload (V3-01 §2.4 / D-43): removes contexts whose
-        /// name starts with \p prefix AND whose version matches \p version
-        /// exactly. Required for multi-version same-packageId hot reload:
-        /// removing one version of a packageId must not retire contexts
-        /// belonging to other versions of the same packageId (D-24 multi-version
-        /// coexistence, ROBUST-05 no implicit error swallowing).
-        ///
-        /// An empty \p version matches only unversioned contexts (those
-        /// registered via the 2-arg addPackagePath overload). This is rarely
-        /// the intended behavior for hot reload; callers should pass the
-        /// concrete version being retired.
-        ///
-        /// Returns the number of contexts actually removed. Errors mirror the
-        /// single-arg overload.
         srt::core::Expected<size_t> removeContextsByPrefix(
             const std::string &prefix, const stdc::VersionNumber &version);
 
         /// Query initialization state for a context.
-        /// Unregistered contexts (not in contexts()) return NotRegistered.
+        /// Unregistered contexts (not in contextKeys()) return NotRegistered.
         ContextState contextState(const srt::core::ContextKey &ctxKey) const;
 
         /// List all contexts whose initialization failed (excludes the default

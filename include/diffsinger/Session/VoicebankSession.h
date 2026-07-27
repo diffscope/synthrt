@@ -97,10 +97,11 @@ namespace ds::session {
         srt::core::Runtime *runtime = nullptr;                        // Required for createModelSet
         std::shared_ptr<srt::g2p::LanguageService> languageService;   // Required for convertG2p/convertS2p
         /// G2P plugin search paths for LanguageService initialization.
-        /// When non-empty, performRefresh() passes these to initializeMetadata()
-        /// / updateMetadata() so the session can self-initialize G2P without
-        /// the host calling LanguageService directly. When empty, the host must
-        /// initialize LanguageService before calling refresh() (legacy behavior).
+        /// Passed to initializeMetadata() / updateMetadata() during refresh().
+        /// v7 erratum (docs/modules/ds-session.md §21): the auto-initialization
+        /// trigger is `languageService != nullptr` (`if (svc)`), NOT
+        /// `g2pPluginPaths` non-empty. Even when empty, refresh() still calls
+        /// initializeMetadata() as long as a LanguageService is injected.
         std::vector<std::filesystem::path> g2pPluginPaths;
         /// Official G2P package paths (e.g. resources/G2pPackages/).
         /// Passed alongside g2pPluginPaths to initializeMetadata().
@@ -241,8 +242,6 @@ namespace ds::session {
         /// caller must initialize() it before invoking conversions. Passing
         /// nullptr disables G2P/S2P (subsequent convert calls return
         /// ErrorCode::G2pNotImplementedError).
-        [[deprecated("Use VoicebankSession(SessionResources) constructor. Will be removed in Level=3.")]]
-        void setLanguageService(std::shared_ptr<srt::g2p::LanguageService> service);
         std::shared_ptr<srt::g2p::LanguageService> languageService() const;
 
         /// Refresh and return the final result. Concurrent calls share one scan.
@@ -299,8 +298,6 @@ namespace ds::session {
         /// createModelSet(). Passing nullptr disables ModelSet
         /// creation (subsequent createModelSet returns
         /// ErrorCode::InferenceNotInitialized).
-        [[deprecated("Use VoicebankSession(SessionResources) constructor. Will be removed in Level=3.")]]
-        void setRuntime(srt::core::Runtime *runtime);
         srt::core::Runtime *runtime() const;
 
         /// Create a ModelSetHandle bound to the current snapshot generation.

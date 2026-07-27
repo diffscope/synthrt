@@ -66,11 +66,11 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
                         const LangIdMap &langIdMap,
                         const std::string &defaultLangRef) {
             if (words.empty()) {
-                return srt::g2p::Error(srt::g2p::Error::ConfigError, "words list is empty");
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError, "words list is empty");
             }
             if (words.size() != langRefs.size()) {
                 return srt::g2p::Error(
-                    srt::g2p::Error::ConfigError,
+                    srt::g2p::ErrorCode::G2pConfigError,
                     stdc::formatN("words.size()=%1 != langRefs.size()=%2",
                                   words.size(), langRefs.size()));
             }
@@ -159,7 +159,7 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             if (!exp) return exp.takeError();
             auto taskResult = exp.take();
             if (!taskResult) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError, "invalid encoder result");
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError, "invalid encoder result");
             }
             auto sessionResult = taskResult.as<srt::g2p::SessionResult>();
             return getTensorFromResult(sessionResult, "encoder_out");
@@ -195,7 +195,7 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             if (!exp) return exp.takeError();
             auto taskResult = exp.take();
             if (!taskResult) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError, "invalid step_init result");
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError, "invalid step_init result");
             }
             auto sessionResult = taskResult.as<srt::g2p::SessionResult>();
 
@@ -209,7 +209,7 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             auto kvCk = getTensorFromResult(sessionResult, "new_kv_cache_cross_k");
             auto kvCv = getTensorFromResult(sessionResult, "new_kv_cache_cross_v");
             if (!kvK || !kvV || !kvCk || !kvCv) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError,
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError,
                                        "step_init missing kv_cache outputs");
             }
             state.kvK = kvK.take();
@@ -246,7 +246,7 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             if (!exp) return exp.takeError();
             auto taskResult = exp.take();
             if (!taskResult) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError, "invalid step result");
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError, "invalid step result");
             }
             auto sessionResult = taskResult.as<srt::g2p::SessionResult>();
 
@@ -260,7 +260,7 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             auto kvCk = getTensorFromResult(sessionResult, "new_kv_cache_cross_k");
             auto kvCv = getTensorFromResult(sessionResult, "new_kv_cache_cross_v");
             if (!kvK || !kvV || !kvCk || !kvCv) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError,
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError,
                                        "step missing kv_cache outputs");
             }
             state.kvK = kvK.take();
@@ -275,12 +275,12 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
         static srt::core::Expected<srt::core::NO<srt::core::ITensor>>
         argmaxToken(const srt::core::NO<srt::core::ITensor> &logits, int B, int V) {
             if (logits->dataType() != srt::core::ITensor::Float) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError,
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError,
                                        "logits is not float");
             }
             auto view = logits->view<float>();
             if (view.empty()) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError, "logits view is empty");
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError, "logits view is empty");
             }
             std::vector<int64_t> next(B);
             for (int i = 0; i < B; ++i) {
@@ -304,11 +304,11 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
         static srt::core::Expected<std::vector<float>>
         logitsLastStep(const srt::core::NO<srt::core::ITensor> &logits, int B, int V) {
             if (logits->dataType() != srt::core::ITensor::Float) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError, "logits is not float");
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError, "logits is not float");
             }
             auto view = logits->view<float>();
             if (view.empty()) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError, "logits view is empty");
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError, "logits view is empty");
             }
             // logits shape: [B, T, V]，T=1，所以取全部 [B*V]
             std::vector<float> out(view.begin(), view.end());
@@ -799,16 +799,16 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
     srt::core::Expected<srt::core::NO<srt::g2p::TaskResult>>
     Multig2pTaskImpl::start(const srt::core::NO<srt::g2p::TaskInput> &input) {
         if (!input) {
-            return srt::g2p::Error(srt::g2p::Error::ConfigError, "g2p input is nullptr");
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError, "g2p input is nullptr");
         }
 
         const auto g2pInput = input.as<srt::g2p::G2pInputV1>();
         if (!g2pInput) {
-            return srt::g2p::Error(srt::g2p::Error::ValidationError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pValidationError,
                                    "type mismatch, expected G2pInputV1");
         }
         if (g2pInput->g2pInput.empty()) {
-            return srt::g2p::Error(srt::g2p::Error::ConfigError, "input words are empty");
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError, "input words are empty");
         }
 
         // 驱动不可用 → 降级返回原 lyric
@@ -819,7 +819,7 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
         {
             std::shared_lock lock(m_mutex);
             if (!m_driver) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError, "inference driver not initialized");
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError, "inference driver not initialized");
             }
         }
 

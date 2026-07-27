@@ -12,7 +12,7 @@ namespace srt::g2p::plugins::ChainG2p {
     static srt::g2p::Error formatStepError(size_t stepIndex, const std::string &stepType,
                                           const std::string &message, const std::string &suggestion = "") {
         std::string formattedMessage = stdc::formatN("Step #%1 (%2): %3", stepIndex, stepType, message);
-        return srt::g2p::Error(srt::g2p::Error::ConfigError, formattedMessage, suggestion);
+        return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError, formattedMessage, suggestion);
     }
 
     /// 配置步骤
@@ -48,7 +48,7 @@ namespace srt::g2p::plugins::ChainG2p {
             // 安全性检查：限制步骤数量 (T7: centralized constant)
             static constexpr size_t kG2pPipelineMaxSteps = 50;
             if (stepsArray.size() > kG2pPipelineMaxSteps) {
-                return srt::g2p::Error(srt::g2p::Error::ConfigError,
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError,
                                      stdc::formatN("Too many steps: %1 (maximum allowed: %2)", stepsArray.size(), kG2pPipelineMaxSteps),
                                      "Reduce the number of steps in your configuration");
             }
@@ -58,7 +58,7 @@ namespace srt::g2p::plugins::ChainG2p {
             for (size_t stepIndex = 0; stepIndex < stepsArray.size(); ++stepIndex) {
                 const auto &stepItem = stepsArray[stepIndex];
                 if (!stepItem.isObject()) {
-                    return srt::g2p::Error(srt::g2p::Error::ConfigError,
+                    return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError,
                                          stdc::formatN("Step #%1 must be an object", stepIndex));
                 }
 
@@ -67,7 +67,7 @@ namespace srt::g2p::plugins::ChainG2p {
                 // 获取步骤类型
                 auto stepTypeIt = stepObj.find("step");
                 if (stepTypeIt == stepObj.end() || !stepTypeIt->second.isString()) {
-                    return srt::g2p::Error(srt::g2p::Error::ConfigError,
+                    return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError,
                                          stdc::formatN("Step #%1: Missing required field: step", stepIndex),
                                          "Add the 'step' field to specify the step type");
                 }
@@ -86,10 +86,15 @@ namespace srt::g2p::plugins::ChainG2p {
                 // 创建步骤
                 auto stepExp = G2pStepFactory::create(stepType);
                 if (!stepExp) {
-                    return srt::g2p::Error(static_cast<srt::g2p::Error::Type>(stepExp.error().type()),
-                                         stdc::formatN("Step #%1: Failed to create step type '%2': %3", stepIndex, stepType, stepExp.error().message()),
-                                         stdc::formatN("Check if step type '%1' is supported. Supported types: %2", stepType,
-                                                     G2pStepFactory::supportedTypesAsString()));
+                    // Propagate the original ErrorCode instead of casting through
+                    // the deprecated Error::Type enum. The base Error already
+                    // carries an ErrorCode in its Diagnostic; reuse it directly
+                    // to avoid lossy int→enum→int round-trips.
+                    const auto &stepErr = stepExp.error();
+                    return srt::g2p::Error(stepErr.code(),
+                                           stdc::formatN("Step #%1: Failed to create step type '%2': %3", stepIndex, stepType, stepErr.message()),
+                                           stdc::formatN("Check if step type '%1' is supported. Supported types: %2", stepType,
+                                                         G2pStepFactory::supportedTypesAsString()));
                 }
                 auto step = stepExp.take();
 
@@ -115,7 +120,7 @@ namespace srt::g2p::plugins::ChainG2p {
                 m_steps.push_back(step);
             }
         } else {
-            return srt::g2p::Error(srt::g2p::Error::ConfigError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError,
                                  "Missing required 'steps' array in configuration",
                                  "Configuration must contain a 'steps' array defining the G2p pipeline");
         }

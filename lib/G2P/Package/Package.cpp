@@ -33,7 +33,7 @@ namespace srt::g2p {
         auto manifestPath = dir / "package.json";
         std::error_code ec;
         if (!fs::exists(manifestPath, ec)) {
-            return Error(Error::FileSystemError,
+            return Error(ErrorCode::G2pFileSystemError,
                          stdc::formatN("Package manifest not found: %1",
                                        stdc::path::to_utf8(manifestPath)));
         }
@@ -46,7 +46,7 @@ namespace srt::g2p {
         {
             auto it = root.find("packageId");
             if (it == root.end() || !it->second.isString())
-                return Error(Error::ConfigError, "package.json missing required field: packageId");
+                return Error(ErrorCode::G2pConfigError, "package.json missing required field: packageId");
             m_id = it->second.toString();
         }
 
@@ -54,10 +54,10 @@ namespace srt::g2p {
         {
             auto it = root.find("version");
             if (it == root.end() || !it->second.isString())
-                return Error(Error::ConfigError, "package.json missing required field: version");
+                return Error(ErrorCode::G2pConfigError, "package.json missing required field: version");
             m_version = stdc::VersionNumber::fromString(it->second.toString());
             if (m_version.isEmpty())
-                return Error(Error::ConfigError, "package.json version is empty/zero");
+                return Error(ErrorCode::G2pConfigError, "package.json version is empty/zero");
         }
 
         // Optional: compatVersion (default to version)
@@ -115,7 +115,7 @@ namespace srt::g2p {
 
             auto catIt = categories.find(categoryName);
             if (catIt == categories.end()) {
-                return Error(Error::NotImplementedError,
+                return Error(ErrorCode::G2pNotImplementedError,
                              stdc::formatN("Unknown module category: %1", categoryName));
             }
             auto *category = catIt->second;
@@ -153,7 +153,7 @@ namespace srt::g2p {
             const std::ifstream file(descPath);
             if (!file.is_open()) {
                 return Error{
-                    Error::FileSystemError,
+                    ErrorCode::G2pFileSystemError,
                     stdc::formatN(R"("%1": failed to open package manifest)", descPath),
                 };
             }
@@ -165,20 +165,20 @@ namespace srt::g2p {
             const auto root = srt::core::JsonValue::fromJson(ss.str(), true, &parseError);
             if (!parseError.empty()) {
                 return Error{
-                    Error::ConfigError,
+                    ErrorCode::G2pConfigError,
                     stdc::formatN(R"("%1": invalid package manifest format: %2)", descPath, parseError),
                 };
             }
             if (!root.isObject()) {
                 return Error{
-                    Error::ConfigError,
+                    ErrorCode::G2pConfigError,
                     stdc::formatN(R"("%1": invalid package manifest format: not an object)", descPath),
                 };
             }
             return root.toObject();
         } catch (const std::exception &e) {
             return Error{
-                Error::FileSystemError,
+                ErrorCode::G2pFileSystemError,
                 stdc::formatN(R"("%1": error reading package manifest: %2)", descPath, e.what()),
             };
         }

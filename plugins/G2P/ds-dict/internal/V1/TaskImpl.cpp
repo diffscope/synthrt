@@ -107,11 +107,11 @@ namespace srt::g2p::plugins::DsDict::Internal::V1 {
     srt::core::Expected<srt::core::NO<srt::g2p::TaskResult>>
     DsDictTaskImpl::start(const srt::core::NO<srt::g2p::TaskInput> &input) {
         if (!input)
-            return srt::g2p::Error(srt::g2p::Error::NullPointerError, "dict input is nullptr");
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pNullPointerError, "dict input is nullptr");
 
         auto dictInput = input.as<srt::g2p::DictInputV1>();
         if (!dictInput) {
-            return srt::g2p::Error(srt::g2p::Error::ValidationError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pValidationError,
                                    "Invalid input type, expected DictInputV1");
         }
 
@@ -131,7 +131,7 @@ namespace srt::g2p::plugins::DsDict::Internal::V1 {
         {
             std::shared_lock lock(m_dictMutex);
             if (m_dictionaries.find(dictId) != m_dictionaries.end()) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError,
+                return srt::g2p::Error(srt::g2p::ErrorCode::G2pRuntimeError,
                                        "Dictionary '" + dictId + "' already loaded");
             }
         }
@@ -140,7 +140,7 @@ namespace srt::g2p::plugins::DsDict::Internal::V1 {
         std::error_code ec;
         auto canonical = std::filesystem::canonical(path, ec);
         if (ec) {
-            return srt::g2p::Error(srt::g2p::Error::FileSystemError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pFileSystemError,
                                    "Dictionary file not found: " + stdc::path::to_utf8(path));
         }
         std::string canonicalStr = stdc::path::to_utf8(canonical);
@@ -166,7 +166,7 @@ namespace srt::g2p::plugins::DsDict::Internal::V1 {
         // Load from file
         std::ifstream file(canonical, std::ios::in | std::ios::binary);
         if (!file.is_open()) {
-            return srt::g2p::Error(srt::g2p::Error::FileSystemError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pFileSystemError,
                                    "Failed to open dictionary file: " + stdc::path::to_utf8(canonical));
         }
 
@@ -176,14 +176,14 @@ namespace srt::g2p::plugins::DsDict::Internal::V1 {
         file.seekg(0, std::ios::end);
         const auto fileSize = file.tellg();
         if (fileSize < 0) {
-            return srt::g2p::Error(srt::g2p::Error::FileSystemError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pFileSystemError,
                                    "Failed to get dictionary file size: " + stdc::path::to_utf8(canonical));
         }
         file.seekg(0, std::ios::beg);
 
         std::string buf(static_cast<size_t>(fileSize), '\0');
         if (!file.read(buf.data(), fileSize)) {
-            return srt::g2p::Error(srt::g2p::Error::FileSystemError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pFileSystemError,
                                    "Failed to read dictionary file: " + stdc::path::to_utf8(canonical));
         }
 

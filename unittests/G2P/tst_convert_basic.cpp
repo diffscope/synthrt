@@ -288,7 +288,7 @@ TEST_CASE("resolveS2pResource returns resource for valid input",
     REQUIRE(routeExp->s2pMode == "dict");
     REQUIRE(!routeExp->s2pFile.empty());
 
-    auto resExp = langSvc.resolveS2pResource(pkgA, singerId, "cmn");
+    auto resExp = langSvc.resolveS2pResource(pkgA, stdc::VersionNumber{}, singerId, "cmn");
     REQUIRE(resExp.hasValue());
     REQUIRE(*resExp != nullptr);
 
@@ -300,7 +300,7 @@ TEST_CASE("resolveS2pResource with unknown packageId returns error",
     LanguageService langSvc;
 
     auto resExp = langSvc.resolveS2pResource(
-        "nonexistent.s2p.pkg", "singer_x", "cmn");
+        "nonexistent.s2p.pkg", stdc::VersionNumber{}, "singer_x", "cmn");
     REQUIRE(!resExp.hasValue());
     REQUIRE(resExp.takeError().code() ==
             srt::core::ErrorCode::G2pPackageNotFound);

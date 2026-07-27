@@ -1,9 +1,12 @@
 // G2P Error migration tests
 //
-// Verifies that srt::g2p::Error was correctly migrated from the legacy
-// Type enum to srt::core::ErrorCode (G2p* codes, 300-399), preserving the
-// suggestion field, the G2pSuccess-aware ok() check, and backward
-// compatibility with the deprecated Type-based constructors.
+// Verifies that srt::g2p::Error correctly uses srt::core::ErrorCode
+// (G2p* codes, 300-399), preserving the suggestion field and the
+// G2pSuccess-aware ok() check.
+//
+// The legacy Type enum and Type-based constructors were removed in
+// Level=3 (2026-07-28); these tests now exercise only the ErrorCode-based
+// API.
 
 #include <string>
 
@@ -70,42 +73,7 @@ TEST_CASE("G2P Error ok() checks G2pSuccess", "[g2p][error][migration]") {
     }
 }
 
-// === d. Backward compatibility with deprecated Type-based constructors ===
-//
-// The legacy Type enum and Type-based constructors are [[deprecated]]; the
-// tests below intentionally exercise them, so deprecation warnings are
-// suppressed portably (MSVC C4996 / GCC&Clang -Wdeprecated-declarations).
-
-#if defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#elif defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-
-TEST_CASE("G2P Error backward compat with legacy Type", "[g2p][error][migration][compat]") {
-    SECTION("ConfigError maps to G2pConfigError") {
-        Error e(Error::ConfigError, "cfg");
-        REQUIRE(e.code() == ErrorCode::G2pConfigError);
-    }
-    SECTION("FileSystemError maps to G2pFileSystemError") {
-        Error e(Error::FileSystemError, "fs");
-        REQUIRE(e.code() == ErrorCode::G2pFileSystemError);
-    }
-    SECTION("DependencyError maps to G2pDependencyError") {
-        Error e(Error::DependencyError, "dep");
-        REQUIRE(e.code() == ErrorCode::G2pDependencyError);
-    }
-}
-
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#elif defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-
-// === e. toString ===
+// === d. toString ===
 
 TEST_CASE("G2P Error toString", "[g2p][error][migration]") {
     SECTION("contains code string and message") {

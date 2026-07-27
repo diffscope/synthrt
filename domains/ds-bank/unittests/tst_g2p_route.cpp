@@ -318,7 +318,7 @@ TEST_CASE("LanguageRoute official G2P: no g2pPackages", "[g2p][route][resolve]")
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);  // populates _impl->packageDirs
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.official", "singer_a", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.official", stdc::VersionNumber{}, "singer_a", "cmn");
     REQUIRE(routeExp.hasValue());
     const auto &route = *routeExp;
     REQUIRE(route.g2pId == "g2p-cmn-official");
@@ -343,7 +343,7 @@ TEST_CASE("LanguageRoute voicebank G2P: with g2pPackages and version", "[g2p][ro
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.vb", "singer_vb", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.vb", stdc::VersionNumber{}, "singer_vb", "cmn");
     REQUIRE(routeExp.hasValue());
     const auto &route = *routeExp;
     REQUIRE(route.g2pId == "g2p-cmn-custom");
@@ -378,13 +378,13 @@ TEST_CASE("LanguageRoute multi-language singer with mixed G2P", "[g2p][route][re
     langSvc.initialize({}, {}, packageDirs);
 
     // cmn = official
-    auto routeCmn = langSvc.resolveLanguageRoute("pkg.multi", "multi_singer", "cmn");
+    auto routeCmn = langSvc.resolveLanguageRoute("pkg.multi", stdc::VersionNumber{}, "multi_singer", "cmn");
     REQUIRE(routeCmn.hasValue());
     REQUIRE(routeCmn->g2pId == "g2p-cmn-official");
     REQUIRE(routeCmn->g2pSource == kG2pSourceOfficial);  // official (R7)
 
     // en = voicebank private
-    auto routeEn = langSvc.resolveLanguageRoute("pkg.multi", "multi_singer", "en");
+    auto routeEn = langSvc.resolveLanguageRoute("pkg.multi", stdc::VersionNumber{}, "multi_singer", "en");
     REQUIRE(routeEn.hasValue());
     REQUIRE(routeEn->g2pId == "g2p-en-custom");
     REQUIRE(routeEn->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
@@ -392,7 +392,7 @@ TEST_CASE("LanguageRoute multi-language singer with mixed G2P", "[g2p][route][re
     REQUIRE(routeEn->g2pContextVersion.toString() == "0.0");
 
     // jp = official
-    auto routeJp = langSvc.resolveLanguageRoute("pkg.multi", "multi_singer", "jp");
+    auto routeJp = langSvc.resolveLanguageRoute("pkg.multi", stdc::VersionNumber{}, "multi_singer", "jp");
     REQUIRE(routeJp.hasValue());
     REQUIRE(routeJp->g2pId == "g2p-jp-official");
     REQUIRE(routeJp->g2pSource == kG2pSourceOfficial);  // official (R7)
@@ -415,7 +415,7 @@ TEST_CASE("LanguageRoute empty languageId falls back to defaultLanguage", "[g2p]
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);
     // Empty languageId should resolve to "en" (the defaultLanguage).
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.def", "singer_def", "");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.def", stdc::VersionNumber{}, "singer_def", "");
     REQUIRE(routeExp.hasValue());
     REQUIRE(routeExp->g2pId == "g2p-en-official");
 
@@ -433,7 +433,7 @@ TEST_CASE("LanguageRoute singer not found returns error", "[g2p][route][resolve]
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.x", "nonexistent_singer", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.x", stdc::VersionNumber{}, "nonexistent_singer", "cmn");
     REQUIRE(!routeExp.hasValue());
     REQUIRE(routeExp.error().message().find("singer not found") != std::string::npos);
 
@@ -451,7 +451,7 @@ TEST_CASE("LanguageRoute language not found in package returns error", "[g2p][ro
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.y", "singer_y", "fr");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.y", stdc::VersionNumber{}, "singer_y", "fr");
     REQUIRE(!routeExp.hasValue());
     // Error should mention language not found or not declared.
     const auto msg = routeExp.error().message();
@@ -464,7 +464,7 @@ TEST_CASE("LanguageRoute language not found in package returns error", "[g2p][ro
 
 TEST_CASE("LanguageRoute package not found returns error", "[g2p][route][resolve][error]") {
     LanguageService langSvc;
-    auto routeExp = langSvc.resolveLanguageRoute("nonexistent.pkg", "singer", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("nonexistent.pkg", stdc::VersionNumber{}, "singer", "cmn");
     REQUIRE(!routeExp.hasValue());
     REQUIRE(routeExp.error().message().find("package directory not found") != std::string::npos);
 }
@@ -498,7 +498,7 @@ TEST_CASE("LanguageRoute language not declared by singer returns error", "[g2p][
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);
     // en is not in the singer's languages list, should error.
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.decl", "singer_decl", "en");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.decl", stdc::VersionNumber{}, "singer_decl", "en");
     REQUIRE(!routeExp.hasValue());
 
     std::filesystem::remove_all(root);
@@ -532,14 +532,14 @@ TEST_CASE("LanguageRoute same singer different packages different G2P versions",
     langSvc.initialize({}, {}, packageDirs);
 
     // Resolve via package 1 -> G2P version 1.0.0
-    auto route1 = langSvc.resolveLanguageRoute("pkg.conflict", "shared_singer", "cmn");
+    auto route1 = langSvc.resolveLanguageRoute("pkg.conflict", stdc::VersionNumber{}, "shared_singer", "cmn");
     REQUIRE(route1.hasValue());
     REQUIRE(route1->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     // V3-01: deprecated path yields empty g2pContextVersion.
     REQUIRE(route1->g2pContextVersion.toString() == "0.0");
 
     // Resolve via package 2 -> G2P version 2.0.0
-    auto route2 = langSvc.resolveLanguageRoute("pkg.conflict2", "shared_singer", "cmn");
+    auto route2 = langSvc.resolveLanguageRoute("pkg.conflict2", stdc::VersionNumber{}, "shared_singer", "cmn");
     REQUIRE(route2.hasValue());
     REQUIRE(route2->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     // V3-01: deprecated path yields empty g2pContextVersion.
@@ -571,7 +571,7 @@ TEST_CASE("LanguageRoute voicebank G2P without version uses empty VersionNumber"
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.nover", "singer_nv", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.nover", stdc::VersionNumber{}, "singer_nv", "cmn");
     REQUIRE(routeExp.hasValue());
     REQUIRE(routeExp->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     // Version should be empty (not "0.0.0").
@@ -593,7 +593,7 @@ TEST_CASE("LanguageRoute multiple G2P packages per language", "[g2p][route][reso
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.multi-g2p", "singer_mg", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.multi-g2p", stdc::VersionNumber{}, "singer_mg", "cmn");
     REQUIRE(routeExp.hasValue());
     REQUIRE(routeExp->g2pSource == kG2pSourceVoicebank);  // voicebank (R7)
     REQUIRE(routeExp->g2pId == "g2p-cmn-custom");
@@ -614,11 +614,11 @@ TEST_CASE("LanguageRoute s2pMode direct vs dict", "[g2p][route][resolve][complex
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);
 
-    auto routeDict = langSvc.resolveLanguageRoute("pkg.s2p", "singer_s2p", "cmn");
+    auto routeDict = langSvc.resolveLanguageRoute("pkg.s2p", stdc::VersionNumber{}, "singer_s2p", "cmn");
     REQUIRE(routeDict.hasValue());
     REQUIRE(routeDict->s2pMode == "dict");
 
-    auto routeDirect = langSvc.resolveLanguageRoute("pkg.s2p", "singer_s2p", "en");
+    auto routeDirect = langSvc.resolveLanguageRoute("pkg.s2p", stdc::VersionNumber{}, "singer_s2p", "en");
     REQUIRE(routeDirect.hasValue());
     REQUIRE(routeDirect->s2pMode == "direct");
 
@@ -631,7 +631,7 @@ TEST_CASE("LanguageRoute s2pMode direct vs dict", "[g2p][route][resolve][complex
 
 TEST_CASE("LanguageService convert returns error on route resolution failure", "[g2p][route][convert]") {
     LanguageService langSvc;
-    auto exp = langSvc.convert("nonexistent.pkg", "singer", "cmn",
+    auto exp = langSvc.convert("nonexistent.pkg", stdc::VersionNumber{}, "singer", "cmn",
                                {G2pInput("test", "g2p-x")});
     REQUIRE(!exp.hasValue());
     REQUIRE(exp.error().code() == srt::core::ErrorCode::G2pPackageNotFound);
@@ -664,7 +664,7 @@ TEST_CASE("LanguageRoute corrupt desc.json returns parse error", "[g2p][route][r
 
     LanguageService langSvc;
     langSvc.initialize({}, {}, packageDirs);
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.corrupt", "singer", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.corrupt", stdc::VersionNumber{}, "singer", "cmn");
     REQUIRE(!routeExp.hasValue());
 
     std::filesystem::remove_all(root);
@@ -706,7 +706,7 @@ TEST_CASE("LanguageRoute singer config missing language resource returns error",
     langSvc.initialize({}, {}, packageDirs);
     // The package languages() list should include cmn (from singer config).
     // If the parser doesn't find it, resolveLanguageRoute should error.
-    auto routeExp = langSvc.resolveLanguageRoute("pkg.missing-lang", "singer_ml", "cmn");
+    auto routeExp = langSvc.resolveLanguageRoute("pkg.missing-lang", stdc::VersionNumber{}, "singer_ml", "cmn");
     // This depends on how the parser merges singer languages into package languages.
     // If the parser fills package.languages() from singer config, this succeeds.
     // If not, it errors. Either way, it should not crash.

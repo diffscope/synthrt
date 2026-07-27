@@ -32,12 +32,12 @@ namespace srt::g2p::plugins::ChainG2p::Internal::V1 {
     ChainG2pTaskImpl::start(const srt::core::NO<srt::g2p::TaskInput> &input)
     {
         if (!input) {
-            return srt::g2p::Error(srt::g2p::Error::ConfigError, "g2p input is nullptr");
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pConfigError, "g2p input is nullptr");
         }
 
         const auto g2pInput = input.as<srt::g2p::G2pInputV1>();
         if (!g2pInput) {
-            return srt::g2p::Error(srt::g2p::Error::ValidationError,
+            return srt::g2p::Error(srt::g2p::ErrorCode::G2pValidationError,
                                    "type mismatch, expected G2pInputV1");
         }
 

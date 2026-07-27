@@ -548,7 +548,7 @@ TEST_CASE("VoicebankScanner incremental: deleted package disappears on re-scan",
     REQUIRE(scanner.singers()[0].ref.packageId == "pkg.b");
 
     // packageDirectory("pkg.a") 应返回空
-    REQUIRE(scanner.packageDirectory("pkg.a").empty());
+    REQUIRE(scanner.packageDirectories("pkg.a").empty());
     auto dirs = scanner.packageDirectories("pkg.a");
     REQUIRE(dirs.empty());
 }

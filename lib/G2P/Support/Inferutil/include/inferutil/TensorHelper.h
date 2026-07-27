@@ -24,7 +24,7 @@ namespace srt::g2p::plugins::InferUtil
             helper._tensor = exp.take();
             auto dataPtr = helper._tensor->mutableData<T>();
             if (STDCORELIB_UNLIKELY(dataPtr == nullptr)) {
-                return srt::g2p::Error(srt::g2p::Error::RuntimeError, "failed to create tensor");
+                return srt::g2p::Error(ErrorCode::G2pRuntimeError, "failed to create tensor");
             }
             helper._current = dataPtr;
             helper._end = dataPtr + size;

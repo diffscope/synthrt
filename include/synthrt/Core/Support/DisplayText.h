@@ -28,17 +28,9 @@ namespace srt::core {
         /// is the corresponding text.
         DisplayText(std::string defaultText, const std::map<std::string, std::string> &texts);
 
-        /// Constructs with a JSON value.
-        /// \deprecated Use fromJsonValue() instead.
-        [[deprecated("Use DisplayText::fromJsonValue() instead.")]]
-        explicit DisplayText(const JsonValue &value);
-
         ~DisplayText();
 
         DisplayText &operator=(std::string text);
-
-        [[deprecated("Use DisplayText::fromJsonValue() instead.")]]
-        DisplayText &operator=(const JsonValue &value);
 
         static Expected<DisplayText> fromJsonValue(const JsonValue &value);
 

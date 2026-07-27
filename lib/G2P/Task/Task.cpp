@@ -40,14 +40,14 @@ namespace srt::g2p {
         const std::string &category, const std::string &id) const {
         const auto mgr = Mgr();
         if (!mgr)
-            return Error(Error::RuntimeError, "manager is not available");
+            return Error(ErrorCode::G2pRuntimeError, "manager is not available");
         const auto inferenceCate = mgr->category(category);
         if (!inferenceCate)
-            return Error(Error::RuntimeError, "could not find category: " + category);
+            return Error(ErrorCode::G2pRuntimeError, "could not find category: " + category);
 
         const auto inferenceObject = inferenceCate->getFirstObject(id);
         if (!inferenceObject)
-            return Error(Error::RuntimeError, "could not find id: " + id);
+            return Error(ErrorCode::G2pRuntimeError, "could not find id: " + id);
 
         return inferenceObject;
     }
@@ -60,7 +60,7 @@ namespace srt::g2p {
     srt::core::Expected<std::string> Task::loadConfig() const {
         // 从默认配置路径加载配置
         if (!d->m_spec)
-            return Error(Error::RuntimeError, "spec is not available");
+            return Error(ErrorCode::G2pRuntimeError, "spec is not available");
 
         auto packagePath = d->m_spec->path();
         auto manifestConfig = d->m_spec->manifestConfiguration();
@@ -79,13 +79,13 @@ namespace srt::g2p {
             auto configPath = packagePath / configPathStr;
 
             if (!std::filesystem::exists(configPath)) {
-                return Error(Error::FileSystemError,
+                return Error(ErrorCode::G2pFileSystemError,
                              "Config file not found: " + stdc::path::to_utf8(configPath));
             }
 
             std::ifstream file(configPath);
             if (!file.is_open()) {
-                return Error(Error::FileSystemError,
+                return Error(ErrorCode::G2pFileSystemError,
                              "Failed to open config file: " + stdc::path::to_utf8(configPath));
             }
 
@@ -94,7 +94,7 @@ namespace srt::g2p {
 
             return content;
         } catch (const std::exception &e) {
-            return Error(Error::FileSystemError,
+            return Error(ErrorCode::G2pFileSystemError,
                          std::string("Filesystem error while loading config: ") + e.what());
         }
     }

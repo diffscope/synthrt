@@ -56,10 +56,11 @@ TEST_CASE("ensureLanguageReady returns G2pNotImplementedError when LanguageServi
     // not G2pInitializationError, because initialization was never attempted).
     const auto root = makeRoot();
     makePackage(root);
-    ds::session::VoicebankSession session;
-    session.setRoots({root});
     srt::core::Runtime runtime;
-    session.setRuntime(&runtime);
+    ds::session::SessionResources resources;
+    resources.runtime = &runtime;
+    ds::session::VoicebankSession session(std::move(resources));
+    session.setRoots({root});
     REQUIRE(session.refreshAsync().get().succeeded);
 
     auto exp = session.ensureLanguageReady(
@@ -182,7 +183,16 @@ TEST_CASE("convertS2p returns G2pVersionAmbiguous for multi-version packageId wi
     // LanguageService initialized via initializeMetadata.
     const auto root = makeRoot();
     makeSamePackageIdTwoVersions(root);
-    ds::session::VoicebankSession session;
+
+    // Initialize a LanguageService with the same multi-version packages so
+    // resolveS2pResource can route through resolveLanguageRoute. Stage 1 only
+    // (no ONNX models) — sufficient for route resolution and S2P cache lookup.
+    auto langSvc = std::make_shared<srt::g2p::LanguageService>();
+    // No g2pPluginPaths → refresh won't auto-initialize metadata; we call
+    // initializeMetadata manually after refresh to control the entries.
+    ds::session::SessionResources resources;
+    resources.languageService = langSvc;
+    ds::session::VoicebankSession session(std::move(resources));
     session.setRoots({root / "bank", root / "bank2"});
     REQUIRE(session.refreshAsync().get().succeeded);
 
@@ -195,16 +205,11 @@ TEST_CASE("convertS2p returns G2pVersionAmbiguous for multi-version packageId wi
     }
     REQUIRE(dupCount == 2);
 
-    // Initialize a LanguageService with the same multi-version packages so
-    // resolveS2pResource can route through resolveLanguageRoute. Stage 1 only
-    // (no ONNX models) — sufficient for route resolution and S2P cache lookup.
-    auto langSvc = std::make_shared<srt::g2p::LanguageService>();
     std::vector<srt::g2p::PackageDirectoryEntry> entries = {
         {"session.dup", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
         {"session.dup", stdc::VersionNumber::fromString("2.0.0"), root / "bank2"},
     };
     REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
-    session.setLanguageService(langSvc);
 
     // Empty version + multi-version → G2pVersionAmbiguous from
     // resolveLanguageRoute, surfaced through resolveS2pResource.
@@ -232,17 +237,19 @@ TEST_CASE("convertS2p with explicit version routes to that version",
     // coverage.
     const auto root = makeRoot();
     makeSamePackageIdTwoVersions(root);
-    ds::session::VoicebankSession session;
+
+    auto langSvc = std::make_shared<srt::g2p::LanguageService>();
+    ds::session::SessionResources resources;
+    resources.languageService = langSvc;
+    ds::session::VoicebankSession session(std::move(resources));
     session.setRoots({root / "bank", root / "bank2"});
     REQUIRE(session.refreshAsync().get().succeeded);
 
-    auto langSvc = std::make_shared<srt::g2p::LanguageService>();
     std::vector<srt::g2p::PackageDirectoryEntry> entries = {
         {"session.dup", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
         {"session.dup", stdc::VersionNumber::fromString("2.0.0"), root / "bank2"},
     };
     REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
-    session.setLanguageService(langSvc);
 
     // Explicit version → route resolves to the exact (packageId, version)
     // entry, then S2P resource lookup fails (no s2pMode configured in the

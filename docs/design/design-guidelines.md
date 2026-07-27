@@ -1,8 +1,10 @@
 # SynthRT 设计准则
 
-日期: 2026-07-10
+日期: 2026-07-10（最近更新: 2026-07-28，提升至 Level=3）
 
 定位: 本文档是 synthrt 项目的权威设计准则，从 v2/v3 重构中提炼，作为后续所有方案制定的核对基准。每次制定方案时，须先对照本文档检验合理性。
+
+> **Level 提升 announcement**（2026-07-28）：项目从 Level=2 提升至 Level=3。所有标记 "Will be removed in Level=3" 的 deprecated 公共 API 在本轮全部移除。详见 ARCH-02 与 CS-03 解冻说明。
 
 ---
 
@@ -14,7 +16,7 @@
 
 ### ARCH-02：Level 锚定长期兼容性
 
-公共头文件即契约。同一 Level 内不得修改函数签名、结构体公开字段语义、枚举值的含义。破坏性变更必须提升 Level。推荐 `Level=2` 对应 `Version=2.x.x`。
+公共头文件即契约。同一 Level 内不得修改函数签名、结构体公开字段语义、枚举值的含义。破坏性变更必须提升 Level。`Level=2` 对应 `Version=2.x.x`，`Level=3` 对应 `Version=3.x.x`（2026-07-28 提升，移除所有 v2 deprecated API）。
 
 ### ARCH-03：组合优于继承和封装转发
 
@@ -114,7 +116,7 @@ Forwarding headers、旧 target alias、旧 namespace adapter 只有当已有外
 - 命名：`I` 前缀接口，`m_` 前缀成员，`_impl` 私有实现
 - namespace：`srt::core` / `srt::dependency` / `srt::driver` / `srt::audio` / `srt::s2p` / `srt::g2p` / `srt::svs` / `srt::extract` / `srt::c` / `ds::bank` / `ds::infer` / `ds::infer::inferutil` / `ds::session`
 
-> **CS-03 冻结说明**（2026-07-25）：公共头文件（`include/`）中 `_` 前缀成员（如 `Module::_id`/`_package`、`InferenceSpec::Impl::_className`/`_apiLevel`、`SingerImport::_declaredPackage`、`VersionRange::constraints_`/`valid_`/`parseError_` 等）属历史公共契约，依 ARCH-02 同一 Level 内不得修改公开字段语义/命名。当前 Level=2，这些字段**冻结至 Level=3** 才能清理。本轮重构不动公共头文件 `_` 前缀成员，仅清理内部实现（`lib/`/`domains/`/`plugins/`/`tests/`）。
+> **CS-03 解冻说明**（2026-07-28）：项目已从 Level=2 提升至 Level=3。原 2026-07-25 冻结说明中提及的公共头文件 `_` 前缀成员（如 `Module::_id`/`_package`、`InferenceSpec::Impl::_className`/`_apiLevel`、`SingerImport::_declaredPackage`、`VersionRange::constraints_`/`valid_`/`parseError_` 等）现已解冻。本轮重构可清理：1) 所有标记 "Will be removed in Level=3" 的 deprecated 公共 API；2) 上述 `_` 前缀成员如确属冗余历史契约可一并清理。但仍遵循 ARCH-02：Level=3 内新增的公共契约在本 Level 内不再变动。
 
 ### CODING-02：错误处理分层
 

@@ -54,7 +54,7 @@ namespace srt::g2p::plugins::Multig2p {
         std::ifstream file(path, std::ios::binary);
         if (!file.is_open()) {
             return srt::g2p::Error(
-                srt::g2p::Error::FileSystemError,
+                srt::g2p::ErrorCode::G2pFileSystemError,
                 stdc::formatN(R"(failed to open "%1")", stdc::path::to_utf8(path)));
         }
         std::stringstream ss;
@@ -63,7 +63,7 @@ namespace srt::g2p::plugins::Multig2p {
         const auto j = srt::core::JsonValue::fromJson(ss.str(), true, &errString);
         if (!errString.empty()) {
             return srt::g2p::Error(
-                srt::g2p::Error::ConfigError,
+                srt::g2p::ErrorCode::G2pConfigError,
                 stdc::formatN(R"(JSON parse error in "%1": %2)",
                               stdc::path::to_utf8(path), errString));
         }
@@ -79,7 +79,7 @@ namespace srt::g2p::plugins::Multig2p {
         const auto j = jsonExp.take();
         if (!j.isObject()) {
             return srt::g2p::Error(
-                srt::g2p::Error::ConfigError,
+                srt::g2p::ErrorCode::G2pConfigError,
                 stdc::formatN(R"(bundle.json is not a JSON object: "%1")",
                               stdc::path::to_utf8(bundlePath)));
         }
@@ -132,12 +132,12 @@ namespace srt::g2p::plugins::Multig2p {
 
         if (meta.bundleVersion.empty()) {
             return srt::g2p::Error(
-                srt::g2p::Error::ConfigError,
+                srt::g2p::ErrorCode::G2pConfigError,
                 "bundle.json missing bundle_version field");
         }
         if (meta.languages.empty()) {
             return srt::g2p::Error(
-                srt::g2p::Error::ConfigError,
+                srt::g2p::ErrorCode::G2pConfigError,
                 "bundle.json missing or empty languages field");
         }
         return meta;
@@ -152,7 +152,7 @@ namespace srt::g2p::plugins::Multig2p {
         const auto j = jsonExp.take();
         if (!j.isObject()) {
             return srt::g2p::Error(
-                srt::g2p::Error::ConfigError,
+                srt::g2p::ErrorCode::G2pConfigError,
                 stdc::formatN(R"(vocabulary.json is not a JSON object: "%1")",
                               stdc::path::to_utf8(vocabPath)));
         }
@@ -169,7 +169,7 @@ namespace srt::g2p::plugins::Multig2p {
             }
         } else {
             return srt::g2p::Error(
-                srt::g2p::Error::ConfigError,
+                srt::g2p::ErrorCode::G2pConfigError,
                 "vocabulary.json missing symbols array");
         }
 

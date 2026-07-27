@@ -413,17 +413,17 @@ extern "C" srt_SessionHandle *srt_session_create_with_resources(
                 SRT_ERR_INVALID_HANDLE);
             return nullptr;
         }
-        // Build SessionData with default-constructed VoicebankSession, then
-        // inject resources via the existing bare setters (WP3 will replace
-        // this with the SessionResources injection constructor).
-        auto data = std::make_shared<SessionData>();
+        // Build SessionData with resource-injected VoicebankSession.
         // Aliasing shared_ptr: non-owning. Runtime/LanguageService outlive
         // the session (caller-owned handles). This mirrors the ds-editor-lite
         // pattern documented in 03-session-and-snapshot.md §1.1.
+        auto data = std::make_shared<SessionData>();
         std::shared_ptr<srt::g2p::LanguageService> langAlias(
             std::shared_ptr<srt::g2p::LanguageService>{}, &langData->m_languageService);
-        data->m_session.setLanguageService(langAlias);
-        data->m_session.setRuntime(&rtData->m_runtime);
+        ds::session::SessionResources resources;
+        resources.runtime = &rtData->m_runtime;
+        resources.languageService = std::move(langAlias);
+        data->m_session = ds::session::VoicebankSession(std::move(resources));
         HandleId id = sessionTable().create(data);
         if (id == kInvalidHandle) {
             srt::c::detail::setLastError(

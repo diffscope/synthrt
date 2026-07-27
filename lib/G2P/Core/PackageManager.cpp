@@ -625,37 +625,6 @@ namespace srt::g2p {
     }
 
     srt::core::Expected<void> PackageManager::addPackagePath(const std::string           &context,
-                                                             const std::filesystem::path &path) {
-        if (auto exp = ContextUtils::validateContextName(context); !exp)
-            return exp.error();
-
-        auto           &impl = *static_cast<Impl *>(_impl.get());
-        std::error_code ec;
-        if (!fs::exists(path, ec) || !fs::is_directory(path, ec)) {
-            return Error(
-                ErrorCode::G2pFileSystemError,
-                stdc::formatN("Package path does not exist or is not a directory: %1", stdc::path::to_utf8(path)));
-        }
-
-        auto canonical = fs::canonical(path, ec);
-        if (ec) {
-            return Error(ErrorCode::G2pFileSystemError,
-                         stdc::formatN("Package path cannot be canonicalized: %1", stdc::path::to_utf8(path)));
-        }
-        srt::core::ContextKey ctxKey(context);
-
-        std::unique_lock lock(impl.m_su_mtx);
-        auto            &paths = impl.m_contextPackagePaths[ctxKey];
-        for (const auto &existing : paths) {
-            if (existing == canonical)
-                return {};
-        }
-        paths.push_back(canonical);
-        impl.m_packagePathsDirty = true;
-        return {};
-    }
-
-    srt::core::Expected<void> PackageManager::addPackagePath(const std::string           &context,
                                                              const stdc::VersionNumber   &version,
                                                              const std::filesystem::path &path) {
         if (auto exp = ContextUtils::validateContextName(context); !exp)
@@ -694,25 +663,6 @@ namespace srt::g2p {
     }
 
     srt::core::Expected<void> PackageManager::setPackagePaths(const std::string                        &context,
-                                                              const std::vector<std::filesystem::path> &paths) {
-        if (auto exp = ContextUtils::validateContextName(context); !exp)
-            return exp.error();
-
-        auto                 &impl = *static_cast<Impl *>(_impl.get());
-        srt::core::ContextKey ctxKey(context);
-        std::unique_lock      lock(impl.m_su_mtx);
-        auto                 &ctxPaths = impl.m_contextPackagePaths[ctxKey];
-        ctxPaths.clear();
-        for (const auto &path : paths) {
-            if (!fs::is_directory(path))
-                continue;
-            ctxPaths.push_back(fs::canonical(path));
-        }
-        impl.m_packagePathsDirty = true;
-        return {};
-    }
-
-    srt::core::Expected<void> PackageManager::setPackagePaths(const std::string                        &context,
                                                               const stdc::VersionNumber                &version,
                                                               const std::vector<std::filesystem::path> &paths) {
         if (auto exp = ContextUtils::validateContextName(context); !exp)
@@ -738,10 +688,6 @@ namespace srt::g2p {
         return {};
     }
 
-    std::vector<std::filesystem::path> PackageManager::packagePaths(const std::string &context) const {
-        return packagePaths(context, {});
-    }
-
     std::vector<std::filesystem::path> PackageManager::packagePaths(const std::string         &context,
                                                                     const stdc::VersionNumber &version) const {
         auto                 &impl = *static_cast<Impl *>(_impl.get());
@@ -753,15 +699,6 @@ namespace srt::g2p {
         return {it->second.begin(), it->second.end()};
     }
 
-    std::vector<std::string> PackageManager::contexts() const {
-        auto                    &impl = *static_cast<Impl *>(_impl.get());
-        std::shared_lock         lock(impl.m_su_mtx);
-        std::vector<std::string> result;
-        for (const auto &[ctxKey, _] : impl.m_contextPackagePaths)
-            result.push_back(ctxKey.context);
-        return result;
-    }
-
     std::vector<srt::core::ContextKey> PackageManager::contextKeys() const {
         auto                              &impl = *static_cast<Impl *>(_impl.get());
         std::shared_lock                   lock(impl.m_su_mtx);
@@ -771,74 +708,12 @@ namespace srt::g2p {
         return result;
     }
 
-    srt::core::Expected<size_t> PackageManager::removeContextsByPrefix(const std::string &prefix) {
-        // V3-16 hot reload: retire voicebank G2P contexts before re-registering.
-        // Empty prefix is rejected because it would match every context
-        // (including the default official-G2P context), which is never the
-        // caller's intent and would break G2P routing.
-        if (prefix.empty()) {
-            return Error(ErrorCode::G2pValidationError,
-                         "removeContextsByPrefix: prefix must not be empty (empty prefix "
-                         "would match all contexts)");
-        }
-
-        auto &impl = *static_cast<Impl *>(_impl.get());
-
-        // Collect matching ContextKeys and erase per-context state under m_su_mtx.
-        // A prefix match is on ctxKey.context only (e.g. prefix "pkg1__"
-        // matches "pkg1__singerA" and "pkg1__singerB" at every version).
-        std::vector<srt::core::ContextKey> matching;
-        size_t                             removed = 0;
-        {
-            std::unique_lock lock(impl.m_su_mtx);
-
-            if (impl.m_initialized) {
-                // Manager::initialize() has been called: contexts are immutable.
-                // Caller must restart the host process for G2P changes.
-                return Error(ErrorCode::G2pAlreadyInitialized,
-                             "removeContextsByPrefix: Manager::initialize() already "
-                             "called; contexts are immutable. Restart the host process "
-                             "for G2P changes.");
-            }
-
-            for (const auto &[ctxKey, _] : impl.m_contextPackagePaths) {
-                if (ctxKey.context.starts_with(prefix)) {
-                    matching.push_back(ctxKey);
-                }
-            }
-
-            removed = matching.size();
-            for (const auto &ctxKey : matching) {
-                impl.eraseContextState(ctxKey);
-            }
-
-            if (removed > 0) {
-                impl.m_packagePathsDirty = true;
-            }
-        }
-
-        // Clean up the tasks map under its own mutex. When !m_initialized this
-        // map is normally empty (tasks are created during initialize()), but
-        // we erase defensively. Acquired after m_su_mtx is released to avoid
-        // holding both locks simultaneously.
-        if (!matching.empty()) {
-            std::unique_lock<std::shared_mutex> tasksLock(impl.m_tasks_mtx);
-            for (auto &[category, ctxMap] : impl.m_tasks) {
-                for (const auto &ctxKey : matching) {
-                    ctxMap.erase(ctxKey);
-                }
-            }
-        }
-
-        return removed;
-    }
-
     srt::core::Expected<size_t> PackageManager::removeContextsByPrefix(const std::string         &prefix,
                                                                        const stdc::VersionNumber &version) {
-        // D-43: version-aware overload. Multi-version same-packageId hot reload
+        // D-43: version-aware retire. Multi-version same-packageId hot reload
         // must retire only the contexts belonging to the retired version, not
-        // every context under the prefix. The single-arg overload retires
-        // every version, which corrupts coexisting versions (D-24 violation).
+        // every context under the prefix, to preserve coexisting versions
+        // (D-24 multi-version coexistence).
         if (prefix.empty()) {
             return Error(ErrorCode::G2pValidationError,
                          "removeContextsByPrefix: prefix must not be empty (empty prefix "
@@ -859,9 +734,8 @@ namespace srt::g2p {
                              "for G2P changes.");
             }
 
-            // Match ctxKey.context prefix AND ctxKey.version exactly. Empty
-            // version matches only unversioned contexts (those registered via
-            // the 2-arg addPackagePath overload).
+            // Match ctxKey.context prefix AND ctxKey.version exactly. An empty
+            // version matches only the default context (kOfficialContext).
             for (const auto &[ctxKey, _] : impl.m_contextPackagePaths) {
                 if (ctxKey.context.starts_with(prefix) && ctxKey.version == version) {
                     matching.push_back(ctxKey);
@@ -959,11 +833,7 @@ namespace srt::g2p {
 
     srt::core::Expected<srt::core::NO<Task>>
         PackageManager::createModuleTask(const srt::dependency::ModuleMetadata &moduleInfo, const Package &pkg) const {
-        // Diagnostic logging: trace each step of task creation to identify hangs.
-        // Remove after root cause is identified.
         static srt::core::LogCategory pkgMgrLog("PackageManager");
-        pkgMgrLog.srtInfo("createModuleTask: START module=%1 type=%2 iid=%3",
-                          moduleInfo.moduleId, moduleInfo.type, moduleInfo.iid);
 
         auto *moduleSpec = pkg.moduleSpec(moduleInfo.type, moduleInfo.moduleId);
         if (!moduleSpec) {
@@ -976,7 +846,6 @@ namespace srt::g2p {
 
         moduleSpec->_impl->m_contextKey = srt::core::ContextKey(moduleInfo.context, moduleInfo.contextVersion);
 
-        pkgMgrLog.srtInfo("createModuleTask: looking up task plugin iid=%1", moduleInfo.iid);
         auto *taskPlugin = this->plugin<TaskPlugin>(moduleInfo.iid.c_str());
         if (!taskPlugin) {
             pkgMgrLog.srtWarning("createModuleTask: task plugin not found iid=%1", moduleInfo.iid);
@@ -985,7 +854,6 @@ namespace srt::g2p {
                                    moduleInfo.packageId);
         }
 
-        pkgMgrLog.srtInfo("createModuleTask: calling createTask module=%1", moduleInfo.moduleId);
         auto taskExp = taskPlugin->createTask(moduleSpec);
         if (!taskExp) {
             pkgMgrLog.srtWarning("createModuleTask: createTask failed module=%1: %2",
@@ -993,16 +861,33 @@ namespace srt::g2p {
             return taskExp.error();
         }
 
-        auto task    = taskExp.take();
-        pkgMgrLog.srtInfo("createModuleTask: calling task->initialize module=%1", moduleInfo.moduleId);
-        auto initExp = task->initialize();
-        if (!initExp) {
-            pkgMgrLog.srtWarning("createModuleTask: task->initialize failed module=%1: %2",
-                                 moduleInfo.moduleId, initExp.error().message());
-            return initExp.error();
+        auto task = taskExp.take();
+        // Catch C++ exceptions from task->initialize() (e.g. from third-party
+        // libraries like cpp-pinyin). Without this, an exception would
+        // propagate through Manager::initialize() → SynthrtEngine::initialize()
+        // → InitInferEngineTask::runTask(), preventing the Task::finished
+        // signal from firing and leaving module status stuck at Loading.
+        try {
+            auto initExp = task->initialize();
+            if (!initExp) {
+                pkgMgrLog.srtWarning("createModuleTask: task->initialize failed module=%1: %2",
+                                     moduleInfo.moduleId, initExp.error().message());
+                return initExp.error();
+            }
+        } catch (const std::exception &e) {
+            pkgMgrLog.srtWarning("createModuleTask: task->initialize threw exception module=%1: %2",
+                                 moduleInfo.moduleId, e.what());
+            return Error::g2pError(ErrorCode::G2pInitializationError,
+                                   stdc::formatN("Task initialization threw exception: %1", e.what()),
+                                   {}, moduleInfo.packageId);
+        } catch (...) {
+            pkgMgrLog.srtWarning("createModuleTask: task->initialize threw unknown exception module=%1",
+                                 moduleInfo.moduleId);
+            return Error::g2pError(ErrorCode::G2pInitializationError,
+                                   "Task initialization threw unknown exception",
+                                   {}, moduleInfo.packageId);
         }
 
-        pkgMgrLog.srtInfo("createModuleTask: SUCCESS module=%1", moduleInfo.moduleId);
         return task;
     }
 

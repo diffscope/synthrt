@@ -22,7 +22,7 @@ namespace srt::g2p::plugins::InferUtil
         std::string pattern = mergePatterns(m_entry.value);
         m_regex = std::make_unique<RE2>(pattern, m_regexOptions);
         if (!m_regex->ok()) {
-            return srt::g2p::Error(srt::g2p::Error::ConfigError, "Invalid regex pattern: " + m_regex->error());
+            return srt::g2p::Error(ErrorCode::G2pConfigError, "Invalid regex pattern: " + m_regex->error());
         }
         return {};
     }
@@ -79,12 +79,12 @@ namespace srt::g2p::plugins::InferUtil
 
         for (const auto &path : paths) {
             if (!std::filesystem::exists(path)) {
-                return srt::g2p::Error(srt::g2p::Error::ConfigError, "Dictionary file not found: " + path);
+                return srt::g2p::Error(ErrorCode::G2pConfigError, "Dictionary file not found: " + path);
             }
 
             std::ifstream file(path);
             if (!file.is_open()) {
-                return srt::g2p::Error(srt::g2p::Error::ConfigError, "Failed to open dictionary file: " + path);
+                return srt::g2p::Error(ErrorCode::G2pConfigError, "Failed to open dictionary file: " + path);
             }
 
             std::string line;
@@ -112,7 +112,7 @@ namespace srt::g2p::plugins::InferUtil
             } else if (entry.type == "dict") {
                 v = std::make_unique<VerifyDict>(entry);
             } else {
-                return srt::g2p::Error(srt::g2p::Error::ConfigError, "Unknown verifier type: " + entry.type);
+                return srt::g2p::Error(ErrorCode::G2pConfigError, "Unknown verifier type: " + entry.type);
             }
 
             if (auto initExp = v->init(); !initExp) {

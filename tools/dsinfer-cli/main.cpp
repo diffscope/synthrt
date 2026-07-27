@@ -428,9 +428,16 @@ namespace dsinfer_cli {
 
         // 2. Build the packageDirs map (packageId -> directory) that
         //    LanguageService needs to resolve per-singer G2P routes.
+        //    Uses packageDirectories() (version-aware); the legacy
+        //    packageDirectory() was removed in Level=3. For multi-version
+        //    same-packageId voicebanks the first discovered entry wins
+        //    (matching the old "first wins" semantics); the initialize()
+        //    convenience wrapper still accepts the map-based API.
         std::unordered_map<std::string, std::filesystem::path> packageDirs;
         for (const auto &s : scanner.singers()) {
-            packageDirs[s.ref.packageId] = scanner.packageDirectory(s.ref.packageId);
+            const auto dirs = scanner.packageDirectories(s.ref.packageId);
+            packageDirs[s.ref.packageId] =
+                dirs.empty() ? std::filesystem::path{} : dirs.front().path;
         }
 
         // 3. LanguageService — G2P initialization (Stages 1-4) + convertLyric.
@@ -542,7 +549,10 @@ namespace dsinfer_cli {
 
         // 9. Lazy-load the voicebank package into the Runtime (parses desc.json
         //    and registers singer/inference specs into Runtime categories).
-        const auto pkgDir = scanner.packageDirectory(ref.packageId);
+        //    Uses packageDirectories() (version-aware); the legacy
+        //    packageDirectory() was removed in Level=3.
+        const auto pkgDirs = scanner.packageDirectories(ref.packageId);
+        const auto pkgDir = pkgDirs.empty() ? std::filesystem::path{} : pkgDirs.front().path;
         if (pkgDir.empty()) {
             cliLog.srtCritical("package directory not found for packageId: " + ref.packageId);
             return -1;

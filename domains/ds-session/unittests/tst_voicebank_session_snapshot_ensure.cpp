@@ -358,58 +358,43 @@ TEST_CASE("refresh diagnostics populate packageId for broken packages",
 //
 // 现有 test_vbs_language.cpp 覆盖：RuntimePackageNotLoaded、G2pNotImplementedError、
 // G2pPackageNotFound、G2pVersionAmbiguous。本节补充：
-//   - metadataReady=false → G2pInitializationError（注入构造 + refresh 会
-//     自动 initializeMetadata；这里通过 deprecated setter 模拟"宿主注入
-//     了句柄但尚未初始化"状态）
+//   - refresh 自动初始化 metadata（v7 勘误：触发条件为 languageService!=nullptr，
+//     而非 g2pPluginPaths 非空）→ ensureLanguageReady 通过 metadataReady guard
 //   - 失败幂等：相同状态下重复调用返回相同错误
 //   - snapshot 为空 → SessionError
 // ===========================================================================
 
-TEST_CASE("ensureLanguageReady returns G2pInitializationError when metadataReady is false",
+TEST_CASE("refresh auto-initializes metadata when languageService is injected (v7 erratum)",
           "[ds-session][ensure-state]") {
-    // V3-08 状态机：Runtime 已注入、LanguageService 已注入但 metadataReady=false
-    // 时，ensureLanguageReady 通过 Runtime guard 与 LanguageService guard，
-    // 在 metadataReady 检查处失败 → G2pInitializationError。
+    // v7 勘误（docs/modules/ds-session.md §21, docs/modules/g2p.md §402-406）：
+    // performRefresh 中自动初始化的触发条件为 `languageService != nullptr`
+    // （`if (svc)`），而非 `g2pPluginPaths` 非空。即使不提供 g2pPluginPaths，
+    // refresh 仍会调用 initializeMetadata() 完成 Stage 1，metadataReady 变为 true。
     //
-    // 场景：宿主在 session 构造时注入 LanguageService 句柄，但尚未调用
-    // initializeMetadata（例如等待插件搜索路径配置完成）。由于注入构造 +
-    // refresh 会自动 initializeMetadata，这里通过"先 refresh（无 langSvc）
-    // 再 setLanguageService（未初始化）"路径构造该状态。
+    // 场景：SessionResources 注入未初始化的 LanguageService 且不提供
+    // g2pPluginPaths，refresh 仍自动调用 initializeMetadata（传入空的
+    // pluginSearchPaths/officialG2pPackagePaths + 快照包条目），
+    // metadataReady 从 false 变为 true，snapshot 正常发布。
+    // 随后 ensureLanguageReady 通过 metadataReady guard（不返回
+    // G2pInitializationError "metadata not initialized"）。
+    //
+    // 注：metadataReady==false → G2pInitializationError 的 guard 仅在
+    // initializeMetadata 失败时可达（L2 场景：插件 DLL 缺失/ONNX 加载失败），
+    // L1 下 initializeMetadata 恒成功，该 guard 不可达。
     const auto root = makeRoot();
     makePackage(root);
     srt::core::Runtime runtime;
     auto langSvc = std::make_shared<srt::g2p::LanguageService>();
     REQUIRE_FALSE(langSvc->metadataReady());
 
-    ds::session::VoicebankSession session; // 默认构造
-    session.setRuntime(&runtime);
+    // 不提供 g2pPluginPaths → v7 勘误：refresh 仍自动初始化 metadata
+    ds::session::SessionResources resources;
+    resources.runtime = &runtime;
+    resources.languageService = langSvc;
+    ds::session::VoicebankSession session(std::move(resources));
     session.setRoots({root});
-    // 无 LanguageService 时 refresh 跳过 metadata 初始化（performRefresh 中
-    // `if (svc)` guard 为 false），snapshot 仍正常发布。
     REQUIRE(session.refreshAsync().get().succeeded);
-
-    // 注入未初始化的 LanguageService。setLanguageService 已 deprecated，
-    // 这里需要它构造 metadataReady=false 状态，因此抑制可移植地抑制告警
-    // （MSVC C4996 / GCC & Clang -Wdeprecated-declarations）。
-#if defined(_MSC_VER)
-#pragma warning(push)
-#pragma warning(disable : 4996)
-#elif defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-#endif
-    session.setLanguageService(langSvc);
-#if defined(_MSC_VER)
-#pragma warning(pop)
-#elif defined(__GNUC__) || defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
-    REQUIRE_FALSE(session.languageService()->metadataReady());
-
-    auto exp = session.ensureLanguageReady(
-        "session.test", stdc::VersionNumber::fromString("1.0.0"), "cmn");
-    REQUIRE_FALSE(exp.hasValue());
-    REQUIRE(exp.isError(srt::core::ErrorCode::G2pInitializationError));
+    REQUIRE(session.languageService()->metadataReady());
 
     std::filesystem::remove_all(root);
 }
@@ -448,10 +433,10 @@ TEST_CASE("ensureLanguageReady returns SessionError when no snapshot published",
           "[ds-session][ensure-state]") {
     // 边界：未调用 refresh 前 snapshot 为空，ensureLanguageReady 在第一步
     // snapshot 检查即返回 SessionError（早于 Runtime / LanguageService guard）。
-    ds::session::VoicebankSession session;
-    // 即使注入了 Runtime，无 snapshot 仍返回 SessionError。
     srt::core::Runtime runtime;
-    session.setRuntime(&runtime);
+    ds::session::SessionResources resources;
+    resources.runtime = &runtime;
+    ds::session::VoicebankSession session(std::move(resources));
     auto exp = session.ensureLanguageReady(
         "any.pkg", stdc::VersionNumber::fromString("1.0.0"), "cmn");
     REQUIRE_FALSE(exp.hasValue());

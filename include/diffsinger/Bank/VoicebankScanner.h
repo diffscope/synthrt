@@ -18,9 +18,8 @@
 namespace ds::bank {
 
     /// One (version, path) entry returned by VoicebankScanner::packageDirectories().
-    /// Replaces the legacy single-path packageDirectory(packageId) API which
-    /// lost version info: multi-version same-packageId voicebanks can now
-    /// coexist (V3-01 §1.6, 5th layer discovered in reverse-verification).
+    /// Multi-version same-packageId voicebanks all survive in the returned
+    /// vector (V3-01 §1.6).
     struct DSBANK_EXPORT PackageDirectoryResult {
         stdc::VersionNumber version;
         std::filesystem::path path;
@@ -82,21 +81,8 @@ namespace ds::bank {
         /// Get all (version, path) entries for a packageId. Multi-version
         /// same-packageId voicebanks all survive in the returned vector, in the
         /// order they were discovered during refresh(). Empty vector when the
-        /// packageId is unknown. This is the version-aware replacement for
-        /// packageDirectory(packageId) (V3-01 §1.6).
+        /// packageId is unknown (V3-01 §1.6).
         std::vector<PackageDirectoryResult> packageDirectories(
-            const std::string &packageId) const;
-
-        /// Legacy: get a single package directory for a packageId. Returns the
-        /// first matching entry discovered (or empty path when unknown).
-        /// Multi-version same-packageId voicebanks collapse to one entry here —
-        /// callers needing full version isolation must migrate to
-        /// packageDirectories(packageId).
-        /// Note: returns empty path when the packageId has multiple versions
-        /// installed (D-42 multi-version ambiguity guard). Callers must
-        /// migrate to packageDirectories() to disambiguate explicitly.
-        [[deprecated("Use packageDirectories(packageId). Will be removed in Level=3.")]]
-        std::filesystem::path packageDirectory(
             const std::string &packageId) const;
 
     private:

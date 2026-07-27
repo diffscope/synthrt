@@ -79,7 +79,7 @@ namespace srt::g2p {
                 return {}; // default context is always valid
 
             if (context.size() > kMaxContextNameLength) {
-                return Error(Error::ValidationError,
+                return Error(ErrorCode::G2pValidationError,
                              "Context name '" + std::string(context.substr(0, 20)) +
                                  "...' exceeds maximum length (" +
                                  std::to_string(kMaxContextNameLength) + ")");
@@ -90,7 +90,7 @@ namespace srt::g2p {
                 bool valid = (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
                              (ch >= '0' && ch <= '9') || ch == '_' || ch == '.' || ch == '-';
                 if (!valid) {
-                    return Error(Error::ValidationError,
+                    return Error(ErrorCode::G2pValidationError,
                                  "Invalid context name '" + std::string(context) +
                                      "': contains forbidden character '" + std::string(1, ch) +
                                      "'. Allowed: [A-Za-z0-9_.-]");
@@ -102,7 +102,7 @@ namespace srt::g2p {
         /// Validate that a moduleId does not contain ':' (reserved for FQID separation).
         static srt::core::Expected<void> validateModuleId(const std::string_view &moduleId) {
             if (moduleId.find(':') != std::string_view::npos) {
-                return Error(Error::ValidationError,
+                return Error(ErrorCode::G2pValidationError,
                              "Module ID '" + std::string(moduleId) +
                                  "' contains ':' which is reserved for context separation");
             }
