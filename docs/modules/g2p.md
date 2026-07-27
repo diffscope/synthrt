@@ -199,6 +199,8 @@ Expected<void> LanguageService::initialize(...) {
 
 `VoicebankSession::refresh()` 在扫描完成后调用 `updateMetadata()`，把退役 voicebank 的 G2P context 同步下线。若 `metadataReady()==false`，自动降级为完整 `initializeMetadata()` 调用（WP8-session 兜底）。
 
+**插件路径 / 官方 G2P 路径的补注册**：当 `Manager::initialize()` 尚未执行（`modelsReady==false`）时，`updateMetadata()` 也会补注册 `pluginSearchPaths` 和 `officialG2pPackagePaths`（等价于 `initializeMetadata()` Stage 1.1/1.2，且 `addPluginPath` / `addPackagePath` 幂等）。这解决了 `PackageManager` 在 `SynthrtEngine::initialize()` 设置 `officialG2pPackages` 之前触发 `session.refresh()` 导致首次 `initializeMetadata()` 以空路径注册、`metadataReady=true` 后 `updateMetadata()` 无法补注册的问题。`Manager::initialize()` 执行后（`modelsReady==true`），热重载限制仍然生效：修改插件/官方 G2P 路径需重启进程。
+
 ---
 
 ## PackageManager 版本感知 context 移除 (D-43)

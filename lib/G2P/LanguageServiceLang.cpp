@@ -426,14 +426,16 @@ namespace srt::g2p {
         const std::vector<std::filesystem::path> &officialG2pPackagePaths,
         const std::vector<PackageDirectoryEntry> &packageDirs) {
 
-        // V3-16 hot reload: incremental metadata update. The plugin search
-        // paths and official G2P package paths are accepted for API symmetry
-        // with initializeMetadata() but are NOT applied here — changing them
-        // after the Manager singleton has seen them requires a process restart
-        // (documented hot-reload limitation). Only voicebank G2P contexts are
-        // updated incrementally.
-        (void)pluginSearchPaths;
-        (void)officialG2pPackagePaths;
+        // V3-16 hot reload: incremental metadata update. Voicebank G2P contexts
+        // are always updated incrementally. Plugin search paths and official G2P
+        // package paths are only applied when the Manager singleton has NOT yet
+        // been initialized (modelsReady==false): once Manager::initialize()
+        // runs, changing them requires a process restart (documented hot-reload
+        // limitation). This handles the case where a prior initializeMetadata()
+        // was called with empty officialG2pPackagePaths (e.g. from a
+        // pre-initialize session refresh by PackageManager) and this
+        // updateMetadata() call has the correct paths — we register them now
+        // before Manager::initialize() Phase 1 needs them.
 
         // Guard: must be in metadata-only state (no initializeModels yet).
         // Manager::initialize() makes contexts immutable; an incremental update
@@ -450,6 +452,40 @@ namespace srt::g2p {
             return srt::core::Error(
                 srt::core::ErrorCode::G2pInitializationError,
                 "updateMetadata: initializeMetadata() must be called first.");
+        }
+
+        auto mgr = srt::g2p::Manager::instance();
+
+        // Register plugin/official G2P paths when Manager hasn't been
+        // initialized yet. Safe because: addPluginPath deduplicates via
+        // PluginFactory's scannedPluginDirs; addPackagePath for the official
+        // context is idempotent. The hot-reload limitation only applies after
+        // Manager::initialize() (guarded by modelsReady above).
+        if (!mgr->initialized()) {
+            // Stage 1.1: plugin search paths (idempotent).
+            for (const auto &path : pluginSearchPaths) {
+                mgr->addPluginPath(srt::g2p::kTaskPluginIid, path);
+                mgr->addPluginPath(srt::g2p::kDriverPluginIid, path);
+            }
+            // Stage 1.2: official G2P package paths (registers to default
+            // context so Manager::initialize() Phase 1 can discover them).
+            for (const auto &path : officialG2pPackagePaths) {
+                if (path.empty()) {
+                    langSvcLog.srtWarning(
+                        "updateMetadata: skipping empty official G2P path entry");
+                    continue;
+                }
+                auto exp = mgr->addPackagePath(srt::g2p::kOfficialContext, path);
+                if (!exp) {
+                    langSvcLog.srtWarning(
+                        "updateMetadata: failed to register official G2P path %1: %2",
+                        stdc::path::to_utf8(path), exp.error().message());
+                } else {
+                    langSvcLog.srtInfo(
+                        "updateMetadata: registered official G2P path: %1",
+                        stdc::path::to_utf8(path));
+                }
+            }
         }
 
         // 1. Build the new packageDirs map with duplicate detection. Duplicate
@@ -500,8 +536,6 @@ namespace srt::g2p {
                     {kv.first.first, kv.first.second, kv.second});
             }
         }
-
-        auto mgr = srt::g2p::Manager::instance();
 
         // 3. Remove retired voicebank G2P contexts. The context name is
         //    "packageId__singerId" (see voicebankContextName), so the prefix
