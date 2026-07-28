@@ -1,14 +1,14 @@
 {
-  "packageId": "eng-official",
+  "packageId": "fil-official",
   "version": "1.0.0",
   "vendor": "wolf",
   "copyright": "Copyright (C) wolf",
   "modules": {
     "g2p": [
       {
-        "moduleId": "g2p-eng-official",
+        "moduleId": "g2p-fil-official",
         "class": "g2p.chain.ChainG2pInference",
-        "configuration": "modules/ChainG2p-Eng/config.json",
+        "configuration": "modules/ChainG2p-Fil/config.json",
         "dependencies": ["g2p-multig2p-multi-official"]
       }
     ]
