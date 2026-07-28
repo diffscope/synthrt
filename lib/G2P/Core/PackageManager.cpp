@@ -257,6 +257,16 @@ namespace srt::g2p {
         // Windows triggers STATUS_STACK_BUFFER_OVERRUN and aborts the process.
         closeAllLoadedPackages();
         for (const auto &[_, cate] : m_categories) {
+            // Clear ObjectPool's m_objects before deleting the category.
+            // m_objects holds NO<NamedObject> (shared_ptr) references to
+            // drivers/factories/tasks added via addObject(). If these shared_ptrs
+            // are still alive when ObjectPool::Impl::~Impl() runs (triggered by
+            // ~ModuleCategory -> ~ObjectPool), their destructor may access
+            // already-freed memory or trigger double-free if the pointed-to
+            // objects were released by Runtime shutdown. Clearing m_objects
+            // here releases the references while the category (and its
+            // virtual dispatch table) is still intact.
+            cate->removeAllObjects();
             delete cate;
         }
         m_categories.clear();
