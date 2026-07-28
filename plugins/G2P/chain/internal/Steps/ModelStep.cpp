@@ -40,6 +40,14 @@ namespace srt::g2p::plugins::ChainG2p {
             m_batchSize = kModelStepBatchSize;
         }
 
+        // 解析 langRef (optional) - 传递给模型的语言引用，如 "deu/default"
+        auto langRefIt = config.find("langRef");
+        if (langRefIt != config.end() && langRefIt->second.isString()) {
+            m_langRef = langRefIt->second.toString();
+        } else {
+            m_langRef.clear();
+        }
+
         // 获取 G2p 任务（graceful degradation）
         // NOTE: Source used spec->Mgr(); synthrt's ModuleSpec lacks Mgr(), so
         // we use m_task->Mgr() (Task has Mgr() that returns the PackageManager).
@@ -140,6 +148,9 @@ namespace srt::g2p::plugins::ChainG2p {
         auto batchInput = srt::core::NO<srt::g2p::G2pInputV1>::create();
         for (const auto &word : words) {
             batchInput->g2pInput.push_back(word);
+        }
+        if (!m_langRef.empty()) {
+            batchInput->languageId = m_langRef;
         }
 
         // 调用模型

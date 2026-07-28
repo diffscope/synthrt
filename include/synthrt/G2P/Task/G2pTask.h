@@ -14,6 +14,7 @@ namespace srt::g2p
         G2pInputV1() : TaskInput("G2pInputV1") {}
 
         std::vector<std::string> g2pInput;
+        std::string languageId;  // optional lang_ref override, e.g. "deu/default"
     };
 
     class G2pResultV1 : public TaskResult {

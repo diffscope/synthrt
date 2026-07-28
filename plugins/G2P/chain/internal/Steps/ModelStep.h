@@ -30,6 +30,7 @@ namespace srt::g2p::plugins::ChainG2p {
         bool m_enabled = true;
         std::string m_onnxG2pId;
         int m_batchSize = kModelStepBatchSize;
+        std::string m_langRef;  // optional lang_ref override passed to the model
         srt::core::NO<srt::g2p::Task> m_onnxTask;
 
         void processBatch(G2pContext &context,

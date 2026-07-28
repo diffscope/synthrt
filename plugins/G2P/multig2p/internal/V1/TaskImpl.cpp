@@ -823,8 +823,12 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             }
         }
 
-        // 1. 构造 langRefs（G2pInputV1 无 languageId 字段，统一用配置默认 lang_ref）
-        std::vector<std::string> langRefs(g2pInput->g2pInput.size(), m_defaultLangRef);
+        // 1. 构造 langRefs（优先使用输入的 languageId，否则用配置默认 lang_ref）
+        std::string effectiveLangRef = m_defaultLangRef;
+        if (!g2pInput->languageId.empty()) {
+            effectiveLangRef = g2pInput->languageId;
+        }
+        std::vector<std::string> langRefs(g2pInput->g2pInput.size(), effectiveLangRef);
 
         // 2. 批量预处理
         auto preExp = InferenceHelper::preprocessBatch(
