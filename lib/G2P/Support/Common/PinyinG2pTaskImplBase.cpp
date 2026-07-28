@@ -88,12 +88,27 @@ namespace srt::g2p::plugins::Common
         }
         pinyinG2pLog.srtInfo("%1: cpp-pinyin engine initialized", m_langConfig.languageName);
 
-        m_config = getConfig();
+        // Build config inline instead of calling getConfig(): initialize()
+        // already holds a unique_lock on m_mutex, and getConfig() tries to
+        // acquire a shared_lock on the same m_mutex — std::shared_mutex does
+        // NOT support recursive unique-then-shared locking on the same thread,
+        // so calling getConfig() here would deadlock.
+        pinyinG2pLog.srtInfo("%1: building config inline", m_langConfig.languageName);
+        {
+            srt::core::JsonObject configObj;
+            srt::core::JsonObject configuration;
+            configuration[m_langConfig.dictPathKey] =
+                srt::core::JsonValue(stdc::path::to_utf8(m_dictPath));
+            configObj["configuration"] = srt::core::JsonValue(configuration);
+            m_config = srt::core::JsonValue(configObj).toJson(2);
+        }
+        pinyinG2pLog.srtInfo("%1: config built, checking engine", m_langConfig.languageName);
 
         if (!isEngineInitialized())
             return srt::g2p::Error(ErrorCode::G2pInitializationError,
                                    stdc::formatN("%1: cpp-pinyin library failed to initialize", m_langConfig.languageName));
 
+        pinyinG2pLog.srtInfo("%1: initialize() returning success", m_langConfig.languageName);
         return {};
     }
 
