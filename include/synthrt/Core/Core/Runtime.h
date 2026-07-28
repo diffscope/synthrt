@@ -1,6 +1,7 @@
 #pragma once
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string_view>
 #include <vector>
@@ -124,6 +125,24 @@ namespace srt::core {
         ///       and stop in-flight inference, (2) call this API to remove
         ///       specs, (3) call \c ModelRegistry::unbindPackage(pkgId).
         Expected<void> unloadPackage(const std::filesystem::path &path);
+
+        // --- Destruction callbacks (DLL unload ordering) ---
+        // Register a callback to be invoked in ~Runtime(), BEFORE PluginFactory
+        // unloads plugin DLLs. This allows subsystems that hold shared_ptrs to
+        // plugin-DLL-resident objects (e.g. srt::g2p::Manager holding Task/
+        // SessionFactory instances whose vtables live in srt-driver-onnx.dll)
+        // to release those references while the plugin DLLs are still loaded.
+        //
+        // The callback executes during Runtime destruction, which happens
+        // BEFORE static singleton destructors run. Without this hook, a static
+        // singleton (e.g. srt::g2p::Manager) would release its shared_ptrs in
+        // its own destructor (after Runtime destruction), accessing freed
+        // plugin DLL memory through dangling vtable pointers.
+        //
+        // Callbacks run in reverse order of registration (LIFO). The callback
+        // MUST NOT capture a shared_ptr to the Runtime itself (would create a
+        // cycle); capture raw pointers or weak_ptr instead.
+        void addDestructionCallback(std::function<void()> callback);
 
     protected:
         static void registerModuleCategoryFactory(ModuleCategory *(*fac)(Runtime *));

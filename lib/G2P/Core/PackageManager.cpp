@@ -246,6 +246,16 @@ namespace srt::g2p {
     }
 
     PackageManager::Impl::~Impl() {
+        shutdown();
+    }
+
+    void PackageManager::Impl::shutdown() {
+        // Idempotent: safe to call from both shutdown() and the destructor.
+        // Also safe to call when m_categories is already empty (no-op).
+        if (m_categories.empty() && m_tasks.empty()) {
+            return;
+        }
+
         // Destruction order (matters!):
         //
         // 1. m_tasks.clear() — release the NO<Task> references held by the
@@ -613,6 +623,11 @@ namespace srt::g2p {
     }
 
     PackageManager::~PackageManager() = default;
+
+    void PackageManager::shutdown() {
+        auto &impl = *static_cast<Impl *>(_impl.get());
+        impl.shutdown();
+    }
 
     srt::core::ModuleCategory *PackageManager::category(const std::string_view &name) const {
         auto      &impl = *static_cast<Impl *>(_impl.get());

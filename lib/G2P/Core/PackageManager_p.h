@@ -52,6 +52,13 @@ namespace srt::g2p {
         void closeAllLoadedPackages();
         void refreshPackageIndexes(const srt::core::ContextKey &ctxKey);
 
+        /// Release all object references held by category ObjectPools, close
+        /// loaded packages, and delete categories. Idempotent (safe to call
+        /// again from the destructor). Called by PackageManager::shutdown()
+        /// which is invoked from the Runtime destruction callback registered
+        /// in setupG2pOnnxDriver.
+        void shutdown();
+
         /// Erase all per-context state for \p ctxKey (TD-02). Centralizes the
         /// 7-map erase previously duplicated in removeContextsByPrefix
         /// overloads. New per-context state should be added here so retire

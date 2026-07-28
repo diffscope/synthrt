@@ -39,6 +39,19 @@ namespace srt::core {
     }
 
     Runtime::Impl::~Impl() {
+        // Run destruction callbacks in LIFO order BEFORE deleting module
+        // categories or unloading plugin DLLs (the PluginFactory is owned by
+        // m_services, which is destroyed after this destructor body runs as
+        // part of member destruction). This lets subsystems release shared_ptrs
+        // to plugin-DLL-resident objects while the DLLs are still loaded.
+        for (auto it = m_destructionCallbacks.rbegin();
+             it != m_destructionCallbacks.rend(); ++it) {
+            if (*it) {
+                (*it)();
+            }
+        }
+        m_destructionCallbacks.clear();
+
         for (const auto &[name, cate] : m_moduleCategories) {
             (void) name;
             delete cate;
@@ -59,6 +72,10 @@ namespace srt::core {
     }
 
     Runtime::~Runtime() = default;
+
+    void Runtime::addDestructionCallback(std::function<void()> callback) {
+        _impl->m_destructionCallbacks.push_back(std::move(callback));
+    }
 
     // --- Service registry (ARCH-03) ---
 

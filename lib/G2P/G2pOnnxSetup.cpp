@@ -223,6 +223,26 @@ namespace srt::g2p {
             driverCat->removeObjects(srt::g2p::kG2pOnnxDriverName);
             driverCat->addObject(srt::g2p::kG2pOnnxDriverName, factory);
 
+            // 5. Register a Runtime destruction callback to call
+            //    Manager::shutdown() BEFORE the Runtime (and its
+            //    PluginFactory) destructs. This releases Task/SessionFactory
+            //    shared_ptrs held by the Manager's category ObjectPools while
+            //    plugin DLLs (e.g. srt-driver-onnx.dll) are still loaded.
+            //
+            //    Without this, the Manager (a static singleton) would destruct
+            //    AFTER the Runtime (a local variable in the host), releasing
+            //    those shared_ptrs and invoking virtual destructors whose
+            //    vtables reside in already-unloaded plugin DLLs — a
+            //    use-after-free that crashes in shared_ptr::_Decref.
+            //
+            //    The callback captures `mgr` as a raw pointer (the Manager is
+            //    a static singleton whose address is stable throughout the
+            //    process lifetime, so raw-pointer capture is safe). shutdown()
+            //    is idempotent, so a later destructor call is a no-op.
+            runtime.addDestructionCallback([mgr]() {
+                mgr->shutdown();
+            });
+
             return srt::core::Expected<void>{};
         } catch (const std::exception &e) {
             // CODING-02 / ROBUST-02: do not let exceptions cross the public

@@ -119,6 +119,17 @@ namespace srt::g2p {
         std::vector<srt::dependency::ModuleMetadata> getModuleMetadatas(
             const srt::core::ContextKey &ctxKey);
 
+        /// Release all object references held by category ObjectPools and
+        /// clear loaded packages. Called automatically by setupG2pOnnxDriver's
+        /// Runtime destruction callback, so manual invocation is typically
+        /// unnecessary.
+        ///
+        /// This is the counterpart to the constructor: it performs the same
+        /// cleanup as the destructor but can be called early (before plugin
+        /// DLLs are unloaded) to prevent use-after-free when static singleton
+        /// destructors run after Runtime destruction.
+        void shutdown();
+
     protected:
         class Impl;
         std::unique_ptr<Impl> _impl;

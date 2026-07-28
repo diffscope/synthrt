@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <memory>
 #include <shared_mutex>
@@ -74,6 +75,24 @@ namespace srt::core {
 
         // Shared mutex protecting category/contribute operations across packages.
         mutable std::shared_mutex m_su_mtx;
+
+        // --- Destruction callbacks (DLL unload ordering) ---
+        // Runtime is typically a local variable in the host (e.g. lite's
+        // SynthrtEngine::m_runtime), while some objects that reference Runtime
+        // resources (e.g. srt::g2p::Manager singleton holding Task/SessionFactory
+        // shared_ptrs that reference plugin DLL code) are static singletons
+        // whose destructors run AFTER the Runtime. When the Runtime destructs,
+        // PluginFactory unloads plugin DLLs (e.g. srt-driver-onnx.dll); the
+        // static singleton's later destructor would then access freed memory
+        // through dangling vtable pointers.
+        //
+        // Destruction callbacks run in ~Runtime::Impl (BEFORE PluginFactory
+        // unloads DLLs) so subsystems can release object references while the
+        // plugin DLLs are still loaded. Callbacks execute in reverse order of
+        // registration (LIFO), and are cleared after execution to break
+        // reference cycles (captured shared_ptrs would otherwise keep the
+        // callback itself alive).
+        std::vector<std::function<void()>> m_destructionCallbacks;
 
     public:
         static llvm::SmallVector<ModuleCategory *(*)(Runtime *)> moduleCategoryFactories;
