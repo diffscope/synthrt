@@ -70,4 +70,19 @@ if(_g2p_tests)
             PROPERTIES SKIP_PRECOMPILE_HEADERS ON
         )
     endif()
+
+    # PinyinG2pTaskImplBase initialize deadlock regression test needs access
+    # to private headers (Module_p.h, PinyinG2pTaskImplBase.h) and static
+    # libraries (srt-g2p-common, srt-g2p-inferutil). The test file
+    # (tst_pinyin_task_initialize.cpp) is auto-included by the GLOB above.
+    if(TARGET srt-g2p-common)
+        target_include_directories(synthrt-unittest-g2p PRIVATE
+            "${CMAKE_SOURCE_DIR}/lib/Core"
+            "${CMAKE_SOURCE_DIR}/lib/G2P/support/common"
+        )
+        target_link_libraries(synthrt-unittest-g2p PRIVATE srt-g2p-common)
+        if(TARGET srt-g2p-inferutil)
+            target_link_libraries(synthrt-unittest-g2p PRIVATE srt-g2p-inferutil)
+        endif()
+    endif()
 endif()
