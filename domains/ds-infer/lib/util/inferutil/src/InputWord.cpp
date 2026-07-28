@@ -99,6 +99,11 @@ namespace ds::infer::inferutil {
         }
 
         auto phoneCount = getPhoneCount(words);
+        if (phoneCount == 0) {
+            return srt::core::Error(srt::core::ErrorCode::InferenceInputInvalid,
+                                    "preprocessPhonemeDurations: phoneme count is zero");
+        }
+
         using TensorType = int64_t;
         auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {

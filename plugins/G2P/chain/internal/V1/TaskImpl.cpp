@@ -60,8 +60,8 @@ namespace srt::g2p::plugins::ChainG2p::Internal::V1 {
             res.mode = word.mode;
             res.errorType = word.errorType;
 
-            // copy 模式下，如果发音为空，应该原样返回
-            if (res.mode == srt::g2p::kG2pModeCopy && res.pronunciation.empty()) {
+            // 无论 mode 为何，pronunciation 不应为空；兜底使用原 lyric
+            if (res.pronunciation.empty()) {
                 res.pronunciation = res.lyric;
                 if (res.candidates.empty()) {
                     res.candidates = {res.lyric};

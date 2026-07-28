@@ -329,10 +329,35 @@ namespace srt::svs {
             return exp.takeError();
         }
 
+        {
+            auto phoneCount = ds::infer::inferutil::getPhoneCount(pitchInput->words);
+            Log.srtInfo("%1 phoneme count = %2", kLogPrefix, phoneCount);
+            for (size_t wi = 0; wi < pitchInput->words.size(); ++wi) {
+                const auto &w = pitchInput->words[wi];
+                Log.srtInfo("%1   word[%2] phones=%3 notes=%4", kLogPrefix, wi, w.phones.size(), w.notes.size());
+                for (size_t pi = 0; pi < w.phones.size(); ++pi) {
+                    Log.srtInfo("%1     phone[%2] token='%3' lang='%4'", kLogPrefix, pi, w.phones[pi].token, w.phones[pi].language);
+                }
+            }
+            if (phoneCount == 0) {
+                setState(Failed);
+                Log.srtCritical("%1 start: zero phonemes from G2P — cannot run pitch inference", kLogPrefix);
+                return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
+                                  "[Pitch] zero phonemes from G2P — cannot run pitch inference",
+                                  {}, "pitch");
+            }
+        }
         if (auto exp = ds::infer::inferutil::preprocessPhonemeDurations(pitchInput->words,
                                                                      config->frameWidth);
             exp) {
-            sessionInput->inputs.emplace("ph_dur", exp.take());
+            auto phDur = exp.take();
+            {
+                auto shape = phDur->shape();
+                std::string shapeStr;
+                for (auto s : shape) shapeStr += std::to_string(s) + " ";
+                Log.srtInfo("%1 ph_dur shape: [%2]", kLogPrefix, shapeStr);
+            }
+            sessionInput->inputs.emplace("ph_dur", std::move(phDur));
         } else {
             setState(Failed);
             Log.srtCritical("%1 start: preprocessPhonemeDurations failed: %2",
@@ -543,6 +568,15 @@ namespace srt::svs {
             return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceStartFailed,
                               "[Pitch] predictor session is not initialized",
                               {}, "pitch");
+        }
+
+        // Log input tensor shapes before predictor inference
+        Log.srtInfo("%1 predictor input keys:", kLogPrefix);
+        for (const auto &[name, tensor] : sessionInput->inputs) {
+            auto shape = tensor->shape();
+            std::string shapeStr;
+            for (auto s : shape) shapeStr += std::to_string(s) + " ";
+            Log.srtInfo("%1   '%2' shape=[%3]", kLogPrefix, name, shapeStr);
         }
 
         srt::core::NO<srt::core::TaskResult> sessionTaskResult;
