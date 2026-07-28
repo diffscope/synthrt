@@ -144,6 +144,21 @@ namespace srt::core {
         // cycle); capture raw pointers or weak_ptr instead.
         void addDestructionCallback(std::function<void()> callback);
 
+        // --- Global shutdown hook (process-wide singleton cleanup) ---
+        // Set a process-wide shutdown hook that will be called once in
+        // ~Runtime::Impl() BEFORE plugin DLLs are unloaded. This is used by
+        // subsystems that are static singletons (e.g. srt::g2p::PackageManager)
+        // and cannot access a Runtime instance to call addDestructionCallback.
+        //
+        // The hook is cleared after execution, so only the first Runtime
+        // destruction triggers it. If multiple Runtime instances exist, only
+        // the first one's destruction runs the hook.
+        //
+        // The hook MUST NOT capture a shared_ptr to any Runtime instance.
+        // Capture raw pointers to static singletons (whose lifetime exceeds
+        // Runtime) or weak_ptr instead.
+        static void setGlobalShutdownHook(std::function<void()> hook);
+
     protected:
         static void registerModuleCategoryFactory(ModuleCategory *(*fac)(Runtime *));
 

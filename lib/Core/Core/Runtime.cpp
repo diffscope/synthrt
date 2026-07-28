@@ -52,6 +52,18 @@ namespace srt::core {
         }
         m_destructionCallbacks.clear();
 
+        // Call the global shutdown hook (set by static-singleton subsystems
+        // like srt::g2p::PackageManager). This is the key mechanism for
+        // subsystems that cannot access a Runtime instance to call
+        // addDestructionCallback(). The hook is cleared after execution so
+        // that if multiple Runtime instances exist, only the first one's
+        // destruction runs the hook.
+        auto &hook = globalShutdownHook();
+        if (hook) {
+            hook();
+            hook = nullptr;
+        }
+
         for (const auto &[name, cate] : m_moduleCategories) {
             (void) name;
             delete cate;
@@ -75,6 +87,18 @@ namespace srt::core {
 
     void Runtime::addDestructionCallback(std::function<void()> callback) {
         _impl->m_destructionCallbacks.push_back(std::move(callback));
+    }
+
+    std::function<void()> &Runtime::Impl::globalShutdownHook() {
+        // Meyers singleton: initialized on first call, destroyed at process exit.
+        // This avoids the static initialization order fiasco — the function-local
+        // static is guaranteed to be initialized before any caller uses it.
+        static std::function<void()> hook;
+        return hook;
+    }
+
+    void Runtime::setGlobalShutdownHook(std::function<void()> hook) {
+        Runtime::Impl::globalShutdownHook() = std::move(hook);
     }
 
     // --- Service registry (ARCH-03) ---

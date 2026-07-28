@@ -96,6 +96,14 @@ namespace srt::core {
 
     public:
         static llvm::SmallVector<ModuleCategory *(*)(Runtime *)> moduleCategoryFactories;
+
+        /// Process-wide shutdown hook set by static-singleton subsystems
+        /// (e.g. srt::g2p::PackageManager) via Runtime::setGlobalShutdownHook().
+        /// Called once in ~Impl() before plugin DLLs are unloaded, then
+        /// cleared. Using a function-local static ensures it is initialized
+        /// before any dynamic initialization runs (Meyers singleton pattern),
+        /// avoiding the static initialization order fiasco.
+        static std::function<void()> &globalShutdownHook();
     };
 
 }
