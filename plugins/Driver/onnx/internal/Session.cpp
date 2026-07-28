@@ -70,6 +70,14 @@ namespace srt::driver::onnx {
 
         std::shared_mutex mtx;
 
+        // 序列化 SessionImage 销毁与同步推理。close() 销毁 SessionImage 前获取
+        // 独占锁，sessionRun() 获取共享锁。这确保 ORT Session 析构（释放
+        // CUBLAS/CUDA 资源）不会与另一个 Session 的同步推理并发，避免因
+        // CUDA 资源竞争导致的 CUBLAS_STATUS_EXECUTION_FAILED。不同 Session
+        // 的 sessionRun() 互相之间不受影响（共享锁可并行），保持 pitch/variance
+        // 并行能力。runAsync() 由 inFlightCount 保护，不需要此锁。
+        mutable std::shared_mutex runMtx;
+
         static SessionSystem &global() {
             static SessionSystem instance;
             return instance;
@@ -520,6 +528,11 @@ namespace srt::driver::onnx {
                     runOptions->UnsetTerminate();
                 }
 
+                // 序列化 SessionImage 销毁与同步推理：获取共享锁，阻止 close()
+                // 销毁任何 SessionImage 直到本次 Run 完成。不同 Session 的
+                // sessionRun() 互相之间不受影响（共享锁可并行）。
+                std::shared_lock<std::shared_mutex> runLock(SessionSystem::global().runMtx);
+
                 Ort::Status statusRun(Ort::GetApi().Run(
                     image->session, *runOptions, ctx.inputNames.data(), ctx.inputValuePtrs.data(),
                     inputCount, ctx.outputNames.data(), outputCount, ctx.outputValuePtrs.data()));
@@ -959,6 +972,13 @@ namespace srt::driver::onnx {
                 return srt::core::Error(srt::core::Error::SessionError,
                                         "cannot close session: async run in progress");
             }
+            // 序列化 SessionImage 销毁与同步推理：获取独占锁，等待所有正在
+            // 运行的 sessionRun() 完成。这确保 ORT Session 析构（释放
+            // CUBLAS/CUDA 资源）不会与另一个 Session 的同步推理并发，
+            // 避免 CUBLAS_STATUS_EXECUTION_FAILED。锁层次：session_system.mtx
+            // → runMtx（close 先获取 mtx，再获取 runMtx；sessionRun 只获取
+            // runMtx 不获取 mtx，无死锁）。
+            std::unique_lock<std::shared_mutex> runLock(session_system.runMtx);
             delete it->second.image;
             images.erase(it);
         }
