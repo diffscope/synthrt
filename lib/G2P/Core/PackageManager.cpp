@@ -246,27 +246,34 @@ namespace srt::g2p {
     }
 
     PackageManager::Impl::~Impl() {
-        // Tasks retain non-owning ModuleSpec pointers owned by loaded packages.
-        // Release every task reference before the corresponding packages.
+        // Destruction order (matters!):
+        //
+        // 1. m_tasks.clear() — release the NO<Task> references held by the
+        //    task index. Tasks are also referenced by ObjectPool::m_objects
+        //    (use_count >= 2), so this only drops the count, not the object.
+        //
+        // 2. cate->removeAllObjects() — release the NO<Task>/NO<NamedObject>
+        //    shared_ptrs held by each category's ObjectPool. This is the last
+        //    reference, so Task destructors run HERE. Tasks hold a non-owning
+        //    `const ModuleSpec*` pointer (Task::Impl::m_spec); the pointed-to
+        //    ModuleSpec is owned by PackageData and is still alive at this
+        //    point (step 3 deletes it). Doing removeAllObjects AFTER
+        //    closeAllLoadedPackages would leave m_spec dangling and cause
+        //    use-after-free in Task subclass destructors, corrupting the heap
+        //    and later crashing in shared_ptr::_Decref.
+        //
+        // 3. closeAllLoadedPackages() — delete PackageData (which deletes its
+        //    ModuleSpec instances). Categories must still be alive because
+        //    closePackage calls ModuleCategory::loadSpec(Deleted) to remove
+        //    specs from m_modules.
+        //
+        // 4. delete cate — destroy the categories themselves.
         m_tasks.clear();
-        // closePackage() invokes ModuleCategory::loadSpec() on each contribute
-        // to transition ModuleSpec states (Finished/Deleted), so loaded packages
-        // must be closed while the categories are still alive. Deleting the
-        // categories first leaves m_categories empty and makes the .at() lookup
-        // in closePackage throw std::out_of_range during cleanup, which on
-        // Windows triggers STATUS_STACK_BUFFER_OVERRUN and aborts the process.
+        for (const auto &[_, cate] : m_categories) {
+            cate->removeAllObjects();
+        }
         closeAllLoadedPackages();
         for (const auto &[_, cate] : m_categories) {
-            // Clear ObjectPool's m_objects before deleting the category.
-            // m_objects holds NO<NamedObject> (shared_ptr) references to
-            // drivers/factories/tasks added via addObject(). If these shared_ptrs
-            // are still alive when ObjectPool::Impl::~Impl() runs (triggered by
-            // ~ModuleCategory -> ~ObjectPool), their destructor may access
-            // already-freed memory or trigger double-free if the pointed-to
-            // objects were released by Runtime shutdown. Clearing m_objects
-            // here releases the references while the category (and its
-            // virtual dispatch table) is still intact.
-            cate->removeAllObjects();
             delete cate;
         }
         m_categories.clear();
