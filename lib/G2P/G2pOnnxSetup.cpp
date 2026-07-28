@@ -107,21 +107,32 @@ namespace srt::g2p {
         };
 
         /// G2pOnnxSessionFactory - adapts srt::driver::InferenceDriver to
-        /// srt::g2p::SessionFactory. Holds a shared_ptr to the driver to keep
-        /// it alive for the lifetime of the G2P Manager, preventing the
-        /// Runtime ObjectPool from destroying the driver before the G2P
-        /// Manager is done with it.
+        /// srt::g2p::SessionFactory. Holds a weak_ptr to the driver: the
+        /// driver's lifetime is owned by the Runtime's ObjectPool
+        /// ("inference/dsdriver"). Using weak_ptr (instead of shared_ptr)
+        /// avoids a crash at process exit: G2P Manager is a static singleton
+        /// whose destructor runs AFTER the Runtime (a local variable in the
+        /// host). If the factory held a shared_ptr, the driver's virtual
+        /// destructor would run after the plugin DLL (srt-driver-onnx.dll)
+        /// is unloaded by PluginFactory, accessing freed memory. With
+        /// weak_ptr, the factory's destructor does not trigger driver
+        /// destruction; the driver is destroyed by the Runtime while the
+        /// plugin DLL is still loaded.
         class G2pOnnxSessionFactory : public srt::g2p::SessionFactory {
         public:
             explicit G2pOnnxSessionFactory(srt::core::NO<srt::driver::InferenceDriver> driver)
                 : m_driver(std::move(driver)) {}
 
             std::string arch() const override {
-                return m_driver ? m_driver->arch() : std::string{};
+                if (auto sp = m_driver.lock())
+                    return sp->arch();
+                return {};
             }
 
             std::string backend() const override {
-                return m_driver ? m_driver->backend() : std::string{};
+                if (auto sp = m_driver.lock())
+                    return sp->backend();
+                return {};
             }
 
             srt::core::Expected<void> initialize(
@@ -133,10 +144,10 @@ namespace srt::g2p {
             }
 
             srt::core::NO<srt::g2p::SessionTask> createSession() override {
-                if (!m_driver) {
+                auto sp = m_driver.lock();
+                if (!sp)
                     return nullptr;
-                }
-                auto session = m_driver->createSession();
+                auto session = sp->createSession();
                 if (!session) {
                     return nullptr;
                 }
@@ -144,7 +155,7 @@ namespace srt::g2p {
             }
 
         private:
-            srt::core::NO<srt::driver::InferenceDriver> m_driver;
+            std::weak_ptr<srt::driver::InferenceDriver> m_driver;
         };
 
     } // namespace
