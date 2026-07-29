@@ -912,6 +912,8 @@ namespace srt::g2p {
         }
 
         auto task = taskExp.take();
+        task->setMgr(const_cast<PackageManager *>(this));
+
         // Catch C++ exceptions from task->initialize() (e.g. from third-party
         // libraries like cpp-pinyin). Without this, an exception would
         // propagate through Manager::initialize() → SynthrtEngine::initialize()
