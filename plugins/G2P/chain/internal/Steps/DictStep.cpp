@@ -3,6 +3,8 @@
 #include <synthrt/G2P/Support/Error.h>
 #include <stdcorelib/path.h>
 #include <stdcorelib/str.h>
+#include <algorithm>
+#include <cctype>
 
 namespace srt::g2p::plugins::ChainG2p {
     srt::core::Expected<void> DictStep::configure(const srt::g2p::ModuleSpec *spec,
@@ -57,8 +59,12 @@ namespace srt::g2p::plugins::ChainG2p {
                 continue;
             }
 
-            // 使用清洗后的词进行查找（如果有）
+            // 使用清洗后的词进行查找（如果有）。
+            // 字典中的词均为小写（如 cmudict），因此将 lookupKey 转为小写
+            // 以实现大小写不敏感的匹配（例如 "Hello" → "hello" 命中字典）。
             std::string lookupKey = word.cleanedLyric.empty() ? word.lyric : word.cleanedLyric;
+            std::transform(lookupKey.begin(), lookupKey.end(), lookupKey.begin(),
+                           [](unsigned char c) { return static_cast<unsigned char>(std::tolower(c)); });
 
             // 查找字典
             auto phonemes = lookup(lookupKey);
