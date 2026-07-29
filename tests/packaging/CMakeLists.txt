@@ -41,6 +41,7 @@ set_tests_properties(synthrt-test-install-package PROPERTIES
 add_test(NAME synthrt-test-install-package-scanner-self-test
     COMMAND "${CMAKE_COMMAND}"
         "-DSELF_TEST_ROOT=${CMAKE_BINARY_DIR}/tests/packaging/scanner-self-test"
+        "-DG2P_PACKAGES_SOURCE_DIR=${CMAKE_SOURCE_DIR}/resources/G2pPackages"
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/AssertInstallTree.cmake"
 )
 set_tests_properties(synthrt-test-install-package-scanner-self-test PROPERTIES

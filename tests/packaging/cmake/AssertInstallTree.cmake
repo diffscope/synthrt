@@ -13,15 +13,6 @@ set(_expected_packages
     srt-svs
     synthrt
 )
-set(_g2p_packages
-    Phonetic-Suite-Cmn
-    Phonetic-Suite-Jpn
-    Phonetic-Suite-Num
-    Phonetic-Suite-Punc
-    Phonetic-Suite-Unknown
-    Phonetic-Suite-Yue
-)
-
 if(DEFINED SELF_TEST_ROOT AND NOT SELF_TEST_ROOT STREQUAL "")
     get_filename_component(_self_test_root "${SELF_TEST_ROOT}" ABSOLUTE)
     set(_prefix "${_self_test_root}/prefix")
@@ -62,10 +53,16 @@ if(DEFINED SELF_TEST_ROOT AND NOT SELF_TEST_ROOT STREQUAL "")
         )
     endforeach()
     set(_resources "${_prefix}/${_datadir}/synthrt/G2pPackages")
-    foreach(_package IN LISTS _g2p_packages)
-        file(MAKE_DIRECTORY "${_resources}/${_package}")
-        file(WRITE "${_resources}/${_package}/package.json" "{}\n")
-        list(APPEND _manifest_entries "${_resources}/${_package}/package.json")
+    if(NOT DEFINED G2P_PACKAGES_SOURCE_DIR OR G2P_PACKAGES_SOURCE_DIR STREQUAL "")
+        message(FATAL_ERROR "G2P_PACKAGES_SOURCE_DIR is required for self-test")
+    endif()
+    file(GLOB _g2p_source_subdirs RELATIVE "${G2P_PACKAGES_SOURCE_DIR}" "${G2P_PACKAGES_SOURCE_DIR}/*")
+    foreach(_g2p_subdir IN LISTS _g2p_source_subdirs)
+        if(IS_DIRECTORY "${G2P_PACKAGES_SOURCE_DIR}/${_g2p_subdir}")
+            file(MAKE_DIRECTORY "${_resources}/${_g2p_subdir}")
+            file(WRITE "${_resources}/${_g2p_subdir}/package.json" "{}\n")
+            list(APPEND _manifest_entries "${_resources}/${_g2p_subdir}/package.json")
+        endif()
     endforeach()
     file(MAKE_DIRECTORY
         "${_resources}/Phonetic-Suite-Cmn/modules/G2p-Cmn/dict/mandarin"
@@ -240,17 +237,17 @@ foreach(_expected_target IN LISTS _expected_imported_targets)
 endforeach()
 
 set(_resources "${INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/synthrt/G2pPackages")
-foreach(_package IN LISTS _g2p_packages)
-    set(_package_json "${_resources}/${_package}/package.json")
-    if(NOT EXISTS "${_package_json}")
-        message(FATAL_ERROR "G2P package metadata is missing: ${_package_json}")
-    endif()
-    list(APPEND _required_manifest_paths "${_package_json}")
-endforeach()
-
-if(EXISTS "${_resources}/Phonetic-Suite-Eng")
-    message(FATAL_ERROR
-        "Unverified Phonetic-Suite-Eng resources were included in the default install tree")
+if(IS_DIRECTORY "${_resources}")
+    file(GLOB _g2p_subdirs RELATIVE "${_resources}" "${_resources}/*")
+    foreach(_g2p_subdir IN LISTS _g2p_subdirs)
+        if(IS_DIRECTORY "${_resources}/${_g2p_subdir}")
+            set(_package_json "${_resources}/${_g2p_subdir}/package.json")
+            if(NOT EXISTS "${_package_json}")
+                message(FATAL_ERROR "G2P package metadata is missing: ${_package_json}")
+            endif()
+            list(APPEND _required_manifest_paths "${_package_json}")
+        endif()
+    endforeach()
 endif()
 
 set(_licenses

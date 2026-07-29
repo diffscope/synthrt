@@ -17,6 +17,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include <synthrt/Core/Core/Runtime.h>
+#include <synthrt/G2P/Base/LangCommon.h>
 #include <synthrt/G2P/LanguageService.h>
 #include <diffsinger/Session/VoicebankSession.h>
 
@@ -337,4 +338,64 @@ TEST_CASE("Multi-version fixture: same packageId two versions",
     // See docs/refactoring-v3/04-routing-and-errors.md §7.2 for the L2
     // contract matrix.
     SKIP("L2: needs Runtime + multi-version voicebank package fixture");
+}
+
+// ===========================================================================
+// G. "language not declared by singer" regression (ds-editor-lite issue)
+//    Simulates ds-editor-lite's real calling pattern: a note with language
+//    = "unknown" (default from deserialization) is passed to convertS2p /
+//    convertG2p, and the singer only declares specific language IDs.
+//    Both APIs must reject "unknown" with G2pValidationError.
+// ===========================================================================
+
+TEST_CASE("convertS2p with unknown language returns G2pValidationError",
+          "[ds-session][v3]") {
+    // Singer "test" in makePackage() declares only "cmn" → requesting
+    // "unknown" must fail validation.
+    const auto root = makeRoot();
+    makePackage(root);
+
+    auto langSvc = std::make_shared<srt::g2p::LanguageService>();
+    ds::session::SessionResources resources;
+    resources.languageService = langSvc;
+    ds::session::VoicebankSession session(std::move(resources));
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    std::vector<srt::g2p::PackageDirectoryEntry> entries = {
+        {"session.test", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
+    };
+    REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
+
+    ds::bank::SingerRef ref("session.test", "test");
+    auto exp = session.convertS2p(ref, "unknown", "hello");
+    REQUIRE_FALSE(exp.hasValue());
+    REQUIRE(exp.isError(srt::core::ErrorCode::G2pValidationError));
+
+    std::filesystem::remove_all(root);
+}
+
+TEST_CASE("convertG2p with unknown language returns G2pValidationError",
+          "[ds-session][v3]") {
+    const auto root = makeRoot();
+    makePackage(root);
+
+    auto langSvc = std::make_shared<srt::g2p::LanguageService>();
+    ds::session::SessionResources resources;
+    resources.languageService = langSvc;
+    ds::session::VoicebankSession session(std::move(resources));
+    session.setRoots({root});
+    REQUIRE(session.refreshAsync().get().succeeded);
+
+    std::vector<srt::g2p::PackageDirectoryEntry> entries = {
+        {"session.test", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
+    };
+    REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
+
+    ds::bank::SingerRef ref("session.test", "test");
+    auto exp = session.convertG2p(ref, "unknown", {srt::g2p::G2pInput("hello", "g2p-cmn")});
+    REQUIRE_FALSE(exp.hasValue());
+    REQUIRE(exp.isError(srt::core::ErrorCode::G2pValidationError));
+
+    std::filesystem::remove_all(root);
 }

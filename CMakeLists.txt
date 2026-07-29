@@ -248,27 +248,8 @@ if(SYNTHRT_INSTALL)
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/synthrt
     )
 
-    # The English package (Phonetic-Suite-Eng) is excluded by default until its
-    # dictionary and model redistribution provenance is documented.
-    #
-    # BI-25: The exclusion is applied defensively in two layers to guarantee
-    # that Phonetic-Suite-Eng is never installed:
-    #   1. install(CODE remove_recurse) below runs at install time and deletes
-    #      the directory if it was copied by any prior install(DIRECTORY) rule.
-    #      This is the "cleanup" backstop.
-    #   2. install(DIRECTORY ... PATTERN ... EXCLUDE) skips the directory during
-    #      the copy itself. This is the primary exclusion mechanism.
-    # The double exclusion is intentionally redundant: if a CMake version or
-    # edge-case causes the PATTERN EXCLUDE to miss the directory, the
-    # remove_recurse layer still ensures the install tree is clean. The
-    # outcome is asserted by tests/packaging/cmake/AssertInstallTree.cmake
-    # (Phonetic-Suite-Eng must not exist in the install tree).
-    install(CODE
-        "file(REMOVE_RECURSE \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/synthrt/G2pPackages/Phonetic-Suite-Eng\")"
-    )
     install(DIRECTORY resources/G2pPackages
         DESTINATION ${CMAKE_INSTALL_DATADIR}/synthrt
-        PATTERN "Phonetic-Suite-Eng" EXCLUDE
     )
 endif()
 

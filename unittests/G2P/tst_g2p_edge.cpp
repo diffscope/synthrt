@@ -1,4 +1,4 @@
-// G2P edge-case tests (G2P-001 ~ G2P-012).
+﻿// G2P edge-case tests (G2P-001 ~ G2P-012).
 //
 // Covers edge inputs and error paths of the PackageManager / Manager public APIs. Written
 // based on actual API signatures and implementation behavior; deviations from the test
