@@ -211,29 +211,36 @@ namespace {
         };
     }
 
-    /// Language test case: languageId + simple word.
+    /// Language test case: languageId + simple word + expected phoneme sequence.
+    /// expectedPron (empty = only verify non-empty + non-copy; non-empty =
+    /// verify exact phoneme sequence). Expected values derived from the
+    /// vocabulary phoneme set for each language variant in
+    /// modules/Multig2p-Multi/vocabulary.json.
     struct LangCase {
         std::string languageId;
         std::string word;
         std::string description;
+        std::string expectedPron;  // expected space-separated phonemes
     };
 
     /// All 12 languages supported by Multig2p-Multi, each with the simplest
     /// common word to minimize ONNX variance. Language codes are ISO 639-3.
     const std::vector<LangCase> &langCases() {
         static const std::vector<LangCase> cases = {
-            {"eng/default",       "hello", "eng (CMU)"},
-            {"deu/default",       "ja",    "deu (OpenUTAU)"},
-            {"fra/default",       "oui",   "fra (OpenUTAU)"},
-            {"ita/default",       "si",    "ita (OpenUTAU)"},
-            {"kor/default",       "가",    "kor (OpenUTAU)"},
-            {"por/default",       "sim",   "por (OpenUTAU)"},
-            {"rus/default",       "да",    "rus (OpenUTAU)"},
-            {"spa/default",       "si",    "spa (OpenUTAU)"},
-            {"fil/default",       "oo",    "fil (OpenUTAU)"},
-            {"eng/plus",          "hello", "eng (ARPABET Plus)"},
-            {"deu/marzipan",      "ja",    "deu (Marzipan)"},
-            {"fra/millefeuille",  "oui",   "fra (Millefeuille)"},
+            // eng/default uses CMU ARPABET: ah (not ax) for schwa
+            {"eng/default",       "hello", "eng (CMU)",          "hh ah l ow"},
+            // eng/plus (ARPABET Plus) uses ax for the reduced schwa
+            {"eng/plus",          "hello", "eng (ARPABET Plus)", "hh ax l ow"},
+            {"deu/default",       "ja",    "deu (OpenUTAU)",     ""},
+            {"fra/default",       "oui",   "fra (OpenUTAU)",     ""},
+            {"ita/default",       "si",    "ita (OpenUTAU)",     ""},
+            {"kor/default",       "가",    "kor (OpenUTAU)",     ""},
+            {"por/default",       "sim",   "por (OpenUTAU)",     ""},
+            {"rus/default",       "да",    "rus (OpenUTAU)",     ""},
+            {"spa/default",       "si",    "spa (OpenUTAU)",     ""},
+            {"fil/default",       "oo",    "fil (OpenUTAU)",     ""},
+            {"deu/marzipan",      "ja",    "deu (Marzipan)",     ""},
+            {"fra/millefeuille",  "oui",   "fra (Millefeuille)", ""},
         };
         return cases;
     }
@@ -285,6 +292,11 @@ TEST_CASE("multig2p inference produces phonemes per language", "[g2p][multig2p][
             // Pronunciation must differ from the input lyric (actual
             // grapheme-to-phoneme conversion happened, not a copy).
             REQUIRE(result.pronunciation != lc.word);
+            // When expectedPron is set, verify exact phoneme sequence.
+            // This guards against silent regression of the ONNX model output.
+            if (!lc.expectedPron.empty()) {
+                REQUIRE(result.pronunciation == lc.expectedPron);
+            }
         }
     }
 }
