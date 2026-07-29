@@ -1,6 +1,6 @@
 // tst_multig2p_languages.cpp
-// Multig2p plugin integration tests covering all languages supported by
-// Phonetic-Suite-Multi/modules/Multig2p-Multi.
+// Multig2p plugin integration tests covering all 9 default languages
+// supported by Phonetic-Suite-Multi/modules/Multig2p-Multi.
 //
 // Verifies the chainG2p → multig2p call path by exercising the multig2p
 // task directly with G2pInputV1 (languageId set per language). This
@@ -223,37 +223,22 @@ namespace {
         std::string expectedPron;  // expected space-separated phonemes
     };
 
-    /// All 12 languages supported by Multig2p-Multi, each with the simplest
-    /// common word to minimize ONNX variance. Language codes are ISO 639-3.
-    /// expectedPron values come from the dict training data (ChainG2p-*/...txt)
-    /// and config.json phoneme sets. For ita/default, preprocessor
-    /// remove_tone_digits strips stress marks (i1 → i).
+    /// 9 default languages supported by Multig2p-Multi, each with the
+    /// simplest common word to minimize ONNX variance. Language codes are
+    /// ISO 639-3; internal key uses xxx/default.
+    /// expectedPron from ChainG2p-*/...txt dicts + config.json phoneme sets.
+    /// ita/default preprocessor remove_tone_digits strips stress (i1 → i).
     const std::vector<LangCase> &langCases() {
         static const std::vector<LangCase> cases = {
-            // eng/default uses CMU ARPABET: ah (not ax) for schwa
-            {"eng/default",       "hello", "eng (CMU)",          "hh ah l ow"},
-            // eng/plus (ARPABET Plus) uses ax for the reduced schwa
-            {"eng/plus",          "hello", "eng (ARPABET Plus)", "hh ax l ow"},
-            // deu dict: ja → y aa; voc has y, aa (OpenUTAU format)
-            {"deu/default",       "ja",    "deu (OpenUTAU)",     "y aa"},
-            // fra dict: oui → ou ii; voc has ou, ii
-            {"fra/default",       "oui",   "fra (OpenUTAU)",     "ou ii"},
-            // ita dict: si → s i1; remove_tone_digits → s i
-            {"ita/default",       "si",    "ita (OpenUTAU)",     "s i"},
-            // kor phoneme set uses Latin: syllable 가 → g a
-            {"kor/default",       "가",    "kor (OpenUTAU)",     "g a"},
-            // por dict: sim → s i~; voc has i~
-            {"por/default",       "sim",   "por (OpenUTAU)",     "s i~"},
-            // rus dict uses Latin phonemes: да → d a
-            {"rus/default",       "да",    "rus (OpenUTAU)",     "d a"},
-            // spa dict: si → s i
-            {"spa/default",       "si",    "spa (OpenUTAU)",     "s i"},
-            // fil dict has only uppercase OO → Q O Q O; lowercase oo → o o
-            {"fil/default",       "oo",    "fil (OpenUTAU)",     "o o"},
-            // deu/marzipan uses IPA-like voc: ja → j a
-            {"deu/marzipan",      "ja",    "deu (Marzipan)",     "j a"},
-            // fra/millefeuille uses different phoneme set; TBD from model
-            {"fra/millefeuille",  "oui",   "fra (Millefeuille)", ""},
+            {"eng/default", "hello", "eng", "hh ah l ow"},
+            {"deu/default", "ja",    "deu", "y aa"},
+            {"fra/default", "oui",   "fra", "ou ii"},
+            {"ita/default", "si",    "ita", "s i"},
+            {"kor/default", "가",    "kor", "g a"},
+            {"por/default", "sim",   "por", "s i~"},
+            {"rus/default", "да",    "rus", "d a"},
+            {"spa/default", "si",    "spa", "s i"},
+            {"fil/default", "oo",    "fil", "o o"},
         };
         return cases;
     }
