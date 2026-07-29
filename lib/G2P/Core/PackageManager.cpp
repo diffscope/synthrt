@@ -617,6 +617,28 @@ namespace srt::g2p {
     // ============================================================================
 
     PackageManager::PackageManager(Impl &impl) : _impl(&impl) {
+        // Register a process-wide shutdown hook so that when ANY Runtime
+        // instance destructs (before plugin DLLs are unloaded), this
+        // PackageManager's ObjectPool references are released while the
+        // plugin DLLs are still loaded.
+        //
+        // This is necessary because Manager (a subclass that uses this
+        // constructor path) is a static singleton whose destructor runs
+        // AFTER the host's Runtime. Without this hook, the Manager
+        // destructor would release Task/SessionFactory shared_ptrs whose
+        // vtables reside in already-unloaded plugin DLLs, causing
+        // use-after-free crashes in shared_ptr::_Decref.
+        //
+        // The hook captures `this` (raw pointer to the static singleton,
+        // whose address is stable for the process lifetime). shutdown() is
+        // idempotent, so a later destructor call is a no-op.
+        //
+        // NOTE: This is identical to the hook registration in the default
+        // constructor; both paths must register it since Manager bypasses
+        // the default constructor.
+        srt::core::Runtime::setGlobalShutdownHook([this]() {
+            _impl->shutdown();
+        });
     }
 
     PackageManager::PackageManager() : srt::core::PluginFactory(), _impl(new Impl(this)) {
