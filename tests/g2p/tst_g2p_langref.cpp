@@ -2,7 +2,7 @@
 #include <synthrt/G2P/Task/G2pTask.h>
 #include <string>
 
-TEST_CASE("G2pInputV1 carries languageId field", "[g2p][langref]") {
+TEST_CASE("G2pInputV1 carries languageId field (iso-639-3 deu)", "[g2p][langref]") {
     srt::g2p::G2pInputV1 input;
     REQUIRE(input.g2pInput.empty());
     REQUIRE(input.languageId.empty());
@@ -23,7 +23,7 @@ TEST_CASE("G2pInputV1 languageId is optional (empty by default)", "[g2p][langref
     REQUIRE(input.languageId.empty());
 }
 
-TEST_CASE("G2pInputV1 supports multiple words with languageId", "[g2p][langref]") {
+TEST_CASE("G2pInputV1 supports multiple words with languageId (iso-639-3 deu)", "[g2p][langref]") {
     srt::g2p::G2pInputV1 input;
     input.g2pInput.push_back("guten");
     input.g2pInput.push_back("tag");
@@ -33,14 +33,14 @@ TEST_CASE("G2pInputV1 supports multiple words with languageId", "[g2p][langref]"
     REQUIRE(input.languageId == "deu/default");
 }
 
-TEST_CASE("G2pInputV1 supports kor/default langRef", "[g2p][langref]") {
+TEST_CASE("G2pInputV1 supports kor langRef (iso-639-3)", "[g2p][langref]") {
     srt::g2p::G2pInputV1 input;
     input.g2pInput.push_back("annyeong");
     input.languageId = "kor/default";
     REQUIRE(input.languageId == "kor/default");
 }
 
-TEST_CASE("G2pInputV1 supports rus/default langRef", "[g2p][langref]") {
+TEST_CASE("G2pInputV1 supports rus langRef (iso-639-3)", "[g2p][langref]") {
     srt::g2p::G2pInputV1 input;
     input.g2pInput.push_back("privet");
     input.languageId = "rus/default";

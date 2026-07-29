@@ -13,14 +13,6 @@
       }
     },
     {
-      "name": "base-l2",
-      "hidden": true,
-      "inherits": "base",
-      "cacheVariables": {
-        "SYNTHRT_ENABLE_L2_TESTS": "ON"
-      }
-    },
-    {
       "name": "base-clang-tidy",
       "hidden": true,
       "inherits": "base",

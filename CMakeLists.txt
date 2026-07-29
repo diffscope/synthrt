@@ -20,7 +20,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 include(CMakeDependentOption)
 
 option(SYNTHRT_BUILD_TESTS "Build test cases" OFF)
-option(SYNTHRT_ENABLE_L2_TESTS "Enable L2 end-to-end tests with real plugins" OFF)
+# NOTE: All tests are unified under SYNTHRT_BUILD_TESTS. No separate L2 level.
 option(SYNTHRT_BUILD_EXAMPLES "Build examples" OFF)
 option(SYNTHRT_BUILD_TOOLS "Build command line tools" ON)
 option(SYNTHRT_INSTALL "Install library" ON)

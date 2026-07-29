@@ -1,11 +1,11 @@
 // tst_vbs_lifecycle.cpp
-// L1 tests for S1-S5 lifecycle APIs: loadVoicebank / unloadVoicebank /
+// Tests for S1-S5 lifecycle APIs: loadVoicebank / unloadVoicebank /
 // loadedVoicebanks / Error::withExtraContext / formatContext /
 // SessionResources.g2pPluginPaths.
 //
 // These tests exercise error paths and basic API contracts without real
-// ONNX models or G2P plugins. L2 tests that load real packages are gated
-// behind SYNTHRT_ENABLE_L2_TESTS (future).
+// ONNX models or G2P plugins. Real-plugin tests are unified under
+// SYNTHRT_BUILD_TESTS (no separate L2 level).
 
 #include <catch2/catch_test_macros.hpp>
 

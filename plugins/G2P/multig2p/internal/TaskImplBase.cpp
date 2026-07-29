@@ -6,6 +6,7 @@
 #include <synthrt/Core/Support/ConfigAccessor.h>
 #include <synthrt/Core/Support/Logging.h>
 #include <synthrt/G2P/Base/LangCommon.h>
+#include <synthrt/G2P/Core/Manager.h>
 #include <synthrt/G2P/Task/G2pTask.h>
 
 namespace srt::g2p::plugins::Multig2p::Internal {
@@ -63,8 +64,11 @@ namespace srt::g2p::plugins::Multig2p::Internal {
         m_langIdMap = LangIdMap::fromLanguages(bundleMeta.languages);
 
         // 3. 尝试获取 G2P ONNX 驱动
-        auto runtime = m_spec->runtime();
-        auto driverCat = runtime ? runtime->moduleCategory(srt::g2p::kDriverCategory) : nullptr;
+        // The driver factory is registered in the G2P Manager's kDriverCategory
+        // by setupG2pOnnxDriver(), NOT in the Runtime's module categories.
+        // Using runtime->moduleCategory() would miss the factory and silently
+        // fall back to copy mode, causing "unknown token <lyric>" downstream.
+        auto *driverCat = srt::g2p::Manager::instance()->category(srt::g2p::kDriverCategory);
         auto driverObj = driverCat
                              ? driverCat->getFirstObject(srt::g2p::kG2pOnnxDriverName)
                              : srt::core::NO<srt::core::NamedObject>();

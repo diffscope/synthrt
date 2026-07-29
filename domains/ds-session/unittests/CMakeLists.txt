@@ -71,10 +71,5 @@ target_link_libraries(tst-ds-session-concurrent PRIVATE srt-ds::session)
 synthrt_add_unittest(tst-ds-session-snapshot-query tst_vbs_snapshot_query.cpp)
 target_link_libraries(tst-ds-session-snapshot-query PRIVATE srt-ds::session)
 
-# L2 end-to-end tests (real plugins) gated behind SYNTHRT_ENABLE_L2_TESTS
-# (INFRA-03 测试分级). When ON, the macro is defined for this target so
-# L2 test cases gated by #ifdef SYNTHRT_ENABLE_L2_TESTS are compiled.
-# Fixtures/helper are added by ET-01 (docs/refactoring/04-edge-tests/plan.md).
-if(SYNTHRT_ENABLE_L2_TESTS)
-    target_compile_definitions(tst-ds-session-lifecycle PRIVATE SYNTHRT_ENABLE_L2_TESTS)
-endif()
+# All tests are unified under SYNTHRT_BUILD_TESTS (no separate L2 level).
+# Real-plugin tests always compile when SYNTHRT_BUILD_TESTS is ON.
