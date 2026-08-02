@@ -18,17 +18,10 @@ set(DSINFER_INSTALL ${SYNTHRT_INSTALL})
 set(DSINFER_VERSION ${PROJECT_VERSION})
 set(DSINFER_INSTALL_NAME ${PROJECT_NAME})
 
-# ----------------------------------
-# Configure BuildAPI
-# ----------------------------------
-set(DSINFER_AUTHOR "Team OpenVPI")
-set(DSINFER_START_YEAR 2023)
-set(DSINFER_INCLUDE_DIR include)
-include("${SYNTHRT_SOURCE_DIR}/cmake/BuildAPI.cmake")
+include("conf.cmake")
 
-# ----------------------------------
-# Add source modules
-# ----------------------------------
+dsinfer_init_buildsystem()
+
 add_subdirectory(lib)
 
 add_subdirectory(util)
@@ -42,3 +35,5 @@ if(SYNTHRT_BUILD_TESTS)
 endif()
 
 dsinfer_install()
+
+dsinfer_finish_buildsystem()
