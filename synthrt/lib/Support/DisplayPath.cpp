@@ -23,21 +23,21 @@ namespace srt {
     }
 
     DisplayPath::DisplayPath(std::filesystem::path path) : _impl(std::make_shared<Impl>()) {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.defaultPath = std::move(path);
     }
 
     DisplayPath::DisplayPath(std::filesystem::path defaultPath,
                              const std::map<std::string, std::filesystem::path> &paths)
         : DisplayPath(std::move(defaultPath)) {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.paths = {paths.begin(), paths.end()};
     }
 
     DisplayPath::~DisplayPath() = default;
 
     DisplayPath &DisplayPath::operator=(std::filesystem::path path) {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.defaultPath = std::move(path);
         return *this;
     }
@@ -86,12 +86,12 @@ namespace srt {
     }
 
     const std::filesystem::path &DisplayPath::path() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.defaultPath;
     }
 
     const std::filesystem::path &DisplayPath::path(std::string_view locale) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         if (!impl.paths) {
             return impl.defaultPath;
         }
@@ -103,7 +103,7 @@ namespace srt {
     }
 
     bool DisplayPath::isEmpty() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.defaultPath.empty();
     }
 

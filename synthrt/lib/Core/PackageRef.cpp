@@ -64,7 +64,7 @@ namespace srt {
     Expected<void>
         PackageData::parse(const std::filesystem::path &dir,
                            const std::map<std::string, ContribCategory *, std::less<>> &categories,
-                           llvm::SmallVectorImpl<ContribSpec *> *outContributes) {
+                           stdc::vlarray_base<ContribSpec *> *outContributes) {
         std::string id_;
         stdc::VersionNumber version_;
         DisplayText name_;
@@ -73,9 +73,9 @@ namespace srt {
         DisplayPath readme_;
         DisplayPath license_;
         std::string url_;
-        llvm::SmallVector<PackageDependency> dependencies_;
+        stdc::vlarray<PackageDependency> dependencies_;
 
-        llvm::SmallVector<ContribSpec *> contributes_;
+        stdc::vlarray<ContribSpec *> contributes_;
 
         // Read desc
         JsonObject obj;
@@ -86,7 +86,7 @@ namespace srt {
         }
 
         auto canonicalDir = fs::canonical(dir);
-        const auto &descPath = canonicalDir / _TSTR("desc.json");
+        const auto &descPath = canonicalDir / STDC_TSTR("desc.json");
 
         {
             const std::set<std::string_view> allowedKeys = {
@@ -319,7 +319,7 @@ namespace srt {
     }
 
     Expected<JsonObject> PackageData::readDesc(const std::filesystem::path &dir) {
-        const auto &descPath = dir / _TSTR("desc.json");
+        const auto &descPath = dir / STDC_TSTR("desc.json");
         std::ifstream file(descPath);
         if (!file.is_open()) {
             return Error{

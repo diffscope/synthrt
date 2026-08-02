@@ -104,27 +104,27 @@ namespace srt {
     ContribSpec::~ContribSpec() = default;
 
     const std::string &ContribSpec::category() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.category;
     }
 
     const std::string &ContribSpec::id() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.id;
     }
 
     ContribSpec::State ContribSpec::state() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.state;
     }
 
     PackageRef ContribSpec::parent() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return PackageRef(impl.package);
     }
 
     SynthUnit *ContribSpec::SU() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.package->su;
     }
 
@@ -171,17 +171,17 @@ namespace srt {
     ContribCategory::~ContribCategory() = default;
 
     const std::string &ContribCategory::name() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.name;
     }
 
     SynthUnit *ContribCategory::SU() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.su;
     }
 
     Expected<void> ContribCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         auto spec_impl = spec->_impl.get();
         switch (state) {
@@ -233,7 +233,7 @@ namespace srt {
     }
 
     std::vector<ContribSpec *> ContribCategory::find(const ContribLocator &loc) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.findContributes(loc);
     }
 

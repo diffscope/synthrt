@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <list>
 
-#include <stdcorelib/3rdparty/llvm/smallvector.h>
+#include <stdcorelib/adt/vlarray.h>
 
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/Plugin/PluginFactory_p.h>
@@ -33,13 +33,13 @@ namespace srt {
         std::map<std::string, ContribCategory *, std::less<>> categories;
         std::map<std::string, ContribCategory *, std::less<>> cateKeyMap;
 
-        llvm::SmallVector<std::filesystem::path> packagePaths;
+        stdc::vlarray<std::filesystem::path> packagePaths;
 
         struct LoadedPackageBlock {
             PackageData *spec = nullptr;
             int ref = 0;
-            llvm::SmallVector<ContribSpec *> contributes;
-            llvm::SmallVector<PackageData *> linked;
+            stdc::vlarray<ContribSpec *> contributes;
+            stdc::vlarray<PackageData *> linked;
         };
         class LoadedPackageMap {
         public:
@@ -70,7 +70,7 @@ namespace srt {
         mutable std::shared_mutex su_mtx;
 
     public:
-        static llvm::SmallVector<ContribCategory *(*) (SynthUnit *)> categoryFactories;
+        static stdc::vlarray<ContribCategory *(*) (SynthUnit *)> categoryFactories;
     };
 
 }

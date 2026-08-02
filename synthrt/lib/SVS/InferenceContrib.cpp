@@ -270,55 +270,55 @@ namespace srt {
     InferenceSpec::~InferenceSpec() = default;
 
     const std::string &InferenceSpec::className() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.className;
     }
 
     DisplayText InferenceSpec::name() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.name;
     }
 
     int InferenceSpec::apiLevel() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.apiLevel;
     }
 
     const JsonObject &InferenceSpec::manifestSchema() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.manifestSchema;
     }
 
     NO<InferenceSchema> InferenceSpec::schema() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.schema;
     }
 
     const JsonObject &InferenceSpec::manifestConfiguration() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.manifestConfiguration;
     }
 
     NO<InferenceConfiguration> InferenceSpec::configuration() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.configuration;
     }
 
     const std::filesystem::path &InferenceSpec::path() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.path;
     }
 
     Expected<NO<InferenceImportOptions>>
         InferenceSpec::createImportOptions(const JsonValue &options) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.interp->createImportOptions(this, options);
     }
 
     Expected<NO<Inference>>
         InferenceSpec::createInference(const NO<InferenceImportOptions> &importOptions,
                                        const NO<InferenceRuntimeOptions> &runtimeOptions) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.interp->createInference(this, importOptions, runtimeOptions);
     }
 
@@ -329,7 +329,7 @@ namespace srt {
 
     std::vector<InferenceSpec *>
         InferenceCategory::findInferences(const ContribLocator &locator) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::vector<InferenceSpec *> res;
         auto temp = impl.findContributes(locator);
         res.reserve(temp.size());
@@ -340,7 +340,7 @@ namespace srt {
     }
 
     std::vector<InferenceSpec *> InferenceCategory::inferences() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.su_mtx());
         std::vector<InferenceSpec *> res;
         res.reserve(impl.contributes.size());
@@ -356,7 +356,7 @@ namespace srt {
 
     Expected<ContribSpec *> InferenceCategory::parseSpec(const std::filesystem::path &basePath,
                                                          const JsonValue &config) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         if (!config.isString()) {
             return Error{
                 Error::InvalidFormat,
@@ -373,7 +373,7 @@ namespace srt {
     }
 
     Expected<void> InferenceCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
-        __stdc_impl_t;
+        stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
                 auto infSpec = static_cast<InferenceSpec *>(spec);

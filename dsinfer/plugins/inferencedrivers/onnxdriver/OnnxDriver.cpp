@@ -18,11 +18,11 @@
 #include <onnxruntime_cxx_api.h>
 
 #if defined(_WIN32)
-#  define ONNXRUNTIME_DYLIB_FILENAME _TSTR("onnxruntime.dll")
+#  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("onnxruntime.dll")
 #elif defined(__APPLE__)
-#  define ONNXRUNTIME_DYLIB_FILENAME _TSTR("libonnxruntime.dylib")
+#  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("libonnxruntime.dylib")
 #else
-#  define ONNXRUNTIME_DYLIB_FILENAME _TSTR("libonnxruntime.so")
+#  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("libonnxruntime.so")
 #endif
 
 namespace fs = std::filesystem;
@@ -161,7 +161,7 @@ namespace ds {
     }
 
     srt::Expected<void> OnnxDriver::initialize(const srt::NO<InferenceDriverInitArgs> &args) {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         if (args->objectName() != Onnx::API_NAME) {
             return srt::Error{

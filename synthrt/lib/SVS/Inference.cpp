@@ -21,12 +21,12 @@ namespace srt {
     Inference::~Inference() = default;
 
     const InferenceSpec *Inference::spec() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.spec;
     }
 
     SynthUnit *Inference::SU() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.spec->SU();
     }
 

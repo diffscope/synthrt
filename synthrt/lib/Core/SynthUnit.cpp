@@ -16,7 +16,7 @@ namespace fs = std::filesystem;
 
 namespace srt {
 
-    llvm::SmallVector<ContribCategory *(*) (SynthUnit *)> SynthUnit::Impl::categoryFactories;
+    stdc::vlarray<ContribCategory *(*) (SynthUnit *)> SynthUnit::Impl::categoryFactories;
 
     static bool isValidPackageIdentifier(std::string_view token) {
         static const std::regex re(R"(^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$)");
@@ -38,7 +38,7 @@ namespace srt {
     }
 
     Expected<PackageData *> SynthUnit::Impl::open(const std::filesystem::path &path, bool noLoad) {
-        __stdc_decl_t;
+        stdc_decl_t;
         auto canonicalPath = stdc::path::canonical(path);
         if (canonicalPath.empty() || !fs::is_directory(canonicalPath)) {
             return Error{
@@ -61,7 +61,7 @@ namespace srt {
 
         // Parse spec
         auto pd = new PackageData(&decl);
-        llvm::SmallVector<ContribSpec *> contributes;
+        stdc::vlarray<ContribSpec *> contributes;
 
         if (auto exp = pd->parse(canonicalPath, cateKeyMap, &contributes); !exp) {
             delete pd;
@@ -152,7 +152,7 @@ namespace srt {
         }
 
         // Load dependencies
-        llvm::SmallVector<PackageData *> dependencies;
+        stdc::vlarray<PackageData *> dependencies;
         auto closeDependencies = [&dependencies, this]() {
             for (auto it = dependencies.rbegin(); it != dependencies.rend(); ++it) {
                 std::ignore = close(*it);
@@ -160,8 +160,8 @@ namespace srt {
         };
         auto searchDependencies =
             [this](const std::string &id,
-                   const stdc::VersionNumber &version) -> llvm::SmallVector<fs::path> {
-            llvm::SmallVector<fs::path> res;
+                   const stdc::VersionNumber &version) -> stdc::vlarray<fs::path> {
+            stdc::vlarray<fs::path> res;
             auto it = cachedPackageIndexesMap.find(id);
             if (it == cachedPackageIndexesMap.end()) {
                 return {};
@@ -502,7 +502,7 @@ namespace srt {
     SynthUnit::~SynthUnit() = default;
 
     ContribCategory *SynthUnit::category(const std::string_view &name) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.categories.find(name);
         if (it == impl.categories.end()) {
             return nullptr;
@@ -511,7 +511,7 @@ namespace srt {
     }
 
     void SynthUnit::addPackagePaths(stdc::array_view<std::filesystem::path> paths) {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::unique_lock<std::shared_mutex> lock(impl.su_mtx);
         for (const auto &path : paths) {
             if (!fs::is_directory(path)) {
@@ -523,7 +523,7 @@ namespace srt {
     }
 
     void SynthUnit::setPackagePaths(stdc::array_view<std::filesystem::path> paths) {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::unique_lock<std::shared_mutex> lock(impl.su_mtx);
         impl.packagePaths.clear();
         for (const auto &path : paths) {
@@ -538,13 +538,13 @@ namespace srt {
     }
 
     std::vector<std::filesystem::path> SynthUnit::packagePaths() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.su_mtx);
         return {impl.packagePaths.begin(), impl.packagePaths.end()};
     }
 
     Expected<PackageRef> SynthUnit::open(const std::filesystem::path &path, bool noLoad) {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto result = impl.open(path, noLoad);
         if (!result) {
             return result.error();
@@ -554,7 +554,7 @@ namespace srt {
 
     PackageRef SynthUnit::find(const std::string_view &id,
                                const stdc::VersionNumber &version) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.su_mtx);
         auto &pkgMap = impl.loadedPackageMap;
         auto it = pkgMap.idIndexes.find(id);
@@ -571,7 +571,7 @@ namespace srt {
     }
 
     std::vector<PackageRef> SynthUnit::find(const std::string_view &id) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.su_mtx);
         auto &pkgMap = impl.loadedPackageMap;
         auto it = pkgMap.idIndexes.find(id);
@@ -589,7 +589,7 @@ namespace srt {
     }
 
     std::vector<PackageRef> SynthUnit::packages() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.su_mtx);
         auto &list = impl.loadedPackageMap.packages;
 

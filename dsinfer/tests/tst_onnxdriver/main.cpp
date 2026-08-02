@@ -46,8 +46,8 @@ struct InferenceFixture {
     InferenceFixture() {
         auto appDir = stdc::system::application_directory();
         auto resDir = appDir / stdc::path::from_utf8(RESOURCE_DIR);
-        modelDir = resDir / _TSTR("models");
-        caseDir = resDir / _TSTR("cases");
+        modelDir = resDir / STDC_TSTR("models");
+        caseDir = resDir / STDC_TSTR("cases");
 
         auto exp = initializeSU();
         BOOST_TEST_MESSAGE("Driver initialization " +
@@ -66,9 +66,9 @@ struct InferenceFixture {
 
         auto appDir = stdc::system::application_directory();
         auto defaultPluginDir =
-            appDir.parent_path() / _TSTR("lib") / _TSTR("plugins") / _TSTR("dsinfer");
+            appDir.parent_path() / STDC_TSTR("lib") / STDC_TSTR("plugins") / STDC_TSTR("dsinfer");
 
-        auto pluginPath = defaultPluginDir / _TSTR("inferencedrivers");
+        auto pluginPath = defaultPluginDir / STDC_TSTR("inferencedrivers");
 
         su.addPluginPath("org.openvpi.InferenceDriver", pluginPath);
 
@@ -107,7 +107,7 @@ struct InferenceFixture {
         auto onnxArgs = srt::NO<ds::Api::Onnx::DriverInitArgs>::create();
 
         onnxArgs->ep = ds::Api::Onnx::CPUExecutionProvider;
-        onnxArgs->runtimePath = plugin->path().parent_path() / _TSTR("runtimes");
+        onnxArgs->runtimePath = plugin->path().parent_path() / STDC_TSTR("runtimes");
         onnxArgs->deviceIndex = 0;
 
         auto exp = onnxDriver->initialize(onnxArgs);

@@ -77,7 +77,7 @@ namespace ds {
     VarianceInference::~VarianceInference() = default;
 
     srt::Expected<void> VarianceInference::initialize(const srt::NO<srt::TaskInitArgs> &args) {
-        __stdc_impl_t;
+        stdc_impl_t;
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
         if (!args) {
@@ -137,7 +137,7 @@ namespace ds {
     }
 
     srt::Expected<srt::NO<srt::TaskResult>> VarianceInference::start(const srt::NO<srt::TaskStartInput> &input) {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
@@ -522,7 +522,7 @@ namespace ds {
     }
 
     bool VarianceInference::stop() {
-        __stdc_impl_t;
+        stdc_impl_t;
         bool flag = true;
         for (auto &session : {impl.encoderSession, impl.predictorSession}) {
             if (session) {
@@ -534,7 +534,7 @@ namespace ds {
     }
 
     srt::NO<srt::TaskResult> VarianceInference::result() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.mutex);
         return impl.result;
     }

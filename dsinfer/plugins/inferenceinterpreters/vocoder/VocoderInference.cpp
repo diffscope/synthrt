@@ -51,7 +51,7 @@ namespace ds {
     VocoderInference::~VocoderInference() = default;
 
     srt::Expected<void> VocoderInference::initialize(const srt::NO<srt::TaskInitArgs> &args) {
-        __stdc_impl_t;
+        stdc_impl_t;
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
         if (!args) {
@@ -98,7 +98,7 @@ namespace ds {
     }
 
     srt::Expected<srt::NO<srt::TaskResult>> VocoderInference::start(const srt::NO<srt::TaskStartInput> &input) {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
@@ -193,7 +193,7 @@ namespace ds {
     }
 
     bool VocoderInference::stop() {
-        __stdc_impl_t;
+        stdc_impl_t;
         if (!impl.session->isOpen()) {
             return false;
         }
@@ -205,7 +205,7 @@ namespace ds {
     }
 
     srt::NO<srt::TaskResult> VocoderInference::result() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.result;
     }
 

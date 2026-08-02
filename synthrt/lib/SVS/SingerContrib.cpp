@@ -5,7 +5,7 @@
 #include <regex>
 #include <set>
 
-#include <stdcorelib/3rdparty/llvm/smallvector.h>
+#include <stdcorelib/adt/vlarray.h>
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/path.h>
 
@@ -45,10 +45,10 @@ namespace srt {
 
         DisplayPath avatar;
         DisplayPath background;
-        llvm::SmallVector<SingerDemoAudio> demoAudios;
+        stdc::vlarray<SingerDemoAudio> demoAudios;
 
-        llvm::SmallVector<SingerImportData, kNumSingerImportFields> importDataList;
-        llvm::SmallVector<SingerImport, kNumSingerImportFields>
+        stdc::vlarray<SingerImportData, kNumSingerImportFields> importDataList;
+        stdc::vlarray<SingerImport, kNumSingerImportFields>
             importList; // wrapper of importDataList
 
         JsonObject manifestConfiguration;
@@ -210,9 +210,9 @@ namespace srt {
 
         DisplayPath avatar_;
         DisplayPath background_;
-        llvm::SmallVector<SingerDemoAudio> demoAudios_;
+        stdc::vlarray<SingerDemoAudio> demoAudios_;
 
-        llvm::SmallVector<SingerImportData, kNumSingerImportFields> imports_;
+        stdc::vlarray<SingerImportData, kNumSingerImportFields> imports_;
         JsonObject configuration_;
 
         {
@@ -478,52 +478,52 @@ namespace srt {
     SingerSpec::~SingerSpec() = default;
 
     const std::string &SingerSpec::className() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.className;
     }
 
     DisplayText SingerSpec::name() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.name;
     }
 
     int SingerSpec::apiLevel() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.apiLevel;
     }
 
     DisplayPath SingerSpec::avatar() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.avatar;
     }
 
     DisplayPath SingerSpec::background() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.background;
     }
 
     stdc::array_view<SingerDemoAudio> SingerSpec::demoAudios() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.demoAudios;
     }
 
     stdc::array_view<SingerImport> SingerSpec::imports() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.importList;
     }
 
     const JsonObject &SingerSpec::manifestConfiguration() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.manifestConfiguration;
     }
 
     NO<SingerConfiguration> SingerSpec::configuration() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.configuration;
     }
 
     const std::filesystem::path &SingerSpec::path() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.path;
     }
 
@@ -543,7 +543,7 @@ namespace srt {
     SingerCategory::~SingerCategory() = default;
 
     std::vector<SingerSpec *> SingerCategory::findSingers(const ContribLocator &locator) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::vector<SingerSpec *> res;
         auto temp = impl.findContributes(locator);
         res.reserve(temp.size());
@@ -554,7 +554,7 @@ namespace srt {
     }
 
     std::vector<SingerSpec *> SingerCategory::singers() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.su_mtx());
         std::vector<SingerSpec *> res;
         res.reserve(impl.contributes.size());
@@ -603,7 +603,7 @@ namespace srt {
     }
 
     Expected<void> SingerCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
-        __stdc_impl_t;
+        stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
                 auto singerSpec = static_cast<SingerSpec *>(spec);
@@ -717,7 +717,7 @@ namespace srt {
                     imp.options = options.get();
                 }
 
-                llvm::SmallVector<SingerImport, kNumSingerImportFields> imports;
+                stdc::vlarray<SingerImport, kNumSingerImportFields> imports;
                 imports.reserve(importDataList.size());
                 for (const auto &imp : std::as_const(importDataList)) {
                     imports.push_back(SingerImport(&imp));

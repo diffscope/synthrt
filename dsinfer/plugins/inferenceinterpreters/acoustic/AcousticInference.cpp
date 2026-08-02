@@ -60,7 +60,7 @@ namespace ds {
     AcousticInference::~AcousticInference() = default;
 
     srt::Expected<void> AcousticInference::initialize(const srt::NO<srt::TaskInitArgs> &args) {
-        __stdc_impl_t;
+        stdc_impl_t;
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
         if (!args) {
@@ -113,7 +113,7 @@ namespace ds {
     srt::Expected<srt::NO<srt::TaskResult>>
         AcousticInference::start(const srt::NO<srt::TaskStartInput> &input) {
 
-        __stdc_impl_t;
+        stdc_impl_t;
 
         {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
@@ -532,7 +532,7 @@ namespace ds {
     }
 
     bool AcousticInference::stop() {
-        __stdc_impl_t;
+        stdc_impl_t;
         // Deliberately unlocked: start() holds impl.mutex for the whole duration of the session
         // run, so taking any lock here would block until the run this is meant to interrupt has
         // already finished. Reading impl.session concurrently with initialize() remains a race -
@@ -548,7 +548,7 @@ namespace ds {
     }
 
     srt::NO<srt::TaskResult> AcousticInference::result() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.mutex);
         return impl.result;
     }

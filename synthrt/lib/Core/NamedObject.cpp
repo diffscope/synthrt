@@ -15,12 +15,12 @@ namespace srt {
     NamedObject::~NamedObject() = default;
 
     const std::string &NamedObject::objectName() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.name;
     }
 
     void NamedObject::setObjectName(std::string name) {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.name = std::move(name);
     }
 
@@ -30,7 +30,7 @@ namespace srt {
     }
 
     const std::any &NamedObject::property(std::string_view name) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.properties.find(name);
         if (it == impl.properties.end()) {
             return staticEmptyObjectProperty();
@@ -39,7 +39,7 @@ namespace srt {
     }
 
     void NamedObject::setProperty(std::string_view name, std::any value) {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.properties.find(name);
         if (it == impl.properties.end()) {
             impl.properties[std::string(name)] = std::move(value);
@@ -64,7 +64,7 @@ namespace srt {
     }
 
     void ObjectPool::addObject(std::string_view id, const NO<NamedObject> &obj) {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         if (!obj) {
             return;
@@ -85,7 +85,7 @@ namespace srt {
     }
 
     void ObjectPool::removeObject(std::string_view id, const NamedObject *obj) {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.objects.find(id);
         if (it == impl.objects.end()) {
             return;
@@ -105,7 +105,7 @@ namespace srt {
     }
 
     void ObjectPool::removeObjects(std::string_view id) {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.objects.find(id);
         if (it == impl.objects.end()) {
             return;
@@ -118,7 +118,7 @@ namespace srt {
     }
 
     void ObjectPool::removeAllObjects() {
-        __stdc_impl_t;
+        stdc_impl_t;
         for (auto &item : impl.objects) {
             auto &map = item.second;
             for (auto it = map.rbegin(); it != map.rend(); ++it) {
@@ -129,7 +129,7 @@ namespace srt {
     }
 
     std::vector<NO<NamedObject>> ObjectPool::allObjects() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::vector<NO<NamedObject>> res;
         for (const auto &item : impl.objects) {
             auto values = item.second.values();
@@ -139,7 +139,7 @@ namespace srt {
     }
 
     std::vector<NO<NamedObject>> ObjectPool::getObjects(std::string_view id) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.objects.find(id);
         if (it == impl.objects.end()) {
             return {};
@@ -148,7 +148,7 @@ namespace srt {
     }
 
     NO<NamedObject> ObjectPool::getFirstObject(std::string_view id) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.objects.find(id);
         if (it == impl.objects.end()) {
             return {};

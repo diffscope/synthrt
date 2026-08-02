@@ -54,7 +54,7 @@ namespace ds {
             return false;
         }
 
-        __stdc_impl_t;
+        stdc_impl_t;
         auto &filebuf = impl.filebuf;
         auto &map = impl.map;
 
@@ -211,7 +211,7 @@ namespace ds {
     }
 
     PhonemeDict::iterator PhonemeDict::find(const char *key) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto &filebuf = impl.filebuf;
         auto &map = impl.map;
         if (!key) {
@@ -225,7 +225,7 @@ namespace ds {
     }
 
     bool PhonemeDict::contains(const char *key) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto &map = impl.map;
         if (!key) {
             return false;
@@ -234,7 +234,7 @@ namespace ds {
     }
 
     PhonemeList PhonemeDict::operator[](const char *key) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto &map = impl.map;
         if (!key) {
             return PhonemeList();
@@ -247,23 +247,23 @@ namespace ds {
     }
 
     bool PhonemeDict::empty() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.map.empty();
     }
 
     size_t PhonemeDict::size() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.map.size();
     }
 
     PhonemeDict::iterator PhonemeDict::begin() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.map.begin();
         return iterator(impl.filebuf.data(), it.row_current, it.col_current);
     }
 
     PhonemeDict::iterator PhonemeDict::end() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.map.end();
         return iterator(impl.filebuf.data(), it.row_current, it.col_current);
     }

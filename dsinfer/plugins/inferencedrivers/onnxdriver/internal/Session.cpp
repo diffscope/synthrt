@@ -722,7 +722,7 @@ namespace ds::onnxdriver {
 
     srt::Expected<void> Session::open(const fs::path &path,
                                       const srt::NO<Api::Onnx::SessionOpenArgs> &args) {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         if (isOpen()) {
             Log.srtWarning("Session - Session %1 is already open!", path.string());
@@ -841,7 +841,7 @@ namespace ds::onnxdriver {
             return srt::Error(srt::Error::SessionError, "session is not open");
         }
 
-        __stdc_impl_t;
+        stdc_impl_t;
 
         // An async run may still be reading impl.* from an ORT worker thread. Everything below -
         // and the destructor that calls us - would otherwise pull the object out from under it.
@@ -892,12 +892,12 @@ namespace ds::onnxdriver {
     }
 
     const std::filesystem::path &Session::path() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.realPath;
     }
 
     bool Session::isOpen() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.group != nullptr;
     }
 
@@ -907,7 +907,7 @@ namespace ds::onnxdriver {
     }
 
     const std::vector<std::string> &Session::inputNames() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         if (!impl.image) {
             return shared_empty_names();
         }
@@ -915,7 +915,7 @@ namespace ds::onnxdriver {
     }
 
     const std::vector<std::string> &Session::outputNames() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         if (!impl.image) {
             return shared_empty_names();
         }
@@ -923,12 +923,12 @@ namespace ds::onnxdriver {
     }
 
     void Session::terminate() {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.runOptions.SetTerminate();
     }
 
     srt::Expected<srt::NO<srt::TaskResult>> Session::run(const srt::NO<srt::TaskStartInput> &input) {
-        __stdc_impl_t;
+        stdc_impl_t;
         srt::Error tmpError;
         if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
             tmpError = {srt::Error::InvalidArgument, "invalid task start input"};
@@ -952,7 +952,7 @@ namespace ds::onnxdriver {
 
     srt::Expected<void> Session::runAsync(const srt::NO<srt::TaskStartInput> &input,
                                           const srt::ITask::StartAsyncCallback &callback) {
-        __stdc_impl_t;
+        stdc_impl_t;
         srt::Error tmpError;
         if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
             tmpError = {srt::Error::InvalidArgument, "invalid task start input"};
@@ -974,7 +974,7 @@ namespace ds::onnxdriver {
     }
 
     srt::NO<srt::TaskResult> Session::result() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.sessionResult.as<srt::TaskResult>();
     }
 }

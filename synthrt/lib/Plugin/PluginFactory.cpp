@@ -6,13 +6,13 @@
 #include <mutex>
 
 #include <stdcorelib/pimpl.h>
-#include <stdcorelib/3rdparty/llvm/smallvector.h>
+#include <stdcorelib/adt/vlarray.h>
 
 namespace fs = std::filesystem;
 
 namespace srt {
 
-    using StaticPluginMap = std::map<std::string, llvm::SmallVector<StaticPlugin, 10>>;
+    using StaticPluginMap = std::map<std::string, stdc::vlarray<StaticPlugin, 10>>;
 
     static StaticPluginMap &getStaticPluginMap() {
         static StaticPluginMap staticPluginMap;
@@ -131,20 +131,20 @@ namespace srt {
     }
 
     void PluginFactory::addRuntimePlugin(Plugin *plugin) {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
         impl.runtimePlugins.emplace(plugin);
         impl.pluginsDirty.insert(plugin->iid());
     }
 
     std::vector<Plugin *> PluginFactory::runtimePlugins() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.plugins_mtx);
         return {impl.runtimePlugins.begin(), impl.runtimePlugins.end()};
     }
 
     void PluginFactory::addPluginPath(const char *iid, const std::filesystem::path &path) {
-        __stdc_impl_t;
+        stdc_impl_t;
         if (!fs::is_directory(path)) {
             return;
         }
@@ -155,12 +155,12 @@ namespace srt {
 
     void PluginFactory::setPluginPaths(const char *iid,
                                        stdc::array_view<std::filesystem::path> paths) {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
         if (paths.empty()) {
             impl.pluginPaths.erase(iid);
         } else {
-            llvm::SmallVector<fs::path> realPaths;
+            stdc::vlarray<fs::path> realPaths;
             realPaths.reserve(paths.size());
             for (const auto &path : paths) {
                 if (fs::is_directory(path)) {
@@ -173,7 +173,7 @@ namespace srt {
     }
 
     std::vector<std::filesystem::path> PluginFactory::pluginPaths(const char *iid) const {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         std::shared_lock<std::shared_mutex> lock(impl.plugins_mtx);
         auto it = impl.pluginPaths.find(iid);
@@ -184,7 +184,7 @@ namespace srt {
     }
 
     Plugin *PluginFactory::plugin(const char *iid, const char *key) const {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         std::unique_lock<std::shared_mutex> lock(impl.plugins_mtx);
         if (impl.pluginsDirty.count(iid)) {

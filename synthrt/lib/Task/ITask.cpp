@@ -21,12 +21,12 @@ namespace srt {
     }
 
     ITask::State ITask::state() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.state;
     }
 
     void ITask::setState(State state) {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.state = state;
     }
 

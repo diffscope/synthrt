@@ -112,13 +112,13 @@ static void initializeSU(srt::SynthUnit &su, EP ep, int deviceIndex) {
     // Get basic directories
     auto appDir = stdc::system::application_directory();
     auto defaultPluginDir =
-        appDir.parent_path() / _TSTR("lib") / _TSTR("plugins") / _TSTR("dsinfer");
+        appDir.parent_path() / STDC_TSTR("lib") / STDC_TSTR("plugins") / STDC_TSTR("dsinfer");
 
     // Set default plugin directories
-    su.addPluginPath("org.openvpi.SingerProvider", defaultPluginDir / _TSTR("singerproviders"));
-    su.addPluginPath("org.openvpi.InferenceDriver", defaultPluginDir / _TSTR("inferencedrivers"));
+    su.addPluginPath("org.openvpi.SingerProvider", defaultPluginDir / STDC_TSTR("singerproviders"));
+    su.addPluginPath("org.openvpi.InferenceDriver", defaultPluginDir / STDC_TSTR("inferencedrivers"));
     su.addPluginPath("org.openvpi.InferenceInterpreter",
-                     defaultPluginDir / _TSTR("inferenceinterpreters"));
+                     defaultPluginDir / STDC_TSTR("inferenceinterpreters"));
 
     // Load driver
     auto plugin = su.plugin<ds::InferenceDriverPlugin>("onnx");
@@ -131,11 +131,11 @@ static void initializeSU(srt::SynthUnit &su, EP ep, int deviceIndex) {
 
     // TODO: users should be able to configure these args
     onnxArgs->ep = ep;
-    auto ortParentPath = plugin->path().parent_path() / _TSTR("runtimes") / _TSTR("onnx");
+    auto ortParentPath = plugin->path().parent_path() / STDC_TSTR("runtimes") / STDC_TSTR("onnx");
     if (ep == EP::CUDAExecutionProvider) {
-        onnxArgs->runtimePath = ortParentPath / _TSTR("cuda");
+        onnxArgs->runtimePath = ortParentPath / STDC_TSTR("cuda");
     } else {
-        onnxArgs->runtimePath = ortParentPath / _TSTR("default");
+        onnxArgs->runtimePath = ortParentPath / STDC_TSTR("default");
     }
     onnxArgs->deviceIndex = deviceIndex;
 
