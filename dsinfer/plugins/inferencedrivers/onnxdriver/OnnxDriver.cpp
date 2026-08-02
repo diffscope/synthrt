@@ -39,6 +39,29 @@ namespace ds {
 
     using onnxdriver::Log;
 
+#ifdef _WIN32
+    /// Scoped override of the process-wide DLL search path.
+    ///
+    /// The ORT directory must be searchable while `onnxruntime.dll` is being opened, so that its
+    /// own dependencies resolve. The previous path is restored on every exit path, including the
+    /// error ones.
+    class ScopedLibraryPath {
+    public:
+        explicit ScopedLibraryPath(const fs::path &dir)
+            : _original(stdc::SharedLibrary::setLibraryPath(dir)) {
+        }
+        ~ScopedLibraryPath() {
+            stdc::SharedLibrary::setLibraryPath(_original);
+        }
+
+        ScopedLibraryPath(const ScopedLibraryPath &) = delete;
+        ScopedLibraryPath &operator=(const ScopedLibraryPath &) = delete;
+
+    private:
+        fs::path _original;
+    };
+#endif
+
     class OnnxDriver::Impl {
     public:
         Impl() {
@@ -56,19 +79,18 @@ namespace ds {
              *  1. Load Ort shared library and create handle
              */
             Log.srtDebug("Init - Loading ORT shared library from %1", path);
+            {
 #ifdef _WIN32
-            auto orgLibPath = stdc::SharedLibrary::setLibraryPath(path.parent_path());
+                ScopedLibraryPath libraryPath(path.parent_path());
 #endif
-            if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint |
-                                       stdc::SharedLibrary::ExportExternalSymbolsHint)) {
-                std::string msg =
-                    stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
-                Log.srtCritical("Init - %1", msg);
-                return srt::Error(srt::Error::SessionError, std::move(msg));
+                if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint |
+                                           stdc::SharedLibrary::ExportExternalSymbolsHint)) {
+                    std::string msg =
+                        stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
+                    Log.srtCritical("Init - %1", msg);
+                    return srt::Error(srt::Error::SessionError, std::move(msg));
+                }
             }
-#ifdef _WIN32
-            stdc::SharedLibrary::setLibraryPath(orgLibPath);
-#endif
 
             /**
              *  2. Get Ort API getter handle
@@ -90,7 +112,7 @@ namespace ds {
             auto apiBase = handle();
             auto api = apiBase->GetApi(ORT_API_VERSION);
             if (!api) {
-                std::string msg = stdc::formatN("%1: failed to get API instance");
+                std::string msg = stdc::formatN("%1: failed to get API instance", path);
                 Log.srtCritical("Init - %1", msg);
                 return srt::Error(srt::Error::SessionError, std::move(msg));
             }
@@ -144,7 +166,7 @@ namespace ds {
         if (args->objectName() != Onnx::API_NAME) {
             return srt::Error{
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid driver name: expected "%s", got "%s")", Onnx::API_NAME,
+                stdc::formatN(R"(invalid driver name: expected "%1", got "%2")", Onnx::API_NAME,
                               args->objectName()),
             };
         }
@@ -166,11 +188,9 @@ namespace ds {
 
         auto dllPath = onnxArgs->runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
 
-        if (!impl.load(dllPath)) {
-            return srt::Error{
-                srt::Error::SessionError,
-                "failed to load onnx runtime library",
-            };
+        if (auto exp = impl.load(dllPath); !exp) {
+            // Propagate the detailed reason from load() instead of a generic message.
+            return exp;
         }
 
         onnxdriver::Env::DeviceConfig devConfig;

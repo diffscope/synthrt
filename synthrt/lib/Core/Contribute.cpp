@@ -58,8 +58,10 @@ namespace srt {
                 }
                 // id[version]
                 result._package = package;
+                // The span between the brackets is [openBracket + 1, size - 1), i.e. the trailing
+                // ']' must be excluded - hence -2, not -1.
                 result._version = stdc::VersionNumber::fromString(
-                    leftPart.substr(openBracket + 1, leftPart.size() - openBracket - 1));
+                    leftPart.substr(openBracket + 1, leftPart.size() - openBracket - 2));
             } else {
                 if (!isValidLocator(leftPart)) {
                     return {};

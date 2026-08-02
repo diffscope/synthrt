@@ -62,6 +62,20 @@ namespace ds {
         std::streamsize file_size = file.tellg();
         file.seekg(0, std::ios::beg);
 
+        // tellg() yields -1 on a non-seekable stream (pipe, some devices). Bail out before the
+        // buffer is touched: resize(0) would leave filebuf.data() null and the read length
+        // negative. Returning here also keeps any previously loaded dictionary intact.
+        if (file_size < 0) {
+            if (ec)
+                *ec = std::make_error_code(std::errc::io_error);
+            return false;
+        }
+
+        // The map's keys are raw pointers into `filebuf`. Clear it *before* the buffer is
+        // reallocated, otherwise every key dangles from here on - including on the read-failure
+        // path below, which leaves the object still queryable.
+        map.clear();
+
         filebuf.resize(file_size + 1); // +1 for terminator
         if (!file.read(filebuf.data(), file_size)) {
             if (ec)
@@ -70,7 +84,6 @@ namespace ds {
             return false;
         }
         filebuf[file_size] = '\n'; // add terminating line break
-        map.clear();
 
         // Parse the buffer
         const auto buffer_begin = filebuf.data();

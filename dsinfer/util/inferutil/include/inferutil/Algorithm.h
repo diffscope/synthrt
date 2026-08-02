@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cstdint>
 #include <cmath>
+#include <limits>
+#include <type_traits>
 #include <vector>
 #include <stdcorelib/adt/array_view.h>
 
@@ -38,6 +40,13 @@ namespace ds::inferutil {
                                       T rightFillValue = std::numeric_limits<T>::quiet_NaN()) {
 
         static_assert(std::is_floating_point_v<T>, "T must be a floating point type");
+
+        // Without reference points there is nothing to interpolate from, and front()/back() below
+        // would read out of bounds. referenceValues is indexed with referencePoints' indices, so
+        // it must be at least as long.
+        if (referencePoints.empty() || referenceValues.size() < referencePoints.size()) {
+            return {};
+        }
 
         std::vector<T> interpolatedValues;
         interpolatedValues.reserve(samplePoints.size());
@@ -82,19 +91,28 @@ namespace ds::inferutil {
 
     template <class T>
     inline std::vector<T> arange(T start, T stop, T step) {
-        if ((stop < start) && (step > 0)) {
+        // A zero step never reaches `stop`, and a step pointing away from it yields nothing.
+        // Both used to fall through to std::ceil() and produce inf/NaN, which is undefined
+        // behaviour once cast to size_t.
+        if (step == T(0)) {
             return {};
         }
-        auto size = static_cast<size_t>(std::ceil((stop - start) / step));
-        if (size == 0) {
+        if (step > T(0) ? (stop <= start) : (stop >= start)) {
             return {};
         }
+
+        const double count = std::ceil((static_cast<double>(stop) - static_cast<double>(start)) /
+                                       static_cast<double>(step));
+        if (!std::isfinite(count) || count < 1.0) {
+            return {};
+        }
+        const auto size = static_cast<size_t>(count);
 
         std::vector<T> result;
         result.reserve(size);
 
         for (size_t i = 0; i < size; ++i) {
-            result.push_back(start + i * step);
+            result.push_back(start + static_cast<T>(i) * step);
         }
 
         return result;
@@ -130,6 +148,12 @@ namespace ds::inferutil {
         // Interpolate sample curve to target time axis
         auto targetSamples =
             interpolate<InterpolateLinear, double>(targetTimeAxis, inputTimeAxis, samples);
+
+        // interpolate() returns empty when it rejects its input; back() below would then be out
+        // of bounds. Callers already treat an empty result as "resample failed".
+        if (targetSamples.empty()) {
+            return {};
+        }
 
         // Resize the interpolated curve vector to target length
         auto actualLength = static_cast<int64_t>(targetSamples.size());

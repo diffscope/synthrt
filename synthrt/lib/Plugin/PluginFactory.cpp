@@ -86,6 +86,10 @@ namespace srt {
         if (plugins.empty()) {
             allPlugins.erase(iid);
         }
+
+        // The cache for this iid is now up to date. Without this, every single plugin() call
+        // re-walked the plugin directories and re-probed every file on disk.
+        pluginsDirty.erase(iid);
     }
 
     PluginFactory::PluginFactory() : _impl(new Impl(this)) {

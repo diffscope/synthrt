@@ -301,14 +301,17 @@ namespace {
             iterator_base(_It it) noexcept : it(it) {
             }
 
-            iterator_base(const iterator_base &RHS) : it(RHS.it) {
-                ref.emplace(RHS.ref->first, RHS.ref->second);
+            // `ref` is a lazily materialized stand-in for the current element, rebuilt on every
+            // dereference. Copying must not touch it: RHS.ref is empty until RHS has been
+            // dereferenced at least once, and `auto tmp = *this;` inside operator++(int) hits
+            // exactly that case - reading RHS.ref-> there was undefined behaviour.
+            iterator_base(const iterator_base &RHS) noexcept : it(RHS.it) {
             }
 
-            iterator_base &operator=(const iterator_base &RHS) {
+            iterator_base &operator=(const iterator_base &RHS) noexcept {
                 if (this != &RHS) {
                     it = RHS.it;
-                    ref.emplace(RHS.ref->first, RHS.ref->second);
+                    ref.reset();
                 }
                 return *this;
             }
@@ -425,7 +428,9 @@ namespace {
             return buf.erase(pos.it);
         }
         iterator erase(const_iterator pos) {
-            return erase(pos.it);
+            // Must go through `buf`: pos.it converts back to a const_iterator of this class, so
+            // erase(pos.it) would call this very overload again and recurse until the stack dies.
+            return buf.erase(pos.it);
         }
         size_type erase(const Key &key) {
             return buf.erase(key);
@@ -640,6 +645,10 @@ namespace {
         return ref.value();
     }
 
+    template <class Key, class T, class... _Mods>
+    T &proxy_map<Key, T, _Mods...>::at(const Key &key) {
+        return JV::unpack(buf.at(key));
+    }
     template <class Key, class T, class... _Mods>
     const T &proxy_map<Key, T, _Mods...>::at(const Key &key) const {
         return JV::unpack(buf.at(key));
