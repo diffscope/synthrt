@@ -36,8 +36,10 @@ namespace srt {
             : _type(type), _msg(std::make_shared<std::string>(std::move(msg))) {
         }
 
+        /// \a msg may be null, in which case the message is empty - constructing a std::string
+        /// from a null pointer is undefined.
         inline Error(int type, const char *msg)
-            : _type(type), _msg(std::make_shared<std::string>(msg)) {
+            : _type(type), _msg(std::make_shared<std::string>(msg ? msg : "")) {
         }
 
         inline int type() const {

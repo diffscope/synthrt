@@ -11,7 +11,7 @@ namespace srt {
     /// Expected - A simple re-implementation of \c llvm::Expected. Tagged union holding either
     /// a T or an Error.
     template <class T>
-    class Expected {
+    class [[nodiscard]] Expected {
         static_assert(!std::is_reference_v<T>, "T must not be a reference");
         static_assert(!std::is_same_v<T, Error>, "T must not be Error");
 
@@ -36,7 +36,7 @@ namespace srt {
         /// Create an Expected<T> error value from the given Error.
         Expected(Error err) : _has_value(false) {
             assert(!err.ok() && "Cannot create Expected<T> from Error success value.");
-            new (&_storage) error_type(std::move(err));
+            new (&_storage.err) error_type(std::move(err));
         }
 
         /// Create an Expected<T> success value from the given U value, which
@@ -81,7 +81,7 @@ namespace srt {
                 _storage.err.~error_type();
         }
 
-        explicit operator bool() {
+        explicit operator bool() const {
             return _has_value;
         }
         reference get() {
@@ -131,13 +131,20 @@ namespace srt {
             assert(!_has_value && "Expected doesn't contain an error");
             return _storage.err;
         }
+        /// Returns the contained value, or \a defaultValue converted to \c T when this holds an
+        /// error.
+        ///
+        /// Both overloads take a forwarding reference. The const one used to take
+        /// <tt>const U &</tt> and then apply \c std::forward, which casts away constness and does
+        /// not compile, so the overload was never instantiated by anything.
         template <class U = T>
-        T valueOr(const U &defaultValue) const & {
-            return _has_value ? **this : static_cast<T>(std::forward<U>(defaultValue));
+        T valueOr(U &&defaultValue) const & {
+            return _has_value ? T(**this) : static_cast<T>(std::forward<U>(defaultValue));
         }
         template <class U = T>
         T valueOr(U &&defaultValue) && {
-            return _has_value ? std::move(**this) : static_cast<T>(std::forward<U>(defaultValue));
+            return _has_value ? T(std::move(**this))
+                              : static_cast<T>(std::forward<U>(defaultValue));
         }
 
     protected:
@@ -150,6 +157,12 @@ namespace srt {
                 new (&_storage.err) error_type(std::move(RHS._storage.err));
         }
 
+        /// \note Not exception safe. The storage is torn down before the replacement is built, so
+        ///       a throwing move constructor of \c T would leave this object destroyed while its
+        ///       owner still holds it, and the destructor would then run over dead storage. Only
+        ///       \c T can throw here - \c Error moves without throwing - and a real guarantee
+        ///       would need a valueless state of the kind \c std::variant carries, rather than a
+        ///       recovery path here.
         template <class U>
         void moveAssign(Expected<U> &&RHS) {
             if constexpr (std::is_same_v<value_type, U>) {
@@ -175,7 +188,7 @@ namespace srt {
 
     /// Specialization for Expected<void>
     template <>
-    class Expected<void> {
+    class [[nodiscard]] Expected<void> {
         template <class U>
         friend class Expected;
 
@@ -189,7 +202,7 @@ namespace srt {
 
         Expected(Error err) : _has_value(false) {
             assert(!err.ok() && "Cannot create Expected<T> from Error success value.");
-            new (&_storage) error_type(std::move(err));
+            new (&_storage.err) error_type(std::move(err));
         }
 
         Expected(Expected &&RHS) {
@@ -211,7 +224,7 @@ namespace srt {
                 _storage.err.~error_type();
         }
 
-        explicit operator bool() {
+        explicit operator bool() const {
             return _has_value;
         }
 

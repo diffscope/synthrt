@@ -6,6 +6,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <thread>
+#include <tuple>
 #include <sstream>
 #include <fstream>
 #include <unordered_set>
@@ -665,7 +666,8 @@ namespace ds::onnxdriver {
     Session::~Session() {
         // _impl is null once this Session has been moved from - there is nothing left to close.
         if (_impl) {
-            close();
+            // Nothing useful to do with a failure while unwinding.
+            std::ignore = close();
         }
     }
 
