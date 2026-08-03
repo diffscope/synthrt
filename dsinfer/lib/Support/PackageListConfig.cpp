@@ -75,14 +75,14 @@ namespace ds {
                 if (id.empty()) {
                     continue;
                 }
+                // A package reference, so a package and a version but no contribute part.
                 auto identifier = srt::ContribLocator::fromString(id);
-                if (!identifier.package().empty() && !identifier.version().isEmpty() &&
-                    identifier.id().empty()) {
-                    pkg._id = identifier.package();
-                    pkg._version = identifier.version();
-                } else {
+                if (identifier.package().empty() || identifier.version().isEmpty() ||
+                    !identifier.id().empty()) {
                     continue;
                 }
+                pkg._id = identifier.package();
+                pkg._version = identifier.version();
             }
             // relativeLocation
             {
@@ -142,8 +142,12 @@ namespace ds {
                 JsonObject pkgObj;
 
                 // id
+                //
+                // Rendered through ContribLocator so that load() parses back what is written
+                // here. The two used to disagree, leaving load() unable to read any entry save()
+                // had produced.
                 pkgObj["id"] =
-                    stdc::formatN("%1[%2]", packageItem._id, packageItem._version.toString());
+                    srt::ContribLocator(packageItem._id, packageItem._version).toString();
 
                 // relativeLocation
                 pkgObj["relativeLocation"] = stdc::path::to_utf8(packageItem._relativeLocation);

@@ -231,7 +231,7 @@ namespace srt {
             do {
                 Error error1;
                 const auto &contributesObj = it->second.toObject();
-                for (const auto &key : {"inferences", "singers"}) {
+                for (const auto &key : {"inference", "singer"}) {
                     if (contributesObj.find(key) == contributesObj.end()) {
                         error1 = {
                             Error::InvalidFormat,

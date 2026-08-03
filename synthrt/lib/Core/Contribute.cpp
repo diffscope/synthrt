@@ -1,7 +1,7 @@
 #include "Contribute.h"
 #include "Contribute_p.h"
 
-#include <regex>
+#include <cassert>
 #include <utility>
 #include <mutex>
 #include <cstdlib>
@@ -14,92 +14,152 @@
 
 namespace srt {
 
-    std::string ContribLocator::toString() const {
-        if (_package.empty()) {
-            return _id;
-        }
-        if (_version.isEmpty()) {
-            if (_id.empty()) {
-                return _package;
+    /// Returns whether \a token matches the grammar's \c version production, being up to four
+    /// dot-separated runs of digits with no leading zero.
+    ///
+    /// \c stdc::VersionNumber::fromString() is not a substitute. It accepts trailing rubbish and
+    /// extra segments, so a reference such as <tt>pkg=1.2.3.4.5</tt> would otherwise parse.
+    static bool isValidVersion(const std::string_view &token) {
+        size_t begin = 0;
+        int segments = 0;
+        while (true) {
+            const auto dot = token.find('.', begin);
+            const auto segment =
+                dot == std::string_view::npos ? token.substr(begin) : token.substr(begin, dot - begin);
+            if (segment.empty() || ++segments > 4) {
+                return false;
             }
-            return stdc::formatN("%1/%2", _package, _id);
+            if (segment.size() > 1 && segment.front() == '0') {
+                return false;
+            }
+            for (const auto ch : segment) {
+                if (ch < '0' || ch > '9') {
+                    return false;
+                }
+            }
+            if (dot == std::string_view::npos) {
+                return true;
+            }
+            begin = dot + 1;
         }
-        if (_id.empty()) {
-            return stdc::formatN("%1[%2]", _package, _version.toString());
-        }
-        return stdc::formatN("%1[%2]/%3", _package, _version.toString(), _id);
     }
 
-    // Format: id/sid, id[version]/sid, and sid
+    std::string ContribLocator::toString() const {
+        std::string res = _package;
+        if (!_version.isEmpty()) {
+            res += '=';
+            res += _version.toString();
+        }
+        if (!_id.empty()) {
+            res += ':';
+            if (!_category.empty()) {
+                res += _category;
+                res += '/';
+            }
+            res += _id;
+        }
+        return res;
+    }
+
     ContribLocator ContribLocator::fromString(const std::string_view &token) {
         if (token.empty()) {
             return {};
         }
 
         ContribLocator result;
-        size_t slashPos = token.find('/');
-        if (slashPos != std::string::npos) {
-            // Case: id/sid or id[version]/sid
-            auto leftPart = token.substr(0, slashPos);
-            auto rightPart = token.substr(slashPos + 1);
-            if (!isValidLocator(rightPart)) {
-                return {};
-            }
-            result._id = rightPart;
 
-            size_t openBracket = leftPart.find('[');
-            if (openBracket != std::string::npos) {
-                if (leftPart.back() != ']') {
-                    return {};
-                }
-                auto package = leftPart.substr(0, openBracket);
-                if (!isValidLocator(package)) {
-                    return {};
-                }
-                // id[version]
-                result._package = package;
-                // The span between the brackets runs from \a openBracket + 1 up to but not
-                // including the final character, so the trailing bracket has to be excluded.
-                // That makes the length -2 rather than -1.
-                result._version = stdc::VersionNumber::fromString(
-                    leftPart.substr(openBracket + 1, leftPart.size() - openBracket - 2));
-            } else {
-                if (!isValidLocator(leftPart)) {
-                    return {};
-                }
-                // just id
-                result._package = leftPart;
-            }
-        } else {
-            // Case: sid only
-            if (!isValidLocator(token)) {
+        // The reference splits on the single ":" that separates the package from the contribute.
+        // Both separators are excluded from every identifier, so each can occur at most once and
+        // its position is unambiguous.
+        std::string_view left = token;
+        const auto colon = token.find(':');
+        if (colon != std::string_view::npos) {
+            left = token.substr(0, colon);
+            const auto right = token.substr(colon + 1);
+            if (right.empty() || right.find(':') != std::string_view::npos) {
                 return {};
             }
-            result._id = token;
+
+            // Right of the colon the slash count decides the shape, since neither a category nor
+            // a contribute identifier may contain one.
+            const auto slash = right.find('/');
+            if (slash == std::string_view::npos) {
+                result._id = right;
+            } else {
+                const auto id = right.substr(slash + 1);
+                if (id.find('/') != std::string_view::npos) {
+                    return {};
+                }
+                result._category = right.substr(0, slash);
+                result._id = id;
+                if (!isValidSegment(result._category)) {
+                    return {};
+                }
+            }
+            if (!isValidSegment(result._id)) {
+                return {};
+            }
+        }
+
+        if (left.empty()) {
+            // A bare ":" names nothing, whereas ":singer/main" names a contribute of the package
+            // being resolved against.
+            return colon == std::string_view::npos ? ContribLocator() : result;
+        }
+
+        const auto equals = left.find('=');
+        if (equals != std::string_view::npos) {
+            const auto package = left.substr(0, equals);
+            if (package.empty()) {
+                // A version without a package to apply it to.
+                return {};
+            }
+            const auto version = left.substr(equals + 1);
+            if (!isValidVersion(version)) {
+                return {};
+            }
+            result._package = package;
+            result._version = stdc::VersionNumber::fromString(version);
+        } else {
+            result._package = left;
+        }
+        if (!isValidPackageId(result._package)) {
+            return {};
         }
         return result;
     }
 
-    bool ContribLocator::isValidLocator(const std::string_view &token) {
+    bool ContribLocator::isValidSegment(const std::string_view &token) {
         if (token.empty()) {
             return false;
         }
-        for (const auto &ch : token) {
-            switch (ch) {
-                case '/':
-                case '\\':
-                case '[':
-                case ']':
-                case ':':
-                case ';':
-                case '\'':
-                case '\"':
-                    return false;
-                default:
-                    break;
+        for (const auto ch : token) {
+            const bool ok = (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z') ||
+                            (ch >= '0' && ch <= '9') || ch == '_' || ch == '-';
+            if (!ok) {
+                return false;
             }
         }
         return true;
+    }
+
+    bool ContribLocator::isValidPackageId(const std::string_view &token) {
+        if (token.empty()) {
+            return false;
+        }
+        size_t begin = 0;
+        while (true) {
+            const auto slash = token.find('/', begin);
+            const auto segment =
+                slash == std::string_view::npos ? token.substr(begin) : token.substr(begin, slash - begin);
+            if (!isValidSegment(segment)) {
+                return false;
+            }
+            if (slash == std::string_view::npos) {
+                return true;
+            }
+            begin = slash + 1;
+        }
     }
 
     ContribSpec::~ContribSpec() = default;
@@ -138,6 +198,16 @@ namespace srt {
     std::vector<ContribSpec *>
         ContribCategory::Impl::findContributes(const ContribLocator &loc) const {
         std::shared_lock<std::shared_mutex> lock(su_mtx());
+
+        // Resolution happens within one category, so a reference naming a different one cannot
+        // match here. An empty category means the caller left the kind open, which this lookup
+        // answers from its own contributes.
+        if (!loc.category().empty() && loc.category() != name) {
+            return {};
+        }
+
+        // The package and version are filled in before a reference reaches this point, by
+        // "Fix imports" for singer imports and by the caller otherwise.
         if (loc.package().empty() || loc.version().isEmpty()) {
             return {};
         }
@@ -243,6 +313,11 @@ namespace srt {
 
     ContribCategory::ContribCategory(std::string name, SynthUnit *su)
         : ObjectPool(*new Impl(this, std::move(name), su)) {
+        // The name appears in a reference between the ":" and the "/", so anything outside a
+        // segment would produce references that cannot be parsed back. Categories are registered
+        // by plugins, which makes this worth checking rather than assuming.
+        assert(ContribLocator::isValidSegment(ContribCategory::name()) &&
+               "a contribute category name must match ^[A-Za-z0-9_-]+$");
     }
 
 }

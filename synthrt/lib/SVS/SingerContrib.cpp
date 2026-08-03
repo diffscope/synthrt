@@ -92,10 +92,27 @@ namespace srt {
         return root.toObject();
     }
 
+    /// The category every singer import resolves within.
+    static constexpr const char *kInferenceCategory = "inference";
+
     static bool readSingerImport(const JsonValue &val, SingerImportData *out,
                                  std::string *errorMessage) {
+        // Shorthand form: a bare identifier names an inference of the package declaring the
+        // singer, and is equivalent to an object giving only \c inferenceId.
+        if (val.isString()) {
+            auto id = val.toString();
+            if (!ContribLocator::isValidSegment(id)) {
+                *errorMessage = R"(invalid inference identifier)";
+                return false;
+            }
+            SingerImportData res;
+            res.inferenceLocator = ContribLocator({}, {}, kInferenceCategory, std::move(id));
+            *out = std::move(res);
+            return true;
+        }
+
         if (!val.isObject()) {
-            *errorMessage = R"(invalid data type)";
+            *errorMessage = R"(must be a string or an object)";
             return false;
         }
         auto obj = val.toObject();
@@ -115,7 +132,7 @@ namespace srt {
             return false;
         }
         auto id = it->second.toString();
-        if (!ContribLocator::isValidLocator(id)) {
+        if (!ContribLocator::isValidSegment(id)) {
             *errorMessage = R"("inferenceId" field has invalid value)";
             return false;
         }
@@ -141,7 +158,8 @@ namespace srt {
             }
         }
 
-        res.inferenceLocator = ContribLocator(std::move(package), version, std::move(id));
+        res.inferenceLocator =
+            ContribLocator(std::move(package), version, kInferenceCategory, std::move(id));
 
         // options
         it = obj.find("options");
@@ -258,7 +276,7 @@ namespace srt {
                 };
             }
             id_ = it->second.toString();
-            if (!ContribLocator::isValidLocator(id_)) {
+            if (!ContribLocator::isValidSegment(id_)) {
                 return Error{
                     Error::InvalidFormat,
                     R"("id" field has invalid value in singer manifest)",
@@ -565,7 +583,7 @@ namespace srt {
     }
 
     std::string SingerCategory::key() const {
-        return "singers";
+        return "singer";
     }
 
     Expected<ContribSpec *> SingerCategory::parseSpec(const std::filesystem::path &basePath,
@@ -678,8 +696,7 @@ namespace srt {
                             };
                         }
                     }
-                    ContribLocator newLoc(std::move(package), version, loc.id());
-                    loc = newLoc;
+                    loc = ContribLocator(std::move(package), version, loc.category(), loc.id());
                 }
                 return ContribCategory::loadSpec(spec, state);
             }

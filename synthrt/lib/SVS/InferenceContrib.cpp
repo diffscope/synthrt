@@ -157,7 +157,7 @@ namespace srt {
                 };
             }
             id_ = it->second.toString();
-            if (!ContribLocator::isValidLocator(id_)) {
+            if (!ContribLocator::isValidSegment(id_)) {
                 return Error{
                     Error::InvalidFormat,
                     R"("id" field has invalid value in inference manifest)",
@@ -351,7 +351,7 @@ namespace srt {
     }
 
     std::string InferenceCategory::key() const {
-        return "inferences";
+        return "inference";
     }
 
     Expected<ContribSpec *> InferenceCategory::parseSpec(const std::filesystem::path &basePath,
