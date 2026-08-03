@@ -314,8 +314,8 @@ namespace srt {
     ContribCategory::ContribCategory(std::string name, SynthUnit *su)
         : ObjectPool(*new Impl(this, std::move(name), su)) {
         // The name appears in a reference between the ":" and the "/", so anything outside a
-        // segment would produce references that cannot be parsed back. Categories are registered
-        // by plugins, which makes this worth checking rather than assuming.
+        // segment would produce references that cannot be parsed back. A category comes from
+        // whoever registered its factory, which is why this is checked rather than assumed.
         assert(ContribLocator::isValidSegment(ContribCategory::name()) &&
                "a contribute category name must match ^[A-Za-z0-9_-]+$");
     }
