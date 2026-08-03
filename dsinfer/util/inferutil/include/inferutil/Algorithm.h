@@ -41,9 +41,9 @@ namespace ds::inferutil {
 
         static_assert(std::is_floating_point_v<T>, "T must be a floating point type");
 
-        // Without reference points there is nothing to interpolate from, and front()/back() below
-        // would read out of bounds. referenceValues is indexed with referencePoints' indices, so
-        // it must be at least as long.
+        // Without reference points there is nothing to interpolate from, and \c front() and
+        // \c back() below would read out of bounds. \a referenceValues is indexed with
+        // \a referencePoints' indices, so it must be at least as long.
         if (referencePoints.empty() || referenceValues.size() < referencePoints.size()) {
             return {};
         }
@@ -91,9 +91,9 @@ namespace ds::inferutil {
 
     template <class T>
     inline std::vector<T> arange(T start, T stop, T step) {
-        // A zero step never reaches `stop`, and a step pointing away from it yields nothing.
-        // Both used to fall through to std::ceil() and produce inf/NaN, which is undefined
-        // behaviour once cast to size_t.
+        // A zero step never reaches \a stop, and a step pointing away from it yields nothing.
+        // Both used to fall through to \c std::ceil() and produce infinity or NaN, which is
+        // undefined behaviour once cast to \c size_t.
         if (step == T(0)) {
             return {};
         }
@@ -149,8 +149,8 @@ namespace ds::inferutil {
         auto targetSamples =
             interpolate<InterpolateLinear, double>(targetTimeAxis, inputTimeAxis, samples);
 
-        // interpolate() returns empty when it rejects its input; back() below would then be out
-        // of bounds. Callers already treat an empty result as "resample failed".
+        // \c interpolate() returns empty when it rejects its input, which would make \c back()
+        // below read out of bounds. Callers already treat an empty result as a failed resample.
         if (targetSamples.empty()) {
             return {};
         }

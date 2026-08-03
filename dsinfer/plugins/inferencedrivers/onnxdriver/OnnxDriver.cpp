@@ -42,7 +42,7 @@ namespace ds {
 #ifdef _WIN32
     /// Scoped override of the process-wide DLL search path.
     ///
-    /// The ORT directory must be searchable while `onnxruntime.dll` is being opened, so that its
+    /// The ORT directory must be searchable while \c onnxruntime.dll is being opened, so that its
     /// own dependencies resolve. The previous path is restored on every exit path, including the
     /// error ones.
     class ScopedLibraryPath {
@@ -189,7 +189,7 @@ namespace ds {
         auto dllPath = onnxArgs->runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
 
         if (auto exp = impl.load(dllPath); !exp) {
-            // Propagate the detailed reason from load() instead of a generic message.
+            // Propagate the detailed reason from \c load() instead of a generic message.
             return exp;
         }
 

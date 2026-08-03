@@ -70,7 +70,7 @@ BOOST_AUTO_TEST_CASE(test_Error_Cause) {
         Error e = Error(Error::FileNotOpen, "").withCause(Error(Error::InvalidFormat, "inner"));
         BOOST_CHECK(e.toString() == "inner");
     }
-    // withCause() returns a copy; the original is untouched.
+    // \c withCause() returns a copy, leaving the original untouched.
     {
         Error original(Error::FileNotOpen, "outer");
         Error chained = original.withCause(Error(Error::InvalidFormat, "inner"));

@@ -138,10 +138,10 @@ namespace ds::onnxdriver {
         srt::ITask::StartAsyncCallback callback;
 
         // Keeps the caller's input alive for the whole duration of the async run.
-        // SessionRunContext stores bare `const char *` borrowed from this object's map keys and
-        // output name strings, and for the "onnx" backend it also stores OrtValue* owned by the
-        // input tensors. RunAsync() returns immediately, so without this reference the caller may
-        // drop the input while ORT is still reading from it.
+        // \c SessionRunContext stores bare <tt>const char *</tt> borrowed from this object's map
+        // keys and output name strings, and for the \c onnx backend it also stores \c OrtValue
+        // pointers owned by the input tensors. \c RunAsync() returns immediately, so without this
+        // reference the caller may drop the input while ORT is still reading from it.
         srt::NO<Api::Onnx::SessionStartInput> input;
     };
 
@@ -160,12 +160,13 @@ namespace ds::onnxdriver {
         srt::NO<Api::Onnx::SessionResult> sessionResult;
 
         // Tracks whether an async run handed to ORT is still outstanding. The completion callback
-        // runs on an ORT worker thread and touches this Impl, so close()/~Session() must wait for
-        // it rather than tearing the object down underneath it.
+        // runs on an ORT worker thread and touches this \c Impl, so \c close() and the destructor
+        // must wait for it rather than tearing the object down underneath it.
         //
-        // NOTE: this only closes the use-after-free window. Concurrent access to `context`,
-        // `asyncContext` and `sessionResult` from the callback thread and from run()/result() on
-        // another thread is still unsynchronized - see issue B3, which reworks the locking scheme.
+        // \note This only closes the use-after-free window. Concurrent access to \c context,
+        //       \c asyncContext and \c sessionResult from the callback thread and from \c run()
+        //       or \c result() on another thread is still unsynchronized. Issue B3 reworks the
+        //       locking scheme as a whole.
         std::mutex asyncMtx;
         std::condition_variable asyncCv;
         bool asyncRunning = false;
@@ -196,9 +197,9 @@ namespace ds::onnxdriver {
 
         void waitForAsyncRun() {
             std::unique_lock<std::mutex> lock(asyncMtx);
-            // Reentrant case: close() reached from inside the completion callback, e.g. a user
-            // callback that closes the session once the run is done. ORT has already handed
-            // control back to us, and waiting on our own thread would deadlock outright.
+            // Reentrant case: \c close() reached from inside the completion callback, as a user
+            // callback that closes the session once the run is done would do. ORT has already
+            // handed control back to us, and waiting on our own thread would deadlock outright.
             if (asyncCallbackThread == std::this_thread::get_id()) {
                 return;
             }
@@ -392,8 +393,8 @@ namespace ds::onnxdriver {
             auto &impl = *static_cast<Impl *>(user_data);
 
             // Marks the run finished on every exit path, including the early returns below, so
-            // that a Session being closed or destroyed can reliably wait until this callback is
-            // done touching `impl`. Declared first so it runs last, after the user callback.
+            // that a \c Session being closed or destroyed can reliably wait until this callback
+            // is done touching \c impl. Declared first so it runs last, after the user callback.
             struct FinishGuard {
                 Impl &impl;
                 ~FinishGuard() {
@@ -626,19 +627,20 @@ namespace ds::onnxdriver {
                 runOptions.UnsetTerminate();
 
                 asyncContext->callback = callback;
-                // Retain the input until the run completes; ctx holds raw pointers into it.
+                // Retain the input until the run completes, since \c ctx holds raw pointers into
+                // it.
                 asyncContext->input = sessionStartInput;
 
-                // Must be set before handing the run to ORT: the completion callback may fire on
-                // a worker thread before RunAsync() has even returned here.
+                // Must be set before the run is handed to ORT. The completion callback may fire
+                // on a worker thread before \c RunAsync() has even returned here.
                 beginAsyncRun();
                 Ort::Status statusRun(Ort::GetApi().RunAsync(
                     image->session, runOptions, ctx.inputNames.data(), ctx.inputValuePtrs.data(),
                     inputCount, ctx.outputNames.data(), outputCount, ctx.outputValuePtrs.data(),
                     runAsyncCallback, static_cast<void *>(this)));
                 if (!statusRun.IsOK()) {
-                    // ORT does not invoke the callback when RunAsync itself fails, so the run has
-                    // to be retired here.
+                    // ORT does not invoke the callback when \c RunAsync itself fails, so the run
+                    // has to be retired here.
                     endAsyncRun();
                     ctx.releaseOutputValues();
                     if (error) {
@@ -648,7 +650,7 @@ namespace ds::onnxdriver {
                 }
                 return true;
             } catch (const Ort::Exception &err) {
-                // Retire the run if it was already flagged, otherwise waitForAsyncRun() would
+                // Retire the run if it was already flagged, otherwise \c waitForAsyncRun() would
                 // block forever on a run that never started. Harmless when it was never flagged.
                 endAsyncRun();
                 if (error) {
@@ -664,7 +666,7 @@ namespace ds::onnxdriver {
     }
 
     Session::~Session() {
-        // _impl is null once this Session has been moved from - there is nothing left to close.
+        // \c _impl is null once this \c Session has been moved from, leaving nothing to close.
         if (_impl) {
             // Nothing useful to do with a failure while unwinding.
             std::ignore = close();
@@ -837,16 +839,16 @@ namespace ds::onnxdriver {
     }
 
     srt::Expected<void> Session::close() {
-        // A moved-from Session has no Impl. close() is public and is also what the destructor
-        // calls, so it must tolerate that state instead of dereferencing null.
+        // A moved-from \c Session has no \c Impl. This function is public and is also what the
+        // destructor calls, so it must tolerate that state instead of dereferencing null.
         if (!_impl) {
             return srt::Error(srt::Error::SessionError, "session is not open");
         }
 
         stdc_impl_t;
 
-        // An async run may still be reading impl.* from an ORT worker thread. Everything below -
-        // and the destructor that calls us - would otherwise pull the object out from under it.
+        // An async run may still be reading \c impl from an ORT worker thread. Everything below,
+        // and the destructor that calls us, would otherwise pull the object out from under it.
         impl.waitForAsyncRun();
 
         if (!impl.group)

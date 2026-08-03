@@ -26,10 +26,11 @@ namespace ds::onnxdriver {
         Session(const Session &) = delete;
         Session &operator=(const Session &) = delete;
 
-        /// After move *construction* the source holds no implementation: it may only be destroyed
-        /// or assigned to, every other member function requires a live Session.
-        /// Move *assignment* swaps, so the source stays usable but takes over whatever session
-        /// this object held before.
+        /// After move \a construction the source holds no implementation. It may only be destroyed
+        /// or assigned to, as every other member function requires a live \c Session.
+        ///
+        /// Move \a assignment swaps instead, so the source stays usable but takes over whatever
+        /// session this object held before.
         Session(Session &&other) noexcept;
         Session &operator=(Session &&other) noexcept;
 

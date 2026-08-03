@@ -51,8 +51,8 @@ BOOST_AUTO_TEST_CASE(test_Expected_ConstContextualConversion) {
     BOOST_CHECK(!static_cast<bool>(voidError));
 }
 
-// valueOr's const overload took `const U &` and then applied std::forward<U>, which casts away
-// constness; the overload never compiled and so was never instantiated by anything.
+// \c valueOr's const overload took <tt>const U &</tt> and then applied \c std::forward, which
+// casts away constness. The overload never compiled, so nothing ever instantiated it.
 BOOST_AUTO_TEST_CASE(test_Expected_ValueOr) {
     {
         const Expected<std::string> value("hello");

@@ -87,7 +87,7 @@ namespace srt {
             allPlugins.erase(iid);
         }
 
-        // The cache for this iid is now up to date. Without this, every single plugin() call
+        // The cache for this \a iid is now up to date. Without this, every single \c plugin() call
         // re-walked the plugin directories and re-probed every file on disk.
         pluginsDirty.erase(iid);
     }

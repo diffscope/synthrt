@@ -58,8 +58,9 @@ namespace srt {
                 }
                 // id[version]
                 result._package = package;
-                // The span between the brackets is [openBracket + 1, size - 1), i.e. the trailing
-                // ']' must be excluded - hence -2, not -1.
+                // The span between the brackets runs from \a openBracket + 1 up to but not
+                // including the final character, so the trailing bracket has to be excluded.
+                // That makes the length -2 rather than -1.
                 result._version = stdc::VersionNumber::fromString(
                     leftPart.substr(openBracket + 1, leftPart.size() - openBracket - 2));
             } else {

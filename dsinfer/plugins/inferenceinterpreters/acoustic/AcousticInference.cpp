@@ -190,16 +190,16 @@ namespace ds {
         // input param: steps / speedup
         int64_t acceleration = acousticInput->steps;
         if (config->useContinuousAcceleration) {
-            // Here `steps` reaches the model unchanged, and is also used as a divisor when
-            // computing `depth` below. getSpeedupFromSteps() has a fallback for non-positive
-            // input, but this branch has none - so reject it instead of dividing by zero.
+            // Here \a steps reaches the model unchanged, and is also used as a divisor when
+            // computing \a depth below. \c getSpeedupFromSteps() has a fallback for non-positive
+            // input, but this branch has none, so reject it instead of dividing by zero.
             if (acceleration <= 0) {
                 setState(Failed);
                 return srt::Error(srt::Error::InvalidArgument,
                                   "acoustic input: steps must be a positive integer");
             }
         } else {
-            // Always >= 1, see getSpeedupFromSteps().
+            // Always >= 1, see \c getSpeedupFromSteps().
             acceleration = inferutil::getSpeedupFromSteps(acceleration);
         }
         {
@@ -226,7 +226,7 @@ namespace ds {
         } else {
             int64_t intDepth = std::llround(acousticInput->depth * 1000);
             intDepth = (std::min) (intDepth, static_cast<int64_t>(config->maxDepth));
-            // make sure depth can be divided by speedup (acceleration is guaranteed >= 1 above)
+            // make sure depth can be divided by speedup, with \a acceleration guaranteed >= 1 above
             intDepth = intDepth / acceleration * acceleration;
 
             auto exp = Tensor::createScalar<int64_t>(intDepth);
@@ -533,10 +533,10 @@ namespace ds {
 
     bool AcousticInference::stop() {
         stdc_impl_t;
-        // Deliberately unlocked: start() holds impl.mutex for the whole duration of the session
+        // Deliberately unlocked. \c start() holds the mutex for the whole duration of the session
         // run, so taking any lock here would block until the run this is meant to interrupt has
-        // already finished. Reading impl.session concurrently with initialize() remains a race -
-        // see issue B3e, which reworks this locking scheme as a whole.
+        // already finished. Reading \c impl.session concurrently with \c initialize() remains a
+        // race, which issue B3e addresses by reworking this locking scheme as a whole.
         if (!impl.session || !impl.session->isOpen()) {
             return false;
         }

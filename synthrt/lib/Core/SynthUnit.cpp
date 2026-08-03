@@ -263,7 +263,7 @@ namespace srt {
                     };
                     // This contribute was never initialized, so the rollback below must start at
                     // the previous one. Skipping this decrement would make the rollback call
-                    // `categories.at()` with the very name that was just not found, and throw.
+                    // \c categories.at() with the very name that was just not found, and throw.
                     i--;
                     failed = true;
                     break;

@@ -301,10 +301,10 @@ namespace {
             iterator_base(_It it) noexcept : it(it) {
             }
 
-            // `ref` is a lazily materialized stand-in for the current element, rebuilt on every
-            // dereference. Copying must not touch it: RHS.ref is empty until RHS has been
-            // dereferenced at least once, and `auto tmp = *this;` inside operator++(int) hits
-            // exactly that case - reading RHS.ref-> there was undefined behaviour.
+            // \c ref is a lazily materialized stand-in for the current element, rebuilt on every
+            // dereference. Copying must not touch it. It stays empty until the source has been
+            // dereferenced at least once, and <tt>auto tmp = *this;</tt> inside the post-increment
+            // hits exactly that case, where reading through it was undefined behaviour.
             iterator_base(const iterator_base &RHS) noexcept : it(RHS.it) {
             }
 
@@ -428,8 +428,9 @@ namespace {
             return buf.erase(pos.it);
         }
         iterator erase(const_iterator pos) {
-            // Must go through `buf`: pos.it converts back to a const_iterator of this class, so
-            // erase(pos.it) would call this very overload again and recurse until the stack dies.
+            // Must go through \c buf. Otherwise \a pos.it converts back to a \c const_iterator of
+            // this class, so the call would select this very overload again and recurse until the
+            // stack dies.
             return buf.erase(pos.it);
         }
         size_type erase(const Key &key) {
