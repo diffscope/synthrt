@@ -216,21 +216,19 @@ namespace srt {
                     // Load
                     auto depPkg = open(foundPath, false);
                     if (!depPkg) {
-                        error1 = {
-                            Error::FileNotOpen,
-                            stdc::formatN(R"(required package "%1[%2]" not valid: %3)", dep.id,
-                                          dep.version.toString(), depPkg.error().message()),
-                        };
+                        error1 = Error(Error::FileNotOpen,
+                                       stdc::formatN(R"(required package "%1[%2]" not valid)",
+                                                     dep.id, dep.version.toString()))
+                                     .withCause(depPkg.error());
                         goto out_deps;
                     }
 
                     auto depSpec = depPkg.get();
                     if (!depSpec->loaded) {
-                        error1 = {
-                            Error::FileNotOpen,
-                            stdc::formatN(R"(required package "%1[%2]" not loaded: %3)", dep.id,
-                                          dep.version.toString(), depSpec->err.message()),
-                        };
+                        error1 = Error(Error::FileNotOpen,
+                                       stdc::formatN(R"(required package "%1[%2]" not loaded)",
+                                                     dep.id, dep.version.toString()))
+                                     .withCause(depSpec->err);
                         std::ignore = close(depSpec);
                         goto out_deps;
                     }

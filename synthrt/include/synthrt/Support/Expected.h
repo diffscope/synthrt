@@ -147,6 +147,26 @@ namespace srt {
                               : static_cast<T>(std::forward<U>(defaultValue));
         }
 
+        /// Passes a value through untouched; wraps an error in one of \a type carrying \a message,
+        /// recording the original as its cause.
+        ///
+        /// Saves the caller from pulling the message out of the inner error and splicing it into
+        /// a new one by hand, which loses the type and the structure of everything below.
+        ///
+        /// \code
+        ///     if (auto exp = readDesc(dir).withContext(
+        ///             Error::FileNotOpen, stdc::formatN("%1: cannot open package", dir));
+        ///         !exp) {
+        ///         return exp.error();
+        ///     }
+        /// \endcode
+        Expected withContext(std::error_code code, std::string message) && {
+            if (_has_value) {
+                return std::move(*this);
+            }
+            return Error(code, std::move(message)).withCause(std::move(_storage.err));
+        }
+
     protected:
         template <class U>
         void moveConstruct(Expected<U> &&RHS) {
@@ -239,6 +259,14 @@ namespace srt {
         const error_type &error() const & {
             assert(!_has_value && "Expected doesn't contain an error");
             return _storage.err;
+        }
+
+        /// \copydoc Expected::withContext
+        Expected withContext(std::error_code code, std::string message) && {
+            if (_has_value) {
+                return std::move(*this);
+            }
+            return Error(code, std::move(message)).withCause(std::move(_storage.err));
         }
 
     protected:

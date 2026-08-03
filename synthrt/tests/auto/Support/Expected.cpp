@@ -74,6 +74,43 @@ BOOST_AUTO_TEST_CASE(test_Expected_ValueOr) {
     }
 }
 
+BOOST_AUTO_TEST_CASE(test_Expected_WithContext) {
+    // A value passes through untouched.
+    {
+        auto e = Expected<std::string>("hello").withContext(Error::FileNotOpen, "outer");
+        BOOST_CHECK(e.hasValue());
+        BOOST_CHECK(e.get() == "hello");
+    }
+    // An error gets wrapped, and the original becomes the cause.
+    {
+        auto e = Expected<std::string>(Error(Error::InvalidFormat, "inner"))
+                     .withContext(Error::FileNotOpen, "outer");
+        BOOST_CHECK(!e.hasValue());
+        BOOST_CHECK(e.error().type() == Error::FileNotOpen);
+        BOOST_CHECK(e.error().message() == "outer");
+        BOOST_CHECK(e.error().toString() == "outer: inner");
+        BOOST_CHECK(e.error().rootCause().type() == Error::InvalidFormat);
+    }
+    // Stacking keeps every level.
+    {
+        auto e = Expected<std::string>(Error(Error::InvalidArgument, "root"))
+                     .withContext(Error::InvalidFormat, "middle")
+                     .withContext(Error::FileNotOpen, "outer");
+        BOOST_CHECK(e.error().toString() == "outer: middle: root");
+        BOOST_CHECK(e.error().rootCause().type() == Error::InvalidArgument);
+    }
+    // Expected<void> behaves the same.
+    {
+        auto ok = Expected<void>().withContext(Error::FileNotOpen, "outer");
+        BOOST_CHECK(ok.hasValue());
+
+        auto e = Expected<void>(Error(Error::InvalidFormat, "inner"))
+                     .withContext(Error::FileNotOpen, "outer");
+        BOOST_CHECK(!e.hasValue());
+        BOOST_CHECK(e.error().toString() == "outer: inner");
+    }
+}
+
 BOOST_AUTO_TEST_CASE(test_Expected_MoveAssign) {
     // Every combination of source and destination state, including the ones that change state.
     {

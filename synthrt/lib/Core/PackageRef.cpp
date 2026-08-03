@@ -33,13 +33,12 @@ namespace srt {
         if (it == obj.end()) {
             return DisplayText();
         }
-        auto text = DisplayText::fromJsonValue(it->second);
+        auto text = DisplayText::fromJsonValue(it->second)
+                        .withContext(Error::InvalidFormat,
+                                     stdc::formatN(R"(%1: "%2" field has invalid value)", descPath,
+                                                   key));
         if (!text) {
-            return Error{
-                Error::InvalidFormat,
-                stdc::formatN(R"(%1: "%2" field has invalid value: %3)", descPath, key,
-                              text.error().message()),
-            };
+            return text.error();
         }
         return text.take();
     }
@@ -50,13 +49,12 @@ namespace srt {
         if (it == obj.end()) {
             return DisplayPath();
         }
-        auto path = DisplayPath::fromJsonValue(it->second);
+        auto path = DisplayPath::fromJsonValue(it->second)
+                        .withContext(Error::InvalidFormat,
+                                     stdc::formatN(R"(%1: "%2" field has invalid value)", descPath,
+                                                   key));
         if (!path) {
-            return Error{
-                Error::InvalidFormat,
-                stdc::formatN(R"(%1: "%2" field has invalid value: %3)", descPath, key,
-                              path.error().message()),
-            };
+            return path.error();
         }
         return path.take();
     }
@@ -202,12 +200,12 @@ namespace srt {
 
             for (const auto &item : it->second.toArray()) {
                 PackageDependency dep;
-                if (auto exp = PackageDependency::fromJsonValue(item); !exp) {
-                    return Error{
+                if (auto exp = PackageDependency::fromJsonValue(item).withContext(
                         Error::InvalidFormat,
-                        stdc::formatN(R"(%1: invalid "dependencies" field entry %2: %3)",
-                                      descPath, dependencies_.size() + 1, exp.error().message()),
-                    };
+                        stdc::formatN(R"(%1: invalid "dependencies" field entry %2)", descPath,
+                                      dependencies_.size() + 1));
+                    !exp) {
+                    return exp.error();
                 } else {
                     dep = exp.take();
                 }
