@@ -1,12 +1,51 @@
+#include <memory>
+#include <string>
+
 #include <synthrt/Support/Expected.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
 
-BOOST_AUTO_TEST_SUITE(test_Expected)
-
 using srt::Error;
 using srt::Expected;
+
+namespace {
+
+    /// Counts its own lifetime, so a test can show the contained value is destroyed exactly once
+    /// across the placement-new and manual-destructor juggling the union storage requires.
+    struct Tracked {
+        static int alive;
+        static int destroyed;
+
+        int value;
+
+        explicit Tracked(int v = 0) : value(v) {
+            alive++;
+        }
+        Tracked(const Tracked &RHS) : value(RHS.value) {
+            alive++;
+        }
+        Tracked(Tracked &&RHS) noexcept : value(RHS.value) {
+            RHS.value = -1;
+            alive++;
+        }
+        ~Tracked() {
+            alive--;
+            destroyed++;
+        }
+
+        static void reset() {
+            alive = 0;
+            destroyed = 0;
+        }
+    };
+
+    int Tracked::alive = 0;
+    int Tracked::destroyed = 0;
+
+}
+
+BOOST_AUTO_TEST_SUITE(test_Expected)
 
 BOOST_AUTO_TEST_CASE(test_Expected) {
     // Construct from error
@@ -162,6 +201,167 @@ BOOST_AUTO_TEST_CASE(test_Expected_Void) {
 
         Expected<void> e2 = Expected<const char *>("hello");
         BOOST_CHECK(e2.hasValue());
+    }
+    // The default constructor is the success case.
+    {
+        Expected<void> e;
+        BOOST_CHECK(e.hasValue());
+        BOOST_CHECK(static_cast<bool>(e));
+    }
+    // A value-carrying Expected collapses to void, dropping the value.
+    {
+        Expected<void> e = Expected<std::string>("discarded");
+        BOOST_CHECK(e.hasValue());
+    }
+}
+
+// The default constructor of the primary template value-initializes T, which is easy to mistake for
+// an empty or error state.
+BOOST_AUTO_TEST_CASE(test_Expected_DefaultIsAValue) {
+    Expected<std::string> s;
+    BOOST_CHECK(s.hasValue());
+    BOOST_CHECK(s.get().empty());
+
+    Expected<int> i;
+    BOOST_CHECK(i.hasValue());
+    BOOST_CHECK(i.get() == 0);
+}
+
+BOOST_AUTO_TEST_CASE(test_Expected_Accessors) {
+    // get(), value(), operator* and operator-> are all the same thing.
+    {
+        Expected<std::string> e("hello");
+        BOOST_CHECK(e.get() == "hello");
+        BOOST_CHECK(e.value() == "hello");
+        BOOST_CHECK(*e == "hello");
+        BOOST_CHECK(e->size() == 5);
+
+        // Writing through the mutable reference is visible to the others.
+        e.get() += " world";
+        BOOST_CHECK(*e == "hello world");
+    }
+    // The const overloads give read-only access to the same object.
+    {
+        const Expected<std::string> e("hello");
+        BOOST_CHECK(e.get() == "hello");
+        BOOST_CHECK(e.value() == "hello");
+        BOOST_CHECK(*e == "hello");
+        BOOST_CHECK(e->size() == 5);
+        BOOST_CHECK(&e.get() == &*e);
+    }
+    // take() moves the value out.
+    {
+        Expected<std::string> e("hello");
+        std::string taken = e.take();
+        BOOST_CHECK(taken == "hello");
+    }
+    // takeError() moves the error out, and answers success when there is a value.
+    {
+        Expected<std::string> e((Error(Error::InvalidArgument, "bad")));
+        Error err = e.takeError();
+        BOOST_CHECK(!err.ok());
+        BOOST_CHECK(err.message() == "bad");
+
+        Expected<std::string> ok("hello");
+        BOOST_CHECK(ok.takeError().ok());
+
+        Expected<void> voidError((Error(Error::NotImplemented)));
+        BOOST_CHECK(voidError.takeError().type() == Error::NotImplemented);
+        BOOST_CHECK(Expected<void>().takeError().ok());
+    }
+    // The whole error, cause chain included, survives being stored.
+    {
+        Expected<std::string> e(Error(Error::FileNotOpen, "outer")
+                                    .withCause(Error(Error::InvalidFormat, "inner")));
+        BOOST_CHECK(e.error().toString() == "outer: inner");
+        BOOST_CHECK(e.error().rootCause().type() == Error::InvalidFormat);
+    }
+}
+
+// A move-only T must work, since that is what the codebase mostly stores.
+BOOST_AUTO_TEST_CASE(test_Expected_MoveOnlyValue) {
+    {
+        Expected<std::unique_ptr<int>> e(std::make_unique<int>(42));
+        BOOST_REQUIRE(e.hasValue());
+        BOOST_CHECK(*e.get() == 42);
+
+        std::unique_ptr<int> taken = e.take();
+        BOOST_REQUIRE(taken);
+        BOOST_CHECK(*taken == 42);
+    }
+    // Move construction, move assignment and the error path all hold up.
+    {
+        Expected<std::unique_ptr<int>> source(std::make_unique<int>(7));
+        Expected<std::unique_ptr<int>> moved(std::move(source));
+        BOOST_REQUIRE(moved.hasValue());
+        BOOST_CHECK(**moved == 7);
+
+        moved = Expected<std::unique_ptr<int>>(Error(Error::NotImplemented));
+        BOOST_CHECK(!moved.hasValue());
+        BOOST_CHECK(moved.error().type() == Error::NotImplemented);
+    }
+    // withContext() carries a move-only value through untouched.
+    {
+        auto e = Expected<std::unique_ptr<int>>(std::make_unique<int>(3))
+                     .withContext(Error::FileNotOpen, "outer");
+        BOOST_REQUIRE(e.hasValue());
+        BOOST_CHECK(**e == 3);
+    }
+}
+
+// The union storage is built and torn down by hand, so the contained value must be destroyed once
+// per construction and no more.
+BOOST_AUTO_TEST_CASE(test_Expected_ValueLifetime) {
+    // Plain construction and destruction.
+    {
+        Tracked::reset();
+        {
+            Expected<Tracked> e{Tracked(1)};
+            BOOST_CHECK(e.get().value == 1);
+        }
+        BOOST_CHECK(Tracked::alive == 0);
+    }
+    // An error path never builds a T at all.
+    {
+        Tracked::reset();
+        {
+            Expected<Tracked> e((Error(Error::InvalidArgument)));
+            BOOST_CHECK(!e.hasValue());
+        }
+        BOOST_CHECK(Tracked::alive == 0);
+        BOOST_CHECK(Tracked::destroyed == 0);
+    }
+    // Move assignment tears the old value down before building the new one.
+    {
+        Tracked::reset();
+        {
+            Expected<Tracked> e{Tracked(1)};
+            e = Expected<Tracked>(Tracked(2));
+            BOOST_CHECK(e.get().value == 2);
+        }
+        BOOST_CHECK(Tracked::alive == 0);
+    }
+    // Changing from a value to an error destroys the value.
+    {
+        Tracked::reset();
+        {
+            Expected<Tracked> e{Tracked(1)};
+            e = Expected<Tracked>(Error(Error::NotImplemented));
+            BOOST_CHECK(!e.hasValue());
+            BOOST_CHECK(Tracked::alive == 0);
+        }
+        BOOST_CHECK(Tracked::alive == 0);
+    }
+    // Self move assignment is a no-op rather than a self-destruction.
+    {
+        Tracked::reset();
+        {
+            Expected<Tracked> e{Tracked(5)};
+            e = std::move(e);
+            BOOST_REQUIRE(e.hasValue());
+            BOOST_CHECK(e.get().value == 5);
+        }
+        BOOST_CHECK(Tracked::alive == 0);
     }
 }
 
