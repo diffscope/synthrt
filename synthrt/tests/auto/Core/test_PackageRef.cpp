@@ -1,10 +1,11 @@
 #include <synthrt/Core/PackageRef.h>
 
+#define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
 
 using namespace stdc;
 
-BOOST_AUTO_TEST_SUITE(test_Contribute)
+BOOST_AUTO_TEST_SUITE(test_PackageRef)
 
 using Ver = stdc::VersionNumber;
 

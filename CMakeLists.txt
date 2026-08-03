@@ -59,6 +59,15 @@ endif()
 qm_init_directories()
 
 # ----------------------------------
+# Tests
+# ----------------------------------
+if(SYNTHRT_BUILD_TESTS)
+    enable_testing()
+
+    include("cmake/AddAutoTest.cmake")
+endif()
+
+# ----------------------------------
 # Add source modules
 # ----------------------------------
 add_subdirectory(third-party)

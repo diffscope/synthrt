@@ -1,5 +1,6 @@
 #include <synthrt/Support/Error.h>
 
+#define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
 
 BOOST_AUTO_TEST_SUITE(test_Error)

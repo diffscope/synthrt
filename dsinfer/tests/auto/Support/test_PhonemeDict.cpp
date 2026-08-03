@@ -9,6 +9,7 @@
 
 #include <dsinfer/Support/PhonemeDict.h>
 
+#define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
 
 static void generateDictFile(const std::filesystem::path &filepath) {
