@@ -39,62 +39,14 @@ namespace srt {
 
     public:
         using Base = std::shared_ptr<T>;
+        using Base::Base;
 
-        template <typename... Args>
-        using Constructible = typename std::enable_if_t<std::is_constructible_v<Base, Args...>>;
-
-        constexpr NO() noexcept : Base() {
-        }
+        constexpr NO() noexcept = default;
 
         NO(const Base &RHS) noexcept : Base(RHS) {
         }
 
-        template <typename U, typename = Constructible<U *>>
-        explicit NO(U *p) : Base(p) {
-        }
-
-        template <typename U, typename Deleter, typename = Constructible<U *, Deleter>>
-        NO(U *p, Deleter d) : Base(p, std::move(d)) {
-        }
-
-        template <typename Deleter>
-        NO(std::nullptr_t p, Deleter d) : Base(p, std::move(d)) {
-        }
-
-        template <typename U, typename Deleter, typename Alloc,
-                  typename = Constructible<U *, Deleter, Alloc>>
-        NO(U *p, Deleter d, Alloc a) : Base(p, std::move(d), std::move(a)) {
-        }
-
-        template <typename Deleter, typename Alloc>
-        NO(std::nullptr_t p, Deleter d, Alloc a) : Base(p, std::move(d), std::move(a)) {
-        }
-
-        template <typename U>
-        NO(const std::shared_ptr<U> &RHS, T *p) noexcept : Base(RHS, p) {
-        }
-
-        template <typename U, typename = Constructible<const std::shared_ptr<U> &>>
-        NO(const std::shared_ptr<U> &RHS) noexcept : Base(RHS) {
-        }
-
         NO(Base &&RHS) noexcept : Base(std::move(RHS)) {
-        }
-
-        template <typename U, typename = Constructible<std::shared_ptr<U>>>
-        NO(Base &&RHS) noexcept : Base(std::move(RHS)) {
-        }
-
-        template <typename U, typename = Constructible<const std::weak_ptr<U> &>>
-        explicit NO(const std::weak_ptr<U> &RHS) : Base(RHS) {
-        }
-
-        template <typename U, typename Deleter,
-                  typename = Constructible<std::unique_ptr<U, Deleter>>>
-        NO(std::unique_ptr<U, Deleter> &&RHS) : Base(std::move(RHS)) {
-        }
-
-        constexpr NO(std::nullptr_t) noexcept : Base() {
         }
 
         template <class U>
@@ -105,6 +57,45 @@ namespace srt {
         template <class... Args>
         static NO<T> create(Args &&...args) {
             return std::make_shared<T>(std::forward<Args>(args)...);
+        }
+    };
+
+    /// UNO - A unique pointer wrapper for \c NamedObject instance.
+    ///
+    /// The counterpart of \c NO for the ordinary case of a single owner, which most objects here
+    /// are. Reach for \c NO only where an object genuinely outlives one owner, as a tensor handed
+    /// from one inference stage to the next does.
+    ///
+    /// An \c UNO converts to an \c NO by moving from it, so a factory can hand out unique
+    /// ownership without deciding on its callers' behalf whether they will need to share.
+    ///
+    /// \code
+    ///     UNO<Tensor> owned = UNO<Tensor>::create();
+    ///     NO<ITensor> shared = std::move(owned);      // ownership moves into the shared pointer
+    /// \endcode
+    template <class T>
+    class UNO : public std::unique_ptr<T> {
+        static_assert(std::is_base_of<NamedObject, T>::value,
+                      "T should inherit from srt::NamedObject");
+
+    public:
+        using Base = std::unique_ptr<T>;
+        using Base::Base;
+
+        constexpr UNO() noexcept = default;
+
+        UNO(Base &&RHS) noexcept : Base(std::move(RHS)) {
+        }
+
+        /// Returns the pointee seen as \a U. Ownership stays here, unlike \c NO::as().
+        template <class U>
+        U *as() const noexcept {
+            return static_cast<U *>(this->get());
+        }
+
+        template <class... Args>
+        static UNO<T> create(Args &&...args) {
+            return UNO<T>(new T(std::forward<Args>(args)...));
         }
     };
 

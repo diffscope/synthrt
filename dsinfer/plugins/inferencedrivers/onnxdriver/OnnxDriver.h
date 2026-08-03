@@ -17,7 +17,7 @@ namespace ds {
         std::string backend() const override;
 
         srt::Expected<void> initialize(const srt::NO<InferenceDriverInitArgs> &args) override;
-        srt::NO<InferenceSession> createSession() override;
+        srt::UNO<InferenceSession> createSession() override;
 
     protected:
         class Impl;

@@ -50,8 +50,8 @@ namespace ds {
     public:
         srt::NO<Pit::PitchResult> result;
         srt::NO<InferenceDriver> driver;
-        srt::NO<InferenceSession> encoderSession;
-        srt::NO<InferenceSession> predictorSession;
+        srt::UNO<InferenceSession> encoderSession;
+        srt::UNO<InferenceSession> predictorSession;
         mutable std::shared_mutex mutex;
     };
 
@@ -205,7 +205,7 @@ namespace ds {
                                   "pitch linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
-                    inferutil::runEncoder(impl.encoderSession, linguisticInput,
+                    inferutil::runEncoder(impl.encoderSession.get(), linguisticInput,
                                                   /* out */ sessionInput, false);
                 !encoderSessionExp) {
                 setState(Failed);
@@ -516,7 +516,7 @@ namespace ds {
     bool PitchInference::stop() {
         stdc_impl_t;
         bool flag = true;
-        for (auto &session : {impl.encoderSession, impl.predictorSession}) {
+        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
             if (session) {
                 flag &= session->stop();
             }

@@ -98,8 +98,8 @@ namespace ds {
     public:
         srt::NO<Dur::DurationResult> result;
         srt::NO<InferenceDriver> driver;
-        srt::NO<InferenceSession> encoderSession;
-        srt::NO<InferenceSession> predictorSession;
+        srt::UNO<InferenceSession> encoderSession;
+        srt::UNO<InferenceSession> predictorSession;
         mutable std::shared_mutex mutex;
     };
 
@@ -229,7 +229,7 @@ namespace ds {
                                   "duration linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
-                    inferutil::runEncoder(impl.encoderSession, exp.take(),
+                    inferutil::runEncoder(impl.encoderSession.get(), exp.take(),
                                                   /* out */ sessionInput);
                 !encoderSessionExp) {
                 setState(Failed);
@@ -405,7 +405,7 @@ namespace ds {
     bool DurationInference::stop() {
         stdc_impl_t;
         bool flag = true;
-        for (auto &session : {impl.encoderSession, impl.predictorSession}) {
+        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
             if (session) {
                 flag &= session->stop();
             }

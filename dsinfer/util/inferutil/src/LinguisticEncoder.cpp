@@ -101,7 +101,7 @@ namespace ds::inferutil {
 
         return sessionInput;
     }
-    srt::Expected<void> runEncoder(const srt::NO<InferenceSession> &encoderSession,
+    srt::Expected<void> runEncoder(InferenceSession *encoderSession,
                                    const srt::NO<srt::TaskStartInput> &linguisticInput,
                                    srt::NO<Api::Onnx::SessionStartInput> &out,
                                    bool useXMasks) {

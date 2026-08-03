@@ -40,7 +40,7 @@ namespace ds {
     public:
         srt::NO<Vo::VocoderResult> result;
         srt::NO<InferenceDriver> driver;
-        srt::NO<InferenceSession> session;
+        srt::UNO<InferenceSession> session;
         mutable std::shared_mutex mutex;
     };
 

@@ -200,9 +200,8 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::NO<InferenceSession> OnnxDriver::createSession() {
-        auto session = srt::NO<OnnxSession>::create();
-        return session;
+    srt::UNO<InferenceSession> OnnxDriver::createSession() {
+        return srt::UNO<OnnxSession>::create();
     }
 
 }

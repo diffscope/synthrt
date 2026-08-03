@@ -49,7 +49,7 @@ namespace ds {
     public:
         srt::NO<Ac::AcousticResult> result;
         srt::NO<InferenceDriver> driver;
-        srt::NO<InferenceSession> session;
+        srt::UNO<InferenceSession> session;
         mutable std::shared_mutex mutex;
     };
 

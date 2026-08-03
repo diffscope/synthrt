@@ -42,7 +42,7 @@ namespace ds {
 
         virtual srt::Expected<void> initialize(const srt::NO<InferenceDriverInitArgs> &args) = 0;
 
-        virtual srt::NO<InferenceSession> createSession() = 0;
+        virtual srt::UNO<InferenceSession> createSession() = 0;
     };
 
 }
