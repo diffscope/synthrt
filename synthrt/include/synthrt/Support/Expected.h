@@ -114,7 +114,6 @@ namespace srt {
             return get();
         }
 
-        // Extra APIs
         bool hasValue() const {
             return _has_value;
         }
@@ -252,7 +251,6 @@ namespace srt {
             return _has_value ? Error::success() : std::move(_storage.err);
         }
 
-        // Extra APIs
         bool hasValue() const {
             return _has_value;
         }

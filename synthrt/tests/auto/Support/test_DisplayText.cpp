@@ -122,12 +122,8 @@ BOOST_AUTO_TEST_CASE(test_DisplayText_ValueSemantics) {
         BOOST_CHECK(text.text("zh_CN").empty());
     }
     // Constructing from a string sets the default text only.
-    //
-    // \note The std::string is spelled out because a bare literal is ambiguous between
-    //       <tt>DisplayText(std::string)</tt> and the deprecated <tt>DisplayText(const JsonValue &)</tt>,
-    //       each one user-defined conversion away.
     {
-        DisplayText text(std::string("DEF"));
+        DisplayText text("DEF");
         BOOST_CHECK(!text.isEmpty());
         BOOST_CHECK(text.text() == "DEF");
         BOOST_CHECK(text.text("zh_CN") == "DEF");
@@ -143,8 +139,8 @@ BOOST_AUTO_TEST_CASE(test_DisplayText_ValueSemantics) {
     }
     // swap() exchanges the two.
     {
-        DisplayText a{std::string("A")};
-        DisplayText b{std::string("B")};
+        DisplayText a("A");
+        DisplayText b("B");
         a.swap(b);
         BOOST_CHECK(a.text() == "B");
         BOOST_CHECK(b.text() == "A");

@@ -8,11 +8,6 @@ namespace srt {
     public:
         std::string defaultText;
         std::optional<std::map<std::string, std::string, std::less<>>> texts;
-
-        void clear() {
-            defaultText.clear();
-            texts.reset();
-        }
     };
 
     DisplayText::DisplayText() : _impl(std::make_shared<Impl>()) {
@@ -30,29 +25,11 @@ namespace srt {
         impl.texts = {texts.begin(), texts.end()};
     }
 
-    DisplayText::DisplayText(const JsonValue &value) : _impl(std::make_shared<Impl>()) {
-        auto exp = fromJsonValue(value);
-        if (exp) {
-            swap(exp.get());
-        }
-    }
-
     DisplayText::~DisplayText() = default;
 
     DisplayText &DisplayText::operator=(std::string text) {
         stdc_impl_t;
         impl.defaultText = std::move(text);
-        return *this;
-    }
-
-    DisplayText &DisplayText::operator=(const JsonValue &value) {
-        stdc_impl_t;
-        auto exp = fromJsonValue(value);
-        if (!exp) {
-            impl.clear();
-            return *this;
-        }
-        swap(exp.get());
         return *this;
     }
 
