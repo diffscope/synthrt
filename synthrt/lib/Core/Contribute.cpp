@@ -196,6 +196,10 @@ namespace srt {
     ContribSpec::ContribSpec(std::string category) : _impl(new Impl(std::move(category))) {
     }
 
+    std::shared_mutex &ContribCategory::Impl::su_mtx() const {
+        return static_cast<SynthUnit::Impl *>(su->_impl.get())->su_mtx;
+    }
+
     std::vector<ContribSpec *>
         ContribCategory::Impl::findContributes(const ContribLocator &loc) const {
         std::shared_lock<std::shared_mutex> lock(su_mtx());

@@ -8,15 +8,23 @@
 
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Core/Contribute.h>
+#include <synthrt/Core/NamedObject_p.h>
 
-#include "NamedObject_p.h"
-#include "SynthUnit_p.h"
+/// \file
+/// The implementation classes behind \c ContribSpec and \c ContribCategory.
+///
+/// A contribute category is written by deriving from all four: a category from \c ContribCategory
+/// and \c ContribCategory::Impl, and the specs it parses from \c ContribSpec and
+/// \c ContribSpec::Impl. That is why this header sits among the public ones, and it is the whole
+/// reason - nothing here is a stable interface, and all of it may change between any two versions.
+///
+/// \sa ContribCategoryRegistry, which the category registers its factory with.
 
 namespace srt {
 
     class PackageData;
 
-    class ContribSpec::Impl {
+    class SYNTHRT_EXPORT ContribSpec::Impl {
     public:
         explicit Impl(std::string category) : category(std::move(category)), state(Invalid) {
         }
@@ -36,7 +44,7 @@ namespace srt {
         PackageData *package;
     };
 
-    class ContribCategory::Impl : public ObjectPool::Impl {
+    class SYNTHRT_EXPORT ContribCategory::Impl : public ObjectPool::Impl {
     public:
         explicit Impl(ContribCategory *decl, std::string name, SynthUnit *su)
             : ObjectPool::Impl(decl), name(std::move(name)), su(su) {
@@ -53,9 +61,13 @@ namespace srt {
                                     std::map<std::string, decltype(contributes)::iterator>>>
             indexes;
 
-        inline std::shared_mutex &su_mtx() const {
-            return static_cast<SynthUnit::Impl *>(su->_impl.get())->su_mtx;
-        }
+        /// The lock guarding every category of \a su, held whenever \c contributes or \c indexes
+        /// is touched.
+        ///
+        /// \note Out of line on purpose. Reaching the mutex means naming \c SynthUnit::Impl, and
+        ///       that one stays private - a category outside synthrt has no business seeing the
+        ///       package tables.
+        std::shared_mutex &su_mtx() const;
 
         std::vector<ContribSpec *> findContributes(const ContribLocator &loc) const;
     };

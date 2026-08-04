@@ -246,9 +246,7 @@ namespace srt {
 
     /// \a T 's own factory, which \a T befriends so that its constructor can stay protected.
     ///
-    /// Holding one of these does not register anything. The registry that turns a factory into a
-    /// category every \c SynthUnit builds is internal to synthrt, whose set of categories is its
-    /// own and closed.
+    /// Holding one of these does not register anything. \c ContribCategoryRegistry does that.
     template <class T>
     class ContribCategoryFactory : public ContribCategoryFactoryBase {
         static_assert(std::is_base_of<ContribCategory, T>::value,
@@ -277,11 +275,17 @@ namespace srt {
     /// The name has to match what the category hands its base constructor, which \c SynthUnit
     /// checks as it builds them.
     ///
-    /// Reading this is how to ask which kinds of contribute a build understands. Registering into
-    /// it from outside synthrt does not do anything useful: a \c SynthUnit reads the list once, as
-    /// it is constructed, and a plugin is loaded through a unit that has already done so. The set
-    /// is synthrt's own. What the registration buys internally is that \c Core never has to name
-    /// the categories \c SVS defines.
+    /// Reading this is how to ask which kinds of contribute a build understands. What the
+    /// registration buys synthrt itself is that \c Core never has to name the categories \c SVS
+    /// defines - and a library outside synthrt can add a kind the same way, deriving its category
+    /// and specs from the implementation classes in \c Contribute_p.h.
+    ///
+    /// \warning A \c SynthUnit reads the list once, when it is constructed, so a registration only
+    ///          counts if it happens first. A library the program links against registers before
+    ///          \c main and always makes it. A plugin does not: plugins load lazily through a
+    ///          \c SynthUnit, so by the time one runs its static initializers, the unit that
+    ///          loaded it has long since built its categories. Contributing a category is
+    ///          something a linked library does, not something a plugin can.
     using ContribCategoryRegistry = stdc::StaticRegistry<ContribCategoryFactoryBase>;
 
 }
