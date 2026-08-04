@@ -350,10 +350,6 @@ namespace srt {
         return res;
     }
 
-    std::string InferenceCategory::key() const {
-        return "inference";
-    }
-
     Expected<ContribSpec *> InferenceCategory::parseSpec(const std::filesystem::path &basePath,
                                                          const JsonValue &config) const {
         stdc_impl_t;

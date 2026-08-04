@@ -7,10 +7,9 @@
 
 namespace srt {
 
-    /// The logging facility now lives in stdcorelib, which carries the implementation this header
-    /// used to duplicate. These aliases keep the \c srt spelling working. There is no separate
-    /// type behind them, so a \c srt::LogCategory and a \c stdc::LogCategory are one and the same
-    /// and share the process-wide category registry, callback and filter rules.
+    /// The logging facility lives in stdcorelib. These aliases keep the \c srt spelling working,
+    /// with no separate type behind them, so a \c srt::LogCategory and a \c stdc::LogCategory are
+    /// one and the same and share the process-wide category registry, callback and filter rules.
     using LogContext = stdc::LogContext;
 
     using Logger = stdc::Logger;

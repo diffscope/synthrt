@@ -32,15 +32,11 @@ namespace srt {
             auto category = factory(decl);
 
             // Two categories answering to one name would leave whichever lost the race
-            // unreachable, and unreachable is also undeletable: the destructor walks these maps.
+            // unreachable, and unreachable is also undeletable: the destructor walks this map.
             // Drop the newcomer instead of overwriting.
             if (!categories.emplace(std::string(category->name()), category).second) {
                 assert(false && "a contribute category name is registered twice");
                 delete category;
-                continue;
-            }
-            if (!cateKeyMap.emplace(std::string(category->key()), category).second) {
-                assert(false && "a contribute category manifest key is registered twice");
             }
         }
     }
@@ -77,7 +73,7 @@ namespace srt {
         auto pd = new PackageData(&decl);
         stdc::vlarray<ContribSpec *> contributes;
 
-        if (auto exp = pd->parse(canonicalPath, cateKeyMap, &contributes); !exp) {
+        if (auto exp = pd->parse(canonicalPath, categories, &contributes); !exp) {
             delete pd;
             stdc::delete_all(contributes); // Maybe redundant
             return exp.error();

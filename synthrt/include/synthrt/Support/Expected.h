@@ -133,9 +133,8 @@ namespace srt {
         /// Returns the contained value, or \a defaultValue converted to \c T when this holds an
         /// error.
         ///
-        /// Both overloads take a forwarding reference. The const one used to take
-        /// <tt>const U &</tt> and then apply \c std::forward, which casts away constness and does
-        /// not compile, so the overload was never instantiated by anything.
+        /// Both overloads take a forwarding reference, so that \c std::forward inside them is
+        /// well formed for a const lvalue argument.
         template <class U = T>
         T valueOr(U &&defaultValue) const & {
             return _has_value ? T(**this) : static_cast<T>(std::forward<U>(defaultValue));

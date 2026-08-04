@@ -587,10 +587,6 @@ namespace srt {
         return res;
     }
 
-    std::string SingerCategory::key() const {
-        return "singer";
-    }
-
     Expected<ContribSpec *> SingerCategory::parseSpec(const std::filesystem::path &basePath,
                                                       const JsonValue &config) const {
         if (!config.isString()) {

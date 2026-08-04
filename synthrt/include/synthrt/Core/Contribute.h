@@ -181,6 +181,11 @@ namespace srt {
         ~ContribCategory();
 
     public:
+        /// The category's identifier, serving both roles it has: the property naming this
+        /// category's list inside a manifest's \c contributes object, and the segment sitting
+        /// between the \c ":" and the \c "/" of a reference.
+        ///
+        /// It must therefore be a \c segment, which the constructor asserts.
         const std::string &name() const;
 
         /// Returns the related \c SynthUnit instance.
@@ -194,10 +199,6 @@ namespace srt {
         inline constexpr const T *as() const;
 
     protected:
-        /// Used to identify the sub-specifications of this category within the properties of
-        /// \c contributes object in the manifest file.
-        virtual std::string key() const = 0;
-
         /// Parses the contribution specification from the given JSON configuration.
         /// \param basePath The path of the configuration directory.
         /// \return The uninitialized \c ContribSpec instance.
@@ -238,13 +239,6 @@ namespace srt {
     /// \code
     ///     static ContribCategoryRegistrar<SingerCategory> registrar;
     /// \endcode
-    ///
-    /// \note There used to be a second constructor taking a factory of the caller's own. It could
-    ///       not check that the factory had anything to do with \a T, since a factory returning
-    ///       <tt>T *</tt> does not convert to one returning <tt>ContribCategory *</tt>, so the
-    ///       parameter had to be typed loosely and the \c static_assert above meant nothing on
-    ///       that path. Nothing used it, and \a T 's own constructor covers everything short of
-    ///       picking a subclass at run time.
     template <class T>
     class ContribCategoryRegistrar {
         static_assert(std::is_base_of<ContribCategory, T>::value,

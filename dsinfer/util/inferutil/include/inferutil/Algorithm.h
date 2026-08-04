@@ -92,7 +92,7 @@ namespace ds::inferutil {
     template <class T>
     inline std::vector<T> arange(T start, T stop, T step) {
         // A zero step never reaches \a stop, and a step pointing away from it yields nothing.
-        // Both used to fall through to \c std::ceil() and produce infinity or NaN, which is
+        // Both have to be caught here: \c std::ceil() would produce infinity or NaN, which is
         // undefined behaviour once cast to \c size_t.
         if (step == T(0)) {
             return {};

@@ -11,8 +11,10 @@ namespace ds {
         InferenceDriverPlugin() = default;
         ~InferenceDriverPlugin() = default;
 
+        static constexpr const char *IID = "org.openvpi.InferenceDriver";
+
         const char *iid() const override {
-            return "org.openvpi.InferenceDriver";
+            return IID;
         }
 
     public:

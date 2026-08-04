@@ -143,9 +143,7 @@ namespace ds {
 
                 // id
                 //
-                // Rendered through ContribLocator so that load() parses back what is written
-                // here. The two used to disagree, leaving load() unable to read any entry save()
-                // had produced.
+                // Rendered through ContribLocator so that load() parses back what is written here.
                 pkgObj["id"] =
                     srt::ContribLocator(packageItem._id, packageItem._version).toString();
 

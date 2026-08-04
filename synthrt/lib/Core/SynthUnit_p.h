@@ -31,7 +31,6 @@ namespace srt {
         void refreshPackageIndexes();
 
         std::map<std::string, ContribCategory *, std::less<>> categories;
-        std::map<std::string, ContribCategory *, std::less<>> cateKeyMap;
 
         stdc::vlarray<std::filesystem::path> packagePaths;
 

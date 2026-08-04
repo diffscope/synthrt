@@ -49,10 +49,11 @@ namespace srt {
         STDCORELIB_DISABLE_COPY_MOVE(PluginFactory);
     };
 
+    /// \a T names its interface through a static \c IID.
     template <class T>
     inline T *PluginFactory::plugin(const char *key) const {
         static_assert(std::is_base_of<Plugin, T>::value, "T should inherit from srt::Plugin");
-        return static_cast<T *>(plugin(reinterpret_cast<T *>(0)->T::iid(), key));
+        return static_cast<T *>(plugin(T::IID, key));
     }
 
 }

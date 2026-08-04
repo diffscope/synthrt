@@ -11,8 +11,10 @@ namespace srt {
         InferenceInterpreterPlugin() = default;
         ~InferenceInterpreterPlugin() = default;
 
+        static constexpr const char *IID = "org.openvpi.InferenceInterpreter";
+
         const char *iid() const override {
-            return "org.openvpi.InferenceInterpreter";
+            return IID;
         }
 
     public:

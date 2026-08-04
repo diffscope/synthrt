@@ -107,7 +107,6 @@ namespace srt {
         std::vector<SingerSpec *> singers() const;
 
     protected:
-        std::string key() const override;
         Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
                                           const JsonValue &config) const override;
         Expected<void> loadSpec(ContribSpec *spec, ContribSpec::State state) override;
