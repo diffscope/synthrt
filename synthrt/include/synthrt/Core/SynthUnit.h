@@ -57,6 +57,12 @@ namespace srt {
     protected:
         class Impl;
 
+        /// Records \a fac for every \c SynthUnit built from here on. Each unit gets its own
+        /// instance of every registered category.
+        ///
+        /// \note Takes effect only for units built afterwards. The list is read once, when a unit
+        ///       is constructed, so a category registered by a shared library loaded later does
+        ///       not reach a unit that already exists.
         static void registerCategoryFactory(ContribCategory *(*fac)(SynthUnit *));
 
         friend class PackageRef;

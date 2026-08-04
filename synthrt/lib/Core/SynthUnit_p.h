@@ -70,7 +70,7 @@ namespace srt {
         mutable std::shared_mutex su_mtx;
 
     public:
-        static stdc::vlarray<ContribCategory *(*) (SynthUnit *)> categoryFactories;
+        static stdc::vlarray<ContribCategory *(*) (SynthUnit *)> &categoryFactories();
     };
 
 }

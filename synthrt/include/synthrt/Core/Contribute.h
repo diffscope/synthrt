@@ -233,16 +233,24 @@ namespace srt {
         return static_cast<const T *>(this);
     }
 
+    /// Registers \a T as a contribute category, by declaring one at namespace scope.
+    ///
+    /// \code
+    ///     static ContribCategoryRegistrar<SingerCategory> registrar;
+    /// \endcode
+    ///
+    /// \note There used to be a second constructor taking a factory of the caller's own. It could
+    ///       not check that the factory had anything to do with \a T, since a factory returning
+    ///       <tt>T *</tt> does not convert to one returning <tt>ContribCategory *</tt>, so the
+    ///       parameter had to be typed loosely and the \c static_assert above meant nothing on
+    ///       that path. Nothing used it, and \a T 's own constructor covers everything short of
+    ///       picking a subclass at run time.
     template <class T>
     class ContribCategoryRegistrar {
         static_assert(std::is_base_of<ContribCategory, T>::value,
                       "T should inherit from srt::ContribCategory");
 
     public:
-        inline ContribCategoryRegistrar(ContribCategory *(*fac)(SynthUnit *) ) {
-            SynthUnit::registerCategoryFactory(fac);
-        }
-
         inline ContribCategoryRegistrar() {
             SynthUnit::registerCategoryFactory([](SynthUnit *su) -> ContribCategory * {
                 return new T(su); //

@@ -1,6 +1,7 @@
 #include "SynthUnit.h"
 #include "SynthUnit_p.h"
 
+#include <cassert>
 #include <mutex>
 #include <regex>
 
@@ -16,7 +17,10 @@ namespace fs = std::filesystem;
 
 namespace srt {
 
-    stdc::vlarray<ContribCategory *(*) (SynthUnit *)> SynthUnit::Impl::categoryFactories;
+    stdc::vlarray<ContribCategory *(*) (SynthUnit *)> &SynthUnit::Impl::categoryFactories() {
+        static stdc::vlarray<ContribCategory *(*) (SynthUnit *)> instance;
+        return instance;
+    }
 
     static bool isValidPackageIdentifier(std::string_view token) {
         static const std::regex re(R"(^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$)");
@@ -24,10 +28,20 @@ namespace srt {
     }
 
     SynthUnit::Impl::Impl(SynthUnit *decl) : PluginFactory::Impl(decl) {
-        for (const auto &factory : categoryFactories) {
+        for (const auto &factory : categoryFactories()) {
             auto category = factory(decl);
-            categories[std::string(category->name())] = category;
-            cateKeyMap[std::string(category->key())] = category;
+
+            // Two categories answering to one name would leave whichever lost the race
+            // unreachable, and unreachable is also undeletable: the destructor walks these maps.
+            // Drop the newcomer instead of overwriting.
+            if (!categories.emplace(std::string(category->name()), category).second) {
+                assert(false && "a contribute category name is registered twice");
+                delete category;
+                continue;
+            }
+            if (!cateKeyMap.emplace(std::string(category->key()), category).second) {
+                assert(false && "a contribute category manifest key is registered twice");
+            }
         }
     }
 
@@ -600,7 +614,7 @@ namespace srt {
     }
 
     void SynthUnit::registerCategoryFactory(ContribCategory *(*fac)(SynthUnit *) ) {
-        Impl::categoryFactories.push_back(fac);
+        Impl::categoryFactories().push_back(fac);
     }
 
 }
