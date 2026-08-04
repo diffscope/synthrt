@@ -40,6 +40,9 @@
 | `9b4c63d` | build helpers 收编进 qmsetup | 无（构建系统迁移） |
 | `c1d6d85` | 安装 `cmake/`（`AddAutoTest`）随包发布 | 无（构建系统迁移） |
 | `e71f029` | `README` / `AGENTS.md` / `docs/Status.md` | 无（文档） |
+| `739bce1` | 回填本清单 | 无（文档） |
+| `8308aba` | 外部模块可以贡献 contribute category | F9（前半） |
+| `efb8173` | `contributes` 的子键改为可选 | F9（后半），规范变更 6 |
 
 ## 标记约定
 
@@ -833,7 +836,11 @@ public:
 ### F7. 公开 API 在宣传一个不存在的扩展点
 - [x] **F7** — 已解答并修正（`e1d0acf` 之后的一轮）
 
-**作者裁定：插件不能注册 contribute category。类别集合是 synthrt 自己的、封闭的。**
+> ⚠️ **本条的结论已被 [F9](#f9-类别集合并不封闭链接期依赖可以贡献一个类别) 部分推翻（2026-08-04）。**
+> 「插件不能注册类别」仍然成立且理由不变，但当时由此推出的「类别集合是封闭的」**过头了**——
+> 挡住插件的是**时序**，不是**位置**，而链接期依赖的时序是赶得上的。看 F9。
+
+**作者裁定：插件不能注册 contribute category。**
 
 裁定之前查到的两条事实，都指向同一个结论：
 
@@ -896,6 +903,48 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 ⚠️ **失效模式是静默的**：非导出时是链接错误（还算响亮），但若 `extern template` 那行被删掉，
 下游拿到的是一个**空列表**，看起来像"没有任何类别注册过"。
 已加回归测试 `test_SynthUnit_RegistryIsReachableFromOutside`——测试二进制是独立模块，正好能发现。
+
+---
+
+### F9. 类别集合并不封闭：链接期依赖可以贡献一个类别
+- [x] **F9** — 已实现（`8308aba` + `efb8173`）
+
+> 起因：要在另一个仓库（`wolf`）里加一个叫 `language` 的 contribute category。
+
+**先更正 F7 那半条结论。** 挡住插件注册的是**时序**：`SynthUnit` 在构造时把注册表读完，
+而插件是**通过一个已经构造好的 `SynthUnit`** 懒加载的，所以插件的静态初始化永远晚一步。
+但**程序链接的库在 `main` 之前就注册了，赶得上**。「插件不行」和「集合封闭」是两件事，
+我当时把前者当成了后者。
+
+落地前实测出两个真正的阻碍，都不是设计意图，只是没人从外面写过类别：
+
+**① 外部根本写不出一个可用的 `ContribSpec`。** `PackageRef` 从 `parseSpec()` 返回的 spec 上直接读 `id()`，
+而 `id` 是 `ContribSpec::Impl` 的成员——那个类定义在 `synthrt/lib/Core/Contribute_p.h`，**不随包安装**。
+公开的 `ContribSpec(std::string category)` 构造出来的 spec 没有任何途径设置自己的 id。
+写一个类别要同时继承四个类，其中两个够不着。
+
+**② 只贡献第三方类别的包会被拒绝。** `PackageRef.cpp` 硬编码 `for (const auto &key : {"inference", "singer"})`，
+两个键缺一即报错。这正是 [dspk-spec-changes.md](../../.cache/claude/dspk-spec-changes.md) 变更 6 的论据，
+当时的处置是「只记录、代码不动」，因为实现符合现行规范；F9 把它从「分层不干净」推成了「功能不可用」。
+
+**已做：**
+
+- `Contribute_p.h` 与 `NamedObject_p.h` 移到 `synthrt/include/synthrt/Core/`，四个 `Impl` 加 `SYNTHRT_EXPORT`。
+  先例是 `PluginFactory_p.h`——它早就在公开 include 目录里，同样的理由。两个文件头部都写明
+  「可以 include ≠ 接口稳定」。
+- `ContribCategory::Impl::su_mtx()` 由 inline 改成 out-of-line，切断 `Contribute_p.h` 对 `SynthUnit_p.h` 的依赖。
+  外部类别只用得到基类 `Impl` 的 `name` / `contributes` / `su_mtx()` 三个成员，
+  `SynthUnit::Impl` 那一堆包表和插件表不该跟着出去，**仍是私有的**。
+- 必填键循环删除，`contributes` 的子键全部可选。未知键仍然被下面那段 `categories.find()` 挡住。
+- `Contribute.h` 里注册表的文档改写：注明「链接的库来得及、插件来不及」，并说明这是**运行时机**的性质，
+  与代码放在哪个库无关。
+
+**回归测试 `test_ExternalCategory`**：测试二进制本身就是一个链接 synthrt 的独立模块，
+它在里面完整定义了一个类别（`SampleCategory` + `SampleSpec` + 两个 `Impl`）、注册、
+并断言每个 `SynthUnit` 都会构造出来，以及 spec 能带上自己的 id。
+这三件正是改动之前做不到的，所以它同时是**回归测试**和**外部实现类别的参考写法**。
+
+⚠️ **`efb8173` 使实现先于规范偏离了现行 dspk 规范**，方向是放宽，已记入 spec 变更文档。
 
 ---
 
@@ -1103,7 +1152,7 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 | ~~B4~~ | ~~sparsepp 迭代器~~ | **已裁定不修**，且原评估过重（改名会编译期报错，非静默失效） |
 | **C9b** | README 用法示例 | 我的"不符"判断本身可能有误 |
 | **C11** | `parseLibrosaPitch` | 纯推测的规格偏差，非 bug |
-| **规范变更 6** | `contributes` 子键改可选 | 已记入 [dspk-spec-changes.md](dspk-spec-changes.md)，**代码故意未改**——当前实现符合现行规范 |
+| ~~规范变更 6~~ | ~~`contributes` 子键改可选~~ | **已解锁并实现**（`efb8173`）——F9 让它从「分层不干净」变成「功能不可用」 |
 | **D1–D4、D6** | 设计层 | 待讨论（D5 部分处理，D7 已解决） |
 
 ---
@@ -1116,9 +1165,9 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 | B 健壮性 | 12（−B4） | 2 | **7**（B1 B2a–d B8a + B4 裁定不修） |
 | C 代码质量 | 10（−C3，升为 A18；+C12） | 2 | **3**（C6 C8 C9） |
 | E Error 重设计 | 2 | 0 | **2** |
-| F 注册与标识 | 8 | 0 | **8**（F1–F8） |
+| F 注册与标识 | 9 | 0 | **9**（F1–F9） |
 | D 设计 | 1（D5 剩类型识别部分） | 5 | **1**（D7） |
-| **合计** | **57** | **11** | **44** |
+| **合计** | **58** | **11** | **45** |
 
 ### 剩余可动手的条目
 | 条目 | 性质 | 风险 |
@@ -1145,7 +1194,7 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
 ### 验证方式
 - 全量重建（`ninja -t clean` + build）：**exit 0**
-- **`ctest` 10 个用例全过**（每个类一个可执行文件，见 `1d969c5`）
+- **`ctest` 11 个用例全过**（每个类一个可执行文件，见 `1d969c5`）
 - 手动套件 `dsinfer/tests/manual/` **5/5**，含真实 ONNX 推理。不进 ctest：`onnxdriver` 要模型，`txtdict` 要词典路径
 - ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
 - 断言总数约 **475**（Support 384 + Core 84 + PhonemeDict）。
