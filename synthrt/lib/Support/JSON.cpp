@@ -1,6 +1,14 @@
 #include "JSON.h"
 
-#include <nlohmann/json.hpp>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <charconv>
+#include <string>
+#include <utility>
+
+#include <stdcorelib/utf.h>
 
 namespace {
 
@@ -8,12 +16,8 @@ namespace {
 
     struct EmptyValues {
         static inline const JsonValue &nullValue() {
-            static const JsonValue null = JsonValue(JsonValue::Null);
+            static const JsonValue null;
             return null;
-        }
-        static inline const JsonValue &undefinedValue() {
-            static const JsonValue false_ = JsonValue(JsonValue::Undefined);
-            return false_;
         }
         static inline const JsonArray &emptyArray() {
             static const JsonArray emptyArray;
@@ -25,1059 +29,1232 @@ namespace {
         }
     };
 
-    /// Proxy container declaration
-    template <class T, class... _Mods>
-    class proxy_vector {
-    public:
-        using _Vec = std::vector<T, _Mods...>;
-        using _Buf = JsonArray;
+    // ------------------------------------------------------------------------------------------
+    // Text output
+    // ------------------------------------------------------------------------------------------
 
-        _Buf buf;
+    void appendUtf8(std::string &out, char32_t cp) {
+        if (cp < 0x80) {
+            out += char(cp);
+        } else if (cp < 0x800) {
+            out += char(0xC0 | (cp >> 6));
+            out += char(0x80 | (cp & 0x3F));
+        } else if (cp < 0x10000) {
+            out += char(0xE0 | (cp >> 12));
+            out += char(0x80 | ((cp >> 6) & 0x3F));
+            out += char(0x80 | (cp & 0x3F));
+        } else {
+            out += char(0xF0 | (cp >> 18));
+            out += char(0x80 | ((cp >> 12) & 0x3F));
+            out += char(0x80 | ((cp >> 6) & 0x3F));
+            out += char(0x80 | (cp & 0x3F));
+        }
+    }
 
-    public:
-        using value_type = T;
-        using allocator_type = typename _Vec::allocator_type;
-        using pointer = typename _Vec::pointer;
-        using const_pointer = typename _Vec::const_pointer;
-        using reference = T &;
-        using const_reference = const T &;
-        using size_type = typename _Vec::size_type;
-        using difference_type = typename _Vec::difference_type;
+    void quoteTo(std::string &out, std::string_view s) {
+        std::string sanitized;
+        if (!stdc::utf::is_valid_utf8(s)) {
+            // There is nowhere to report this from, and refusing to serialize would make toJson()
+            // the one accessor that can fail. Substituting U+FFFD is what stdc::utf does by
+            // default, and it leaves the rest of the document readable.
+            sanitized = stdc::utf::utf32_to_utf8(stdc::utf::utf8_to_utf32(s));
+            s = sanitized;
+        }
 
-        template <bool _Const>
-        class iterator_base {
-        public:
-            using _It = std::conditional_t<_Const, _Buf::const_iterator, _Buf::iterator>;
+        out += '"';
+        for (char c : s) {
+            switch (c) {
+                case '"':
+                    out += "\\\"";
+                    continue;
+                case '\\':
+                    out += "\\\\";
+                    continue;
+                case '\b':
+                    out += "\\b";
+                    continue;
+                case '\f':
+                    out += "\\f";
+                    continue;
+                case '\n':
+                    out += "\\n";
+                    continue;
+                case '\r':
+                    out += "\\r";
+                    continue;
+                case '\t':
+                    out += "\\t";
+                    continue;
+                default:
+                    break;
+            }
+            auto uc = uint8_t(c);
+            if (uc < 0x20) {
+                char buf[8];
+                std::snprintf(buf, sizeof(buf), "\\u%04x", unsigned(uc));
+                out += buf;
+            } else {
+                // Everything else goes out as it stands, so text stays UTF-8 rather than becoming
+                // a wall of escapes.
+                out += c;
+            }
+        }
+        out += '"';
+    }
 
-            _It it;
+    void formatDouble(std::string &out, double d) {
+        if (!std::isfinite(d)) {
+            // JSON cannot write these at all. Null is what the value reads back as.
+            out += "null";
+            return;
+        }
 
-        public:
-            using iterator_category = typename _It::iterator_category;
-            using value_type = T;
-            using difference_type = typename _It::difference_type;
-            using pointer = std::conditional_t<_Const, const T *, T *>;
-            using reference = std::conditional_t<_Const, const T &, T &>;
+        char buf[40];
+        size_t n;
+#if defined(__cpp_lib_to_chars) && __cpp_lib_to_chars >= 201611L
+        auto res = std::to_chars(buf, buf + sizeof(buf), d);
+        n = size_t(res.ptr - buf);
+#else
+        // The shortest form that reads back as the same value. Seventeen digits always suffice for
+        // a double, but most values need fewer and look better for it.
+        int written = 0;
+        for (int precision = 15; precision <= 17; ++precision) {
+            written = std::snprintf(buf, sizeof(buf), "%.*g", precision, d);
+            if (std::strtod(buf, nullptr) == d) {
+                break;
+            }
+        }
+        n = size_t(written);
+#endif
+        std::string_view sv(buf, n);
+        out += sv;
 
-            iterator_base() noexcept {
-            }
+        // A double that happens to be integral has to keep looking like one, or a round trip
+        // through text turns it into an integer.
+        if (sv.find_first_of(".eE") == std::string_view::npos) {
+            out += ".0";
+        }
+    }
 
-            iterator_base(_It it) noexcept : it(it) {
-            }
+    void dumpTo(std::string &out, const JsonValue &v, int indent, int depth) {
+        const bool pretty = indent > 0;
 
-            reference operator*() const noexcept;
-            pointer operator->() const noexcept;
-
-            iterator_base &operator++() noexcept {
-                ++it;
-                return *this;
-            }
-            iterator_base operator++(int) noexcept {
-                auto tmp = *this;
-                ++(*this);
-                return tmp;
-            }
-            iterator_base &operator--() noexcept {
-                --it;
-                return *this;
-            }
-            iterator_base operator--(int) noexcept {
-                auto tmp = *this;
-                --(*this);
-                return tmp;
-            }
-            iterator_base &operator+=(const difference_type &n) noexcept {
-                it += n;
-                return *this;
-            }
-            iterator_base operator+(const difference_type &n) const noexcept {
-                auto tmp = *this;
-                tmp += n;
-                return tmp;
-            }
-            iterator_base &operator-=(const difference_type &n) noexcept {
-                it -= n;
-                return *this;
-            }
-            iterator_base operator-(const difference_type &n) const noexcept {
-                auto tmp = *this;
-                tmp -= n;
-                return tmp;
-            }
-            difference_type operator-(const iterator_base &RHS) const noexcept {
-                return it - RHS.it;
-            }
-            reference operator[](const difference_type &n) const noexcept;
-            bool operator==(const iterator_base &RHS) const noexcept {
-                return it == RHS.it;
-            }
-            bool operator!=(const iterator_base &RHS) const noexcept {
-                return it != RHS.it;
-            }
-            bool operator<(const iterator_base &RHS) const noexcept {
-                return it < RHS.it;
-            }
-            bool operator<=(const iterator_base &RHS) const noexcept {
-                return it <= RHS.it;
-            }
-            bool operator>(const iterator_base &RHS) const noexcept {
-                return it > RHS.it;
-            }
-            bool operator>=(const iterator_base &RHS) const noexcept {
-                return it >= RHS.it;
+        auto newline = [&](int d) {
+            if (pretty) {
+                out += '\n';
+                out.append(size_t(indent) * size_t(d), ' ');
             }
         };
 
-        using iterator = iterator_base<false>;
-        using const_iterator = iterator_base<true>;
-        using reverse_iterator = std::reverse_iterator<iterator>;
-        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-
-        proxy_vector() {
+        switch (v.type()) {
+            case JsonValue::Null:
+                out += "null";
+                return;
+            case JsonValue::Bool:
+                out += v.toBool() ? "true" : "false";
+                return;
+            case JsonValue::Int:
+                out += std::to_string(v.toInt());
+                return;
+            case JsonValue::Double:
+                formatDouble(out, v.toDouble());
+                return;
+            case JsonValue::String:
+                quoteTo(out, v.toStringView());
+                return;
+            case JsonValue::Binary: {
+                // Binary has no JSON form. This is the shape it takes so a document holding one is
+                // still writable, and it does not read back as binary.
+                out += "{\"bytes\":[";
+                const auto &bytes = v.toBinary();
+                for (size_t i = 0; i < bytes.size(); ++i) {
+                    if (i) {
+                        out += ',';
+                    }
+                    out += std::to_string(unsigned(bytes[i]));
+                }
+                out += "],\"subtype\":null}";
+                return;
+            }
+            case JsonValue::Array: {
+                const auto &arr = v.toArray();
+                if (arr.empty()) {
+                    out += "[]";
+                    return;
+                }
+                out += '[';
+                for (size_t i = 0; i < arr.size(); ++i) {
+                    if (i) {
+                        out += ',';
+                    }
+                    newline(depth + 1);
+                    dumpTo(out, arr[i], indent, depth + 1);
+                }
+                newline(depth);
+                out += ']';
+                return;
+            }
+            case JsonValue::Object: {
+                const auto &obj = v.toObject();
+                if (obj.empty()) {
+                    out += "{}";
+                    return;
+                }
+                out += '{';
+                bool first = true;
+                for (const auto &item : obj) {
+                    if (!first) {
+                        out += ',';
+                    }
+                    first = false;
+                    newline(depth + 1);
+                    quoteTo(out, item.first);
+                    out += pretty ? ": " : ":";
+                    dumpTo(out, item.second, indent, depth + 1);
+                }
+                newline(depth);
+                out += '}';
+                return;
+            }
         }
-        template <class _InputIterator>
-        proxy_vector(_InputIterator first, _InputIterator last) {
-            for (; first != last; ++first) {
-                push_back(*first);
+    }
+
+    // ------------------------------------------------------------------------------------------
+    // Text input
+    // ------------------------------------------------------------------------------------------
+
+    /// A recursive descent parser over the whole input.
+    ///
+    /// \note The nesting limit is not a formality. Without it a document of nothing but opening
+    ///       brackets overflows the stack, and a package manifest does not necessarily come from
+    ///       someone trustworthy.
+    class Parser {
+    public:
+        static constexpr int maxDepth = 200;
+
+        Parser(std::string_view text, bool comments) : _s(text), _comments(comments) {
+        }
+
+        bool parse(JsonValue *out) {
+            skipSpace();
+            if (!parseValue(out, 0)) {
+                return false;
+            }
+            skipSpace();
+            if (_pos != _s.size()) {
+                return fail("trailing content after the value");
+            }
+            return true;
+        }
+
+        const std::string &error() const {
+            return _error;
+        }
+
+    private:
+        bool fail(const std::string &what) {
+            if (!_error.empty()) {
+                return false;
+            }
+            // Counted here rather than tracked as we go, since it only matters once.
+            size_t line = 1;
+            size_t column = 1;
+            for (size_t i = 0; i < _pos && i < _s.size(); ++i) {
+                if (_s[i] == '\n') {
+                    ++line;
+                    column = 1;
+                } else {
+                    ++column;
+                }
+            }
+            _error = "parse error at line " + std::to_string(line) + ", column " +
+                     std::to_string(column) + ": " + what;
+            return false;
+        }
+
+        bool atEnd() const {
+            return _pos >= _s.size();
+        }
+
+        char peek() const {
+            return _s[_pos];
+        }
+
+        void skipSpace() {
+            for (;;) {
+                while (!atEnd() &&
+                       (peek() == ' ' || peek() == '\t' || peek() == '\n' || peek() == '\r')) {
+                    ++_pos;
+                }
+                if (!_comments || _pos + 1 >= _s.size() || peek() != '/') {
+                    return;
+                }
+                if (_s[_pos + 1] == '/') {
+                    _pos += 2;
+                    while (!atEnd() && peek() != '\n') {
+                        ++_pos;
+                    }
+                } else if (_s[_pos + 1] == '*') {
+                    _pos += 2;
+                    while (_pos + 1 < _s.size() && !(peek() == '*' && _s[_pos + 1] == '/')) {
+                        ++_pos;
+                    }
+                    // An unterminated comment is caught by whatever expected a value next.
+                    _pos = _pos + 1 < _s.size() ? _pos + 2 : _s.size();
+                } else {
+                    return;
+                }
             }
         }
 
-        iterator begin() noexcept {
-            return buf.begin();
-        }
-        const_iterator begin() const noexcept {
-            return buf.begin();
-        }
-        const_iterator cbegin() const noexcept {
-            return buf.cbegin();
-        }
-        iterator end() noexcept {
-            return buf.end();
-        }
-        const_iterator end() const noexcept {
-            return buf.end();
-        }
-        const_iterator cend() const noexcept {
-            return buf.cend();
-        }
-        reverse_iterator rbegin() noexcept {
-            return buf.rbegin();
-        }
-        const_reverse_iterator rbegin() const noexcept {
-            return buf.rbegin();
-        }
-        const_reverse_iterator crbegin() const noexcept {
-            return buf.crbegin();
-        }
-        reverse_iterator rend() noexcept {
-            return buf.rend();
-        }
-        const_reverse_iterator rend() const noexcept {
-            return buf.rend();
-        }
-        const_reverse_iterator crend() const noexcept {
-            return buf.crend();
-        }
-        bool empty() const noexcept {
-            return buf.empty();
-        }
-        size_type size() const noexcept {
-            return buf.size();
-        }
-        size_type max_size() const noexcept {
-            return buf.max_size();
-        }
-        size_type capacity() const noexcept {
-            return buf.capacity();
-        }
-        void reserve(size_type n) {
-            buf.reserve(n);
-        }
-        void shrink_to_fit() {
-            buf.shrink_to_fit();
-        }
-        void clear() {
-            buf.clear();
+        bool literal(std::string_view word) {
+            if (_s.compare(_pos, word.size(), word) != 0) {
+                return false;
+            }
+            _pos += word.size();
+            return true;
         }
 
-        T &front();
-        const T &front() const;
-        T &back();
-        const T &back() const;
+        bool parseValue(JsonValue *out, int depth) {
+            if (depth > maxDepth) {
+                return fail("nested too deeply");
+            }
+            if (atEnd()) {
+                return fail("expected a value");
+            }
+            switch (peek()) {
+                case 'n':
+                    if (!literal("null")) {
+                        return fail("expected a value");
+                    }
+                    *out = JsonValue();
+                    return true;
+                case 't':
+                    if (!literal("true")) {
+                        return fail("expected a value");
+                    }
+                    *out = JsonValue(true);
+                    return true;
+                case 'f':
+                    if (!literal("false")) {
+                        return fail("expected a value");
+                    }
+                    *out = JsonValue(false);
+                    return true;
+                case '"': {
+                    std::string s;
+                    if (!parseString(&s)) {
+                        return false;
+                    }
+                    *out = JsonValue(std::move(s));
+                    return true;
+                }
+                case '[':
+                    return parseArray(out, depth);
+                case '{':
+                    return parseObject(out, depth);
+                default:
+                    return parseNumber(out);
+            }
+        }
 
-        void insert(const_iterator pos, const T &value);
-        void insert(const_iterator pos, T &&value);
-        void push_back(const T &value);
-        void push_back(T &&value);
-        template <class... Args>
-        reference emplace_back(Args &&...args);
+        bool parseArray(JsonValue *out, int depth) {
+            ++_pos; // '['
+            JsonArray arr;
+            skipSpace();
+            if (!atEnd() && peek() == ']') {
+                ++_pos;
+                *out = JsonValue(std::move(arr));
+                return true;
+            }
+            for (;;) {
+                skipSpace();
+                JsonValue item;
+                if (!parseValue(&item, depth + 1)) {
+                    return false;
+                }
+                arr.push_back(std::move(item));
+                skipSpace();
+                if (atEnd()) {
+                    return fail("expected ',' or ']'");
+                }
+                if (peek() == ',') {
+                    ++_pos;
+                    continue;
+                }
+                if (peek() == ']') {
+                    ++_pos;
+                    *out = JsonValue(std::move(arr));
+                    return true;
+                }
+                return fail("expected ',' or ']'");
+            }
+        }
 
-        iterator erase(iterator pos) {
-            return buf.erase(pos.it);
-        }
-        iterator erase(const_iterator pos) {
-            return buf.erase(pos.it);
-        }
-        iterator erase(iterator first, iterator last) {
-            return buf.erase(first.it, last.it);
-        }
-        iterator erase(const_iterator first, const_iterator last) {
-            return buf.erase(first.it, last.it);
+        bool parseObject(JsonValue *out, int depth) {
+            ++_pos; // '{'
+            JsonObject obj;
+            skipSpace();
+            if (!atEnd() && peek() == '}') {
+                ++_pos;
+                *out = JsonValue(std::move(obj));
+                return true;
+            }
+            for (;;) {
+                skipSpace();
+                if (atEnd() || peek() != '"') {
+                    return fail("expected a key");
+                }
+                std::string key;
+                if (!parseString(&key)) {
+                    return false;
+                }
+                skipSpace();
+                if (atEnd() || peek() != ':') {
+                    return fail("expected ':'");
+                }
+                ++_pos;
+                skipSpace();
+                JsonValue value;
+                if (!parseValue(&value, depth + 1)) {
+                    return false;
+                }
+                // A repeated key keeps the last one, which is what every JSON reader does.
+                obj[std::move(key)] = std::move(value);
+                skipSpace();
+                if (atEnd()) {
+                    return fail("expected ',' or '}'");
+                }
+                if (peek() == ',') {
+                    ++_pos;
+                    continue;
+                }
+                if (peek() == '}') {
+                    ++_pos;
+                    *out = JsonValue(std::move(obj));
+                    return true;
+                }
+                return fail("expected ',' or '}'");
+            }
         }
 
-        void pop_back() {
-            buf.pop_back();
-        }
-        void resize(size_type count) {
-            buf.resize(count);
-        }
-        void swap(proxy_vector &RHS) noexcept {
-            buf.swap(RHS.buf);
+        bool hex4(char32_t *out) {
+            if (_pos + 4 > _s.size()) {
+                return false;
+            }
+            char32_t v = 0;
+            for (int i = 0; i < 4; ++i) {
+                char c = _s[_pos + size_t(i)];
+                v <<= 4;
+                if (c >= '0' && c <= '9') {
+                    v |= char32_t(c - '0');
+                } else if (c >= 'a' && c <= 'f') {
+                    v |= char32_t(c - 'a' + 10);
+                } else if (c >= 'A' && c <= 'F') {
+                    v |= char32_t(c - 'A' + 10);
+                } else {
+                    return false;
+                }
+            }
+            _pos += 4;
+            *out = v;
+            return true;
         }
 
-        bool operator==(const proxy_vector &RHS) const noexcept {
-            return buf == RHS.buf;
+        bool parseString(std::string *out) {
+            ++_pos; // '"'
+            std::string res;
+            for (;;) {
+                if (atEnd()) {
+                    return fail("unterminated string");
+                }
+                char c = peek();
+                if (c == '"') {
+                    ++_pos;
+                    break;
+                }
+                if (uint8_t(c) < 0x20) {
+                    return fail("control character in string");
+                }
+                if (c != '\\') {
+                    res += c;
+                    ++_pos;
+                    continue;
+                }
+
+                ++_pos;
+                if (atEnd()) {
+                    return fail("unterminated escape");
+                }
+                char e = peek();
+                ++_pos;
+                switch (e) {
+                    case '"':
+                        res += '"';
+                        break;
+                    case '\\':
+                        res += '\\';
+                        break;
+                    case '/':
+                        res += '/';
+                        break;
+                    case 'b':
+                        res += '\b';
+                        break;
+                    case 'f':
+                        res += '\f';
+                        break;
+                    case 'n':
+                        res += '\n';
+                        break;
+                    case 'r':
+                        res += '\r';
+                        break;
+                    case 't':
+                        res += '\t';
+                        break;
+                    case 'u': {
+                        char32_t cp;
+                        if (!hex4(&cp)) {
+                            return fail("expected four hexadecimal digits");
+                        }
+                        if (cp >= 0xD800 && cp <= 0xDBFF) {
+                            // A high surrogate means nothing without the low one after it.
+                            if (_pos + 1 >= _s.size() || _s[_pos] != '\\' || _s[_pos + 1] != 'u') {
+                                return fail("expected a low surrogate");
+                            }
+                            _pos += 2;
+                            char32_t low;
+                            if (!hex4(&low)) {
+                                return fail("expected four hexadecimal digits");
+                            }
+                            if (low < 0xDC00 || low > 0xDFFF) {
+                                return fail("expected a low surrogate");
+                            }
+                            cp = 0x10000 + ((cp - 0xD800) << 10) + (low - 0xDC00);
+                        } else if (cp >= 0xDC00 && cp <= 0xDFFF) {
+                            return fail("unpaired low surrogate");
+                        }
+                        appendUtf8(res, cp);
+                        break;
+                    }
+                    default:
+                        return fail("unknown escape");
+                }
+            }
+
+            if (!stdc::utf::is_valid_utf8(res)) {
+                return fail("string is not valid UTF-8");
+            }
+            *out = std::move(res);
+            return true;
         }
-        bool operator!=(const proxy_vector &RHS) const {
-            return !(*this == RHS);
+
+        bool parseNumber(JsonValue *out) {
+            size_t start = _pos;
+            if (!atEnd() && peek() == '-') {
+                ++_pos;
+            }
+            size_t digitsStart = _pos;
+            while (!atEnd() && peek() >= '0' && peek() <= '9') {
+                ++_pos;
+            }
+            if (_pos == digitsStart) {
+                return fail("expected a value");
+            }
+            // A leading zero is not one number, it is two written together.
+            if (_s[digitsStart] == '0' && _pos - digitsStart > 1) {
+                _pos = digitsStart;
+                return fail("number has a leading zero");
+            }
+
+            bool isDouble = false;
+            if (!atEnd() && peek() == '.') {
+                isDouble = true;
+                ++_pos;
+                size_t fracStart = _pos;
+                while (!atEnd() && peek() >= '0' && peek() <= '9') {
+                    ++_pos;
+                }
+                if (_pos == fracStart) {
+                    return fail("expected a digit after the decimal point");
+                }
+            }
+            if (!atEnd() && (peek() == 'e' || peek() == 'E')) {
+                isDouble = true;
+                ++_pos;
+                if (!atEnd() && (peek() == '+' || peek() == '-')) {
+                    ++_pos;
+                }
+                size_t expStart = _pos;
+                while (!atEnd() && peek() >= '0' && peek() <= '9') {
+                    ++_pos;
+                }
+                if (_pos == expStart) {
+                    return fail("expected a digit in the exponent");
+                }
+            }
+
+            const char *first = _s.data() + start;
+            const char *last = _s.data() + _pos;
+
+            if (!isDouble) {
+                // The written form decides the type. An integer too large for its type becomes a
+                // double rather than a parse error, which is what every other reader does.
+                if (_s[start] == '-') {
+                    int64_t v;
+                    if (std::from_chars(first, last, v).ec == std::errc()) {
+                        *out = JsonValue(v);
+                        return true;
+                    }
+                } else {
+                    uint64_t v;
+                    if (std::from_chars(first, last, v).ec == std::errc()) {
+                        *out = JsonValue(v);
+                        return true;
+                    }
+                }
+            }
+
+            // std::from_chars for floating point is not everywhere yet, and strtod wants a
+            // terminator the input does not have.
+            std::string text(first, size_t(last - first));
+            char *end = nullptr;
+            double d = std::strtod(text.c_str(), &end);
+            if (end != text.c_str() + text.size()) {
+                return fail("malformed number");
+            }
+            *out = JsonValue(d);
+            return true;
         }
+
+        std::string_view _s;
+        size_t _pos = 0;
+        bool _comments;
+        std::string _error;
     };
 
+    // ------------------------------------------------------------------------------------------
+    // CBOR
+    // ------------------------------------------------------------------------------------------
 
-    template <class Key, class T, class... _Mods>
-    class proxy_map {
-    public:
-        using _Map = std::map<Key, T, _Mods...>;
-        using _Buf = JsonObject;
+    namespace cbor {
 
-        _Buf buf;
+        void putHead(std::vector<uint8_t> &out, uint8_t major, uint64_t arg) {
+            auto m = uint8_t(major << 5);
+            if (arg < 24) {
+                out.push_back(uint8_t(m | arg));
+            } else if (arg <= 0xFF) {
+                out.push_back(uint8_t(m | 24));
+                out.push_back(uint8_t(arg));
+            } else if (arg <= 0xFFFF) {
+                out.push_back(uint8_t(m | 25));
+                out.push_back(uint8_t(arg >> 8));
+                out.push_back(uint8_t(arg));
+            } else if (arg <= 0xFFFFFFFF) {
+                out.push_back(uint8_t(m | 26));
+                for (int shift = 24; shift >= 0; shift -= 8) {
+                    out.push_back(uint8_t(arg >> shift));
+                }
+            } else {
+                out.push_back(uint8_t(m | 27));
+                for (int shift = 56; shift >= 0; shift -= 8) {
+                    out.push_back(uint8_t(arg >> shift));
+                }
+            }
+        }
 
-    public:
-        using key_type = Key;
-        using mapped_type = T;
-        using key_compare = typename _Map::key_compare;
-        using value_compare = typename _Map::value_compare;
-        using value_type = typename _Map::value_type;
-        using allocator_type = typename _Map::allocator_type;
-        using size_type = typename _Map::size_type;
-        using difference_type = typename _Map::difference_type;
-        using pointer = typename _Map::pointer;
-        using const_pointer = typename _Map::const_pointer;
-        using reference = value_type &;
-        using const_reference = const value_type &;
+        void putBytes(std::vector<uint8_t> &out, uint8_t major, std::string_view s) {
+            putHead(out, major, s.size());
+            out.insert(out.end(), s.begin(), s.end());
+        }
 
+        void encode(std::vector<uint8_t> &out, const JsonValue &v) {
+            switch (v.type()) {
+                case JsonValue::Null:
+                    out.push_back(0xF6);
+                    return;
+                case JsonValue::Bool:
+                    out.push_back(v.toBool() ? 0xF5 : 0xF4);
+                    return;
+                case JsonValue::Int: {
+                    auto i = v.toInt();
+                    if (i >= 0) {
+                        putHead(out, 0, uint64_t(i));
+                    } else {
+                        // Major type 1 stores minus one minus the value, which is how the most
+                        // negative integer encodes without needing a wider type than it has.
+                        putHead(out, 1, uint64_t(-(i + 1)));
+                    }
+                    return;
+                }
+                case JsonValue::Double: {
+                    out.push_back(0xFB);
+                    double d = v.toDouble();
+                    uint64_t bits;
+                    std::memcpy(&bits, &d, sizeof(bits));
+                    for (int shift = 56; shift >= 0; shift -= 8) {
+                        out.push_back(uint8_t(bits >> shift));
+                    }
+                    return;
+                }
+                case JsonValue::String:
+                    putBytes(out, 3, v.toStringView());
+                    return;
+                case JsonValue::Binary: {
+                    const auto &b = v.toBinary();
+                    putHead(out, 2, b.size());
+                    out.insert(out.end(), b.begin(), b.end());
+                    return;
+                }
+                case JsonValue::Array: {
+                    const auto &arr = v.toArray();
+                    putHead(out, 4, arr.size());
+                    for (const auto &item : arr) {
+                        encode(out, item);
+                    }
+                    return;
+                }
+                case JsonValue::Object: {
+                    const auto &obj = v.toObject();
+                    putHead(out, 5, obj.size());
+                    for (const auto &item : obj) {
+                        putBytes(out, 3, item.first);
+                        encode(out, item.second);
+                    }
+                    return;
+                }
+            }
+        }
 
-        template <bool _Const>
-        class iterator_base {
+        /// \note Indefinite lengths and tags are rejected rather than handled. Nothing writes them
+        ///       here, and accepting a shape we never produce is surface with no reader.
+        class Decoder {
         public:
-            using _It = std::conditional_t<_Const, _Buf::const_iterator, _Buf::iterator>;
-            using _Ty = std::conditional_t<_Const, const T, T>;
+            static constexpr int maxDepth = 200;
 
-            // pretend to be a reference to an std::pair<const std::string, T>
-            struct _Ref {
-                const std::string &first;
-                _Ty &second;
+            explicit Decoder(stdc::array_view<uint8_t> data) : _d(data) {
+            }
 
-                _Ref(const std::string &first, _Ty &second) : first(first), second(second) {
+            bool decode(JsonValue *out) {
+                return decodeValue(out, 0);
+            }
+
+            const std::string &error() const {
+                return _error;
+            }
+
+        private:
+            bool fail(const std::string &what) {
+                if (_error.empty()) {
+                    _error = "cbor error at byte " + std::to_string(_pos) + ": " + what;
+                }
+                return false;
+            }
+
+            bool take(uint8_t *out) {
+                if (_pos >= _d.size()) {
+                    return fail("input ended early");
+                }
+                *out = _d[_pos++];
+                return true;
+            }
+
+            bool takeBig(int bytes, uint64_t *out) {
+                if (_pos + size_t(bytes) > _d.size()) {
+                    return fail("input ended early");
+                }
+                uint64_t v = 0;
+                for (int i = 0; i < bytes; ++i) {
+                    v = (v << 8) | _d[_pos++];
+                }
+                *out = v;
+                return true;
+            }
+
+            bool argument(uint8_t initial, uint64_t *out) {
+                uint8_t minor = initial & 0x1F;
+                if (minor < 24) {
+                    *out = minor;
+                    return true;
+                }
+                switch (minor) {
+                    case 24:
+                        return takeBig(1, out);
+                    case 25:
+                        return takeBig(2, out);
+                    case 26:
+                        return takeBig(4, out);
+                    case 27:
+                        return takeBig(8, out);
+                    case 31:
+                        return fail("indefinite length is not supported");
+                    default:
+                        return fail("reserved length encoding");
+                }
+            }
+
+            bool rawBytes(uint64_t count, std::string *out) {
+                if (count > _d.size() - _pos) {
+                    return fail("input ended early");
+                }
+                out->assign(reinterpret_cast<const char *>(_d.data() + _pos), size_t(count));
+                _pos += size_t(count);
+                return true;
+            }
+
+            bool decodeValue(JsonValue *out, int depth) {
+                if (depth > maxDepth) {
+                    return fail("nested too deeply");
+                }
+                uint8_t initial;
+                if (!take(&initial)) {
+                    return false;
+                }
+                auto major = uint8_t(initial >> 5);
+                uint64_t arg = 0;
+
+                switch (major) {
+                    case 0:
+                        if (!argument(initial, &arg)) {
+                            return false;
+                        }
+                        *out = JsonValue(arg);
+                        return true;
+                    case 1: {
+                        if (!argument(initial, &arg)) {
+                            return false;
+                        }
+                        if (arg > uint64_t(INT64_MAX)) {
+                            return fail("negative integer is out of range");
+                        }
+                        *out = JsonValue(-int64_t(arg) - 1);
+                        return true;
+                    }
+                    case 2: {
+                        if (!argument(initial, &arg)) {
+                            return false;
+                        }
+                        std::string raw;
+                        if (!rawBytes(arg, &raw)) {
+                            return false;
+                        }
+                        *out = JsonValue(stdc::array_view<uint8_t>(
+                            reinterpret_cast<const uint8_t *>(raw.data()), raw.size()));
+                        return true;
+                    }
+                    case 3: {
+                        if (!argument(initial, &arg)) {
+                            return false;
+                        }
+                        std::string raw;
+                        if (!rawBytes(arg, &raw)) {
+                            return false;
+                        }
+                        if (!stdc::utf::is_valid_utf8(raw)) {
+                            return fail("text string is not valid UTF-8");
+                        }
+                        *out = JsonValue(std::move(raw));
+                        return true;
+                    }
+                    case 4: {
+                        if (!argument(initial, &arg)) {
+                            return false;
+                        }
+                        JsonArray arr;
+                        for (uint64_t i = 0; i < arg; ++i) {
+                            JsonValue item;
+                            if (!decodeValue(&item, depth + 1)) {
+                                return false;
+                            }
+                            arr.push_back(std::move(item));
+                        }
+                        *out = JsonValue(std::move(arr));
+                        return true;
+                    }
+                    case 5: {
+                        if (!argument(initial, &arg)) {
+                            return false;
+                        }
+                        JsonObject obj;
+                        for (uint64_t i = 0; i < arg; ++i) {
+                            JsonValue key;
+                            if (!decodeValue(&key, depth + 1)) {
+                                return false;
+                            }
+                            if (!key.isString()) {
+                                return fail("a map key has to be a text string");
+                            }
+                            JsonValue value;
+                            if (!decodeValue(&value, depth + 1)) {
+                                return false;
+                            }
+                            obj[key.toString()] = std::move(value);
+                        }
+                        *out = JsonValue(std::move(obj));
+                        return true;
+                    }
+                    case 6:
+                        return fail("tags are not supported");
+                    default:
+                        break;
                 }
 
-                operator std::pair<const std::string, T>() const {
-                    return std::pair<const std::string, T>(first, second);
+                // Major type 7, the simple values and the floats.
+                switch (initial) {
+                    case 0xF4:
+                        *out = JsonValue(false);
+                        return true;
+                    case 0xF5:
+                        *out = JsonValue(true);
+                        return true;
+                    case 0xF6:
+                    case 0xF7:
+                        *out = JsonValue();
+                        return true;
+                    case 0xF9: {
+                        uint64_t bits;
+                        if (!takeBig(2, &bits)) {
+                            return false;
+                        }
+                        *out = JsonValue(fromHalf(uint16_t(bits)));
+                        return true;
+                    }
+                    case 0xFA: {
+                        uint64_t bits;
+                        if (!takeBig(4, &bits)) {
+                            return false;
+                        }
+                        auto narrow = uint32_t(bits);
+                        float f;
+                        std::memcpy(&f, &narrow, sizeof(f));
+                        *out = JsonValue(double(f));
+                        return true;
+                    }
+                    case 0xFB: {
+                        uint64_t bits;
+                        if (!takeBig(8, &bits)) {
+                            return false;
+                        }
+                        double d;
+                        std::memcpy(&d, &bits, sizeof(d));
+                        *out = JsonValue(d);
+                        return true;
+                    }
+                    default:
+                        return fail("unsupported initial byte");
                 }
-            };
-
-            _It it;
-            mutable std::optional<_Ref> ref;
-
-        public:
-            using iterator_category = typename _It::iterator_category;
-            using value_type = _Ref;
-            using difference_type = typename _It::difference_type;
-            using pointer = std::conditional_t<_Const, const _Ref *, _Ref *>;
-            using reference = std::conditional_t<_Const, const _Ref &, _Ref &>;
-
-            iterator_base() noexcept {
             }
 
-            iterator_base(_It it) noexcept : it(it) {
-            }
-
-            // \c ref is a lazily materialized stand-in for the current element, rebuilt on every
-            // dereference. Copying must not touch it. It stays empty until the source has been
-            // dereferenced at least once, and <tt>auto tmp = *this;</tt> inside the post-increment
-            // hits exactly that case, where reading through it was undefined behaviour.
-            iterator_base(const iterator_base &RHS) noexcept : it(RHS.it) {
-            }
-
-            iterator_base &operator=(const iterator_base &RHS) noexcept {
-                if (this != &RHS) {
-                    it = RHS.it;
-                    ref.reset();
+            static double fromHalf(uint16_t h) {
+                int exponent = (h >> 10) & 0x1F;
+                int mantissa = h & 0x3FF;
+                double value;
+                if (exponent == 0) {
+                    value = std::ldexp(double(mantissa), -24);
+                } else if (exponent != 31) {
+                    value = std::ldexp(double(mantissa + 1024), exponent - 25);
+                } else {
+                    value = mantissa == 0 ? HUGE_VAL : NAN;
                 }
-                return *this;
+                return (h & 0x8000) ? -value : value;
             }
 
-            reference operator*() const noexcept;
-            pointer operator->() const noexcept;
-
-            iterator_base &operator++() noexcept {
-                ++it;
-                return *this;
-            }
-            iterator_base operator++(int) noexcept {
-                auto tmp = *this;
-                ++(*this);
-                return tmp;
-            }
-            iterator_base &operator--() noexcept {
-                --it;
-                return *this;
-            }
-            iterator_base operator--(int) noexcept {
-                auto tmp = *this;
-                --(*this);
-                return tmp;
-            }
-
-            reference operator[](const difference_type &n) const noexcept;
-
-            bool operator==(const iterator_base &RHS) const noexcept {
-                return it == RHS.it;
-            }
-            bool operator!=(const iterator_base &RHS) const noexcept {
-                return it != RHS.it;
-            }
+            stdc::array_view<uint8_t> _d;
+            size_t _pos = 0;
+            std::string _error;
         };
 
-        using iterator = iterator_base<false>;
-        using const_iterator = iterator_base<true>;
-        using reverse_iterator = std::reverse_iterator<iterator>;
-        using const_reverse_iterator = std::reverse_iterator<const_iterator>;
-
-        // since c++17
-        using insert_return_type = typename _Map::insert_return_type;
-
-        proxy_map() {
-        }
-        template <class _InputIterator>
-        proxy_map(_InputIterator first, _InputIterator last) {
-            for (; first != last; ++first) {
-                insert(*first);
-            }
-        }
-
-        T &at(const Key &key);
-        const T &at(const Key &key) const;
-        T &operator[](const Key &key);
-        T &operator[](Key &&key);
-
-        iterator begin() noexcept {
-            return buf.begin();
-        }
-        const_iterator begin() const noexcept {
-            return buf.begin();
-        }
-        const_iterator cbegin() const noexcept {
-            return begin();
-        }
-        iterator end() noexcept {
-            return buf.end();
-        }
-        const_iterator end() const noexcept {
-            return buf.end();
-        }
-        const_iterator cend() const noexcept {
-            return buf.cend();
-        }
-        reverse_iterator rbegin() noexcept {
-            return buf.rbegin();
-        }
-        const_reverse_iterator rbegin() const noexcept {
-            return buf.rbegin();
-        }
-        const_reverse_iterator crbegin() const noexcept {
-            return buf.crbegin();
-        }
-        reverse_iterator rend() noexcept {
-            return buf.rend();
-        }
-        const_reverse_iterator rend() const noexcept {
-            return buf.rend();
-        }
-        const_reverse_iterator crend() const noexcept {
-            return buf.crend();
-        }
-
-        bool empty() const noexcept {
-            return buf.empty();
-        }
-        size_type size() const noexcept {
-            return buf.size();
-        }
-        size_type max_size() const noexcept {
-            return buf.max_size();
-        }
-        void clear() {
-            buf.clear();
-        }
-
-        std::pair<iterator, bool> insert(const value_type &value);
-        iterator insert(iterator pos, const value_type &value);
-        iterator insert(const_iterator pos, const value_type &value);
-
-        iterator erase(iterator pos) {
-            return buf.erase(pos.it);
-        }
-        iterator erase(const_iterator pos) {
-            // Must go through \c buf. Otherwise \a pos.it converts back to a \c const_iterator of
-            // this class, so the call would select this very overload again and recurse until the
-            // stack dies.
-            return buf.erase(pos.it);
-        }
-        size_type erase(const Key &key) {
-            return buf.erase(key);
-        }
-        size_type count(const Key &key) const {
-            return buf.count(key);
-        }
-        iterator find(const Key &key) {
-            return buf.find(key);
-        }
-        const_iterator find(const Key &key) const {
-            return buf.find(key);
-        }
-        void swap(proxy_map &RHS) noexcept {
-            buf.swap(RHS.buf);
-        }
-
-        bool operator==(const proxy_map &RHS) const {
-            return buf == RHS.buf;
-        }
-        bool operator!=(const proxy_map &RHS) const {
-            return !(*this == RHS);
-        }
-    };
-
-    using JSON = nlohmann::basic_json<proxy_map, proxy_vector, std::string>;
-}
-
-#ifndef SYNTHRT_JSON_IN_PLACE
-namespace srt {
-
-    class JsonValueContainer {
-    public:
-        JSON json;
-    };
-
-}
-#endif
-
-namespace {
-
-    class JV : public JsonValue {
-    public:
-#ifdef SYNTHRT_JSON_IN_PLACE
-        /// The buffer a \c JsonValue keeps its underlying value in, sized in the public header,
-        /// where the type going into it cannot be named.
-        ///
-        /// Nothing else checks that it still fits, and it stops fitting by a placement new writing
-        /// past the end of the object rather than by anything a compiler would mention. Two of
-        /// nlohmann's own options move the size on their own: \c JSON_DIAGNOSTICS takes it to 24
-        /// bytes and \c JSON_DIAGNOSTIC_POSITIONS to 32, against 16 by default.
-        ///
-        /// \warning Widening the union in \c JSON.h is the fix, and it changes \c
-        /// sizeof(JsonValue).
-        ///          Every consumer has to be rebuilt against the new header.
-        using Storage = decltype(JsonValue::storage);
-
-        static_assert(sizeof(JSON) <= sizeof(Storage),
-                      "the underlying value no longer fits in JsonValue::storage");
-        static_assert(alignof(JSON) <= alignof(Storage),
-                      "the underlying value is aligned more strictly than JsonValue::storage");
-#endif
-
-        inline JV(void *p, bool move) : JsonValue(p, move) {
-        }
-
-        static inline void construct(JsonValue &val) {
-            auto &jv = static_cast<JV &>(val);
-#ifdef SYNTHRT_JSON_IN_PLACE
-            new (jv.storage.buf) JSON();
-#else
-            jv.c = std::make_shared<JsonValueContainer>();
-#endif
-        }
-
-        static inline void construct(JsonValue &val, const JsonValue &RHS) {
-            auto &jv = static_cast<JV &>(val);
-#ifdef SYNTHRT_JSON_IN_PLACE
-            new (jv.storage.buf) JSON(JV::unpack(RHS));
-#else
-            jv.c = static_cast<const JV &>(RHS).c;
-#endif
-        }
-
-        static inline void construct(JsonValue &val, JsonValue &&RHS) {
-            auto &jv = static_cast<JV &>(val);
-#ifdef SYNTHRT_JSON_IN_PLACE
-            new (jv.storage.buf) JSON(std::move(JV::unpack(RHS)));
-#else
-            jv.c = static_cast<const JV &>(RHS).c;
-#endif
-        }
-
-        static inline void construct(JsonValue &val, void *raw, bool move) {
-            auto &jv = static_cast<JV &>(val);
-#ifdef SYNTHRT_JSON_IN_PLACE
-            if (move) {
-                new (jv.storage.buf) JSON(std::move(*reinterpret_cast<JSON *>(raw)));
-            } else {
-                new (jv.storage.buf) JSON(*reinterpret_cast<JSON *>(raw));
-            }
-#else
-            jv.c = std::make_shared<JsonValueContainer>();
-            if (move) {
-                jv.c->json = JSON(std::move(*reinterpret_cast<JSON *>(raw)));
-            } else {
-                jv.c->json = JSON(*reinterpret_cast<JSON *>(raw));
-            }
-#endif
-        }
-
-        static inline void destruct(JsonValue &val) {
-#ifdef SYNTHRT_JSON_IN_PLACE
-            unpack(val).~basic_json();
-#endif
-        }
-
-        static inline JSON &unpack(JsonValue &val) {
-            auto &jv = static_cast<JV &>(val);
-#ifdef SYNTHRT_JSON_IN_PLACE
-            return *reinterpret_cast<JSON *>(jv.storage.buf);
-#else
-            return jv.c->json;
-#endif
-        }
-
-        static inline const JSON &unpack(const JsonValue &val) {
-            auto &jv = static_cast<const JV &>(val);
-#ifdef SYNTHRT_JSON_IN_PLACE
-            return *reinterpret_cast<const JSON *>(jv.storage.buf);
-#else
-            return jv.c->json;
-#endif
-        }
-
-        static inline JsonValue pack(const JSON &json) {
-            return JV(const_cast<JSON *>(&json), false);
-        }
-
-        static inline JsonValue pack(JSON &&json) {
-            return JV(&json, true);
-        }
-    };
-
-    // proxy container implementations
-    template <class T, class... _Mods>
-    template <bool _Const>
-    typename proxy_vector<T, _Mods...>::template iterator_base<_Const>::reference
-        proxy_vector<T, _Mods...>::iterator_base<_Const>::operator*() const noexcept {
-        return JV::unpack(*it);
-    }
-    template <class T, class... _Mods>
-    template <bool _Const>
-    typename proxy_vector<T, _Mods...>::template iterator_base<_Const>::pointer
-        proxy_vector<T, _Mods...>::iterator_base<_Const>::operator->() const noexcept {
-        return &JV::unpack(*it);
-    }
-
-    template <class T, class... _Mods>
-    template <bool _Const>
-    typename proxy_vector<T, _Mods...>::template iterator_base<_Const>::reference
-        proxy_vector<T, _Mods...>::iterator_base<_Const>::operator[](
-            const difference_type &n) const noexcept {
-        return JV::unpack(it[n]);
-    }
-
-
-    template <class T, class... _Mods>
-    T &proxy_vector<T, _Mods...>::front() {
-        return JV::unpack(buf.front());
-    }
-    template <class T, class... _Mods>
-    const T &proxy_vector<T, _Mods...>::front() const {
-        return JV::unpack(buf.front());
-    }
-    template <class T, class... _Mods>
-    T &proxy_vector<T, _Mods...>::back() {
-        return JV::unpack(buf.back());
-    }
-    template <class T, class... _Mods>
-    const T &proxy_vector<T, _Mods...>::back() const {
-        return JV::unpack(buf.back());
-    }
-
-    template <class T, class... _Mods>
-    void proxy_vector<T, _Mods...>::insert(const_iterator pos, const T &value) {
-        buf.insert(pos.it, JV::pack(value));
-    }
-    template <class T, class... _Mods>
-    void proxy_vector<T, _Mods...>::insert(const_iterator pos, T &&value) {
-        buf.insert(pos.it, JV::pack(std::move(value)));
-    }
-    template <class T, class... _Mods>
-    void proxy_vector<T, _Mods...>::push_back(const T &value) {
-        buf.push_back(JV::pack(value));
-    }
-    template <class T, class... _Mods>
-    void proxy_vector<T, _Mods...>::push_back(T &&value) {
-        buf.push_back(JV::pack(std::move(value)));
-    }
-    template <class T, class... _Mods>
-    template <class... Args>
-    typename proxy_vector<T, _Mods...>::reference
-        proxy_vector<T, _Mods...>::emplace_back(Args &&...args) {
-        return JV::unpack(buf.emplace_back(JV::pack(T(std::forward<Args>(args)...))));
-    }
-
-
-
-
-    template <class Key, class T, class... _Mods>
-    template <bool _Const>
-    typename proxy_map<Key, T, _Mods...>::template iterator_base<_Const>::reference
-        proxy_map<Key, T, _Mods...>::iterator_base<_Const>::operator*() const noexcept {
-        ref.emplace(it->first, JV::unpack(it->second));
-        return ref.value();
-    }
-    template <class Key, class T, class... _Mods>
-    template <bool _Const>
-    typename proxy_map<Key, T, _Mods...>::template iterator_base<_Const>::pointer
-        proxy_map<Key, T, _Mods...>::iterator_base<_Const>::operator->() const noexcept {
-        ref.emplace(it->first, JV::unpack(it->second));
-        return &ref.value();
-    }
-    template <class Key, class T, class... _Mods>
-    template <bool _Const>
-    typename proxy_map<Key, T, _Mods...>::template iterator_base<_Const>::reference
-        proxy_map<Key, T, _Mods...>::iterator_base<_Const>::operator[](
-            const difference_type &n) const noexcept {
-        auto &tmp = it[n];
-        ref.emplace(tmp.first, JV::unpack(tmp.second));
-        return ref.value();
-    }
-
-    template <class Key, class T, class... _Mods>
-    T &proxy_map<Key, T, _Mods...>::at(const Key &key) {
-        return JV::unpack(buf.at(key));
-    }
-    template <class Key, class T, class... _Mods>
-    const T &proxy_map<Key, T, _Mods...>::at(const Key &key) const {
-        return JV::unpack(buf.at(key));
-    }
-    template <class Key, class T, class... _Mods>
-    T &proxy_map<Key, T, _Mods...>::operator[](const Key &key) {
-        return JV::unpack(buf[key]);
-    }
-    template <class Key, class T, class... _Mods>
-    T &proxy_map<Key, T, _Mods...>::operator[](Key &&key) {
-        return JV::unpack(buf[std::move(key)]);
-    }
-
-    template <class Key, class T, class... _Mods>
-    std::pair<typename proxy_map<Key, T, _Mods...>::iterator, bool>
-        proxy_map<Key, T, _Mods...>::insert(const value_type &value) {
-        auto tmp = buf.insert(std::make_pair(value.first, JV::pack(value.second)));
-        return std::make_pair(iterator(tmp.first), tmp.second);
-    }
-
-    template <class Key, class T, class... _Mods>
-    typename proxy_map<Key, T, _Mods...>::iterator
-        proxy_map<Key, T, _Mods...>::insert(iterator pos, const value_type &value) {
-        return buf.insert(pos.it, std::make_pair(value.first, JV::pack(value.second)));
-    }
-
-    template <class Key, class T, class... _Mods>
-    typename proxy_map<Key, T, _Mods...>::iterator
-        proxy_map<Key, T, _Mods...>::insert(const_iterator pos, const value_type &value) {
-        return buf.insert(pos.it, std::make_pair(value.first, JV::pack(value.second)));
     }
 
 }
 
 namespace srt {
 
-    JsonValue::JsonValue(Type type) {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
+    JsonValue::JsonValue(Type type) : _type(type) {
+        _p.u = 0;
         switch (type) {
-            case Null: {
-                json = nullptr;
+            case String:
+                _p.s = new std::string();
                 break;
-            }
-            case Bool: {
-                json = false;
-                break;
-            }
-            case Int: {
-                json = int64_t(0);
-                break;
-            }
-            case UInt: {
-                json = uint64_t(0);
-                break;
-            }
-            case Double: {
-                json = 0.0;
-                break;
-            }
-            case String: {
-                json = std::string();
-                break;
-            }
             case Binary:
-                json = JSON::binary_t();
+                _p.bin = new std::vector<uint8_t>();
                 break;
-            case Array: {
-                json = JSON::array_t();
+            case Array:
+                _p.arr = new JsonArray();
                 break;
-            }
-            case Object: {
-                json = JSON::object_t();
+            case Object:
+                _p.obj = new JsonObject();
                 break;
-            }
-            case Undefined: {
-                json = nullptr;
+            default:
                 break;
-            }
         }
     }
 
-    JsonValue::JsonValue(bool b) {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        json = b;
+    JsonValue::JsonValue(bool b) : _type(Bool) {
+        _p.b = b;
     }
 
-    JsonValue::JsonValue(double d) {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        json = d;
+    JsonValue::JsonValue(double d) : _type(Double) {
+        _p.d = d;
     }
 
-    JsonValue::JsonValue(int64_t i) {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        json = i;
+    JsonValue::JsonValue(int64_t i) : _type(Int) {
+        _p.i = i;
     }
 
     JsonValue::JsonValue(uint64_t u) {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        json = u;
+        // There is no unsigned type to put this in. Anything an int64_t can hold stays exact, and
+        // the range above it settles for a double.
+        if (u <= uint64_t(INT64_MAX)) {
+            _type = Int;
+            _p.i = int64_t(u);
+        } else {
+            _type = Double;
+            _p.d = double(u);
+        }
     }
 
-    JsonValue::JsonValue(std::string s) {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        json = std::move(s);
+    JsonValue::JsonValue(std::string s) : _type(String) {
+        _p.s = new std::string(std::move(s));
     }
 
-    JsonValue::JsonValue(stdc::array_view<uint8_t> bytes) {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        json = JSON::binary_t(bytes.vec());
+    JsonValue::JsonValue(stdc::array_view<uint8_t> bytes) : _type(Binary) {
+        _p.bin = new std::vector<uint8_t>(bytes.begin(), bytes.end());
     }
 
-    JsonValue::JsonValue(const JsonArray &a) {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        JSON::array_t arr;
-        arr.buf = a;
-        json = std::move(arr);
+    JsonValue::JsonValue(const JsonArray &a) : _type(Array) {
+        _p.arr = new JsonArray(a);
     }
 
-    JsonValue::JsonValue(JsonArray &&a) noexcept {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        JSON::array_t arr;
-        arr.buf = std::move(a);
-        json = std::move(arr);
+    JsonValue::JsonValue(JsonArray &&a) noexcept : _type(Array) {
+        _p.arr = new JsonArray(std::move(a));
     }
 
-    JsonValue::JsonValue(const JsonObject &o) {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        JSON::object_t obj;
-        obj.buf = o;
-        json = std::move(obj);
+    JsonValue::JsonValue(const JsonObject &o) : _type(Object) {
+        _p.obj = new JsonObject(o);
     }
 
-    JsonValue::JsonValue(JsonObject &&o) noexcept {
-        JV::construct(*this);
-        auto &json = JV::unpack(*this);
-        JSON::object_t obj;
-        obj.buf = std::move(o);
-        json = std::move(obj);
+    JsonValue::JsonValue(JsonObject &&o) noexcept : _type(Object) {
+        _p.obj = new JsonObject(std::move(o));
     }
 
     JsonValue::~JsonValue() {
-        JV::destruct(*this);
+        reset();
     }
 
-    JsonValue::JsonValue(const JsonValue &RHS)
-#ifdef SYNTHRT_JSON_IN_PLACE
-    {
-        JV::construct(*this, RHS);
+    JsonValue::JsonValue(const JsonValue &RHS) {
+        copyFrom(RHS);
     }
-#else
-        = default;
-#endif
 
-    JsonValue::JsonValue(JsonValue &&RHS) noexcept
-#ifdef SYNTHRT_JSON_IN_PLACE
-    {
-        JV::construct(*this, std::move(RHS));
+    JsonValue::JsonValue(JsonValue &&RHS) noexcept : _type(RHS._type), _p(RHS._p) {
+        RHS._type = Null;
+        RHS._p.u = 0;
     }
-#else
-        = default;
-#endif
 
-    JsonValue &JsonValue::operator=(const JsonValue &RHS)
-#ifdef SYNTHRT_JSON_IN_PLACE
-    {
+    JsonValue &JsonValue::operator=(const JsonValue &RHS) {
         if (this != &RHS) {
-            JV::unpack(*this) = JV::unpack(RHS);
+            reset();
+            copyFrom(RHS);
         }
         return *this;
     }
-#else
-        = default;
-#endif
 
     void JsonValue::swap(JsonValue &RHS) noexcept {
-        if (this != &RHS) {
-#ifdef SYNTHRT_JSON_IN_PLACE
-            JV::unpack(*this).swap(JV::unpack(RHS));
-#else
-            c.swap(RHS.c);
-#endif
+        std::swap(_type, RHS._type);
+        std::swap(_p, RHS._p);
+    }
+
+    void JsonValue::reset() noexcept {
+        switch (_type) {
+            case String:
+                delete _p.s;
+                break;
+            case Binary:
+                delete _p.bin;
+                break;
+            case Array:
+                delete _p.arr;
+                break;
+            case Object:
+                delete _p.obj;
+                break;
+            default:
+                break;
+        }
+        _type = Null;
+        _p.u = 0;
+    }
+
+    void JsonValue::copyFrom(const JsonValue &RHS) {
+        _type = RHS._type;
+        switch (_type) {
+            case String:
+                _p.s = new std::string(*RHS._p.s);
+                break;
+            case Binary:
+                _p.bin = new std::vector<uint8_t>(*RHS._p.bin);
+                break;
+            case Array:
+                _p.arr = new JsonArray(*RHS._p.arr);
+                break;
+            case Object:
+                _p.obj = new JsonObject(*RHS._p.obj);
+                break;
+            default:
+                _p = RHS._p;
+                break;
         }
     }
 
-    JsonValue::Type JsonValue::type() const {
-        auto &json = JV::unpack(*this);
-        JsonValue::Type type = Undefined;
-        switch (json.type()) {
-            case nlohmann::detail::value_t::null:
-                type = Null;
-                break;
-            case nlohmann::detail::value_t::object:
-                type = Object;
-                break;
-            case nlohmann::detail::value_t::array:
-                type = Array;
-                break;
-            case nlohmann::detail::value_t::string:
-                type = String;
-                break;
-            case nlohmann::detail::value_t::boolean:
-                type = Bool;
-                break;
-            case nlohmann::detail::value_t::number_integer:
-                type = Int;
-                break;
-            case nlohmann::detail::value_t::number_unsigned:
-                type = UInt;
-                break;
-            case nlohmann::detail::value_t::number_float:
-                type = Double;
-                break;
-            case nlohmann::detail::value_t::binary:
-                type = Binary;
-                break;
-            default:
-                break;
-        }
-        return type;
-    }
     bool JsonValue::toBool(bool defaultValue) const {
-        auto &json = JV::unpack(*this);
-        if (json.is_boolean()) {
-            return json.get<bool>();
-        }
-        return defaultValue;
+        return _type == Bool ? _p.b : defaultValue;
     }
-    int64_t JsonValue::toInt(int64_t defaultValue) const {
-        auto &json = JV::unpack(*this);
-        switch (json.type()) {
-            case nlohmann::detail::value_t::number_integer:
-                return json.get<int64_t>();
-            case nlohmann::detail::value_t::number_unsigned:
-                return json.get<uint64_t>();
-            case nlohmann::detail::value_t::number_float:
-                return json.get<double>();
-            default:
-                break;
-        }
-        return defaultValue;
-    }
-    uint64_t JsonValue::toUInt(uint64_t defaultValue) const {
-        auto &json = JV::unpack(*this);
-        switch (json.type()) {
-            case nlohmann::detail::value_t::number_integer:
-                return json.get<int64_t>();
-            case nlohmann::detail::value_t::number_unsigned:
-                return json.get<uint64_t>();
-            case nlohmann::detail::value_t::number_float:
-                return json.get<double>();
-            default:
-                break;
-        }
-        return defaultValue;
-    }
+
     double JsonValue::toDouble(double defaultValue) const {
-        auto &json = JV::unpack(*this);
-        switch (json.type()) {
-            case nlohmann::detail::value_t::number_integer:
-                return json.get<int64_t>();
-            case nlohmann::detail::value_t::number_unsigned:
-                return json.get<uint64_t>();
-            case nlohmann::detail::value_t::number_float:
-                return json.get<double>();
+        switch (_type) {
+            case Int:
+                return double(_p.i);
+            case Double:
+                return _p.d;
             default:
-                break;
+                return defaultValue;
         }
-        return defaultValue;
     }
+
+    int64_t JsonValue::toInt(int64_t defaultValue) const {
+        switch (_type) {
+            case Int:
+                return _p.i;
+            case Double:
+                // Truncated, not rounded, and undefined once the value is out of range, which is
+                // what a cast does everywhere else too.
+                return int64_t(_p.d);
+            default:
+                return defaultValue;
+        }
+    }
+
     std::string_view JsonValue::toStringView(std::string_view defaultValue) const {
-        auto &json = JV::unpack(*this);
-        if (json.is_string()) {
-            return json.get_ref<const std::string &>();
-        }
-        return defaultValue;
+        return _type == String ? std::string_view(*_p.s) : defaultValue;
     }
+
     const std::string &JsonValue::toString(const std::string &defaultValue) const {
-        auto &json = JV::unpack(*this);
-        if (json.is_string()) {
-            return json.get_ref<const std::string &>();
-        }
-        return defaultValue;
+        return _type == String ? *_p.s : defaultValue;
     }
+
     stdc::array_view<uint8_t>
         JsonValue::toBinaryView(stdc::array_view<uint8_t> defaultValue) const {
-        auto &json = JV::unpack(*this);
-        if (json.is_binary()) {
-            auto &bin = json.get_binary();
-            return stdc::array_view<uint8_t>(bin.data(), bin.size());
+        if (_type != Binary) {
+            return defaultValue;
         }
-        return defaultValue;
+        return stdc::array_view<uint8_t>(_p.bin->data(), _p.bin->size());
     }
 
     const std::vector<uint8_t> &
         JsonValue::toBinary(const std::vector<uint8_t> &defaultValue) const {
-        auto &json = JV::unpack(*this);
-        if (json.is_binary()) {
-            auto &bin = json.get_binary();
-            return bin;
-        }
-        return defaultValue;
+        return _type == Binary ? *_p.bin : defaultValue;
     }
 
     const JsonArray &JsonValue::toArray() const {
-        auto &json = JV::unpack(*this);
-        if (json.is_array()) {
-            return json.get_ref<const JSON::array_t &>().buf;
-        }
-        return EmptyValues::emptyArray();
+        return _type == Array ? *_p.arr : EmptyValues::emptyArray();
     }
 
     const JsonArray &JsonValue::toArray(const JsonArray &defaultValue) const {
-        auto &json = JV::unpack(*this);
-        if (json.is_array()) {
-            return json.get_ref<const JSON::array_t &>().buf;
-        }
-        return defaultValue;
+        return _type == Array ? *_p.arr : defaultValue;
     }
 
     const JsonObject &JsonValue::toObject() const {
-        auto &json = JV::unpack(*this);
-        if (json.is_object()) {
-            return json.get_ref<const JSON::object_t &>().buf;
-        }
-        return EmptyValues::emptyObject();
+        return _type == Object ? *_p.obj : EmptyValues::emptyObject();
     }
 
     const JsonObject &JsonValue::toObject(const JsonObject &defaultValue) const {
-        auto &json = JV::unpack(*this);
-        if (json.is_object()) {
-            return json.get_ref<const JSON::object_t &>().buf;
-        }
-        return defaultValue;
+        return _type == Object ? *_p.obj : defaultValue;
     }
 
     const JsonValue &JsonValue::operator[](std::string_view key) const {
-        auto &json = JV::unpack(*this);
-        if (json.is_object()) {
-            auto &obj = json.get_ref<const JSON::object_t &>().buf;
-            auto it = obj.find(std::string(key));
-            if (it != obj.end()) {
+        if (_type == Object) {
+            auto it = _p.obj->find(std::string(key));
+            if (it != _p.obj->end()) {
                 return it->second;
             }
         }
-        return EmptyValues::undefinedValue();
+        return EmptyValues::nullValue();
     }
 
     const JsonValue &JsonValue::operator[](size_t i) const {
-        auto &json = JV::unpack(*this);
-        if (json.is_array()) {
-            auto &arr = json.get_ref<const JSON::array_t &>().buf;
-            if (i < arr.size()) {
-                return arr[i];
-            }
+        if (_type == Array && i < _p.arr->size()) {
+            return (*_p.arr)[i];
         }
-        return EmptyValues::undefinedValue();
+        return EmptyValues::nullValue();
     }
 
     bool JsonValue::operator==(const JsonValue &RHS) const {
-        return JV::unpack(*this) == JV::unpack(RHS);
+        // A number written as 1 and a number written as 1.0 are the same number. Nothing else
+        // compares across types.
+        if (isNumber() && RHS.isNumber()) {
+            if (_type == Int && RHS._type == Int) {
+                return _p.i == RHS._p.i;
+            }
+            // A large integer loses precision here, which is the price of 1 and 1.0 being equal.
+            return toDouble() == RHS.toDouble();
+        }
+
+        if (_type != RHS._type) {
+            return false;
+        }
+        switch (_type) {
+            case Null:
+                return true;
+            case Bool:
+                return _p.b == RHS._p.b;
+            case String:
+                return *_p.s == *RHS._p.s;
+            case Binary:
+                return *_p.bin == *RHS._p.bin;
+            case Array:
+                return *_p.arr == *RHS._p.arr;
+            case Object:
+                return *_p.obj == *RHS._p.obj;
+            default:
+                return false;
+        }
     }
 
     std::string JsonValue::toJson(int indent) const {
-        return JV::unpack(*this).dump(indent);
+        std::string res;
+        dumpTo(res, *this, indent, 0);
+        return res;
     }
+
     JsonValue JsonValue::fromJson(std::string_view json, bool ignoreComments, std::string *error) {
-        JsonValue val;
-        try {
-            auto jv = JSON::parse(json, nullptr, true, ignoreComments);
-            val = JV::pack(std::move(jv));
-        } catch (const std::exception &e) {
-            if (error)
-                *error = e.what();
+        Parser parser(json, ignoreComments);
+        JsonValue res;
+        if (!parser.parse(&res)) {
+            if (error) {
+                *error = parser.error();
+            }
+            return JsonValue();
         }
-        return val;
+        return res;
     }
 
     std::vector<uint8_t> JsonValue::toCbor() const {
-        return JSON::to_cbor(JV::unpack(*this));
+        std::vector<uint8_t> res;
+        cbor::encode(res, *this);
+        return res;
     }
 
     JsonValue JsonValue::fromCbor(stdc::array_view<uint8_t> cbor, std::string *error) {
-        JsonValue val;
-        try {
-            auto jv = JSON::from_cbor(cbor, false, true);
-            val = JV::pack(std::move(jv));
-        } catch (const std::exception &e) {
-            if (error)
-                *error = e.what();
+        cbor::Decoder decoder(cbor);
+        JsonValue res;
+        if (!decoder.decode(&res)) {
+            if (error) {
+                *error = decoder.error();
+            }
+            return JsonValue();
         }
-        return val;
-    }
-
-    /*!
-        \internal
-    */
-    JsonValue::JsonValue(void *raw, bool move) {
-        JV::construct(*this, raw, move);
+        return res;
     }
 
 }

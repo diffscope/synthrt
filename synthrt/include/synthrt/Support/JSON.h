@@ -11,9 +11,6 @@
 
 #include <synthrt/synthrt_global.h>
 
-// TODO: Remove this macro
-#define SYNTHRT_JSON_IN_PLACE
-
 namespace srt {
 
     class JsonValue;
@@ -22,10 +19,18 @@ namespace srt {
 
     using JsonObject = std::map<std::string, JsonValue>;
 
-    class JsonValueContainer;
-
-    /// JsonValue - Encapsulates the \c nlohmann_json library to provide a refined and unified
-    /// interface for JSON operations.
+    /// JsonValue - An immutable JSON value, shaped after Qt's.
+    ///
+    /// Reading never fails and never throws. An accessor asked for a type the value does not have
+    /// hands back the default it was given, and a subscript that finds nothing hands back a null
+    /// value, so a chain of them needs no check at each step.
+    ///
+    /// \note A number keeps the form it was written in. \c 1 parses as \c Int and \c 1.0 as
+    ///       \c Double, which is what a round trip through \c toJson has to preserve. Comparison
+    ///       ignores the distinction and compares numerically.
+    ///
+    ///       An integer is exact, up to the range of \c int64_t. Anything outside it, including an
+    ///       unsigned value above \c INT64_MAX, becomes a \c Double and is exact only up to 2^53.
     class SYNTHRT_EXPORT JsonValue {
     public:
         enum Type {
@@ -33,12 +38,10 @@ namespace srt {
             Bool,
             Double,
             Int,
-            UInt,
             String,
             Binary,
             Array,
             Object,
-            Undefined = 0x80,
         };
 
         JsonValue(Type = Null);
@@ -75,7 +78,9 @@ namespace srt {
         void swap(JsonValue &RHS) noexcept;
 
     public:
-        Type type() const;
+        inline Type type() const {
+            return _type;
+        }
         inline bool isNull() const {
             return type() == Null;
         }
@@ -86,10 +91,7 @@ namespace srt {
             return type() == Double;
         }
         inline bool isInt() const {
-            return type() == Int || type() == UInt;
-        }
-        inline bool isUInt() const {
-            return type() == UInt;
+            return type() == Int;
         }
         inline bool isNumber() const {
             return isDouble() || isInt();
@@ -103,14 +105,10 @@ namespace srt {
         inline bool isObject() const {
             return type() == Object;
         }
-        inline bool isUndefined() const {
-            return type() == Undefined;
-        }
 
         bool toBool(bool defaultValue = false) const;
         double toDouble(double defaultValue = 0) const;
         int64_t toInt(int64_t defaultValue = 0) const;
-        uint64_t toUInt(uint64_t defaultValue = 0) const;
         std::string_view toStringView(std::string_view defaultValue = {}) const;
         const std::string &toString(const std::string &defaultValue = {}) const;
         stdc::array_view<uint8_t> toBinaryView(stdc::array_view<uint8_t> defaultValue = {}) const;
@@ -151,22 +149,29 @@ namespace srt {
         std::vector<uint8_t> toCbor() const;
         static JsonValue fromCbor(stdc::array_view<uint8_t> cbor, std::string *error = nullptr);
 
-    protected:
-        JsonValue(void *raw, bool move);
+    private:
+        /// The alternatives, all trivially copyable, so the payload moves as one object rather than
+        /// one member at a time. Which member is live is \c _type and nothing else.
+        ///
+        /// Anything larger than a scalar sits behind a pointer this owns, and is copied when the
+        /// value is. \c std::string alone is wider than everything here put together.
+        union Payload {
+            bool b;
+            int64_t i;
+            uint64_t u;
+            double d;
+            std::string *s;
+            std::vector<uint8_t> *bin;
+            JsonArray *arr;
+            JsonObject *obj;
+        };
 
-#ifdef SYNTHRT_JSON_IN_PLACE
-        union {
-            struct {
-                uint8_t type;
-                void *data;
-                void *padding;
-            } data;
-            void *p;
-            char buf[1];
-        } storage;
-#else
-        std::shared_ptr<JsonValueContainer> c;
-#endif
+        Type _type;
+        Payload _p;
+
+        /// Frees what the live alternative owns, if it owns anything, and becomes null.
+        void reset() noexcept;
+        void copyFrom(const JsonValue &RHS);
     };
 
 }

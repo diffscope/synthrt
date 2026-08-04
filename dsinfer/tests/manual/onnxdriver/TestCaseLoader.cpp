@@ -79,8 +79,7 @@ namespace test {
         const auto &shapeArray = shapeField.toArray();
         shape.reserve(shapeArray.size());
         for (const auto &v : std::as_const(shapeArray)) {
-            if (!(v.type() == srt::JsonValue::Double || v.type() == srt::JsonValue::Int ||
-                  v.type() == srt::JsonValue::UInt)) {
+            if (!v.isNumber()) {
                 throw TestCaseException(
                     "Failed to parse JSON: shape array elements must be of numeric type");
             }
@@ -101,8 +100,7 @@ namespace test {
                 raw.resize(values.size() * sizeof(float));
                 auto *buf = reinterpret_cast<float *>(raw.data());
                 for (const auto &v : values) {
-                    if (!(v.type() == srt::JsonValue::Double || v.type() == srt::JsonValue::Int ||
-                          v.type() == srt::JsonValue::UInt)) {
+                    if (!v.isNumber()) {
                         throw TestCaseException("Failed to parse JSON: expected float type");
                     }
                     *buf++ = static_cast<float>(v.toDouble());
@@ -113,8 +111,7 @@ namespace test {
                 raw.resize(values.size() * sizeof(int64_t));
                 auto *buf = reinterpret_cast<int64_t *>(raw.data());
                 for (const auto &v : values) {
-                    if (!(v.type() == srt::JsonValue::Double || v.type() == srt::JsonValue::Int ||
-                          v.type() == srt::JsonValue::UInt)) {
+                    if (!v.isNumber()) {
                         throw TestCaseException("Failed to parse JSON: expected integer type");
                     }
                     *buf++ = static_cast<int64_t>(v.toInt());
@@ -127,7 +124,7 @@ namespace test {
                     if (!v.isBool()) {
                         throw TestCaseException("Failed to parse JSON: expected boolean type");
                     }
-                    raw.push_back(v.toBool() ? (std::byte)1 : (std::byte)0);
+                    raw.push_back(v.toBool() ? (std::byte) 1 : (std::byte) 0);
                 }
                 break;
             }
@@ -147,7 +144,7 @@ namespace test {
 
         std::string error;
         auto root = srt::JsonValue::fromJson(json, true, &error);
-        if (root.isUndefined())
+        if (!error.empty())
             throw TestCaseException("JSON parse error in file '" + jsonPath.string() +
                                     "': " + error);
 

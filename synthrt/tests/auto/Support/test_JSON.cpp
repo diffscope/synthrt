@@ -20,19 +20,21 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_Types) {
     BOOST_CHECK(JsonValue(JsonArray{}).type() == JsonValue::Array);
     BOOST_CHECK(JsonValue(JsonObject{}).type() == JsonValue::Object);
 
-    // A signed and an unsigned integer are distinct types, but both answer isInt().
+    // An integer is one type whichever way it was written, signed or not.
     {
         JsonValue i(-1);
         BOOST_CHECK(i.type() == JsonValue::Int);
         BOOST_CHECK(i.isInt());
-        BOOST_CHECK(!i.isUInt());
 
         JsonValue u(uint32_t(1));
-        BOOST_CHECK(u.type() == JsonValue::UInt);
+        BOOST_CHECK(u.type() == JsonValue::Int);
         BOOST_CHECK(u.isInt());
-        BOOST_CHECK(u.isUInt());
+
+        // Except above the range int64_t has, where there is nothing left to be exact with.
+        JsonValue big(UINT64_MAX);
+        BOOST_CHECK(big.type() == JsonValue::Double);
     }
-    // isNumber() spans all three numeric types, and nothing else.
+    // isNumber() spans both numeric types, and nothing else.
     {
         BOOST_CHECK(JsonValue(1).isNumber());
         BOOST_CHECK(JsonValue(uint32_t(1)).isNumber());
@@ -59,33 +61,29 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_Types) {
     }
 }
 
-// \c Undefined is stored as null, so it cannot be told apart from a real null afterwards.
+// A key that is not there reads as null, the same as a key that is there and null.
 //
-// \warning These expectations record a known defect (issue A5), not the intended contract. When the
-//          state becomes representable they must be inverted rather than deleted.
-BOOST_AUTO_TEST_CASE(test_JsonValue_UndefinedIsUnreachable) {
-    JsonValue explicitly(JsonValue::Undefined);
-    BOOST_CHECK(explicitly.type() == JsonValue::Null);
-    BOOST_CHECK(!explicitly.isUndefined());
-
-    // The value handed back for a key that is not there is equally indistinguishable, so a caller
-    // cannot tell a missing field from one that is present and null.
+// \note There is no separate undefined state. Telling the two apart is what the object itself is
+//       for, since \c toObject hands back the map.
+BOOST_AUTO_TEST_CASE(test_JsonValue_MissingKeyIsNull) {
     JsonValue obj = JsonValue::fromJson(R"({"present": null})", false);
-    BOOST_CHECK(!obj["missing"].isUndefined());
     BOOST_CHECK(obj["missing"].isNull());
     BOOST_CHECK(obj["present"].isNull());
     BOOST_CHECK(obj["missing"] == obj["present"]);
+
+    const JsonObject &map = obj.toObject();
+    BOOST_CHECK(map.find("present") != map.end());
+    BOOST_CHECK(map.find("missing") == map.end());
 }
 
 BOOST_AUTO_TEST_CASE(test_JsonValue_Conversions) {
-    // Each numeric conversion accepts all three numeric types.
+    // Each numeric conversion accepts both numeric types.
     {
         BOOST_CHECK(JsonValue(42).toInt() == 42);
         BOOST_CHECK(JsonValue(uint32_t(42)).toInt() == 42);
         BOOST_CHECK(JsonValue(42.9).toInt() == 42); // truncated, not rounded
         BOOST_CHECK(JsonValue(-42).toInt() == -42);
 
-        BOOST_CHECK(JsonValue(42).toUInt() == 42u);
         BOOST_CHECK(JsonValue(1.5).toDouble() == 1.5);
         BOOST_CHECK(JsonValue(3).toDouble() == 3.0);
     }
@@ -96,7 +94,6 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_Conversions) {
         BOOST_CHECK(s.toBool(true) == true);
         BOOST_CHECK(s.toInt() == 0);
         BOOST_CHECK(s.toInt(7) == 7);
-        BOOST_CHECK(s.toUInt(7) == 7u);
         BOOST_CHECK(s.toDouble(1.5) == 1.5);
         BOOST_CHECK(s.toArray().empty());
         BOOST_CHECK(s.toObject().empty());
@@ -115,7 +112,9 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_Conversions) {
     // The defaulted overloads hand back the caller's own object.
     {
         JsonArray arrayFallback{JsonValue(1)};
-        JsonObject objectFallback{{"k", JsonValue(1)}};
+        JsonObject objectFallback{
+            {"k", JsonValue(1)}
+        };
         JsonValue s("text");
         BOOST_CHECK(s.toArray(arrayFallback).size() == 1);
         BOOST_CHECK(s.toObject(objectFallback).size() == 1);
@@ -204,14 +203,6 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_Serialize) {
 }
 
 // Text in, structure out, text back.
-//
-// \note This is as close as a test can get to the proxy containers standing in for nlohmann's own
-//       object and array types. \c JsonValue exposes no mutating operation at all, so their
-//       \c erase and \c at overloads are unreachable from here - which is exactly why the defects
-//       once sitting in them (issues A6 and A7) went unnoticed for so long. Whether parsing and
-//       dumping happen to exercise the iterator copy path is up to nlohmann's internals and is not
-//       something this test can pin down. Treat the coverage below as covering the public contract,
-//       not those containers.
 BOOST_AUTO_TEST_CASE(test_JsonValue_RoundTrip) {
     const std::string_view text = R"({
         "string": "value",
@@ -331,6 +322,323 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_ValueSemantics) {
         obj["a"] = JsonArray{JsonValue(1), JsonValue(2)};
         obj["b"] = JsonValue("text");
         BOOST_CHECK(JsonValue(std::move(obj)) == original);
+    }
+}
+
+// Escapes, which are where a reader is most likely to be wrong.
+BOOST_AUTO_TEST_CASE(test_JsonValue_Escapes) {
+    auto parse = [](std::string_view text) {
+        return JsonValue::fromJson(text, false)["k"].toString();
+    };
+
+    BOOST_CHECK(parse(R"({"k":"A"})") == "A");
+    BOOST_CHECK(parse(R"({"k":"\/"})") == "/");
+    BOOST_CHECK(parse(R"({"k":"\b\f\n\r\t"})") == "\b\f\n\r\t");
+
+    // A code point outside the basic plane arrives as a surrogate pair and has to be put back
+    // together before it is encoded.
+    BOOST_CHECK(parse(R"({"k":"😀"})") == "\xF0\x9F\x98\x80");
+
+    // Two bytes for U+00E9, three for U+4E2D.
+    BOOST_CHECK(parse(R"({"k":"é"})") == "\xC3\xA9");
+    BOOST_CHECK(parse(R"({"k":"中"})") == "\xE4\xB8\xAD");
+
+    // A round trip through text has to preserve all of it.
+    JsonValue v = JsonValue::fromJson(R"({"k":"😀  \" \\ é"})", false);
+    BOOST_CHECK(JsonValue::fromJson(v.toJson(), false) == v);
+
+    // A control character with no short form of its own comes out as a \u escape, printable text
+    // does not. The backslash is spelled char(92) so that nothing here depends on how escapes nest.
+    {
+        const std::string bs(1, char(92));
+        BOOST_CHECK(JsonValue(std::string(1, char(7))).toJson() == "\"" + bs + "u0007\"");
+        BOOST_CHECK(JsonValue(std::string(1, char(10))).toJson() == "\"" + bs + "n\"");
+    }
+    BOOST_CHECK(JsonValue(std::string("é")).toJson() == "\"é\"");
+}
+
+// Input a reader has to turn away rather than accept and misread.
+BOOST_AUTO_TEST_CASE(test_JsonValue_Rejects) {
+    auto rejected = [](std::string_view text) {
+        std::string error;
+        JsonValue v = JsonValue::fromJson(text, false, &error);
+        return v.isNull() && !error.empty();
+    };
+
+    BOOST_CHECK(rejected(""));
+    BOOST_CHECK(rejected("   "));
+    BOOST_CHECK(rejected("nul"));
+    BOOST_CHECK(rejected("{\"a\":1} trailing"));
+    BOOST_CHECK(rejected("[1,2"));
+    BOOST_CHECK(rejected("[1,]"));
+    BOOST_CHECK(rejected("{\"a\"}"));
+    BOOST_CHECK(rejected("{a:1}"));
+    BOOST_CHECK(rejected("\"unterminated"));
+    BOOST_CHECK(rejected("\"a\tb\""));  // a raw tab inside a string
+    BOOST_CHECK(rejected(R"("\q")"));   // an escape that means nothing
+    BOOST_CHECK(rejected(R"("\u12")")); // too few hexadecimal digits
+
+    // Written the long way round: a universal character name is still looked at inside a raw
+    // string literal, and neither of these is a character.
+    BOOST_CHECK(rejected("\"\\ud83d\"")); // a high surrogate with nothing after it
+    BOOST_CHECK(rejected("\"\\ude00\"")); // a low surrogate on its own
+    BOOST_CHECK(rejected("01"));
+    BOOST_CHECK(rejected("1."));
+    BOOST_CHECK(rejected(".1"));
+    BOOST_CHECK(rejected("1e"));
+    BOOST_CHECK(rejected("+1"));
+    BOOST_CHECK(rejected("\"\xFF\xFE\"")); // not valid UTF-8
+
+    // Nesting deep enough to run out of stack is refused rather than attempted.
+    BOOST_CHECK(rejected(std::string(5000, '[')));
+
+    // Depth within the limit still parses.
+    {
+        const int depth = 100;
+        std::string text = std::string(size_t(depth), '[') + std::string(size_t(depth), ']');
+        BOOST_CHECK(JsonValue::fromJson(text, false).isArray());
+    }
+}
+
+BOOST_AUTO_TEST_CASE(test_JsonValue_Comments) {
+    const std::string_view text = R"({
+        // a line comment
+        "a": 1, /* and a block one */
+        "b": 2 // at the end
+    })";
+
+    BOOST_CHECK(JsonValue::fromJson(text, false).isNull());
+
+    JsonValue v = JsonValue::fromJson(text, true);
+    BOOST_REQUIRE(v.isObject());
+    BOOST_CHECK(v["a"].toInt() == 1);
+    BOOST_CHECK(v["b"].toInt() == 2);
+
+    // A comment that never closes is an error, not a value.
+    BOOST_CHECK(JsonValue::fromJson("/* unterminated", true).isNull());
+}
+
+BOOST_AUTO_TEST_CASE(test_JsonValue_Numbers) {
+    // The written form decides the type, which is what a round trip has to preserve.
+    {
+        JsonValue v = JsonValue::fromJson(R"([1, -1, 1.0, 1e2, -0.0])", false);
+        const JsonArray &a = v.toArray();
+        BOOST_REQUIRE(a.size() == 5);
+        BOOST_CHECK(a[0].type() == JsonValue::Int);
+        BOOST_CHECK(a[1].type() == JsonValue::Int);
+        BOOST_CHECK(a[2].type() == JsonValue::Double);
+        BOOST_CHECK(a[3].type() == JsonValue::Double);
+        BOOST_CHECK(a[4].type() == JsonValue::Double);
+
+        // An integral double keeps its point, or it comes back as an integer.
+        BOOST_CHECK(v.toJson() == "[1,-1,1.0,100.0,-0.0]");
+    }
+    // Comparison ignores the distinction the types keep.
+    {
+        BOOST_CHECK(JsonValue(int64_t(1)) == JsonValue(uint64_t(1)));
+        BOOST_CHECK(JsonValue(int64_t(1)) == JsonValue(1.0));
+        BOOST_CHECK(JsonValue(int64_t(-1)) != JsonValue(uint64_t(1)));
+    }
+    // The ends of the integer range survive a round trip exactly, which is the whole reason for
+    // keeping integers apart from doubles.
+    {
+        for (int64_t i : {INT64_MIN, INT64_MAX, int64_t(9007199254740993)}) {
+            JsonValue v(i);
+            JsonValue back = JsonValue::fromJson(v.toJson(), false);
+            BOOST_CHECK(back.type() == JsonValue::Int);
+            BOOST_CHECK(back.toInt() == i);
+        }
+    }
+    // Past that range there is nothing left to be exact with, so it becomes a double rather than a
+    // parse error.
+    {
+        BOOST_CHECK(JsonValue::fromJson("9223372036854775808", false).type() == JsonValue::Double);
+        BOOST_CHECK(JsonValue::fromJson("123456789012345678901234567890", false).type() ==
+                    JsonValue::Double);
+    }
+    // Doubles have to come back bit for bit.
+    {
+        const double values[] = {0.1, 1.0 / 3.0, 1e-300, 1e300, 3.141592653589793};
+        for (double d : values) {
+            JsonValue v(d);
+            BOOST_CHECK(JsonValue::fromJson(v.toJson(), false).toDouble() == d);
+        }
+    }
+}
+
+BOOST_AUTO_TEST_CASE(test_JsonValue_Indent) {
+    JsonValue v = JsonValue::fromJson(R"({"a":[1,2],"b":{"c":null}})", false);
+
+    BOOST_CHECK(v.toJson(2) == "{\n"
+                               "  \"a\": [\n"
+                               "    1,\n"
+                               "    2\n"
+                               "  ],\n"
+                               "  \"b\": {\n"
+                               "    \"c\": null\n"
+                               "  }\n"
+                               "}");
+
+    // An empty container stays on one line whatever the indent.
+    BOOST_CHECK(JsonValue::fromJson(R"({"a":[],"b":{}})", false).toJson(2) ==
+                "{\n  \"a\": [],\n  \"b\": {}\n}");
+}
+
+BOOST_AUTO_TEST_CASE(test_JsonValue_CborShapes) {
+    auto roundTrip = [](const JsonValue &v) { return JsonValue::fromCbor(v.toCbor()) == v; };
+
+    BOOST_CHECK(roundTrip(JsonValue()));
+    BOOST_CHECK(roundTrip(JsonValue(true)));
+    BOOST_CHECK(roundTrip(JsonValue(false)));
+    BOOST_CHECK(roundTrip(JsonValue(JsonArray{})));
+    BOOST_CHECK(roundTrip(JsonValue(JsonObject{})));
+    BOOST_CHECK(roundTrip(JsonValue(std::string())));
+    BOOST_CHECK(roundTrip(JsonValue(std::string("中文 é"))));
+
+    // Every width the integer encoding has, on both sides of zero.
+    {
+        const int64_t signedValues[] = {-1, -24, -25, -256, -65536, -4294967296LL, INT64_MIN};
+        for (int64_t i : signedValues) {
+            BOOST_CHECK(roundTrip(JsonValue(i)));
+        }
+        const uint64_t unsignedValues[] = {0, 23, 24, 255, 256, 65535, 65536, INT64_MAX};
+        for (uint64_t u : unsignedValues) {
+            BOOST_CHECK(roundTrip(JsonValue(u)));
+        }
+    }
+    BOOST_CHECK(roundTrip(JsonValue(0.1)));
+
+    // A truncated encoding reports rather than reads past the end.
+    {
+        JsonValue v = JsonValue::fromJson(R"({"a":[1,2,3]})", false);
+        auto encoded = v.toCbor();
+        encoded.resize(encoded.size() - 1);
+        std::string error;
+        BOOST_CHECK(JsonValue::fromCbor(encoded, &error).isNull());
+        BOOST_CHECK(!error.empty());
+    }
+    // So does something that is not CBOR at all.
+    {
+        const uint8_t indefinite[] = {0x9F, 0x01, 0xFF};
+        std::string error;
+        BOOST_CHECK(JsonValue::fromCbor(stdc::array_view<uint8_t>(indefinite, 3), &error).isNull());
+        BOOST_CHECK(!error.empty());
+    }
+}
+
+// A string is a counted sequence of bytes, not a C string, so a null inside it is just a byte.
+BOOST_AUTO_TEST_CASE(test_JsonValue_EmbeddedNull) {
+    JsonValue parsed = JsonValue::fromJson("\"a\\u0000b\"", false);
+    BOOST_REQUIRE(parsed.isString());
+    BOOST_CHECK(parsed.toString().size() == 3);
+    BOOST_CHECK(parsed.toString() == std::string("a\0b", 3));
+
+    // And it has to survive going back out and coming in again.
+    JsonValue back = JsonValue::fromJson(parsed.toJson(), false);
+    BOOST_CHECK(back == parsed);
+    BOOST_CHECK(back.toString().size() == 3);
+}
+
+// What is escaped on the way out, and what is not.
+BOOST_AUTO_TEST_CASE(test_JsonValue_EscapesOnOutput) {
+    const std::string bs(1, char(92));
+
+    // Delete is a control character to a terminal but not to JSON, so it goes out as it stands.
+    BOOST_CHECK(JsonValue(std::string(1, char(0x7F))).toJson() == "\"\x7F\"");
+
+    // Every other C0 character without a mnemonic takes the numeric form.
+    BOOST_CHECK(JsonValue(std::string(1, char(0x1F))).toJson() == "\"" + bs + "u001f\"");
+
+    // Keys go through the same escaping as values, which is easy to write only for values.
+    {
+        JsonObject obj;
+        obj[std::string("a\nb")] = JsonValue(1);
+        BOOST_CHECK(JsonValue(std::move(obj)).toJson() == "{\"a" + bs + "nb\":1}");
+    }
+}
+
+// Text that is not valid UTF-8 still has to come out as something that reads back.
+//
+// \note This is the one place the implementation makes a choice rather than following the format:
+//       serializing cannot report an error, so a bad sequence becomes U+FFFD instead. Without it
+//       toJson would be the only accessor that can fail.
+BOOST_AUTO_TEST_CASE(test_JsonValue_InvalidUtf8OnOutput) {
+    // One of each way a sequence can be wrong: a stray trailing byte, a lead byte with nothing
+    // after it, an overlong encoding of a character that has a shorter one, and a surrogate.
+    const std::string cases[] = {
+        std::string("lone ") + char(0x81) + " trailing",
+        std::string("missing ") + char(0xD0) + " trailing",
+        std::string("overlong ") + char(0xC0) + char(0x80),
+        std::string("surrogate ") + char(0xED) + char(0xA0) + char(0x80),
+        std::string("too long ") + char(0xF9) + char(0x80) + char(0x80) + char(0x80) + char(0x80),
+    };
+
+    for (const auto &bad : cases) {
+        JsonValue v(bad);
+        std::string text = v.toJson();
+
+        std::string error;
+        JsonValue back = JsonValue::fromJson(text, false, &error);
+        BOOST_CHECK_MESSAGE(error.empty(), error);
+        BOOST_CHECK(back.isString());
+
+        // The replacement character is there in place of what could not be written.
+        BOOST_CHECK(back.toString().find("\xEF\xBF\xBD") != std::string::npos);
+    }
+
+    // Valid text is left exactly alone, replacement characters included.
+    for (const char *good : {"plain ASCII", "with é and 中", "\xEF\xBF\xBD already"}) {
+        JsonValue v{std::string(good)};
+        BOOST_CHECK(JsonValue::fromJson(v.toJson(), false).toString() == good);
+    }
+}
+
+// A value owns its string rather than pointing into the caller's.
+BOOST_AUTO_TEST_CASE(test_JsonValue_StringOwnership) {
+    char raw[] = "Hello";
+    JsonValue fromPointer(static_cast<const char *>(raw));
+    raw[1] = 'a';
+    BOOST_CHECK(fromPointer.toString() == "Hello");
+
+    std::string owned = "Hello";
+    JsonValue fromString(owned);
+    owned[1] = 'a';
+    BOOST_CHECK(fromString.toString() == "Hello");
+}
+
+// The rest of the ways a document can be wrong, beyond those already covered.
+BOOST_AUTO_TEST_CASE(test_JsonValue_MoreRejects) {
+    auto rejected = [](const std::string &text) {
+        std::string error;
+        JsonValue v = JsonValue::fromJson(text, false, &error);
+        return v.isNull() && !error.empty();
+    };
+
+    BOOST_CHECK(rejected("["));
+    BOOST_CHECK(rejected("{"));
+    BOOST_CHECK(rejected("[][]"));
+    BOOST_CHECK(rejected("fuzzy"));
+    BOOST_CHECK(rejected("[2?]"));
+    BOOST_CHECK(rejected("[&%!]"));
+    BOOST_CHECK(rejected(R"({"a",2})"));
+    BOOST_CHECK(rejected(R"({"a":2 "b":3})"));
+    BOOST_CHECK(rejected("1e1.0"));
+    // Built by hand rather than as a raw string, which MSVC mishandles inside a macro argument
+    // once it contains an escaped quote.
+    BOOST_CHECK(rejected(std::string("\"abc") + char(92) + "\"def"));
+
+    // An overlong encoding is the classic way to smuggle a character past a check that is looking
+    // for its shorter form.
+    BOOST_CHECK(rejected("\"" + std::string(1, char(0xC0)) + std::string(1, char(0x80)) + "\""));
+    BOOST_CHECK(rejected("\"" + std::string(1, char(0xED)) + std::string(1, char(0xA0)) +
+                         std::string(1, char(0x80)) + "\""));
+
+    // The message says where, which is the only thing making a large document fixable.
+    {
+        std::string error;
+        JsonValue::fromJson("{\n  \"valid\": 1,\n  invalid: 2\n}", false, &error);
+        BOOST_CHECK(error.find("line 3") != std::string::npos);
+        BOOST_CHECK(error.find("column 3") != std::string::npos);
     }
 }
 
