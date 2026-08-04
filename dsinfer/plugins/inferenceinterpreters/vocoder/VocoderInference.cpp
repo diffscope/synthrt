@@ -8,6 +8,7 @@
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
 
+#include <dsinfer/Support/Error.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
@@ -104,7 +105,7 @@ namespace ds {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "inference driver not initialized");
+                return srt::Error(ds::ErrorCode::NotInitialized, "inference driver not initialized");
             }
         }
 
@@ -144,7 +145,7 @@ namespace ds {
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.session || !impl.session->isOpen()) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "vocoder session is not initialized");
+            return srt::Error(ds::ErrorCode::NotInitialized, "vocoder session is not initialized");
         }
 
         srt::NO<srt::TaskResult> sessionTaskResult;
@@ -161,7 +162,7 @@ namespace ds {
         // Get session results
         if (!sessionTaskResult) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "vocoder session result is nullptr");
+            return srt::Error(ds::ErrorCode::SessionFailed, "vocoder session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
@@ -178,7 +179,7 @@ namespace ds {
             }
         } else {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "invalid result output");
+            return srt::Error(ds::ErrorCode::SessionFailed, "invalid result output");
         }
         impl.result = vocoderResult;
 

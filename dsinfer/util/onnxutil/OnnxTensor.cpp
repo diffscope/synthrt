@@ -141,7 +141,7 @@ namespace ds {
         // Create OnnxTensor object
         auto tensor = srt::NO<OnnxTensor>::create();
         if (!tensor) {
-            return srt::Error(srt::Error::SessionError, "failed to create OnnxTensor");
+            return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create OnnxTensor");
         }
         ONNXTensorElementDataType onnxType = ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED;
         switch (dataType) {
@@ -168,7 +168,8 @@ namespace ds {
         Ort::AllocatorWithDefaultOptions allocator{};
         tensor->_value = Ort::Value::CreateTensor(allocator, shape.data(), shape.size(), onnxType);
         if (!tensor->_value) {
-            return srt::Error(srt::Error::SessionError, "failed to create Ort::Value tensor");
+            return srt::Error(ds::ErrorCode::ProcessingFailed,
+                              "failed to create Ort::Value tensor");
         }
 
         return tensor;
@@ -194,7 +195,7 @@ namespace ds {
     srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::createFromOrtValue(Ort::Value &&value) {
         auto tensor = srt::NO<OnnxTensor>::create();
         if (!tensor) {
-            return srt::Error(srt::Error::SessionError, "failed to create OnnxTensor");
+            return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create OnnxTensor");
         }
         if (!value || !value.IsTensor()) {
             return srt::Error(srt::Error::InvalidArgument, "Ort::Value is null or not a tensor");

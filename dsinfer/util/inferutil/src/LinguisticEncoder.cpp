@@ -1,5 +1,7 @@
 #include <inferutil/LinguisticEncoder.h>
 
+#include <dsinfer/Support/Error.h>
+
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -116,7 +118,7 @@ namespace ds::inferutil {
 
         // Get encoder session results
         if (!sessionTaskResult) {
-            return srt::Error(srt::Error::SessionError,
+            return srt::Error(ds::ErrorCode::SessionFailed,
                               "linguistic encoder session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Api::Onnx::API_NAME) {

@@ -11,6 +11,7 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
+#include <dsinfer/Support/Error.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
@@ -81,7 +82,7 @@ namespace ds {
             }
 
             if (!inferutil::fillRestMidiWithNearestInPlace<int64_t>(phMidi, isRest)) {
-                return srt::Error(srt::Error::SessionError, "failed to fill rest notes");
+                return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to fill rest notes");
             }
         }
 
@@ -178,7 +179,7 @@ namespace ds {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "inference driver not initialized");
+                return srt::Error(ds::ErrorCode::NotInitialized, "inference driver not initialized");
             }
         }
 
@@ -225,7 +226,7 @@ namespace ds {
             std::unique_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError,
+                return srt::Error(ds::ErrorCode::NotInitialized,
                                   "duration linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
@@ -257,7 +258,7 @@ namespace ds {
                 auto buffer = tensor->mutableData<float>();
                 if (!buffer) {
                     setState(Failed);
-                    return srt::Error(srt::Error::SessionError,
+                    return srt::Error(ds::ErrorCode::ProcessingFailed,
                                       "failed to create spk_embed tensor");
                 }
 
@@ -268,7 +269,7 @@ namespace ds {
                         if (phone.speakers.empty()) {
                             setState(Failed);
                             return srt::Error(
-                                srt::Error::SessionError,
+                                ds::ErrorCode::InvalidInput,
                                 stdc::formatN("phoneme %1 missing speakers", phone.token));
                         }
                         for (const auto &speaker : phone.speakers) {
@@ -277,7 +278,7 @@ namespace ds {
                                 const auto &embedding = it_speaker->second;
                                 if (embedding.size() != config->hiddenSize) {
                                     setState(Failed);
-                                    return srt::Error(srt::Error::SessionError,
+                                    return srt::Error(ds::ErrorCode::ShapeMismatch,
                                                       "speaker embedding vector length does not "
                                                       "match hiddenSize");
                                 }
@@ -305,7 +306,7 @@ namespace ds {
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError,
+            return srt::Error(ds::ErrorCode::NotInitialized,
                               "duration predictor session is not initialized");
         }
 
@@ -323,7 +324,7 @@ namespace ds {
         // Get session results
         if (!sessionTaskResult) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError,
+            return srt::Error(ds::ErrorCode::SessionFailed,
                               "duration predictor session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
@@ -337,12 +338,12 @@ namespace ds {
             auto output = std::move(it_pred->second);
             if (output->dataType() != ITensor::Float) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "model output is not float");
+                return srt::Error(ds::ErrorCode::SessionFailed, "model output is not float");
             }
             const auto view = output->view<float>();
             if (view.empty()) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "model output is empty");
+                return srt::Error(ds::ErrorCode::SessionFailed, "model output is empty");
             }
             auto &durationVector = durationResult->durations;
             durationVector.assign(view.begin(), view.end());
@@ -352,7 +353,7 @@ namespace ds {
             for (const auto &word : durationInput->words) {
                 if (word.phones.empty()) {
                     setState(Failed);
-                    return srt::Error(srt::Error::SessionError,
+                    return srt::Error(ds::ErrorCode::ProcessingFailed,
                                       "error scaling duration results: index out of bounds");
                 }
                 auto phNum = word.phones.size();
@@ -367,7 +368,7 @@ namespace ds {
                 }
                 if (predWordDur == 0 || std::isnan(predWordDur) || std::isinf(predWordDur)) {
                     setState(Failed);
-                    return srt::Error(srt::Error::SessionError,
+                    return srt::Error(ds::ErrorCode::ProcessingFailed,
                                       "error scaling duration results: "
                                       "invalid predicted word duration: " +
                                           std::to_string(predWordDur));
@@ -380,13 +381,13 @@ namespace ds {
             }
         } else {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "invalid result output");
+            return srt::Error(ds::ErrorCode::SessionFailed, "invalid result output");
         }
 
         const auto predictedPhoneCount = durationResult->durations.size();
         if (predictedPhoneCount != phoneCount) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError,
+            return srt::Error(ds::ErrorCode::ShapeMismatch,
                               stdc::formatN("predicted phoneme count mismatch: expected %1, got %2",
                                             phoneCount, predictedPhoneCount));
         }

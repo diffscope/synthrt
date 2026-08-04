@@ -79,10 +79,6 @@ namespace srt {
                 static auto message = std::make_shared<std::string>("not implemented");
                 return message;
             }
-            case SessionError: {
-                static auto message = std::make_shared<std::string>("session error");
-                return message;
-            }
             default:
                 break;
         }

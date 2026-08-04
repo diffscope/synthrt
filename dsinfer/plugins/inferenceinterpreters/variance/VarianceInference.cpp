@@ -11,6 +11,7 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
+#include <dsinfer/Support/Error.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
@@ -143,7 +144,7 @@ namespace ds {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "inference driver not initialized");
+                return srt::Error(ds::ErrorCode::NotInitialized, "inference driver not initialized");
             }
         }
 
@@ -217,14 +218,14 @@ namespace ds {
                     break;
                 default:
                     setState(Failed);
-                    return srt::Error(srt::Error::SessionError, "invalid LinguisticMode");
+                    return srt::Error(ds::ErrorCode::InvalidInput, "invalid LinguisticMode");
             }
 
             // Run Linguistic Encoder Inference
             std::unique_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError,
+                return srt::Error(ds::ErrorCode::NotInitialized,
                                   "variance linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
@@ -257,7 +258,7 @@ namespace ds {
         // pitch and parameters
         if (schema->predictions.empty()) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "no parameters to predict");
+            return srt::Error(ds::ErrorCode::InvalidInput, "no parameters to predict");
         }
         bool satisfyPitch = false;
         std::vector<bool> satisfyParams(schema->predictions.size(), false);
@@ -274,7 +275,7 @@ namespace ds {
                                                        targetLength, true);
             if (samples.size() != targetLength) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "parameter " +
+                return srt::Error(ds::ErrorCode::ProcessingFailed, "parameter " +
                                                                 std::string(param.tag.name()) +
                                                                 " resample failed");
             }
@@ -285,13 +286,13 @@ namespace ds {
                     if (pitchTensor->elementCount() != targetLength) {
                         setState(Failed);
                         return srt::Error(
-                            srt::Error::SessionError,
+                            ds::ErrorCode::ShapeMismatch,
                             "pitch tensor element count does not match target length");
                     }
                     auto pitchBuffer = pitchTensor->mutableData<float>();
                     if (!pitchBuffer) {
                         setState(Failed);
-                        return srt::Error(srt::Error::SessionError,
+                        return srt::Error(ds::ErrorCode::ProcessingFailed,
                                           "failed to create pitch tensor");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
@@ -316,13 +317,13 @@ namespace ds {
                     if (paramTensor->elementCount() != targetLength) {
                         setState(Failed);
                         return srt::Error(
-                            srt::Error::SessionError,
+                            ds::ErrorCode::ShapeMismatch,
                             "param tensor element count does not match target length");
                     }
                     auto paramBuffer = paramTensor->mutableData<float>();
                     if (!paramBuffer) {
                         setState(Failed);
-                        return srt::Error(srt::Error::SessionError,
+                        return srt::Error(ds::ErrorCode::ProcessingFailed,
                                           "failed to create param tensor");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
@@ -400,7 +401,7 @@ namespace ds {
 
         if (!satisfyPitch) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "missing pitch input");
+            return srt::Error(ds::ErrorCode::InvalidInput, "missing pitch input");
         }
 
         for (size_t j = 0; j < schema->predictions.size(); ++j) {
@@ -423,7 +424,7 @@ namespace ds {
         if (config->useSpeakerEmbedding) {
             if (varianceInput->speakers.empty()) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "no speakers found in variance input");
+                return srt::Error(ds::ErrorCode::InvalidInput, "no speakers found in variance input");
             }
 
             auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
@@ -460,7 +461,7 @@ namespace ds {
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError,
+            return srt::Error(ds::ErrorCode::NotInitialized,
                               "variance predictor session is not initialized");
         }
 
@@ -478,7 +479,7 @@ namespace ds {
         // Get session results
         if (!sessionTaskResult) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError,
+            return srt::Error(ds::ErrorCode::SessionFailed,
                               "variance predictor session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
@@ -505,7 +506,7 @@ namespace ds {
         if (expectedCount != actualCount) {
             setState(Failed);
             return srt::Error(
-                srt::Error::SessionError,
+                ds::ErrorCode::ShapeMismatch,
                 stdc::formatN("predicted parameter count mismatch: expected %1, got %2",
                               expectedCount, actualCount));
         }

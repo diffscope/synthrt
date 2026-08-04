@@ -26,7 +26,6 @@ namespace srt {
             FeatureNotSupported,
             InvalidArgument,
             NotImplemented,
-            SessionError,
         };
 
         /// The \c std::error_category that \c ErrorCode belongs to.

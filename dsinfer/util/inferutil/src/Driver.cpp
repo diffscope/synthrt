@@ -1,6 +1,7 @@
 #include "inferutil/Driver.h"
 
 #include <stdcorelib/str.h>
+#include <dsinfer/Support/Error.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
@@ -13,7 +14,7 @@ namespace ds::inferutil {
         auto dsdriverObject = inferenceCate->getFirstObject("dsdriver");
 
         if (!dsdriverObject) {
-            return srt::Error(srt::Error::SessionError, "could not find dsdriver");
+            return srt::Error(ds::ErrorCode::NotInitialized, "could not find dsdriver");
         }
 
         auto onnxDriver = dsdriverObject.as<InferenceDriver>();
@@ -28,7 +29,7 @@ namespace ds::inferutil {
 
         if (!isArchMatch || !isBackendMatch) {
             return srt::Error(
-                srt::Error::SessionError,
+                ds::ErrorCode::DriverMismatch,
                 stdc::formatN(
                     R"(invalid driver: expected arch "%1", got "%2" (%3); expected backend "%4", got "%5" (%6))",
                     expectedArch, arch, (isArchMatch ? "match" : "MISMATCH"), expectedBackend,

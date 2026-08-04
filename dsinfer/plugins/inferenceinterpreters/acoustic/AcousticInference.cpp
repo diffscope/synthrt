@@ -8,6 +8,7 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
+#include <dsinfer/Support/Error.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
@@ -119,7 +120,7 @@ namespace ds {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "inference driver not initialized");
+                return srt::Error(ds::ErrorCode::NotInitialized, "inference driver not initialized");
             }
         }
 
@@ -312,7 +313,7 @@ namespace ds {
             }
             if (resampled.size() != targetLength) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "parameter " +
+                return srt::Error(ds::ErrorCode::ProcessingFailed, "parameter " +
                                                                 std::string(param.tag.name()) +
                                                                 " resample failed");
             }
@@ -373,7 +374,7 @@ namespace ds {
             auto samples =
                 inferutil::resample(param.values, param.interval, frameWidth, targetLength, true);
             if (samples.size() != targetLength) {
-                return srt::Error(srt::Error::SessionError, "parameter " +
+                return srt::Error(ds::ErrorCode::ProcessingFailed, "parameter " +
                                                                 std::string(param.tag.name()) +
                                                                 " resample failed");
             }
@@ -390,7 +391,7 @@ namespace ds {
                     auto toneShiftSamples = inferutil::resample(
                         toneShift.values, toneShift.interval, frameWidth, targetLength, false);
                     if (toneShiftSamples.size() != targetLength) {
-                        return srt::Error(srt::Error::SessionError,
+                        return srt::Error(ds::ErrorCode::ProcessingFailed,
                                           "parameter " + std::string(toneShift.tag.name()) +
                                               " resample failed");
                     }
@@ -443,7 +444,7 @@ namespace ds {
         } else {
             // No pitch or f0 found
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "parameter f0 or pitch missing");
+            return srt::Error(ds::ErrorCode::InvalidInput, "parameter f0 or pitch missing");
         }
 
         // Some parameter requirements are not satisfied
@@ -458,14 +459,14 @@ namespace ds {
                 msg += R"( "voicing")";
             if (!satisfyTension)
                 msg += R"( "tension")";
-            return srt::Error(srt::Error::SessionError, std::move(msg));
+            return srt::Error(ds::ErrorCode::InvalidInput, std::move(msg));
         }
 
         // Speaker embedding
         if (config->useSpeakerEmbedding) {
             if (acousticInput->speakers.empty()) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "no speakers found in acoustic input");
+                return srt::Error(ds::ErrorCode::InvalidInput, "no speakers found in acoustic input");
             }
 
             auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
@@ -487,7 +488,7 @@ namespace ds {
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.session || !impl.session->isOpen()) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "acoustic session is not initialized");
+            return srt::Error(ds::ErrorCode::NotInitialized, "acoustic session is not initialized");
         }
 
         srt::NO<srt::TaskResult> sessionTaskResult;
@@ -504,7 +505,7 @@ namespace ds {
         // Get session results
         if (!sessionTaskResult) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "acoustic session result is nullptr");
+            return srt::Error(ds::ErrorCode::SessionFailed, "acoustic session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
             setState(Failed);
@@ -516,7 +517,7 @@ namespace ds {
             acousticResult->mel = it_mel->second;
         } else {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "invalid result output");
+            return srt::Error(ds::ErrorCode::SessionFailed, "invalid result output");
         }
         acousticResult->f0 = f0TensorForVocoder;
         impl.result = acousticResult;

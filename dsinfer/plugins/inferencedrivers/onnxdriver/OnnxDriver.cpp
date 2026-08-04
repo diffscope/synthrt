@@ -4,6 +4,7 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/support/sharedlibrary.h>
 
+#include <dsinfer/Support/Error.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
@@ -88,7 +89,7 @@ namespace ds {
                     std::string msg =
                         stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
                     Log.srtCritical("Init - %1", msg);
-                    return srt::Error(srt::Error::SessionError, std::move(msg));
+                    return srt::Error(ds::ErrorCode::DriverLoadFailed, std::move(msg));
                 }
             }
 
@@ -102,7 +103,7 @@ namespace ds {
                 std::string msg =
                     stdc::formatN("Failed to get API handle: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);
-                return srt::Error(srt::Error::SessionError, std::move(msg));
+                return srt::Error(ds::ErrorCode::DriverLoadFailed, std::move(msg));
             }
 
             /**
@@ -114,7 +115,7 @@ namespace ds {
             if (!api) {
                 std::string msg = stdc::formatN("%1: failed to get API instance", path);
                 Log.srtCritical("Init - %1", msg);
-                return srt::Error(srt::Error::SessionError, std::move(msg));
+                return srt::Error(ds::ErrorCode::DriverLoadFailed, std::move(msg));
             }
             Log.srtDebug("Init - ORT library version is %1", apiBase->GetVersionString());
 

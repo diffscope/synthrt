@@ -8,7 +8,7 @@ using srt::Error;
 namespace {
 
     /// Stands in for a downstream library registering a domain of its own, which is what dsinfer
-    /// and third-party plugins are meant to do rather than reaching for \c Error::SessionError.
+    /// and third-party plugins do rather than reaching for a code of synthrt's.
     enum class TestErrc {
         Broken = 100,
 
@@ -92,9 +92,9 @@ BOOST_AUTO_TEST_CASE(test_Error_Basic) {
     // Every enumerator has canned text of its own, and none of them is empty.
     {
         const Error::ErrorCode codes[] = {
-            Error::InvalidFormat,   Error::FileNotFound,     Error::FileNotOpen,
-            Error::FileDuplicated,  Error::RecursiveDependency, Error::FeatureNotSupported,
-            Error::InvalidArgument, Error::NotImplemented,   Error::SessionError,
+            Error::InvalidFormat,       Error::FileNotFound,        Error::FileNotOpen,
+            Error::FileDuplicated,      Error::RecursiveDependency, Error::FeatureNotSupported,
+            Error::InvalidArgument,     Error::NotImplemented,
         };
         for (auto code : codes) {
             Error e(code);

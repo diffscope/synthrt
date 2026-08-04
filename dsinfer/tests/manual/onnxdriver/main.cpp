@@ -15,6 +15,7 @@
 #include <synthrt/Support/JSON.h>
 #include <synthrt/Support/Logging.h>
 
+#include <dsinfer/Support/Error.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
@@ -84,7 +85,7 @@ struct InferenceFixture {
         auto onnxDriver = plugin->create();
 
         if (!onnxDriver) {
-            return srt::Error{srt::Error::SessionError, "Failed to create onnx driver"};
+            return srt::Error{ds::ErrorCode::DriverLoadFailed, "Failed to create onnx driver"};
         }
 
         const auto arch = onnxDriver->arch();
@@ -97,7 +98,7 @@ struct InferenceFixture {
 
         if (!isArchMatch || !isBackendMatch) {
             return srt::Error(
-                srt::Error::SessionError,
+                ds::ErrorCode::DriverMismatch,
                 stdc::formatN(
                     R"(invalid driver: expected arch "%1", got "%2" (%3); expected backend "%4", got "%5" (%6))",
                     expectedArch, arch, (isArchMatch ? "match" : "MISMATCH"),

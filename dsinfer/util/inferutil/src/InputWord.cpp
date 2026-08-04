@@ -5,6 +5,8 @@
 
 #include <stdcorelib/stdc_global.h>
 
+#include <dsinfer/Support/Error.h>
+
 #include <inferutil/TensorHelper.h>
 
 namespace ds::inferutil {
@@ -48,7 +50,7 @@ namespace ds::inferutil {
 
         if (STDCORELIB_UNLIKELY(!helper.isComplete())) {
             return srt::Error(
-                srt::Error::SessionError,
+                ds::ErrorCode::ShapeMismatch,
                 "parsePhonemeTokens: tensor element count does not match phoneme count");
         }
         return helper.take();
@@ -79,7 +81,7 @@ namespace ds::inferutil {
 
         if (STDCORELIB_UNLIKELY(!helper.isComplete())) {
             return srt::Error(
-                srt::Error::SessionError,
+                ds::ErrorCode::ShapeMismatch,
                 "parsePhonemeLanguages: tensor element count does not match phoneme count");
         }
 
@@ -133,7 +135,7 @@ namespace ds::inferutil {
 
         if (STDCORELIB_UNLIKELY(!helper.isComplete())) {
             return srt::Error(
-                srt::Error::SessionError,
+                ds::ErrorCode::ShapeMismatch,
                 "parsePhonemeDurations: tensor element count does not match phoneme count");
         }
 

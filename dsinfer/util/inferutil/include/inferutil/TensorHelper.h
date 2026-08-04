@@ -7,6 +7,7 @@
 #include <synthrt/synthrt_global.h>
 #include <synthrt/Support/Expected.h>
 #include <dsinfer/Core/Tensor.h>
+#include <dsinfer/Support/Error.h>
 
 
 namespace ds::inferutil {
@@ -23,7 +24,7 @@ namespace ds::inferutil {
             helper._tensor = exp.take();
             auto dataPtr = helper._tensor->template mutableData<T>();
             if (STDCORELIB_UNLIKELY(dataPtr == nullptr)) {
-                return srt::Error(srt::Error::SessionError, "failed to create tensor");
+                return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create tensor");
             }
             helper._current = dataPtr;
             helper._end = dataPtr + size;

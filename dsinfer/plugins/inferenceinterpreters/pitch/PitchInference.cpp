@@ -10,6 +10,7 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
+#include <dsinfer/Support/Error.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
@@ -128,7 +129,7 @@ namespace ds {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "inference driver not initialized");
+                return srt::Error(ds::ErrorCode::NotInitialized, "inference driver not initialized");
             }
         }
 
@@ -194,14 +195,14 @@ namespace ds {
                     break;
                 default:
                     setState(Failed);
-                    return srt::Error(srt::Error::SessionError, "invalid LinguisticMode");
+                    return srt::Error(ds::ErrorCode::InvalidInput, "invalid LinguisticMode");
             }
 
             // Run Linguistic Encoder Inference
             std::unique_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError,
+                return srt::Error(ds::ErrorCode::NotInitialized,
                                   "pitch linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
@@ -242,7 +243,7 @@ namespace ds {
             std::accumulate(noteDur.begin(), noteDur.end(), int64_t{0}, std::plus<>());
 
         if (!inferutil::fillRestMidiWithNearestInPlace<float>(noteMidi, noteRest)) {
-            return srt::Error(srt::Error::SessionError, "failed to fill rest notes");
+            return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to fill rest notes");
         }
 
         auto tensorFrom1DArray = [&](const auto &vec) {
@@ -301,7 +302,7 @@ namespace ds {
                                                        targetLength, true);
             if (samples.size() != targetLength) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "parameter " +
+                return srt::Error(ds::ErrorCode::ProcessingFailed, "parameter " +
                                                                 std::string(param.tag.name()) +
                                                                 " resample failed");
             }
@@ -312,13 +313,13 @@ namespace ds {
                     if (pitchTensor->elementCount() != targetLength) {
                         setState(Failed);
                         return srt::Error(
-                            srt::Error::SessionError,
+                            ds::ErrorCode::ShapeMismatch,
                             "pitch tensor element count does not match target length");
                     }
                     auto pitchBuffer = pitchTensor->mutableData<float>();
                     if (!pitchBuffer) {
                         setState(Failed);
-                        return srt::Error(srt::Error::SessionError,
+                        return srt::Error(ds::ErrorCode::ProcessingFailed,
                                           "failed to create pitch tensor");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
@@ -360,13 +361,13 @@ namespace ds {
                     auto exprTensor = exp.take();
                     if (exprTensor->elementCount() != targetLength) {
                         setState(Failed);
-                        return srt::Error(srt::Error::SessionError,
+                        return srt::Error(ds::ErrorCode::ShapeMismatch,
                                           "expr tensor element count does not match target length");
                     }
                     auto exprBuffer = exprTensor->mutableData<float>();
                     if (!exprBuffer) {
                         setState(Failed);
-                        return srt::Error(srt::Error::SessionError, "failed to create expr tensor");
+                        return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create expr tensor");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
                         exprBuffer[i] = static_cast<float>(samples[i]);
@@ -416,7 +417,7 @@ namespace ds {
         if (config->useSpeakerEmbedding) {
             if (pitchInput->speakers.empty()) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "no speakers found in pitch input");
+                return srt::Error(ds::ErrorCode::InvalidInput, "no speakers found in pitch input");
             }
 
             auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
@@ -456,7 +457,7 @@ namespace ds {
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError,
+            return srt::Error(ds::ErrorCode::NotInitialized,
                               "pitch predictor session is not initialized");
         }
 
@@ -474,7 +475,7 @@ namespace ds {
         // Get session results
         if (!sessionTaskResult) {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError,
+            return srt::Error(ds::ErrorCode::SessionFailed,
                               "pitch predictor session result is nullptr");
         }
         if (sessionTaskResult->objectName() != Onnx::API_NAME) {
@@ -488,18 +489,18 @@ namespace ds {
             auto output = std::move(it_pred->second);
             if (output->dataType() != ITensor::Float) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "model output is not float");
+                return srt::Error(ds::ErrorCode::SessionFailed, "model output is not float");
             }
             const auto view = output->view<float>();
             if (view.empty()) {
                 setState(Failed);
-                return srt::Error(srt::Error::SessionError, "model output is empty");
+                return srt::Error(ds::ErrorCode::SessionFailed, "model output is empty");
             }
             pitchResult->interval = frameWidth;
             pitchResult->pitch.assign(view.begin(), view.end());
         } else {
             setState(Failed);
-            return srt::Error(srt::Error::SessionError, "invalid result output");
+            return srt::Error(ds::ErrorCode::SessionFailed, "invalid result output");
         }
         impl.result = pitchResult;
 

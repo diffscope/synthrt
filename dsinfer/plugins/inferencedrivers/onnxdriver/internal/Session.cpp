@@ -19,6 +19,7 @@
 
 #include <synthrt/synthrt_global.h>
 #include <synthrt/Support/Expected.h>
+#include <dsinfer/Support/Error.h>
 
 #include <blake3.h>
 
@@ -334,7 +335,7 @@ namespace ds::onnxdriver {
             validateInputValueMap(const srt::NO<Api::Onnx::SessionStartInput> &input) {
             const auto &inputValueMap = input->inputs;
             if (inputValueMap.empty()) {
-                return {srt::Error::SessionError, "Input map is empty"};
+                return {ds::ErrorCode::InvalidInput, "Input map is empty"};
             }
 
             const auto &requiredInputNames = image->inputNames;
@@ -382,7 +383,7 @@ namespace ds::onnxdriver {
                 }
 
                 if (flagMissing || flagExtra) {
-                    return {srt::Error::SessionError, msgStream.str()};
+                    return {ds::ErrorCode::InvalidInput, msgStream.str()};
                 }
             }
             return {}; // no error
@@ -407,7 +408,7 @@ namespace ds::onnxdriver {
             impl.sessionResult->outputs.clear();
             Ort::Status runStatus(status);
             if (!runStatus.IsOK()) {
-                impl.sessionResult->error = {srt::Error::SessionError, runStatus.GetErrorMessage()};
+                impl.sessionResult->error = {ds::ErrorCode::SessionFailed, runStatus.GetErrorMessage()};
                 impl.asyncContext->callback(impl.sessionResult, impl.sessionResult->error);
                 srtCritical("runAsyncCallback failed");
                 return;
@@ -515,7 +516,7 @@ namespace ds::onnxdriver {
                 if (!statusRun.IsOK()) {
                     ctx.releaseOutputValues();
                     if (error) {
-                        *error = srt::Error(srt::Error::SessionError, statusRun.GetErrorMessage());
+                        *error = srt::Error(ds::ErrorCode::SessionFailed, statusRun.GetErrorMessage());
                     }
                     return {};
                 }
@@ -545,7 +546,7 @@ namespace ds::onnxdriver {
                 return result;
             } catch (const Ort::Exception &err) {
                 if (error) {
-                    *error = srt::Error(srt::Error::SessionError, err.what());
+                    *error = srt::Error(ds::ErrorCode::SessionFailed, err.what());
                 }
             }
             timer.deactivate();
@@ -644,7 +645,7 @@ namespace ds::onnxdriver {
                     endAsyncRun();
                     ctx.releaseOutputValues();
                     if (error) {
-                        *error = srt::Error(srt::Error::SessionError, statusRun.GetErrorMessage());
+                        *error = srt::Error(ds::ErrorCode::SessionFailed, statusRun.GetErrorMessage());
                     }
                     return false;
                 }
@@ -654,7 +655,7 @@ namespace ds::onnxdriver {
                 // block forever on a run that never started. Harmless when it was never flagged.
                 endAsyncRun();
                 if (error) {
-                    *error = srt::Error(srt::Error::SessionError, err.what());
+                    *error = srt::Error(ds::ErrorCode::SessionFailed, err.what());
                 }
             }
             timer.deactivate();
@@ -730,7 +731,7 @@ namespace ds::onnxdriver {
 
         if (isOpen()) {
             Log.srtWarning("Session - Session %1 is already open!", path.string());
-            return srt::Error(srt::Error::SessionError, "session is already open");
+            return srt::Error(ds::ErrorCode::AlreadyOpen, "session is already open");
         }
 
         // Open
@@ -842,7 +843,7 @@ namespace ds::onnxdriver {
         // A moved-from \c Session has no \c Impl. This function is public and is also what the
         // destructor calls, so it must tolerate that state instead of dereferencing null.
         if (!_impl) {
-            return srt::Error(srt::Error::SessionError, "session is not open");
+            return srt::Error(ds::ErrorCode::NotInitialized, "session is not open");
         }
 
         stdc_impl_t;
@@ -852,7 +853,7 @@ namespace ds::onnxdriver {
         impl.waitForAsyncRun();
 
         if (!impl.group)
-            return srt::Error(srt::Error::SessionError, "session is not open");
+            return srt::Error(ds::ErrorCode::NotInitialized, "session is not open");
 
         const auto &path = impl.realPath;
         const auto &filename = path.filename();
@@ -940,7 +941,7 @@ namespace ds::onnxdriver {
             return tmpError;
         }
         if (!impl.group) {
-            tmpError = {srt::Error::SessionError, "session is not open"};
+            tmpError = {ds::ErrorCode::NotInitialized, "session is not open"};
             impl.sessionResult->error = tmpError;
             return tmpError;
         }
@@ -964,7 +965,7 @@ namespace ds::onnxdriver {
             return tmpError;
         }
         if (!impl.group) {
-            tmpError = {srt::Error::SessionError, "session is not open"};
+            tmpError = {ds::ErrorCode::NotInitialized, "session is not open"};
             impl.sessionResult->error = tmpError;
             return tmpError;
         }

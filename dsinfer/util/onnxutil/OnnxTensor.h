@@ -4,6 +4,7 @@
 #include <algorithm>
 
 #include <dsinfer/Core/Tensor.h>
+#include <dsinfer/Support/Error.h>
 
 #include <onnxruntime_cxx_api.h>
 

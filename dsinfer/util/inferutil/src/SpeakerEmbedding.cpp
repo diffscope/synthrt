@@ -5,6 +5,8 @@
 
 #include <stdcorelib/path.h>
 
+#include <dsinfer/Support/Error.h>
+
 #include <inferutil/Algorithm.h>
 
 namespace ds::inferutil {
@@ -29,7 +31,9 @@ namespace ds::inferutil {
         // Covers the undersized file too, since a short read sets failbit. An oversized one is
         // accepted: only the leading hiddenSize floats are read.
         if (!file) {
-            return srt::Error(srt::Error::SessionError, "File read failed: " + path.string());
+            // A read failure belongs to no domain of ours, so it goes out in the generic one.
+            return srt::Error(std::make_error_code(std::errc::io_error),
+                              "File read failed: " + path.string());
         }
 
         return outVec;
@@ -46,7 +50,8 @@ namespace ds::inferutil {
             auto tensor = exp.take();
             auto buffer = tensor->mutableData<float>();
             if (!buffer) {
-                return srt::Error(srt::Error::SessionError, "failed to create spk_embed tensor");
+                return srt::Error(ds::ErrorCode::ProcessingFailed,
+                                  "failed to create spk_embed tensor");
             }
 
             // mix speaker embedding
@@ -55,7 +60,7 @@ namespace ds::inferutil {
                     const auto &embedding = it_speaker->second;
                     if (embedding.size() != hiddenSize) {
                         return srt::Error(
-                            srt::Error::SessionError,
+                            ds::ErrorCode::ShapeMismatch,
                             "speaker embedding vector length does not match hiddenSize");
                     }
                     auto resampled = resample(speaker.proportions, speaker.interval, frameWidth,
