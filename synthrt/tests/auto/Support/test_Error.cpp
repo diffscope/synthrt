@@ -1,3 +1,5 @@
+#include <tuple>
+
 #include <synthrt/Support/Error.h>
 
 #define BOOST_TEST_MAIN
@@ -173,6 +175,43 @@ BOOST_AUTO_TEST_CASE(test_Error_ForeignDomain) {
         BOOST_CHECK(!e.ok());
         BOOST_CHECK(!e.message().empty());
         BOOST_CHECK(e.code() == std::errc::no_such_file_or_directory);
+    }
+}
+
+// withContext() says where, withCause() says what. The first keeps the code it wraps, so a caller
+// branching on code() cannot tell that a step name was added.
+BOOST_AUTO_TEST_CASE(test_Error_Context) {
+    Error inner(Error::InvalidArgument, "failed to create tensor");
+    Error outer = inner.withContext(R"(failed to build the "depth" input)");
+
+    BOOST_CHECK(outer.code() == inner.code());
+    BOOST_CHECK(outer.message() == R"(failed to build the "depth" input)");
+    BOOST_CHECK(outer.toString() ==
+                R"(failed to build the "depth" input: failed to create tensor)");
+    BOOST_CHECK(outer.rootCause().message() == "failed to create tensor");
+
+    // A foreign domain survives too, which is the case that matters for dsinfer.
+    {
+        Error e(make_error_code(TestErrc::Broken), "device lost");
+        Error wrapped = e.withContext("while running the acoustic session");
+        BOOST_CHECK(wrapped.code() == TestErrc::Broken);
+        BOOST_CHECK(wrapped.toString() == "while running the acoustic session: device lost");
+    }
+    // Stacking keeps the code all the way up.
+    {
+        Error e = Error(Error::FileNotFound, "no such file")
+                      .withContext("reading the dictionary")
+                      .withContext("loading the package");
+        BOOST_CHECK(e.code() == Error::FileNotFound);
+        BOOST_CHECK(e.toString() == "loading the package: reading the dictionary: no such file");
+        BOOST_CHECK(e.rootCause().code() == Error::FileNotFound);
+    }
+    // The original is untouched, as with withCause().
+    {
+        Error original(Error::InvalidFormat, "inner");
+        std::ignore = original.withContext("outer");
+        BOOST_CHECK(original.toString() == "inner");
+        BOOST_CHECK(original.cause().ok());
     }
 }
 

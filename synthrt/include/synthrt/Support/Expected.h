@@ -165,6 +165,22 @@ namespace srt {
             return Error(code, std::move(message)).withCause(std::move(_storage.err));
         }
 
+        /// The same, keeping the code of the error being wrapped.
+        ///
+        /// For saying where a failure happened when what kind it was has already been decided
+        /// further down, which leaves a caller branching on code() unaffected.
+        ///
+        /// \code
+        ///     auto exp = Tensor::createScalar<int64_t>(intDepth)
+        ///                    .withContext(R"(failed to build the "depth" input)");
+        /// \endcode
+        Expected withContext(std::string message) && {
+            if (_has_value) {
+                return std::move(*this);
+            }
+            return _storage.err.withContext(std::move(message));
+        }
+
     protected:
         template <class U>
         void moveConstruct(Expected<U> &&RHS) {
@@ -264,6 +280,22 @@ namespace srt {
                 return std::move(*this);
             }
             return Error(code, std::move(message)).withCause(std::move(_storage.err));
+        }
+
+        /// The same, keeping the code of the error being wrapped.
+        ///
+        /// For saying where a failure happened when what kind it was has already been decided
+        /// further down, which leaves a caller branching on code() unaffected.
+        ///
+        /// \code
+        ///     auto exp = Tensor::createScalar<int64_t>(intDepth)
+        ///                    .withContext(R"(failed to build the "depth" input)");
+        /// \endcode
+        Expected withContext(std::string message) && {
+            if (_has_value) {
+                return std::move(*this);
+            }
+            return _storage.err.withContext(std::move(message));
         }
 
     protected:

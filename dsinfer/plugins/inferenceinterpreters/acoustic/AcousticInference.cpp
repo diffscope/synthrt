@@ -120,7 +120,8 @@ namespace ds {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
                 setState(Failed);
-                return srt::Error(ds::ErrorCode::NotInitialized, "inference driver not initialized");
+                return srt::Error(ds::ErrorCode::NotInitialized,
+                                  "inference driver not initialized");
             }
         }
 
@@ -155,37 +156,36 @@ namespace ds {
         double frameWidth = 1.0 * config->hopSize / config->sampleRate;
 
         // input param: tokens
-        if (auto res =
-                inferutil::preprocessPhonemeTokens(acousticInput->words, config->phonemes);
+        if (auto res = inferutil::preprocessPhonemeTokens(acousticInput->words, config->phonemes);
             res) {
             sessionInput->inputs["tokens"] = res.take();
         } else {
             setState(Failed);
-            return res.takeError();
+            return res.takeError().withContext(R"(failed to build the "tokens" input)");
         }
 
         // input param: languages
         if (config->useLanguageId) {
-            if (auto res = inferutil::preprocessPhonemeLanguages(acousticInput->words,
-                                                                         config->languages);
+            if (auto res =
+                    inferutil::preprocessPhonemeLanguages(acousticInput->words, config->languages);
                 res) {
                 sessionInput->inputs["languages"] = res.take();
             } else {
                 setState(Failed);
-                return res.takeError();
+                return res.takeError().withContext(R"(failed to build the "languages" input)");
             }
         }
 
         // input param: durations
         int64_t targetLength;
 
-        if (auto res = inferutil::preprocessPhonemeDurations(acousticInput->words,
-                                                                     frameWidth, &targetLength);
+        if (auto res = inferutil::preprocessPhonemeDurations(acousticInput->words, frameWidth,
+                                                             &targetLength);
             res) {
             sessionInput->inputs["durations"] = res.take();
         } else {
             setState(Failed);
-            return res.takeError();
+            return res.takeError().withContext(R"(failed to build the "durations" input)");
         }
 
         // input param: steps / speedup
@@ -204,10 +204,12 @@ namespace ds {
             acceleration = inferutil::getSpeedupFromSteps(acceleration);
         }
         {
+            const char *inputName = config->useContinuousAcceleration ? "steps" : "speedup";
             auto exp = Tensor::createScalar<int64_t>(acceleration);
             if (!exp) {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(
+                    stdc::formatN(R"(failed to build the "%1" input)", inputName));
             }
             if (config->useContinuousAcceleration) {
                 sessionInput->inputs["steps"] = exp.take();
@@ -221,7 +223,7 @@ namespace ds {
             auto exp = Tensor::createScalar<float>(acousticInput->depth);
             if (!exp) {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to build the "depth" input)");
             }
             sessionInput->inputs["depth"] = exp.take();
         } else {
@@ -233,7 +235,7 @@ namespace ds {
             auto exp = Tensor::createScalar<int64_t>(intDepth);
             if (!exp) {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to build the "depth" input)");
             }
             sessionInput->inputs["depth"] = exp.take();
         }
@@ -282,8 +284,8 @@ namespace ds {
 
             // Resample the parameters to target time step,
             // and resize to target frame length (fill with last value)
-            auto resampled = inferutil::resample(param.values, param.interval, frameWidth,
-                                                         targetLength, true);
+            auto resampled =
+                inferutil::resample(param.values, param.interval, frameWidth, targetLength, true);
             if (resampled.empty()) {
                 // These parameters are optional
                 if (param.tag == Co::Tags::Gender) {
@@ -292,7 +294,7 @@ namespace ds {
                         Tensor::createFilled<float>(std::vector<int64_t>{1, targetLength}, 0.0f);
                     if (!exp) {
                         setState(Failed);
-                        return exp.takeError();
+                        return exp.takeError().withContext(R"(failed to build the "gender" input)");
                     }
                     sessionInput->inputs["gender"] = exp.take();
                     satisfyGender = true;
@@ -304,7 +306,8 @@ namespace ds {
                         Tensor::createFilled<float>(std::vector<int64_t>{1, targetLength}, 1.0f);
                     if (!exp) {
                         setState(Failed);
-                        return exp.takeError();
+                        return exp.takeError().withContext(
+                            R"(failed to build the "velocity" input)");
                     }
                     sessionInput->inputs["velocity"] = exp.take();
                     satisfyVelocity = true;
@@ -313,15 +316,16 @@ namespace ds {
             }
             if (resampled.size() != targetLength) {
                 setState(Failed);
-                return srt::Error(ds::ErrorCode::ProcessingFailed, "parameter " +
-                                                                std::string(param.tag.name()) +
-                                                                " resample failed");
+                return srt::Error(ds::ErrorCode::ProcessingFailed,
+                                  "parameter " + std::string(param.tag.name()) +
+                                      " resample failed");
             }
 
             auto exp = inferutil::TensorHelper<float>::createFor1DArray(targetLength);
             if (!exp) {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(
+                    stdc::formatN(R"(failed to build the "%1" input)", param.tag.name()));
             }
             auto &helper = exp.value();
 
@@ -374,14 +378,15 @@ namespace ds {
             auto samples =
                 inferutil::resample(param.values, param.interval, frameWidth, targetLength, true);
             if (samples.size() != targetLength) {
-                return srt::Error(ds::ErrorCode::ProcessingFailed, "parameter " +
-                                                                std::string(param.tag.name()) +
-                                                                " resample failed");
+                return srt::Error(ds::ErrorCode::ProcessingFailed,
+                                  "parameter " + std::string(param.tag.name()) +
+                                      " resample failed");
             }
             // Create f0 tensor for acoustic model
             auto expForAcoustic = inferutil::TensorHelper<float>::createFor1DArray(targetLength);
             if (!expForAcoustic) {
-                return expForAcoustic.takeError();
+                return expForAcoustic.takeError().withContext(
+                    R"(failed to build the "f0" input for the acoustic model)");
             }
             auto &acousticHelper = expForAcoustic.value();
 
@@ -433,13 +438,13 @@ namespace ds {
             // Has f0 parameter
             if (auto exp = processF0Param(*pF0Param, false); !exp) {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to process the "f0" parameter)");
             }
         } else if (pPitchParam) {
             // Has pitch parameter
             if (auto exp = processF0Param(*pPitchParam, true); !exp) {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to process the "pitch" parameter)");
             }
         } else {
             // No pitch or f0 found
@@ -466,7 +471,8 @@ namespace ds {
         if (config->useSpeakerEmbedding) {
             if (acousticInput->speakers.empty()) {
                 setState(Failed);
-                return srt::Error(ds::ErrorCode::InvalidInput, "no speakers found in acoustic input");
+                return srt::Error(ds::ErrorCode::InvalidInput,
+                                  "no speakers found in acoustic input");
             }
 
             auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
@@ -476,7 +482,7 @@ namespace ds {
                 sessionInput->inputs["spk_embed"] = exp.take();
             } else {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to build the "spk_embed" input)");
             }
         } else {
             // Nothing to do: speaker embedding is not supported

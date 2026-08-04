@@ -121,6 +121,23 @@ namespace srt {
             return res;
         }
 
+        /// Returns an error carrying \a message with this one as its cause, keeping this one's
+        /// code.
+        ///
+        /// For saying where a failure happened when what kind it was has already been decided
+        /// further down. A caller that branches on code() therefore sees no difference, while
+        /// toString() gains the step that was under way.
+        ///
+        /// \code
+        ///     // "failed to build the \"depth\" input: failed to create tensor"
+        ///     return exp.takeError().withContext(R"(failed to build the "depth" input)");
+        /// \endcode
+        ///
+        /// \sa withCause(), for when the wrapping error has a kind of its own.
+        inline Error withContext(std::string message) const {
+            return Error(_code, std::move(message)).withCause(*this);
+        }
+
         /// Returns the innermost error of the chain - the one that actually failed. Returns a copy
         /// of this error when it has no cause.
         inline Error rootCause() const {

@@ -91,7 +91,7 @@ namespace ds {
             exp) {
             return exp.take();
         } else {
-            return exp.takeError();
+            return exp.takeError().withContext("failed to build the phoneme midi tensor");
         }
     }
 
@@ -179,7 +179,8 @@ namespace ds {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
                 setState(Failed);
-                return srt::Error(ds::ErrorCode::NotInitialized, "inference driver not initialized");
+                return srt::Error(ds::ErrorCode::NotInitialized,
+                                  "inference driver not initialized");
             }
         }
 
@@ -218,9 +219,9 @@ namespace ds {
         }
 
         // Part 1: Linguistic Encoder Inference
-        if (auto exp = inferutil::preprocessLinguisticWord(
-                durationInput->words, config->phonemes, config->languages, config->useLanguageId,
-                frameWidth);
+        if (auto exp = inferutil::preprocessLinguisticWord(durationInput->words, config->phonemes,
+                                                           config->languages, config->useLanguageId,
+                                                           frameWidth);
             exp) {
             // Run Linguistic Encoder Inference
             std::unique_lock<std::shared_mutex> lock(impl.mutex);
@@ -231,14 +232,14 @@ namespace ds {
             }
             if (auto encoderSessionExp =
                     inferutil::runEncoder(impl.encoderSession.get(), exp.take(),
-                                                  /* out */ sessionInput);
+                                          /* out */ sessionInput);
                 !encoderSessionExp) {
                 setState(Failed);
-                return encoderSessionExp.takeError();
+                return encoderSessionExp.takeError().withContext("the linguistic encoder failed");
             }
         } else {
             setState(Failed);
-            return exp.takeError();
+            return exp.takeError().withContext("failed to build the linguistic input");
         }
 
         // Part 2: Duration Inference
@@ -246,7 +247,7 @@ namespace ds {
             sessionInput->inputs["ph_midi"] = exp.take();
         } else {
             setState(Failed);
-            return exp.takeError();
+            return exp.takeError().withContext(R"(failed to build the "ph_midi" input)");
         }
 
         auto phoneCount = inferutil::getPhoneCount(durationInput->words);
@@ -294,7 +295,7 @@ namespace ds {
                 }
                 sessionInput->inputs["spk_embed"] = tensor;
             } else {
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to build the "spk_embed" input)");
             }
         } else {
             // Nothing to do: speaker embedding is not supported

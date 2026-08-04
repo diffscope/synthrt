@@ -122,14 +122,16 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<srt::NO<srt::TaskResult>> PitchInference::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<srt::NO<srt::TaskResult>>
+        PitchInference::start(const srt::NO<srt::TaskStartInput> &input) {
         stdc_impl_t;
 
         {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
                 setState(Failed);
-                return srt::Error(ds::ErrorCode::NotInitialized, "inference driver not initialized");
+                return srt::Error(ds::ErrorCode::NotInitialized,
+                                  "inference driver not initialized");
             }
         }
 
@@ -179,7 +181,8 @@ namespace ds {
                         linguisticInput = exp.take();
                     } else {
                         setState(Failed);
-                        return exp.takeError();
+                        return exp.takeError().withContext(
+                            "failed to build the linguistic word input");
                     }
                     break;
                 case Co::LinguisticMode::LM_Phoneme:
@@ -190,7 +193,8 @@ namespace ds {
                         linguisticInput = exp.take();
                     } else {
                         setState(Failed);
-                        return exp.takeError();
+                        return exp.takeError().withContext(
+                            "failed to build the linguistic phoneme input");
                     }
                     break;
                 default:
@@ -207,10 +211,10 @@ namespace ds {
             }
             if (auto encoderSessionExp =
                     inferutil::runEncoder(impl.encoderSession.get(), linguisticInput,
-                                                  /* out */ sessionInput, false);
+                                          /* out */ sessionInput, false);
                 !encoderSessionExp) {
                 setState(Failed);
-                return encoderSessionExp.takeError();
+                return encoderSessionExp.takeError().withContext("the linguistic encoder failed");
             }
         }
 
@@ -255,7 +259,7 @@ namespace ds {
             sessionInput->inputs.emplace("note_midi", exp.take());
         } else {
             setState(Failed);
-            return exp.takeError();
+            return exp.takeError().withContext(R"(failed to build the "note_midi" input)");
         }
 
         if (config->useRestFlags) {
@@ -269,7 +273,7 @@ namespace ds {
                 sessionInput->inputs.emplace("note_rest", exp.take());
             } else {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to build the "note_rest" input)");
             }
         }
 
@@ -277,16 +281,15 @@ namespace ds {
             sessionInput->inputs.emplace("note_dur", exp.take());
         } else {
             setState(Failed);
-            return exp.takeError();
+            return exp.takeError().withContext(R"(failed to build the "note_dur" input)");
         }
 
-        if (auto exp = inferutil::preprocessPhonemeDurations(pitchInput->words,
-                                                                     config->frameWidth);
+        if (auto exp = inferutil::preprocessPhonemeDurations(pitchInput->words, config->frameWidth);
             exp) {
             sessionInput->inputs.emplace("ph_dur", exp.take());
         } else {
             setState(Failed);
-            return exp.takeError();
+            return exp.takeError().withContext(R"(failed to build the "ph_dur" input)");
         }
 
         bool satisfyPitch = false;
@@ -298,13 +301,13 @@ namespace ds {
                 continue;
             }
             // Resample
-            auto samples = inferutil::resample(param.values, param.interval, frameWidth,
-                                                       targetLength, true);
+            auto samples =
+                inferutil::resample(param.values, param.interval, frameWidth, targetLength, true);
             if (samples.size() != targetLength) {
                 setState(Failed);
-                return srt::Error(ds::ErrorCode::ProcessingFailed, "parameter " +
-                                                                std::string(param.tag.name()) +
-                                                                " resample failed");
+                return srt::Error(ds::ErrorCode::ProcessingFailed,
+                                  "parameter " + std::string(param.tag.name()) +
+                                      " resample failed");
             }
 
             if (isPitch) {
@@ -328,7 +331,7 @@ namespace ds {
                     sessionInput->inputs.emplace("pitch", std::move(pitchTensor));
                 } else {
                     setState(Failed);
-                    return exp.takeError();
+                    return exp.takeError().withContext(R"(failed to build the "pitch" input)");
                 }
                 // Retake
                 Tensor::Container retake(targetLength, std::byte{1});
@@ -353,7 +356,7 @@ namespace ds {
                     sessionInput->inputs.emplace("retake", exp.take());
                 } else {
                     setState(Failed);
-                    return exp.takeError();
+                    return exp.takeError().withContext(R"(failed to build the "retake" input)");
                 }
                 satisfyPitch = true;
             } else if (!satisfyExpr && isExpr) {
@@ -367,7 +370,8 @@ namespace ds {
                     auto exprBuffer = exprTensor->mutableData<float>();
                     if (!exprBuffer) {
                         setState(Failed);
-                        return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create expr tensor");
+                        return srt::Error(ds::ErrorCode::ProcessingFailed,
+                                          "failed to create expr tensor");
                     }
                     for (size_t i = 0; i < targetLength; ++i) {
                         exprBuffer[i] = static_cast<float>(samples[i]);
@@ -376,7 +380,7 @@ namespace ds {
                     satisfyExpr = true;
                 } else {
                     setState(Failed);
-                    return exp.takeError();
+                    return exp.takeError().withContext(R"(failed to build the "expr" input)");
                 }
             }
         }
@@ -388,7 +392,7 @@ namespace ds {
                 sessionInput->inputs.emplace("pitch", exp.take());
             } else {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to build the "pitch" input)");
             }
             if (auto exp = Tensor::createFromRawData(ITensor::Bool, {1, targetLength},
                                                      Tensor::Container(targetLength, std::byte{1}));
@@ -397,7 +401,7 @@ namespace ds {
                 satisfyPitch = true;
             } else {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to build the "retake" input)");
             }
         }
 
@@ -409,7 +413,7 @@ namespace ds {
                 satisfyExpr = true;
             } else {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to build the "expr" input)");
             }
         }
 
@@ -427,7 +431,7 @@ namespace ds {
                 sessionInput->inputs["spk_embed"] = exp.take();
             } else {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(R"(failed to build the "spk_embed" input)");
             }
         } else {
             // Nothing to do: speaker embedding is not supported
@@ -442,7 +446,9 @@ namespace ds {
             auto exp = Tensor::createScalar<int64_t>(acceleration);
             if (!exp) {
                 setState(Failed);
-                return exp.takeError();
+                return exp.takeError().withContext(
+                    stdc::formatN(R"(failed to build the "%1" input)",
+                                  config->useContinuousAcceleration ? "steps" : "speedup"));
             }
             if (config->useContinuousAcceleration) {
                 sessionInput->inputs["steps"] = exp.take();
