@@ -232,15 +232,15 @@ namespace srt {
             do {
                 Error error1;
                 const auto &contributesObj = it->second.toObject();
-                for (const auto &key : {"inference", "singer"}) {
-                    if (contributesObj.find(key) == contributesObj.end()) {
-                        error1 = {
-                            Error::InvalidFormat,
-                            stdc::formatN(R"(%1: missing "contributes.%2" field)", descPath, key),
-                        };
-                        goto out_failed;
-                    }
-                }
+
+                // Every property is optional. A package contributing one kind and not another says
+                // so by leaving the other out, rather than by writing an empty array that carries
+                // no information. Unknown properties are still rejected, by the category lookup
+                // just below.
+                //
+                // Core does not know which kinds exist. Requiring particular ones here would mean
+                // naming categories that are registered into Core rather than defined by it, and
+                // there is no longer any reason to believe the set is the two that SVS defines.
                 for (const auto &pair : contributesObj) {
                     const auto &contributeKey = pair.first;
                     auto it2 = categories.find(contributeKey);
