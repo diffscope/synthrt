@@ -1,7 +1,7 @@
 # synthrt 代码审查问题清单
 
 > 生成于 2026-08-01，基于 commit `304b275`（分支 `main`）。
-> 最后回填 2026-08-03，对应分支 `fix/group-a-bugs` 的 9 个提交。
+> 最后回填 2026-08-04，对应分支 `fix/group-a-bugs` 的 21 个提交。
 > 每修复一条就把 `[ ]` 改成 `[x]`，并在条目末尾补一行 `> 修复：<commit/说明>`。
 >
 > 分组顺序即建议的处理顺序：**A（确定 bug）→ B（健壮性/并发）→ E（Error 重设计）→ C（代码质量）→ D（设计，最后讨论）**。
@@ -27,6 +27,19 @@
 | `eb25a18` | 修正类别名断言处的失实注释 | F7（注释部分） |
 | `55b133e` | 类别注册表三处缺陷 | B1 F1 F3 F6 |
 | `a5213e6` | `SynthUnit` 测试 | D6（部分） |
+| `3920a22` | 三处零风险修复 | B8a C6 C8 |
+| `e1d0acf` | 删 `ContribCategory::key()`、插件接口加 `IID` | F2 F4 F5 |
+| `b26339f` | manifest 错误改用 `withContext` 链接 | E2（收尾前半） |
+| `6c5dc6f` | vcpkg 子模块：带来 `StaticRegistry` | 无（外部依赖升级） |
+| `008113c` | 类别注册迁到 `stdc::StaticRegistry` | F7 F8 |
+| `ff71e53` | dsinfer 自己的错误域 `ds::ErrorCode` | E1（收尾） |
+| `b612a00` | dsinfer 的 `Error.h` 改名 `ErrorCode.h` | E1（收尾） |
+| `64206ec` | vcpkg 子模块：stdcorelib 默认日志 sink 修复 | 无（外部依赖升级） |
+| `4338587` | `InferenceDriver::extension()` | 无（新特性） |
+| `00ab374` | 43 处 `withContext`，说明失败发生在哪个输入 | E2（收尾后半） |
+| `9b4c63d` | build helpers 收编进 qmsetup | 无（构建系统迁移） |
+| `c1d6d85` | 安装 `cmake/`（`AddAutoTest`）随包发布 | 无（构建系统迁移） |
+| `e71f029` | `README` / `AGENTS.md` / `docs/Status.md` | 无（文档） |
 
 ## 标记约定
 
@@ -621,7 +634,7 @@ try 块内多处 `return {}` 都没调 `timer.deactivate()`，会打出 "Finishe
 > 讨论后确定两件事：**(a) 开放错误域**、**(b) 因果链**。**先做 (b)**，依据见 E2。
 
 ### E1. `Error` 的错误类型是封闭枚举，下游无法扩展
-- [x] **E1** — 已修（`a5e09a0`）
+- [x] **E1** — 已修（机制 `a5e09a0`，dsinfer 迁移 `ff71e53` / `b612a00`）
 
 原来的 `Error` 只有一个 `int type`，取值来自 synthrt 自己的 `ErrorType` 枚举。
 下游（dsinfer 及第三方插件）想报自己的错误，只能挤进 `SessionError` 这个筐——**它被用了 72 次，全部来自 dsinfer**。
@@ -642,10 +655,20 @@ try 块内多处 `return {}` 都没调 `timer.deactivate()`，会打出 "Finishe
 **已知的信息损失（用户确认为正常）**：`Error` 转成 `std::error_code` 时，`message` 和 `cause` 都会丢，
 因为 `error_code` 只有 (值, category) 两个字段。
 
-**遗留**：`SessionError` 那 72 处**尚未迁到 dsinfer 自己的 category**。见待办。
+**收尾（`ff71e53` / `b612a00`）**：dsinfer 现在有自己的错误域 `ds::ErrorCode`，8 个码——
+`NotInitialized`、`AlreadyOpen`、`DriverMismatch`、`DriverLoadFailed`、`InvalidInput`、
+`ShapeMismatch`、`SessionFailed`、`ProcessingFailed`。
+`srt::Error::SessionError` 这个枚举项**已删除**：它当初存在的唯一理由是下游没地方放错误码，
+而 `Error` 改带 `std::error_code` 之后这个前提不成立了。
+
+复核时把"72 处"更正为 **87 处**，且**全部**是 dsinfer 的——没有一处来自 synthrt 自身，
+这正是"给 dsinfer 单开一个域"而不是"往 synthrt 枚举里继续加"的依据。
+承载文件从 `dsinfer/include/dsinfer/Support/Error.h` 改名为 `ErrorCode.h`，与类型名一致。
+测试见 `dsinfer/tests/auto/Support/test_ErrorCode.cpp`（CMake 目标叫 `test_ErrorCode` 而非
+`test_Error`，因为后者与 synthrt 侧的目标重名）。
 
 ### E2. 错误只有一层 message，下层原因靠拼字符串传递
-- [x] **E2** — 已修（`a5e09a0`）
+- [x] **E2** — 已修（机制 `a5e09a0`，落地 `b26339f` / `00ab374`）。**渲染处改 `toString()` 未做**，见条目末尾
 
 **决策依据（用数据定的先后顺序）**：生产代码里**按错误类型分支的地方是 0 处**，
 而把下层 `error().message()` 拼进上层字符串的地方有 **41 处**。所以因果链的价值高于开放错误域，先做 (b)。
@@ -661,8 +684,23 @@ Rust `std::error::Error::source()` + `anyhow`/`thiserror`、C++ `std::nested_exc
 关于内存布局：`anyhow` 同样是堆分配的链表，差别只在它把 vtable 指针和 payload 打包进一次分配。
 这里用 `shared_ptr` 是为了让 `Error` 保持可拷贝。
 
-**遗留**：`withCause` / `withContext` 只在 `synthrt/lib/Core` 的 5 处用上，**SVS 12 处、dsinfer 22 处仍在拼字符串**；
-渲染处（CLI `log_report_callback`、各插件日志回调）仍调 `message()` 而非 `toString()`，**链条建了也看不见**。见待办。
+**收尾（`b26339f` / `00ab374`）**：`Error` 最终有**两个**包装方法，用途不同，别混：
+
+| 方法 | 语义 | 对 `code()` 的影响 |
+|---|---|---|
+| `withCause(Error)` | 包装的错误**有自己的种类** | 换成新的 code |
+| `withContext(std::string)` | 只补"失败发生在哪一步" | **保留被包装错误的 code** |
+
+调用方按 `code()` 分支时看不出 `withContext` 的存在，只有 `toString()` 会多渲染一层。
+`Expected` 的两个特化都加了对应的 `withContext(std::string) &&` 重载。
+
+**关于"dsinfer 22 处仍在拼字符串"这个说法：已实测更正。** dsinfer 侧的 96 个 `takeError()`
+其实**全是无损透传**，并没有把下层 message 拼进上层字符串——原先的计数把透传也算进去了。
+因此这一轮只在**调用方知道一个被调方叫不出的名字**的地方补 `withContext`，共 43 处
+（manifest 解析路径 + 各推理插件的输入名 / 张量名）。其余透传保持原样，多包一层只是噪音。
+
+⚠️ **渲染处仍调 `message()`**（CLI 的 `log_report_callback`、各插件日志回调），
+**链条建好了但默认看不见**。改成 `toString()` 是独立的一件事，未做。
 
 ---
 
@@ -907,6 +945,23 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
 - [x] ~~**C3** 标识符校验规则冲突~~ — **已由 spec 裁决，升级为 [A18](#a18-歌手推理-id-的校验比-spec-宽松得多)**
 
+- [ ] **C12** 六个插件声明 `FEATURES cxx_std_17`，实际编译为 C++20
+  `onnxdriver` 与五个推理解释器（`acoustic` / `duration` / `pitch` / `variance` / `vocoder`）共 22 个 TU
+  编译时带的是 `-std:c++20`，而 `synthrt`、`dsinfer`、`inferutil` 等 44 个 TU 是 `-std:c++17`。
+  这六个目标恰好就是链接 `stduuid` 的六个。
+
+  **成因**：vcpkg 的 stduuid port 默认不启用 `gsl-span` 特性，于是上游按 `UUID_USING_CXX20_SPAN=ON`
+  配置，导出的目标带 `INTERFACE_COMPILE_FEATURES "cxx_std_20"`。CMake 解析 `CXX_STANDARD` 时取
+  「本目标的 `FEATURES`」与「所有链接项的接口 feature」的**最大值**，`LINKS_PRIVATE` 不改变这一点——
+  PRIVATE 只阻止要求继续传给**下游**，这也正是 `dsinfer` / `inferutil` 仍是 C++17 的原因。
+
+  装出来的 `uuid.h` 本身是自适应的（`__cplusplus >= 202002L` 用 `<span>`，否则 `<gsl/span>`），
+  硬要求只存在于 CMake 目标上。但**不能靠在消费侧清掉 `INTERFACE_COMPILE_FEATURES` 绕开**：
+  那个配置下 Microsoft.GSL 根本没被安装，降到 C++17 会 include 一个不存在的头。
+
+  *两条出路*：在 `vcpkg.json` 里给 stduuid 请求 `gsl-span` 特性（引入 Microsoft.GSL 依赖，换来全仓 C++17），
+  或把这六个插件的 `FEATURES` 如实写成 `cxx_std_20`，让标准是**声明**的而不是**继承**来的。**未定，未动。**
+
 - [ ] 🔒 **C11** 可能的规格偏差 — **保留**（纯推测，非 bug）
   [InputParserCommon.cpp:73-86](../../dsinfer/util/inputparser/src/InputParserCommon.cpp#L73-L86) 的 `parseLibrosaPitch` **强制要求** cents 部分（`+0` / `-25`），
   纯音名 `"C4"` 会被判非法。librosa 的 `note_to_midi` 是接受 `"C4"` 的。若属有意收紧，建议在函数注释里写明。
@@ -1005,6 +1060,21 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
   已转换：`InferenceSession` 相关 13 处。剩余转换见待办表（按爆炸半径排序）。
 
+  ⚠️ **张量那一项做过又撤销了（2026-08-04）。** 我曾把 7 个 `Tensor::create*` 工厂改成返回
+  `UNO<Tensor>`，编译只错一处——其余 27 个调用点靠 `unique_ptr → shared_ptr` 的隐式转换照样通过，
+  **所以"改完能编译"在这里完全不构成证据**。作者指出 **`ITensor` 本来就该是共享类型**：
+  它存进 `map<std::string, NO<ITensor>>`、跨推理阶段传递，`AcousticInference` 里甚至有
+  `// ref count +1` 的注释。实测也印证：27 个调用点几乎全是 `inputs["x"] = exp.take()`，
+  `UNO` 的存活窗口只有一条语句。**已全部还原。**
+
+  > **教训**：判断该不该 `UNO`，看的是**类型本身的生命周期**，不是某个持有者内部是否独占。
+  > `TensorHelper` 内部确实独占它的 `_tensor`，但那东西一旦交出去就是共享的。
+
+  ⚠️ **`as<U>()` 的风险描述更正**：我曾说 `static_pointer_cast` 跨兄弟基类转换是 UB。
+  **实测是编译错误**（MSVC `error C2440`）——`static_pointer_cast` 背后是 `static_cast`，
+  兄弟基类之间根本没有转换路径。真正的 UB 是**向下转换到对象实际不是的那个类型**，
+  那才是 `as<U>()` 无类型检查带来的风险。
+
   *仍待讨论*：`as<U>()` 是否该换成 `dynamic_pointer_cast` 或加一个轻量类型 tag。**这部分没动。**
 
 - [ ] **D6** 测试覆盖
@@ -1044,11 +1114,11 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 |---|---|---|---|
 | A 确定 bug | 24 | 2 | **23**（仅剩 A16 环境问题） |
 | B 健壮性 | 12（−B4） | 2 | **7**（B1 B2a–d B8a + B4 裁定不修） |
-| C 代码质量 | 9（−C3，升为 A18） | 2 | **3**（C6 C8 C9） |
+| C 代码质量 | 10（−C3，升为 A18；+C12） | 2 | **3**（C6 C8 C9） |
 | E Error 重设计 | 2 | 0 | **2** |
 | F 注册与标识 | 8 | 0 | **8**（F1–F8） |
 | D 设计 | 1（D5 剩类型识别部分） | 5 | **1**（D7） |
-| **合计** | **56** | **11** | **44** |
+| **合计** | **57** | **11** | **44** |
 
 ### 剩余可动手的条目
 | 条目 | 性质 | 风险 |
@@ -1056,15 +1126,15 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 | **B6 B7 B9** | assert / abort / 计时器 | 低 |
 | **B3a–e** | 锁粒度 | B3d 最简单（`state` 改 atomic）；B3c 要拆两阶段 |
 | **C1 C2 C4 C5 C7 C10** | 代码质量 | 低，可批量 |
-| **E2 收尾** | SVS 12 处 + dsinfer 22 处改用 `withContext`；渲染处改 `toString()` | 中，量大但机械 |
-| **E1 收尾** | `SessionError` 72 处迁到 dsinfer 自己的 category | 中，跨模块 |
-| **D5 收尾** | NO→UNO 剩余 17 处 | 见下表 |
+| **C12** | 六个插件的 C++ 标准名不副实 | 低，但要先定走哪条路 |
+| **E2 尾巴** | 渲染处（CLI + 各插件日志回调）改用 `toString()`，否则因果链看不见 | 低 |
+| **D5 收尾** | NO→UNO 剩余 16 处 | 见下表 |
 | **A16** | 构建环境，非代码 | 需用 `VSLANG=1033` 重新 configure |
 
 ### NO/UNO 剩余转换（按爆炸半径）
 | 目标 | 处数 | 阻碍 |
 |---|---|---|
-| `TensorHelper::_tensor` | 1 | 无。`take()` 出口返回 `NO<ITensor>`，unique→shared 自动转换 |
+| ~~`TensorHelper::_tensor`~~ | ~~1~~ | **已撤销**——`ITensor` 本来就是共享类型，见 D5 |
 | schema / configuration / options | 4 | 访问器现在**按值返回 `NO`**，要先改成返回裸指针 |
 | `XxxResult result` | 5 | 需改 `ITask` API——`start()` 既返回结果又存一份，共享是 API 形状造成的 |
 | `driver` / `interp` / `prov` | 7 | pool / cache 持有，借用者应改裸指针；需改 `getInferenceDriver()` 签名 |
@@ -1075,13 +1145,24 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
 ### 验证方式
 - 全量重建（`ninja -t clean` + build）：**exit 0**
-- **`ctest` 9 个用例全过**（每个类一个可执行文件，见 `1d969c5`）
-- 手动工具在 `dsinfer/tests/manual/`，不进 ctest：`onnxdriver` 要模型，`txtdict` 要词典路径
+- **`ctest` 10 个用例全过**（每个类一个可执行文件，见 `1d969c5`）
+- 手动套件 `dsinfer/tests/manual/` **5/5**，含真实 ONNX 推理。不进 ctest：`onnxdriver` 要模型，`txtdict` 要词典路径
 - ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
-- 断言总数约 **475**（Support 384 + Core 84 + PhonemeDict）
+- 断言总数约 **475**（Support 384 + Core 84 + PhonemeDict）。
+  `ContribLocator` 有 `_Parse` / `_Reject` / `_RoundTrip` / `_VersionIsNormalized` / `_Segments`；
+  **A 组早期修复（A1、A6–A15）仍无测试覆盖**，D6 依旧成立。
 
 > **验证的教训（2026-08-04）**：改完 F1 后 8/8 全过，但当时**没有任何自动测试构造过 `SynthUnit`**，
 > 注册链路整个断掉也不会变红。"全过"必须先确认测试确实覆盖了改动路径，
 > 用 `--report_level=short` 看断言数是最快的核对方式（空 suite 也会"通过"）。
-  （`_Parse` / `_Reject` / `_RoundTrip` / `_VersionIsNormalized` / `_Segments`）。
-  **A 组早期修复（A1、A6–A15）仍无测试覆盖**，D6 依旧成立。
+
+> **另一个坑（2026-08-04）**：链接刚生成的 exe/dll 时偶发
+> `The process cannot access the file because it is being used by another process`，**无编译错误**，重跑即好。
+> ⚠️ **它会让 ninja 以非零码退出，而此时 ctest 跑的是上一轮的旧二进制，给出虚假的"全过"。**
+> 已撞上一次。**看到测试通过之前必须先确认 `BUILD=0`。**
+
+> **批量改动要核对计数，不能只看编译（2026-08-04）**：给 dsinfer 补 `withContext` 时，
+> sed helper 丢了行号参数 → 表达式没有地址 → 全局替换，且后续表达式反复匹配已改过的文本、层层嵌套。
+> `PitchInference` 被塞进 158 个 `withContext`（应为 15），`VarianceInference` 42 个（应为 10）。
+> **而且编译完全通过**——`withContext` 返回 `Error`，`Error` 又有 `withContext`，语法合法。
+> 靠 `grep -o <pattern> | wc -l` 数实际次数才发现（`grep -c` 数的是行数，会漏）。
