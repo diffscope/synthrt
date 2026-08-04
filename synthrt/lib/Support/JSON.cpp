@@ -475,6 +475,26 @@ namespace {
 
     class JV : public JsonValue {
     public:
+#ifdef SYNTHRT_JSON_IN_PLACE
+        /// The buffer a \c JsonValue keeps its underlying value in, sized in the public header,
+        /// where the type going into it cannot be named.
+        ///
+        /// Nothing else checks that it still fits, and it stops fitting by a placement new writing
+        /// past the end of the object rather than by anything a compiler would mention. Two of
+        /// nlohmann's own options move the size on their own: \c JSON_DIAGNOSTICS takes it to 24
+        /// bytes and \c JSON_DIAGNOSTIC_POSITIONS to 32, against 16 by default.
+        ///
+        /// \warning Widening the union in \c JSON.h is the fix, and it changes \c
+        /// sizeof(JsonValue).
+        ///          Every consumer has to be rebuilt against the new header.
+        using Storage = decltype(JsonValue::storage);
+
+        static_assert(sizeof(JSON) <= sizeof(Storage),
+                      "the underlying value no longer fits in JsonValue::storage");
+        static_assert(alignof(JSON) <= alignof(Storage),
+                      "the underlying value is aligned more strictly than JsonValue::storage");
+#endif
+
         inline JV(void *p, bool move) : JsonValue(p, move) {
         }
 
