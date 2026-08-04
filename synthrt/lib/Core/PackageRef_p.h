@@ -3,6 +3,7 @@
 
 #include <string>
 #include <map>
+#include <memory>
 #include <filesystem>
 
 #include <stdcorelib/adt/vlarray.h>
@@ -25,7 +26,8 @@ namespace srt {
     public:
         Expected<void>
             parse(const std::filesystem::path &dir,
-                  const std::map<std::string, ContribCategory *, std::less<>> &categories,
+                  const std::map<std::string, std::unique_ptr<ContribCategory>, std::less<>>
+                      &categories,
                   stdc::vlarray_base<ContribSpec *> *outContributes);
 
         static Expected<JsonObject> readDesc(const std::filesystem::path &dir);

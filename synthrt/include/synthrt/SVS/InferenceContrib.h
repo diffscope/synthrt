@@ -113,7 +113,7 @@ namespace srt {
         explicit InferenceCategory(SynthUnit *env);
 
         friend class SynthUnit;
-        friend class ContribCategoryRegistrar<InferenceCategory>;
+        friend class ContribCategoryFactory<InferenceCategory>;
     };
 
 }

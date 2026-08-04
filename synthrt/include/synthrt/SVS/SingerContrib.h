@@ -116,7 +116,7 @@ namespace srt {
         explicit SingerCategory(SynthUnit *su);
 
         friend class SynthUnit;
-        friend class ContribCategoryRegistrar<SingerCategory>;
+        friend class ContribCategoryFactory<SingerCategory>;
     };
 
 }

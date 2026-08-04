@@ -17,34 +17,27 @@ namespace fs = std::filesystem;
 
 namespace srt {
 
-    stdc::vlarray<ContribCategory *(*) (SynthUnit *)> &SynthUnit::Impl::categoryFactories() {
-        static stdc::vlarray<ContribCategory *(*) (SynthUnit *)> instance;
-        return instance;
-    }
-
     static bool isValidPackageIdentifier(std::string_view token) {
         static const std::regex re(R"(^[A-Za-z0-9_-]+(?:/[A-Za-z0-9_-]+)*$)");
         return std::regex_match(token.begin(), token.end(), re);
     }
 
     SynthUnit::Impl::Impl(SynthUnit *decl) : PluginFactory::Impl(decl) {
-        for (const auto &factory : categoryFactories()) {
-            auto category = factory(decl);
+        for (const auto &entry : ContribCategoryRegistry::entries()) {
+            auto category = entry.instantiate()->create(decl);
+            assert(category->name() == entry.name() &&
+                   "a contribute category is registered under a name other than its own");
 
             // Two categories answering to one name would leave whichever lost the race
-            // unreachable, and unreachable is also undeletable: the destructor walks this map.
-            // Drop the newcomer instead of overwriting.
-            if (!categories.emplace(std::string(category->name()), category).second) {
+            // unreachable. Drop the newcomer, which goes out of scope still owned.
+            if (!categories.emplace(std::string(entry.name()), std::move(category)).second) {
                 assert(false && "a contribute category name is registered twice");
-                delete category;
             }
         }
     }
 
     SynthUnit::Impl::~Impl() {
         closeAllLoadedPackages();
-
-        stdc::delete_all(categories);
     }
 
     Expected<PackageData *> SynthUnit::Impl::open(const std::filesystem::path &path, bool noLoad) {
@@ -515,7 +508,7 @@ namespace srt {
         if (it == impl.categories.end()) {
             return nullptr;
         }
-        return it->second;
+        return it->second.get();
     }
 
     void SynthUnit::addPackagePaths(stdc::array_view<std::filesystem::path> paths) {
@@ -607,10 +600,6 @@ namespace srt {
             res.push_back(PackageRef(item.spec));
         }
         return res;
-    }
-
-    void SynthUnit::registerCategoryFactory(ContribCategory *(*fac)(SynthUnit *) ) {
-        Impl::categoryFactories().push_back(fac);
     }
 
 }

@@ -24,8 +24,8 @@ namespace srt {
         int segments = 0;
         while (true) {
             const auto dot = token.find('.', begin);
-            const auto segment =
-                dot == std::string_view::npos ? token.substr(begin) : token.substr(begin, dot - begin);
+            const auto segment = dot == std::string_view::npos ? token.substr(begin)
+                                                               : token.substr(begin, dot - begin);
             if (segment.empty() || ++segments > 4) {
                 return false;
             }
@@ -150,8 +150,9 @@ namespace srt {
         size_t begin = 0;
         while (true) {
             const auto slash = token.find('/', begin);
-            const auto segment =
-                slash == std::string_view::npos ? token.substr(begin) : token.substr(begin, slash - begin);
+            const auto segment = slash == std::string_view::npos
+                                     ? token.substr(begin)
+                                     : token.substr(begin, slash - begin);
             if (!isValidSegment(segment)) {
                 return false;
             }
@@ -321,3 +322,8 @@ namespace srt {
     }
 
 }
+
+// Owns the category list. Exported so that the head and tail a caller outside this library reaches
+// through ContribCategoryRegistry are the ones the registrations actually filled in, rather than an
+// empty list of its own. Has to sit at global scope so that it can name stdc.
+STDCORELIB_INSTANTIATE_STATIC_REGISTRY_EXPORT(srt::ContribCategoryFactoryBase, SYNTHRT_EXPORT)

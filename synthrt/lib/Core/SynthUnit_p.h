@@ -2,6 +2,7 @@
 #define SYNTHRT_SYNTHUNIT_P_H
 
 #include <map>
+#include <memory>
 #include <unordered_map>
 #include <list>
 
@@ -30,7 +31,7 @@ namespace srt {
         void closeAllLoadedPackages();
         void refreshPackageIndexes();
 
-        std::map<std::string, ContribCategory *, std::less<>> categories;
+        std::map<std::string, std::unique_ptr<ContribCategory>, std::less<>> categories;
 
         stdc::vlarray<std::filesystem::path> packagePaths;
 
@@ -68,8 +69,6 @@ namespace srt {
 
         mutable std::shared_mutex su_mtx;
 
-    public:
-        static stdc::vlarray<ContribCategory *(*) (SynthUnit *)> &categoryFactories();
     };
 
 }

@@ -2,7 +2,9 @@
 #define SYNTHRT_CONTRIBUTE_H
 
 #include <filesystem>
+#include <memory>
 
+#include <stdcorelib/support/staticregistry.h>
 #include <stdcorelib/support/versionnumber.h>
 
 #include <synthrt/Support/Expected.h>
@@ -234,24 +236,63 @@ namespace srt {
         return static_cast<const T *>(this);
     }
 
-    /// Registers \a T as a contribute category, by declaring one at namespace scope.
+    /// Builds one category, bound to the \c SynthUnit asking for it.
+    class ContribCategoryFactoryBase {
+    public:
+        virtual ~ContribCategoryFactoryBase() = default;
+
+        virtual std::unique_ptr<ContribCategory> create(SynthUnit *su) const = 0;
+    };
+
+    /// \a T 's own factory, which \a T befriends so that its constructor can stay protected.
     ///
-    /// \code
-    ///     static ContribCategoryRegistrar<SingerCategory> registrar;
-    /// \endcode
+    /// Holding one of these does not register anything. The registry that turns a factory into a
+    /// category every \c SynthUnit builds is internal to synthrt, whose set of categories is its
+    /// own and closed.
     template <class T>
-    class ContribCategoryRegistrar {
+    class ContribCategoryFactory : public ContribCategoryFactoryBase {
         static_assert(std::is_base_of<ContribCategory, T>::value,
                       "T should inherit from srt::ContribCategory");
 
     public:
-        inline ContribCategoryRegistrar() {
-            SynthUnit::registerCategoryFactory([](SynthUnit *su) -> ContribCategory * {
-                return new T(su); //
-            });
+        /// \note Not \c std::make_unique, which is nobody's friend and so cannot reach \a T 's
+        ///       protected constructor.
+        std::unique_ptr<ContribCategory> create(SynthUnit *su) const override {
+            return std::unique_ptr<ContribCategory>(new T(su));
         }
     };
 
+    /// The registered categories, one entry per kind.
+    ///
+    /// Registering a factory rather than the category type itself, because a registry entry
+    /// constructs its subject with no arguments while a category needs its unit.
+    ///
+    /// A category registers itself by declaring an \c Add at namespace scope:
+    ///
+    /// \code
+    ///     static ContribCategoryRegistry::Add<ContribCategoryFactory<SingerCategory>>
+    ///         registrar("singer", "Singer contributes");
+    /// \endcode
+    ///
+    /// The name has to match what the category hands its base constructor, which \c SynthUnit
+    /// checks as it builds them.
+    ///
+    /// Reading this is how to ask which kinds of contribute a build understands. Registering into
+    /// it from outside synthrt does not do anything useful: a \c SynthUnit reads the list once, as
+    /// it is constructed, and a plugin is loaded through a unit that has already done so. The set
+    /// is synthrt's own. What the registration buys internally is that \c Core never has to name
+    /// the categories \c SVS defines.
+    using ContribCategoryRegistry = stdc::StaticRegistry<ContribCategoryFactoryBase>;
+
 }
+
+/// Keeps a caller outside synthrt from instantiating a second, empty list of its own. Without it
+/// the registry reads as if nothing had ever registered, and on Windows does not even link.
+///
+/// Only for that caller. Inside the library this would be an instantiation declaration carrying
+/// \c dllexport, which is not what that means, and the definition lives in Contribute.cpp anyway.
+#ifndef SYNTHRT_LIBRARY
+extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFactoryBase>;
+#endif
 
 #endif // SYNTHRT_CONTRIBUTE_H

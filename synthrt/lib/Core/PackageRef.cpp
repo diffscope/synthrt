@@ -61,7 +61,8 @@ namespace srt {
 
     Expected<void>
         PackageData::parse(const std::filesystem::path &dir,
-                           const std::map<std::string, ContribCategory *, std::less<>> &categories,
+                           const std::map<std::string, std::unique_ptr<ContribCategory>,
+                                          std::less<>> &categories,
                            stdc::vlarray_base<ContribSpec *> *outContributes) {
         std::string id_;
         stdc::VersionNumber version_;

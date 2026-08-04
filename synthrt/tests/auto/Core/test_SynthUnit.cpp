@@ -1,3 +1,7 @@
+#include <algorithm>
+#include <string_view>
+#include <vector>
+
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/Core/Contribute.h>
 
@@ -54,6 +58,32 @@ BOOST_AUTO_TEST_CASE(test_SynthUnit_RepeatedConstruction) {
         SynthUnit su;
         BOOST_CHECK(su.category("singer") != nullptr);
         BOOST_CHECK(su.category("inference") != nullptr);
+    }
+}
+
+// The registry has to read the same from outside synthrt as it does within.
+//
+// It is a class template whose list heads live in one translation unit of the library. Without the
+// explicit instantiation being exported, and the declaration in the header that stops a caller
+// instantiating its own, this either fails to link or quietly reports that nothing ever registered.
+// This test binary is a separate module, so it is the thing that would notice.
+BOOST_AUTO_TEST_CASE(test_SynthUnit_RegistryIsReachableFromOutside) {
+    std::vector<std::string_view> names;
+    for (const auto &entry : srt::ContribCategoryRegistry::entries()) {
+        names.push_back(entry.name());
+        BOOST_CHECK(!entry.desc().empty());
+    }
+
+    BOOST_REQUIRE(names.size() == 2);
+    BOOST_CHECK(std::find(names.begin(), names.end(), "singer") != names.end());
+    BOOST_CHECK(std::find(names.begin(), names.end(), "inference") != names.end());
+
+    // Every entry builds the category the unit ends up holding.
+    SynthUnit su;
+    for (const auto &entry : srt::ContribCategoryRegistry::entries()) {
+        auto category = su.category(entry.name());
+        BOOST_REQUIRE(category != nullptr);
+        BOOST_CHECK(category->name() == entry.name());
     }
 }
 

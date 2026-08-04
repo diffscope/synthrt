@@ -747,6 +747,7 @@ namespace srt {
     SingerCategory::SingerCategory(SynthUnit *su) : ContribCategory(*new Impl(this, su)) {
     }
 
-    static ContribCategoryRegistrar<SingerCategory> registrar;
+    static ContribCategoryRegistry::Add<ContribCategoryFactory<SingerCategory>>
+        registrar("singer", "Singer contributes");
 
 }

@@ -444,6 +444,7 @@ namespace srt {
     InferenceCategory::InferenceCategory(SynthUnit *su) : ContribCategory(*new Impl(this, su)) {
     }
 
-    static ContribCategoryRegistrar<InferenceCategory> registrar;
+    static ContribCategoryRegistry::Add<ContribCategoryFactory<InferenceCategory>>
+        registrar("inference", "Inference contributes");
 
 }
