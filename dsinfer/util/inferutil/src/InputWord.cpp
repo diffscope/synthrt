@@ -5,7 +5,7 @@
 
 #include <stdcorelib/stdc_global.h>
 
-#include <dsinfer/Support/Error.h>
+#include <dsinfer/Support/ErrorCode.h>
 
 #include <inferutil/TensorHelper.h>
 

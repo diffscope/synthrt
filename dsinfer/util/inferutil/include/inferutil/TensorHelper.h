@@ -7,7 +7,7 @@
 #include <synthrt/synthrt_global.h>
 #include <synthrt/Support/Expected.h>
 #include <dsinfer/Core/Tensor.h>
-#include <dsinfer/Support/Error.h>
+#include <dsinfer/Support/ErrorCode.h>
 
 
 namespace ds::inferutil {

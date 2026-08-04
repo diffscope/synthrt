@@ -1,6 +1,6 @@
 #include <inferutil/LinguisticEncoder.h>
 
-#include <dsinfer/Support/Error.h>
+#include <dsinfer/Support/ErrorCode.h>
 
 #include <cmath>
 #include <cstddef>

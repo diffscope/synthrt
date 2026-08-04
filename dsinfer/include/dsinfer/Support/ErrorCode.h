@@ -1,5 +1,5 @@
-#ifndef DSINFER_ERROR_H
-#define DSINFER_ERROR_H
+#ifndef DSINFER_ERRORCODE_H
+#define DSINFER_ERRORCODE_H
 
 #include <system_error>
 
@@ -61,4 +61,4 @@ namespace ds {
 template <>
 struct std::is_error_code_enum<ds::ErrorCode> : std::true_type {};
 
-#endif // DSINFER_ERROR_H
+#endif // DSINFER_ERRORCODE_H

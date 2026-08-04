@@ -2,7 +2,7 @@
 
 #include <synthrt/Support/Error.h>
 
-#include <dsinfer/Support/Error.h>
+#include <dsinfer/Support/ErrorCode.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>

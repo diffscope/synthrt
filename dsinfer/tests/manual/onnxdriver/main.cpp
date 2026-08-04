@@ -15,7 +15,7 @@
 #include <synthrt/Support/JSON.h>
 #include <synthrt/Support/Logging.h>
 
-#include <dsinfer/Support/Error.h>
+#include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>

@@ -19,7 +19,7 @@
 
 #include <synthrt/synthrt_global.h>
 #include <synthrt/Support/Expected.h>
-#include <dsinfer/Support/Error.h>
+#include <dsinfer/Support/ErrorCode.h>
 
 #include <blake3.h>
 

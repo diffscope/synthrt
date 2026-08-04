@@ -10,7 +10,7 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
-#include <dsinfer/Support/Error.h>
+#include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
