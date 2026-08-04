@@ -70,9 +70,9 @@ namespace srt {
         DisplayPath license() const;
         const std::string &url() const;
 
-        /// Supported contribute categories:
-        /// - \c singer:     Singer declaration
-        /// - \c inference:  Inference model metadata
+        /// The contributes of one category, which is \c singer or \c inference here and whatever
+        /// else a library layered on synthrt has registered.
+        /// \sa ContribCategoryRegistry, for the categories a build understands.
         std::vector<ContribSpec *> contributes(const std::string_view &category) const;
         ContribSpec *contribute(const std::string_view &category, const std::string_view &id) const;
 
