@@ -126,24 +126,21 @@ namespace ds {
 
             ortDSO.swap(dylib);
 
-            loaded = true;
-            ortPath = path;
-            ortApiBase = apiBase;
-            ortApi = api;
+            extension.runtimePath = path;
+            extension.ortApiBase = apiBase;
+            extension.ortApi = api;
+            extension.ortApiVersion = ORT_API_VERSION;
 
             Log.srtInfo("Init - Onnx environment Load successful");
             return srt::Expected<void>();
         }
 
+        /// Keeps the library the extension points into alive.
         std::unique_ptr<stdc::SharedLibrary> ortDSO;
 
-        // Metadata
-        bool loaded = false;
-        fs::path ortPath;
-
-        // Library data
-        const OrtApi *ortApi = nullptr;
-        const OrtApiBase *ortApiBase = nullptr;
+        /// Everything a caller may ask about the runtime, and the record of whether it is loaded:
+        /// \c ortApi is null until load() succeeds.
+        Api::Onnx::DriverExtension extension;
     };
 
     OnnxDriver::OnnxDriver() : _impl(std::make_unique<Impl>()) {
@@ -179,7 +176,7 @@ namespace ds {
         // Example logging
         Log.srtDebug("initialize: driver name: %1", args->objectName());
 
-        if (impl.loaded) {
+        if (impl.extension.ortApi) {
             return srt::Error{
                 srt::Error::FileDuplicated,
                 "onnx runtime has been initialized by another instance",
@@ -197,11 +194,19 @@ namespace ds {
         devConfig.ep = onnxArgs->ep;
         devConfig.deviceIndex = onnxArgs->deviceIndex;
         onnxdriver::Env::setDeviceConfig(devConfig);
+
+        impl.extension.ep = onnxArgs->ep;
+        impl.extension.deviceIndex = onnxArgs->deviceIndex;
         return srt::Expected<void>();
     }
 
     srt::UNO<InferenceSession> OnnxDriver::createSession() {
         return srt::UNO<OnnxSession>::create();
+    }
+
+    const InferenceDriverExtension *OnnxDriver::extension() const {
+        stdc_impl_t;
+        return impl.extension.ortApi ? &impl.extension : nullptr;
     }
 
 }

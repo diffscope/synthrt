@@ -9,6 +9,11 @@
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
 
+/// Declared rather than included, so that a caller uninterested in the extension below does not
+/// pay for the onnxruntime headers.
+struct OrtApi;
+struct OrtApiBase;
+
 namespace ds::Api::Onnx {
 
     inline constexpr char API_NAME[] = "onnx";
@@ -64,6 +69,31 @@ namespace ds::Api::Onnx {
         }
 
         std::map<std::string, srt::NO<ITensor>> outputs;
+    };
+
+    /// What the driver loaded, for a caller that means to use the same runtime.
+    ///
+    /// dsinfer builds against ORT_API_MANUAL_INIT, so every module keeps an API pointer of its
+    /// own. A host or a second plugin wanting the runtime this driver already opened has to hand
+    /// this one to \c Ort::InitApi() rather than open the library a second time.
+    class DriverExtension : public InferenceDriverExtension {
+    public:
+        inline DriverExtension() : InferenceDriverExtension(API_NAME, API_VERSION) {
+        }
+
+        /// Null until the driver's initialize() has succeeded.
+        const OrtApi *ortApi = nullptr;
+        const OrtApiBase *ortApiBase = nullptr;
+
+        /// The \c ORT_API_VERSION the driver asked for. A caller compiled against a different one
+        /// must not use \c ortApi.
+        int ortApiVersion = 0;
+
+        /// The shared library that was opened.
+        std::filesystem::path runtimePath;
+
+        ExecutionProvider ep = CPUExecutionProvider;
+        int deviceIndex = -1;
     };
 
 }

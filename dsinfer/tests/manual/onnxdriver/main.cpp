@@ -108,7 +108,10 @@ struct InferenceFixture {
         auto onnxArgs = srt::NO<ds::Api::Onnx::DriverInitArgs>::create();
 
         onnxArgs->ep = ds::Api::Onnx::CPUExecutionProvider;
-        onnxArgs->runtimePath = plugin->path().parent_path() / STDC_TSTR("runtimes");
+        // The driver appends the library name, so this has to be the directory holding it. The
+        // build lays the runtimes out per backend and per provider.
+        onnxArgs->runtimePath = plugin->path().parent_path() / STDC_TSTR("runtimes") /
+                                STDC_TSTR("onnx") / STDC_TSTR("default");
         onnxArgs->deviceIndex = 0;
 
         auto exp = onnxDriver->initialize(onnxArgs);
@@ -194,6 +197,25 @@ BOOST_AUTO_TEST_CASE(initialize_driver) {
     } else {
         BOOST_FAIL("Driver initialization failed: " << exp.error().message());
     }
+}
+
+// What the driver loaded has to be legible from here, which is a module of its own. The onnxruntime
+// headers are deliberately not linked in, so this checks that the extension arrives populated
+// rather than what it says.
+BOOST_AUTO_TEST_CASE(driver_extension) {
+    BOOST_REQUIRE(InferenceFixture::driver);
+
+    auto ext = InferenceFixture::driver->extension();
+    BOOST_REQUIRE(ext != nullptr);
+    BOOST_REQUIRE(ext->objectName() == ds::Api::Onnx::API_NAME);
+
+    auto onnx = static_cast<const ds::Api::Onnx::DriverExtension *>(ext);
+    BOOST_CHECK(onnx->ortApi != nullptr);
+    BOOST_CHECK(onnx->ortApiBase != nullptr);
+    BOOST_CHECK(onnx->ortApiVersion > 0);
+    BOOST_CHECK(!onnx->runtimePath.empty());
+    BOOST_CHECK(onnx->ep == ds::Api::Onnx::CPUExecutionProvider);
+    BOOST_TEST_MESSAGE("ORT_API_VERSION the driver asked for: " << onnx->ortApiVersion);
 }
 
 struct SessionResultValidator {

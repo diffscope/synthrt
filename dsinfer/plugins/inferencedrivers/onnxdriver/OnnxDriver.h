@@ -19,6 +19,8 @@ namespace ds {
         srt::Expected<void> initialize(const srt::NO<InferenceDriverInitArgs> &args) override;
         srt::UNO<InferenceSession> createSession() override;
 
+        const InferenceDriverExtension *extension() const override;
+
     protected:
         class Impl;
         std::unique_ptr<Impl> _impl;
