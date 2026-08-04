@@ -23,4 +23,10 @@ if(SYNTHRT_INSTALL)
         set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION "")
         include(InstallRequiredSystemLibraries)
     endif()
+
+    # Install cmake modules
+    set(_install_dir ${CMAKE_INSTALL_LIBDIR}/cmake/${SYNTHRT_INSTALL_NAME})
+    install(DIRECTORY ../cmake/
+        DESTINATION ${_install_dir}/cmake
+    )
 endif()

@@ -2,6 +2,8 @@
 
 include(CMakeFindDependencyMacro)
 
+set(SYNTHRT_MODULES_DIR ${CMAKE_CURRENT_LIST_DIR}/cmake)
+
 find_dependency(stdcorelib CONFIG REQUIRED)
 
 include("${CMAKE_CURRENT_LIST_DIR}/synthrtTargets.cmake")
