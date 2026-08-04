@@ -26,14 +26,10 @@ namespace ds::inferutil {
         std::vector<float> outVec(hiddenSize);
         file.read(reinterpret_cast<char *>(outVec.data()), byteSize);
 
+        // Covers the undersized file too, since a short read sets failbit. An oversized one is
+        // accepted: only the leading hiddenSize floats are read.
         if (!file) {
             return srt::Error(srt::Error::SessionError, "File read failed: " + path.string());
-        }
-
-        if (file.gcount() != byteSize) {
-            return srt::Error(srt::Error::SessionError, "File size is not exactly " +
-                                                            std::to_string(byteSize) +
-                                                            " bytes: " + path.string());
         }
 
         return outVec;

@@ -141,7 +141,6 @@ namespace ds {
         fs::path ortPath;
 
         // Library data
-        void *hLibrary = nullptr;
         const OrtApi *ortApi = nullptr;
         const OrtApiBase *ortApiBase = nullptr;
     };

@@ -23,7 +23,12 @@ namespace srt {
     class SingerImportData {
     public:
         ContribLocator inferenceLocator;
-        InferenceSpec *inference;
+
+        /// Filled in once the singer reaches \c Ready. A read() that fails before then leaves the
+        /// entry in the list, so this has to start out null rather than hold whatever the stack
+        /// happened to contain.
+        InferenceSpec *inference = nullptr;
+
         JsonValue manifestOptions;
         NO<InferenceImportOptions> options;
     };
