@@ -34,5 +34,5 @@ set(DSINFER_POST_CONFIGURE_COMMANDS _dsinfer_common_configure_target)
 # ----------------------------------
 # Include Build Helpers
 # ----------------------------------
-set(QM_BUILD_REPO_HELPERS_FUNCTION_PREFIX dsinfer)
-include(${SYNTHRT_SOURCE_DIR}/cmake/QMBuildRepoHelpers.cmake)
+qm_import(private/BuildSystem)
+qm_setup_build_repo_helpers()
