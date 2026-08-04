@@ -1,7 +1,7 @@
 # synthrt 代码审查问题清单
 
 > 生成于 2026-08-01，基于 commit `304b275`（分支 `main`）。
-> 最后回填 2026-08-04，对应分支 `fix/group-a-bugs` 的 21 个提交。
+> 最后回填 2026-08-05，对应 `main` 上 `304b275` 之后的 37 个提交。
 > 每修复一条就把 `[ ]` 改成 `[x]`，并在条目末尾补一行 `> 修复：<commit/说明>`。
 >
 > 分组顺序即建议的处理顺序：**A（确定 bug）→ B（健壮性/并发）→ E（Error 重设计）→ C（代码质量）→ D（设计，最后讨论）**。
@@ -43,6 +43,11 @@
 | `739bce1` | 回填本清单 | 无（文档） |
 | `8308aba` | 外部模块可以贡献 contribute category | F9（前半） |
 | `efb8173` | `contributes` 的子键改为可选 | F9（后半），规范变更 6 |
+| `b1e6fae` | 回填 F9 并更正 F7 | 无（文档） |
+| `44e6cd0` | 不再把类别列成只有那两个 | 无（注释） |
+| `32569ab` | 校验底层 JSON 值仍塞得下 | D2（前置） |
+| `2594825` | vcpkg 子模块：stdcorelib 的 `utf.h` | 无（外部依赖升级） |
+| `56eae97` | JSON 自己实现，不再包 nlohmann | A5 D2 |
 
 ## 标记约定
 
@@ -175,7 +180,7 @@ if (loc.package().empty() || loc.version().isEmpty()) { return {}; }
 ---
 
 ### A5. `JsonValue::Undefined` 是不可达状态
-- [ ] 🔒 **A5** — **保留**（作者已明确：暂不处理）
+- [x] **A5** — 已解决（`56eae97`）**靠删除这个概念**，不是让它变得可达
 
 [synthrt/lib/Support/JSON.cpp:718-721](../../synthrt/lib/Support/JSON.cpp#L718-L721)
 
@@ -186,15 +191,20 @@ case Undefined: { json = nullptr; break; }   // 与 Null 存成同一个底层�
 `type()` 因此对 undefined 值返回 `Null`，`isUndefined()` **永远为 false**。
 后果：[JSON.cpp:997](../../synthrt/lib/Support/JSON.cpp#L997) / [:1008](../../synthrt/lib/Support/JSON.cpp#L1008) 里 `operator[]` 取不到 key 时返回的 `undefinedValue()`，调用方无法区分"字段不存在"和"字段值是 null"。
 
-🔒 **保留原因**：作者已决定暂不处理。可选方案（加独立标志位 / 删掉 `Undefined` 枚举改用 `contains()` 之类的 API）各有取舍，
-且与 [D2](#d2-jsonvalue-的-proxy-容器方案是否值得继续) 的整体走向绑定，等 D 组一起谈。
+**处置（2026-08-05，作者裁定「觉得没用就可以删」）**：`Undefined` 与 `isUndefined()` **整个删掉**。
+判断一个键在不在，本来就该问对象自己——`toObject()` 交出来的就是那张 `std::map`，`find()` 一句话的事，
+而这也正是仓库里所有代码实际在用的方式。`Undefined` 只是 nlohmann 兼容期留下的残留。
 
-**注意**：在此之前，代码里**不要依赖 `isUndefined()`**——它恒为 false。当前无调用方，保持这样。
+⚠️ **发现一处依赖它的死代码**：`dsinfer/tests/manual/onnxdriver/TestCaseLoader.cpp` 用
+`if (root.isUndefined())` 判断 JSON 是否解析失败——而 `isUndefined()` 恒为 false，
+**这个检查从来没有生效过**，解析失败会被当成解析成功继续往下走。已改成判 `error` 非空。
+
+> 这条印证了「不可达状态」的真实代价：它不会让人写不出代码，只会让人**写出永远不执行的代码**。
 
 ---
 
 ### A6. `proxy_map::iterator` 拷贝构造解引用空 `optional`
-- [x] **A6** — 已修（拷贝只复制 `it`，`ref` 留空/reset）
+- [x] **A6** — 已修（拷贝只复制 `it`，`ref` 留空/reset）。**代码本身随 [D2](#d2-jsonvalue-的-proxy-容器方案是否值得继续) 整个删除**（`56eae97`）
 
 [synthrt/lib/Support/JSON.cpp:304-314](../../synthrt/lib/Support/JSON.cpp#L304-L314)
 
@@ -211,7 +221,7 @@ iterator_base(const iterator_base &RHS) : it(RHS.it) {
 ---
 
 ### A7. `proxy_map::erase(const_iterator)` 自我无限递归
-- [x] **A7** — 已修（改走 `buf.erase`；并补上 `at()` 非 const 版定义）
+- [x] **A7** — 已修（改走 `buf.erase`；并补上 `at()` 非 const 版定义）。**代码本身随 [D2](#d2-jsonvalue-的-proxy-容器方案是否值得继续) 整个删除**（`56eae97`）
 
 [synthrt/lib/Support/JSON.cpp:427-429](../../synthrt/lib/Support/JSON.cpp#L427-L429)
 
@@ -983,10 +993,11 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
   `synthrt/lib/Support/Logging.cpp`（145 行）整个删除。
   过滤规则现在是 stdcorelib 的责任，本仓库不再有这个 TODO。
 
-- [ ] 🔒 **C9b** README 用法示例 — **保留**（可能是我看错了）
-  [README.md:83-85](../../README.md#L83-L85) 写 `find_package(dsinfer)` + `dsinfer::dsinfer`，而注释说 `CMAKE_PREFIX_PATH` 是"`synthrt` install directory"。
-  我最初判断为"不符"，但**这个判断可能是错的**：本仓库的 synthrt 和 dsinfer 装在同一个 prefix 下，
-  所以指向该 prefix 再 `find_package(dsinfer)` 是能工作的。留着待确认，别当 bug 改。
+- [x] ~~**C9b** README 用法示例~~ — **已消失**（`e71f029` 重写 README 时顺带解决）
+  我最初判断 `find_package(dsinfer)` 与「`CMAKE_PREFIX_PATH` 是 synthrt install directory」的注释不符，
+  并自己标注了「这个判断可能是错的」——确实是错的，两个库装在同一个 prefix 下，指向它就能找到任一个。
+  重写后的 README 把这件事写明了（"Both libraries install to the same prefix, so pointing
+  `CMAKE_PREFIX_PATH` at it finds either."），歧义不复存在。
 
 - [ ] **C10** 文档与代码的版本对应关系缺失
   manifest 只认 `"$version": "1.0"`（[InferenceContrib.cpp:141](../../synthrt/lib/SVS/InferenceContrib.cpp#L141)、[SingerContrib.cpp:242](../../synthrt/lib/SVS/SingerContrib.cpp#L242)），
@@ -1028,11 +1039,39 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
   而路径非法返回的是真正的 error。同一个 API 两套错误语义，调用方极易漏判。
   *待讨论*：统一成 `Expected`（失败即 error），还是统一成"永远返回 PackageRef，用 error() 查"，抑或拆成 `open()` / `tryOpen()` 两个函数。
 
-- [ ] **D2** `JsonValue` 的 proxy 容器方案是否值得继续
-  [JSON.cpp:29-455](../../synthrt/lib/Support/JSON.cpp#L29-L455)。用 proxy_map/proxy_vector 替换 nlohmann 的底层容器，
-  只为让 `JsonObject = std::map<std::string, JsonValue>` 能对外暴露且 ABI 稳定。代价是 A5/A6/A7 三个 bug 都出在这里，
-  且 proxy 容器要跟着 nlohmann 的内部要求走（`insert_return_type`、迭代器分类等）。
-  *待讨论*：继续修补 vs 换成"不透明句柄 + 显式访问器"（放弃 `std::map` 兼容接口）vs 直接暴露 nlohmann 类型并放弃 ABI 稳定承诺。
+- [x] **D2** `JsonValue` 的 proxy 容器方案是否值得继续 — 已解决（`56eae97`），**结论是三个候选方案之外的第四个：自己实现**
+
+  > 原问题：用 proxy_map / proxy_vector 替换 nlohmann 的底层容器，只为让
+  > `JsonObject = std::map<std::string, JsonValue>` 能对外暴露。代价是 A5/A6/A7 三个 bug 都出在这里，
+  > 且 proxy 容器要跟着 nlohmann 的内部要求走（`insert_return_type`、迭代器分类等）。
+  >
+  > 当时列的三个选项是「继续修补 / 换不透明句柄 / 暴露 nlohmann 类型」。作者选了第四个：
+  > **JSON 自己实现，公开 API 不变**。理由是 nlohmann 为通用性付出的代价这里不需要。
+
+  **先查过泄漏面（2026-08-05）**，作者的要求是「不能暴露 nlohmann 的任何接口」。结论是
+  **接口层面本来就是干净的**（公开头不 include、导出目标不带、`LINKS_PRIVATE`、枚举值不共用），
+  但有三处泄漏：
+
+  1. **`sizeof`/`alignof` 进了公开 ABI 且零保护**。`JsonValue::storage` 是头文件里写死的 24 字节联合体，
+     nlohmann 对象被 placement new 进去，而全文件没有一个 `static_assert`。实测默认 16、
+     `JSON_DIAGNOSTICS` 24、`JSON_DIAGNOSTIC_POSITIONS` **32（溢出）**——最后这个宏正是当时依赖的
+     nlohmann 3.12 新加的。失效模式是**静默越界写**。先补了断言（`32569ab`），并实测它确实会响。
+  2. **异常跨模块边界**：`toJson()`→`dump()` 与 `toCbor()` 在非法 UTF-8 上抛 `nlohmann::detail::type_error`，
+     而 `fromJson`/`fromCbor` 都有 catch——**是不对称，不是设计**。
+  3. **错误文本是 nlohmann 的**：`fromJson` 把 `e.what()` 原样交出去。
+
+  **自实现之后三处全部消失**：没有第三方对象要塞进缓冲区（`SYNTHRT_JSON_IN_PLACE`、placement new、
+  为够到 protected 成员而派生的 `JV` 类、以及那条 `static_assert` 一起删掉，成员直接放公开头）；
+  序列化改为**不可能失败**（非法 UTF-8 出 U+FFFD 而不是抛）；错误文本是自己的，带行列号。
+
+  **顺带删掉的 400 行**：proxy_map / proxy_vector 整套没有了。它们存在的唯一目的就是让 nlohmann 把成员
+  存进 `std::map` 和 `std::vector`，而 A5/A6/A7 三个 bug 全出在它们身上。
+
+  另外两处是原来没有的：解析加了**嵌套深度限制**（否则一串左括号就能爆栈，而包清单不一定可信），
+  以及**实现侧一处私有访问都不需要**——每个类型都有公开构造函数、每个字段都有公开访问器，
+  解析器/序列化器/CBOR 全部只用公开 API。
+
+  测试从 10 用例 137 断言扩到 **21 用例 264 断言**，对着 LLVM 的 `JSONTest.cpp` 补齐了手写解析器最易错的部分。
 
 - [ ] **D3** `ContribSpec` 状态机的回滚语义
   `Initialized → Ready → Finished → Deleted` 四态 + 三段失败回滚（[SynthUnit.cpp:252-340](../../synthrt/lib/Core/SynthUnit.cpp#L252-L340)）
@@ -1145,15 +1184,15 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 |---|---|---|
 | ~~A2b~~ | ~~`ContribLocator::fromString`~~ | **已解锁并修复**（`4d222bc`，随新文法一并解决） |
 | ~~A3~~ | ~~`findContributes`~~ | **已解锁并修复**（`4d222bc`，注释重写） |
-| **A5** | `JsonValue::Undefined` | 作者明确暂不处理；与 D2 绑定 |
+| ~~A5~~ | ~~`JsonValue::Undefined`~~ | **已解锁并解决**（`56eae97`，删掉了这个概念本身） |
 | **A11b** | `satisfyMouthOpening` | 只写不读已确认，但属于"必需/可选/有意不校验"哪一类未知；文档里没有该参数 |
 | **B5** | `createOrtValueFromTensor` | 作者明确暂不处理；且"未使用参数"可能是有意（规避 A9 的生命周期约束） |
 | **B8b** | `SingerImport` 裸指针 | 当前时序安全，"脆弱"是主观判断 |
 | ~~B4~~ | ~~sparsepp 迭代器~~ | **已裁定不修**，且原评估过重（改名会编译期报错，非静默失效） |
-| **C9b** | README 用法示例 | 我的"不符"判断本身可能有误 |
+| ~~C9b~~ | ~~README 用法示例~~ | **已消失**（`e71f029`）——我的"不符"判断本身就是错的 |
 | **C11** | `parseLibrosaPitch` | 纯推测的规格偏差，非 bug |
 | ~~规范变更 6~~ | ~~`contributes` 子键改可选~~ | **已解锁并实现**（`efb8173`）——F9 让它从「分层不干净」变成「功能不可用」 |
-| **D1–D4、D6** | 设计层 | 待讨论（D5 部分处理，D7 已解决） |
+| **D1、D3、D4、D6** | 设计层 | 待讨论（D5 部分处理，D2 与 D7 已解决） |
 
 ---
 
@@ -1161,13 +1200,13 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
 | 分组 | 可动手 | 🔒 保留 | 已完成 |
 |---|---|---|---|
-| A 确定 bug | 24 | 2 | **23**（仅剩 A16 环境问题） |
+| A 确定 bug | 25 | 1 | **24**（仅剩 A16 环境问题） |
 | B 健壮性 | 12（−B4） | 2 | **7**（B1 B2a–d B8a + B4 裁定不修） |
-| C 代码质量 | 10（−C3，升为 A18；+C12） | 2 | **3**（C6 C8 C9） |
+| C 代码质量 | 10（−C3，升为 A18；+C12） | 1 | **4**（C6 C8 C9 C9b） |
 | E Error 重设计 | 2 | 0 | **2** |
 | F 注册与标识 | 9 | 0 | **9**（F1–F9） |
-| D 设计 | 1（D5 剩类型识别部分） | 5 | **1**（D7） |
-| **合计** | **58** | **11** | **45** |
+| D 设计 | 1（D5 剩类型识别部分） | 4 | **2**（D2 D7） |
+| **合计** | **59** | **8** | **48** |
 
 ### 剩余可动手的条目
 | 条目 | 性质 | 风险 |
@@ -1197,9 +1236,10 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 - **`ctest` 11 个用例全过**（每个类一个可执行文件，见 `1d969c5`）
 - 手动套件 `dsinfer/tests/manual/` **5/5**，含真实 ONNX 推理。不进 ctest：`onnxdriver` 要模型，`txtdict` 要词典路径
 - ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
-- 断言总数约 **475**（Support 384 + Core 84 + PhonemeDict）。
+- 断言总数约 **600**（其中 `test_JSON` 一家就有 264，见 D2）。
   `ContribLocator` 有 `_Parse` / `_Reject` / `_RoundTrip` / `_VersionIsNormalized` / `_Segments`；
-  **A 组早期修复（A1、A6–A15）仍无测试覆盖**，D6 依旧成立。
+  **A 组早期修复里 A1、A8–A15 仍无测试覆盖**，D6 依旧成立。
+  A6、A7 所在的 proxy 容器已随 D2 整个删除，那两条不再有对应代码。
 
 > **验证的教训（2026-08-04）**：改完 F1 后 8/8 全过，但当时**没有任何自动测试构造过 `SynthUnit`**，
 > 注册链路整个断掉也不会变红。"全过"必须先确认测试确实覆盖了改动路径，
