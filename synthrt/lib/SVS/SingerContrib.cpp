@@ -23,10 +23,6 @@ namespace srt {
     class SingerImportData {
     public:
         ContribLocator inferenceLocator;
-
-        /// Filled in once the singer reaches \c Ready. A read() that fails before then leaves the
-        /// entry in the list, so this has to start out null rather than hold whatever the stack
-        /// happened to contain.
         InferenceSpec *inference = nullptr;
 
         JsonValue manifestOptions;
@@ -195,12 +191,10 @@ namespace srt {
                 R"(missing "name" field)",
             };
         }
-        auto name = DisplayText::fromJsonValue(it->second);
+        auto name = DisplayText::fromJsonValue(it->second)
+                        .withContext(Error::InvalidFormat, R"("name" field has invalid value)");
         if (!name) {
-            return Error{
-                Error::InvalidFormat,
-                stdc::formatN(R"("name" field has invalid value: %1)", name.error().message()),
-            };
+            return name.error();
         }
 
         it = obj.find("path");
@@ -210,12 +204,10 @@ namespace srt {
                 R"(missing "path" field)",
             };
         }
-        auto path = DisplayPath::fromJsonValue(it->second);
+        auto path = DisplayPath::fromJsonValue(it->second)
+                        .withContext(Error::InvalidFormat, R"("path" field has invalid value)");
         if (!path) {
-            return Error{
-                Error::InvalidFormat,
-                stdc::formatN(R"("path" field has invalid value: %1)", path.error().message()),
-            };
+            return path.error();
         }
 
         return SingerDemoAudio{name.take(), path.take()};
@@ -309,13 +301,11 @@ namespace srt {
         {
             auto it = obj.find("name");
             if (it != obj.end()) {
-                auto exp = DisplayText::fromJsonValue(it->second);
+                auto exp = DisplayText::fromJsonValue(it->second)
+                               .withContext(Error::InvalidFormat,
+                                            R"("name" field has invalid value in singer manifest)");
                 if (!exp) {
-                    return Error{
-                        Error::InvalidFormat,
-                        stdc::formatN(R"("name" field has invalid value in singer manifest: %1)",
-                                      exp.error().message()),
-                    };
+                    return exp.error();
                 }
                 name_ = exp.take();
             }
@@ -344,13 +334,12 @@ namespace srt {
         {
             auto it = obj.find("avatar");
             if (it != obj.end()) {
-                auto exp = DisplayPath::fromJsonValue(it->second);
+                auto exp =
+                    DisplayPath::fromJsonValue(it->second)
+                        .withContext(Error::InvalidFormat,
+                                     R"("avatar" field has invalid value in singer manifest)");
                 if (!exp) {
-                    return Error{
-                        Error::InvalidFormat,
-                        stdc::formatN(R"("avatar" field has invalid value in singer manifest: %1)",
-                                      exp.error().message()),
-                    };
+                    return exp.error();
                 }
                 avatar_ = exp.take();
             }
@@ -359,14 +348,12 @@ namespace srt {
         {
             auto it = obj.find("background");
             if (it != obj.end()) {
-                auto exp = DisplayPath::fromJsonValue(it->second);
+                auto exp =
+                    DisplayPath::fromJsonValue(it->second)
+                        .withContext(Error::InvalidFormat,
+                                     R"("background" field has invalid value in singer manifest)");
                 if (!exp) {
-                    return Error{
-                        Error::InvalidFormat,
-                        stdc::formatN(
-                            R"("background" field has invalid value in singer manifest: %1)",
-                            exp.error().message()),
-                    };
+                    return exp.error();
                 }
                 background_ = exp.take();
             }
@@ -385,25 +372,24 @@ namespace srt {
                                     demoAudios_.size() + 1),
                             };
                         }
-                        auto exp = readDemoAudioItem(item.toObject());
+                        auto exp = readDemoAudioItem(item.toObject())
+                                       .withContext(Error::InvalidFormat,
+                                                    stdc::formatN(
+                                                        R"(invalid "demoAudio" field entry %1)",
+                                                        demoAudios_.size() + 1));
                         if (!exp) {
-                            return Error{
-                                Error::InvalidFormat,
-                                stdc::formatN(R"(invalid "demoAudio" field entry %1: %2)",
-                                              demoAudios_.size() + 1, exp.error().message()),
-                            };
+                            return exp.error();
                         }
                         demoAudios_.push_back(exp.take());
                     }
                 } else {
-                    auto exp = DisplayPath::fromJsonValue(it->second);
+                    auto exp =
+                        DisplayPath::fromJsonValue(it->second)
+                            .withContext(
+                                Error::InvalidFormat,
+                                R"("demoAudio" field has invalid value in singer manifest)");
                     if (!exp) {
-                        return Error{
-                            Error::InvalidFormat,
-                            stdc::formatN(
-                                R"("demoAudio" field has invalid value in singer manifest: %1)",
-                                exp.error().message()),
-                        };
+                        return exp.error();
                     }
                     demoAudios_.push_back({DisplayText(), exp.take()});
                 }
@@ -661,13 +647,13 @@ namespace srt {
                 }
 
                 // Create configuration
-                auto config = prov->createConfiguration(singerSpec);
+                auto config = prov->createConfiguration(singerSpec)
+                                  .withContext(Error::InvalidFormat,
+                                               stdc::formatN(
+                                                   R"(failed to parse singer configuration of "%1")",
+                                                   singerSpec->id()));
                 if (!config) {
-                    return Error{
-                        Error::InvalidFormat,
-                        stdc::formatN(R"(failed to parse singer configuration of "%1": %2)",
-                                      singerSpec->id(), config.error().message()),
-                    };
+                    return config.error();
                 }
                 spec_impl->configuration = config.get();
                 spec_impl->prov = prov;
@@ -721,15 +707,15 @@ namespace srt {
 
                     // Create options
                     auto inference = inferences.front();
-                    auto options = inference->createImportOptions(imp.manifestOptions);
+                    auto options =
+                        inference->createImportOptions(imp.manifestOptions)
+                            .withContext(
+                                Error::InvalidFormat,
+                                stdc::formatN(
+                                    R"(failed to parse options of inference "%1" imported by singer "%2")",
+                                    imp.inferenceLocator.toString(), spec1->id()));
                     if (!options) {
-                        return Error{
-                            Error::InvalidFormat,
-                            stdc::formatN(
-                                R"(failed to parse options of inference "%1" imported by singer "%2": %3)",
-                                imp.inferenceLocator.toString(), spec1->id(),
-                                options.error().message()),
-                        };
+                        return options.error();
                     }
                     imp.inference = inference;
                     imp.options = options.get();

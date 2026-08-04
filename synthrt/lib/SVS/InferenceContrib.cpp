@@ -185,13 +185,11 @@ namespace srt {
         {
             auto it = obj.find("name");
             if (it != obj.end()) {
-                auto exp = DisplayText::fromJsonValue(it->second);
+                auto exp = DisplayText::fromJsonValue(it->second)
+                               .withContext(Error::InvalidFormat,
+                                            R"("name" field has invalid value in inference manifest)");
                 if (!exp) {
-                    return Error{
-                        Error::InvalidFormat,
-                        stdc::formatN(R"("name" field has invalid value in inference manifest: %1)",
-                                      exp.error().message()),
-                    };
+                    return exp.error();
                 }
                 name_ = exp.take();
             }
@@ -409,23 +407,20 @@ namespace srt {
                 }
 
                 // Create schema and configuration
-                auto schema = interp->createSchema(infSpec);
+                auto schema = interp->createSchema(infSpec).withContext(
+                    Error::InvalidFormat,
+                    stdc::formatN(R"(failed to parse inference schema of "%1")", infSpec->id()));
                 if (!schema) {
-                    return Error{
-                        Error::InvalidFormat,
-                        stdc::formatN(R"(failed to parse inference schema of "%1": %2)",
-                                      infSpec->id(), schema.error().message()),
-                    };
+                    return schema.error();
                 }
                 spec_impl->schema = schema.get();
 
-                auto config = interp->createConfiguration(infSpec);
+                auto config = interp->createConfiguration(infSpec).withContext(
+                    Error::InvalidFormat,
+                    stdc::formatN(R"(failed to parse inference configuration of "%1")",
+                                  infSpec->id()));
                 if (!config) {
-                    return Error{
-                        Error::InvalidFormat,
-                        stdc::formatN(R"(failed to parse inference configuration of "%1": %2)",
-                                      infSpec->id(), config.error().message()),
-                    };
+                    return config.error();
                 }
                 spec_impl->configuration = config.get();
                 spec_impl->interp = interp;
