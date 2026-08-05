@@ -230,12 +230,21 @@ namespace {
     ///       someone trustworthy.
     class Parser {
     public:
-        static constexpr int maxDepth = 200;
+        /// Deep enough for real documents -- the deepest in the JSON test corpus nests 468 -- and
+        /// far enough below what the stack can take. A debug build on Windows, where the frames
+        /// are widest and the stack is a megabyte, faults at around 950 levels, so this keeps
+        /// most of a factor of two in the worst case and much more in a release build.
+        static constexpr int maxDepth = 512;
 
         Parser(std::string_view text, bool comments) : _s(text), _comments(comments) {
         }
 
         bool parse(JsonValue *out) {
+            // A byte order mark carries no information in UTF-8, but editors on Windows write one
+            // anyway. RFC 8259 lets a parser skip it, so skip it.
+            if (_s.size() >= 3 && _s.compare(0, 3, "\xEF\xBB\xBF") == 0) {
+                _pos = 3;
+            }
             skipSpace();
             if (!parseValue(out, 0)) {
                 return false;
@@ -727,17 +736,28 @@ namespace {
             }
         }
 
-        /// \note Indefinite lengths and tags are rejected rather than handled. Nothing writes them
-        ///       here, and accepting a shape we never produce is surface with no reader.
+        /// \note Tags are rejected rather than handled. Nothing writes them here, and accepting a
+        ///       shape we never produce is surface with no reader. Indefinite lengths are a
+        ///       different matter: we never write one, but other encoders do, and a decoder that
+        ///       cannot read them cannot read their output.
         class Decoder {
         public:
-            static constexpr int maxDepth = 200;
+            static constexpr int maxDepth = Parser::maxDepth;
+
+            /// The initial byte that ends an indefinite-length string, array or map.
+            static constexpr uint8_t breakByte = 0xFF;
 
             explicit Decoder(stdc::array_view<uint8_t> data) : _d(data) {
             }
 
             bool decode(JsonValue *out) {
-                return decodeValue(out, 0);
+                if (!decodeValue(out, 0)) {
+                    return false;
+                }
+                if (_pos != _d.size()) {
+                    return fail("trailing bytes after the value");
+                }
+                return true;
             }
 
             const std::string &error() const {
@@ -772,7 +792,15 @@ namespace {
                 return true;
             }
 
-            bool argument(uint8_t initial, uint64_t *out) {
+            /// Reads the argument that follows an initial byte.
+            ///
+            /// \param indefinite Where to report minor 31, which stands for a length that is not
+            ///        given up front. Only the string, array and map types may carry one, so
+            ///        passing null is how the rest reject it.
+            bool argument(uint8_t initial, uint64_t *out, bool *indefinite = nullptr) {
+                if (indefinite) {
+                    *indefinite = false;
+                }
                 uint8_t minor = initial & 0x1F;
                 if (minor < 24) {
                     *out = minor;
@@ -788,7 +816,11 @@ namespace {
                     case 27:
                         return takeBig(8, out);
                     case 31:
-                        return fail("indefinite length is not supported");
+                        if (!indefinite) {
+                            return fail("this type cannot have an indefinite length");
+                        }
+                        *indefinite = true;
+                        return true;
                     default:
                         return fail("reserved length encoding");
                 }
@@ -801,6 +833,58 @@ namespace {
                 out->assign(reinterpret_cast<const char *>(_d.data() + _pos), size_t(count));
                 _pos += size_t(count);
                 return true;
+            }
+
+            /// Whether the next byte ends an indefinite-length item, consuming it if so.
+            bool atBreak(bool *broke) {
+                if (_pos >= _d.size()) {
+                    return fail("input ended before the break");
+                }
+                *broke = _d[_pos] == breakByte;
+                if (*broke) {
+                    ++_pos;
+                }
+                return true;
+            }
+
+            /// Reads the pieces of an indefinite-length string up to the break and joins them.
+            ///
+            /// Each piece is a definite-length string of the same major type, and a text piece has
+            /// to be well formed on its own -- a split through the middle of a code point is not
+            /// something the concatenation would show.
+            bool chunkedBytes(uint8_t major, std::string *out) {
+                for (;;) {
+                    bool broke = false;
+                    if (!atBreak(&broke)) {
+                        return false;
+                    }
+                    if (broke) {
+                        return true;
+                    }
+
+                    uint8_t initial;
+                    if (!take(&initial)) {
+                        return false;
+                    }
+                    if (uint8_t(initial >> 5) != major) {
+                        return fail("an indefinite-length string is made of strings of its own kind");
+                    }
+                    if ((initial & 0x1F) == 31) {
+                        return fail("a piece of an indefinite-length string has to have a length");
+                    }
+                    uint64_t count = 0;
+                    if (!argument(initial, &count)) {
+                        return false;
+                    }
+                    std::string chunk;
+                    if (!rawBytes(count, &chunk)) {
+                        return false;
+                    }
+                    if (major == 3 && !stdc::utf::is_valid_utf8(chunk)) {
+                        return fail("text string is not valid UTF-8");
+                    }
+                    *out += chunk;
+                }
             }
 
             bool decodeValue(JsonValue *out, int depth) {
@@ -832,11 +916,12 @@ namespace {
                         return true;
                     }
                     case 2: {
-                        if (!argument(initial, &arg)) {
+                        bool indefinite = false;
+                        if (!argument(initial, &arg, &indefinite)) {
                             return false;
                         }
                         std::string raw;
-                        if (!rawBytes(arg, &raw)) {
+                        if (indefinite ? !chunkedBytes(2, &raw) : !rawBytes(arg, &raw)) {
                             return false;
                         }
                         *out = JsonValue(stdc::array_view<uint8_t>(
@@ -844,25 +929,42 @@ namespace {
                         return true;
                     }
                     case 3: {
-                        if (!argument(initial, &arg)) {
+                        bool indefinite = false;
+                        if (!argument(initial, &arg, &indefinite)) {
                             return false;
                         }
                         std::string raw;
-                        if (!rawBytes(arg, &raw)) {
-                            return false;
-                        }
-                        if (!stdc::utf::is_valid_utf8(raw)) {
-                            return fail("text string is not valid UTF-8");
+                        if (indefinite) {
+                            if (!chunkedBytes(3, &raw)) {
+                                return false;
+                            }
+                        } else {
+                            if (!rawBytes(arg, &raw)) {
+                                return false;
+                            }
+                            if (!stdc::utf::is_valid_utf8(raw)) {
+                                return fail("text string is not valid UTF-8");
+                            }
                         }
                         *out = JsonValue(std::move(raw));
                         return true;
                     }
                     case 4: {
-                        if (!argument(initial, &arg)) {
+                        bool indefinite = false;
+                        if (!argument(initial, &arg, &indefinite)) {
                             return false;
                         }
                         JsonArray arr;
-                        for (uint64_t i = 0; i < arg; ++i) {
+                        for (uint64_t i = 0; indefinite || i < arg; ++i) {
+                            if (indefinite) {
+                                bool broke = false;
+                                if (!atBreak(&broke)) {
+                                    return false;
+                                }
+                                if (broke) {
+                                    break;
+                                }
+                            }
                             JsonValue item;
                             if (!decodeValue(&item, depth + 1)) {
                                 return false;
@@ -873,11 +975,21 @@ namespace {
                         return true;
                     }
                     case 5: {
-                        if (!argument(initial, &arg)) {
+                        bool indefinite = false;
+                        if (!argument(initial, &arg, &indefinite)) {
                             return false;
                         }
                         JsonObject obj;
-                        for (uint64_t i = 0; i < arg; ++i) {
+                        for (uint64_t i = 0; indefinite || i < arg; ++i) {
+                            if (indefinite) {
+                                bool broke = false;
+                                if (!atBreak(&broke)) {
+                                    return false;
+                                }
+                                if (broke) {
+                                    break;
+                                }
+                            }
                             JsonValue key;
                             if (!decodeValue(&key, depth + 1)) {
                                 return false;
@@ -941,6 +1053,8 @@ namespace {
                         *out = JsonValue(d);
                         return true;
                     }
+                    case breakByte:
+                        return fail("a break outside an indefinite-length item");
                     default:
                         return fail("unsupported initial byte");
                 }

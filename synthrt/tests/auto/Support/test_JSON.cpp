@@ -517,13 +517,85 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_CborShapes) {
         BOOST_CHECK(JsonValue::fromCbor(encoded, &error).isNull());
         BOOST_CHECK(!error.empty());
     }
-    // So does something that is not CBOR at all.
+    // Bytes past the end of the value are not silently dropped.
     {
-        const uint8_t indefinite[] = {0x9F, 0x01, 0xFF};
+        auto encoded = JsonValue(1).toCbor();
+        encoded.push_back(0x02);
         std::string error;
-        BOOST_CHECK(JsonValue::fromCbor(stdc::array_view<uint8_t>(indefinite, 3), &error).isNull());
+        BOOST_CHECK(JsonValue::fromCbor(encoded, &error).isNull());
         BOOST_CHECK(!error.empty());
     }
+}
+
+/// The test vectors from RFC 8949 appendix A for the lengths that are not given up front.
+///
+/// We never write one. Other encoders do, so we have to be able to read one.
+BOOST_AUTO_TEST_CASE(test_JsonValue_CborIndefiniteLength) {
+    auto decode = [](std::initializer_list<uint8_t> bytes) {
+        const std::vector<uint8_t> buffer(bytes);
+        return JsonValue::fromCbor(buffer);
+    };
+
+    // (_ h'0102', h'030405') -- the pieces join into one byte string.
+    {
+        const auto v = decode({0x5F, 0x42, 0x01, 0x02, 0x43, 0x03, 0x04, 0x05, 0xFF});
+        BOOST_REQUIRE(v.type() == JsonValue::Binary);
+        BOOST_CHECK(v.toBinary() == std::vector<uint8_t>({1, 2, 3, 4, 5}));
+    }
+    // (_ "strea", "ming")
+    {
+        const auto v = decode({0x7F, 0x65, 0x73, 0x74, 0x72, 0x65, 0x61, 0x64, 0x6D, 0x69, 0x6E,
+                               0x67, 0xFF});
+        BOOST_REQUIRE(v.isString());
+        BOOST_CHECK(v.toString() == "streaming");
+    }
+    // An empty one still ends where it says it does.
+    BOOST_CHECK(decode({0x5F, 0xFF}).toBinary().empty());
+    BOOST_CHECK(decode({0x7F, 0xFF}).toString().empty());
+    BOOST_CHECK(decode({0x9F, 0xFF}) == JsonValue(JsonArray{}));
+    BOOST_CHECK(decode({0xBF, 0xFF}) == JsonValue(JsonObject{}));
+
+    // [_ 1, [2, 3], [_ 4, 5]] -- the two forms nest inside one another either way round.
+    {
+        const auto expected = JsonValue::fromJson("[1,[2,3],[4,5]]", false);
+        BOOST_CHECK(decode({0x9F, 0x01, 0x82, 0x02, 0x03, 0x9F, 0x04, 0x05, 0xFF, 0xFF}) ==
+                    expected);
+        BOOST_CHECK(decode({0x9F, 0x01, 0x82, 0x02, 0x03, 0x82, 0x04, 0x05, 0xFF}) == expected);
+        BOOST_CHECK(decode({0x83, 0x01, 0x82, 0x02, 0x03, 0x9F, 0x04, 0x05, 0xFF}) == expected);
+        BOOST_CHECK(decode({0x83, 0x01, 0x9F, 0x02, 0x03, 0xFF, 0x82, 0x04, 0x05}) == expected);
+    }
+    // {_ "a": 1, "b": [_ 2, 3]}
+    BOOST_CHECK(decode({0xBF, 0x61, 0x61, 0x01, 0x61, 0x62, 0x9F, 0x02, 0x03, 0xFF, 0xFF}) ==
+                JsonValue::fromJson(R"({"a":1,"b":[2,3]})", false));
+    // ["a", {_ "b": "c"}]
+    BOOST_CHECK(decode({0x82, 0x61, 0x61, 0xBF, 0x61, 0x62, 0x61, 0x63, 0xFF}) ==
+                JsonValue::fromJson(R"(["a",{"b":"c"}])", false));
+
+    // What is ill formed stays ill formed.
+    auto rejected = [](std::initializer_list<uint8_t> bytes) {
+        const std::vector<uint8_t> buffer(bytes);
+        std::string error;
+        return JsonValue::fromCbor(buffer, &error).isNull() && !error.empty();
+    };
+
+    // A piece of an indefinite-length string cannot itself be indefinite, which is where the
+    // fuzzer corpus in nlohmann/json_test_data ends up.
+    BOOST_CHECK(rejected({0x5F, 0x5F, 0x41, 0x01, 0xFF, 0xFF}));
+    // Nor can it be a string of another kind.
+    BOOST_CHECK(rejected({0x5F, 0x61, 0x61, 0xFF}));
+    BOOST_CHECK(rejected({0x7F, 0x41, 0x01, 0xFF}));
+    // Nor anything that is not a string at all.
+    BOOST_CHECK(rejected({0x5F, 0x01, 0xFF}));
+    // A break has to end something.
+    BOOST_CHECK(rejected({0xFF}));
+    BOOST_CHECK(rejected({0x82, 0x01, 0xFF}));
+    // And an integer never had a length to leave out.
+    BOOST_CHECK(rejected({0x1F}));
+    BOOST_CHECK(rejected({0x3F}));
+    // An item that opens and never breaks is not a value.
+    BOOST_CHECK(rejected({0x9F, 0x01, 0x02}));
+    BOOST_CHECK(rejected({0xBF, 0x61, 0x61, 0x01}));
+    BOOST_CHECK(rejected({0x5F, 0x41, 0x01}));
 }
 
 // A string is a counted sequence of bytes, not a C string, so a null inside it is just a byte.
@@ -640,6 +712,55 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_MoreRejects) {
         BOOST_CHECK(error.find("line 3") != std::string::npos);
         BOOST_CHECK(error.find("column 3") != std::string::npos);
     }
+}
+
+/// A byte order mark is nothing in UTF-8, but it is what a Windows editor writes, so a manifest
+/// saved from one still has to load.
+BOOST_AUTO_TEST_CASE(test_JsonValue_ByteOrderMark) {
+    const std::string bom = "\xEF\xBB\xBF";
+
+    BOOST_CHECK(JsonValue::fromJson(bom + R"({"a":1})", false) ==
+                JsonValue::fromJson(R"({"a":1})", false));
+    BOOST_CHECK(JsonValue::fromJson(bom + "  [1]", false) == JsonValue::fromJson("[1]", false));
+
+    // Only at the front, and only one. Anywhere else it is a character in the text, and outside a
+    // string that is not a document.
+    auto rejected = [](const std::string &text) {
+        std::string error;
+        return JsonValue::fromJson(text, false, &error).isNull() && !error.empty();
+    };
+    BOOST_CHECK(rejected(bom + bom + "[1]"));
+    BOOST_CHECK(rejected("[1]" + bom));
+    BOOST_CHECK(rejected("[" + bom + "1]"));
+
+    // Inside a string it is U+FEFF like any other character, and stays there.
+    {
+        const auto v = JsonValue::fromJson("\"" + bom + "\"", false);
+        BOOST_REQUIRE(v.isString());
+        BOOST_CHECK(v.toString() == bom);
+    }
+}
+
+/// Nesting is bounded, because the parser recurses and a manifest does not have to come from
+/// someone who wishes us well.
+BOOST_AUTO_TEST_CASE(test_JsonValue_DepthLimit) {
+    auto nested = [](int depth) {
+        return std::string(size_t(depth), '[') + std::string(size_t(depth), ']');
+    };
+
+    std::string error;
+    BOOST_CHECK(JsonValue::fromJson(nested(400), false, &error).isArray());
+    BOOST_CHECK(error.empty());
+
+    JsonValue::fromJson(nested(100000), false, &error);
+    BOOST_CHECK(error.find("nested too deeply") != std::string::npos);
+
+    // The limit is the same in the other direction, so a document that decodes cannot be one the
+    // parser would have turned away.
+    error.clear();
+    std::vector<uint8_t> cbor(100000, 0x9F);
+    JsonValue::fromCbor(cbor, &error);
+    BOOST_CHECK(error.find("nested too deeply") != std::string::npos);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
