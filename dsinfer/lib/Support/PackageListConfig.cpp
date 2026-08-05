@@ -44,13 +44,21 @@ namespace ds {
                                   error2),
                 };
             }
-            if (!root.isArray()) {
+            if (!root.isObject()) {
                 return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: invalid package list configuration format)", path),
                 };
             }
-            configArr = root.toArray();
+            const auto &packagesValue = root["packages"];
+            if (!packagesValue.isArray()) {
+                return Error{
+                    Error::InvalidFormat,
+                    stdc::formatN(R"(%1: missing "packages" field in package list configuration)",
+                                  path),
+                };
+            }
+            configArr = packagesValue.toArray();
         }
 
         std::vector<PackageListItem> pkgs;
@@ -181,7 +189,7 @@ namespace ds {
             };
         }
 
-        auto data = JsonValue(obj).toString();
+        auto data = JsonValue(obj).toJson();
         file.write(data.data(), std::streamsize(data.size()));
         return Expected<void>();
     }

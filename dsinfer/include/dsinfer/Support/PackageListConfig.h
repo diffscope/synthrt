@@ -53,6 +53,7 @@ namespace ds {
                                PackageListItemMetadata metadata);
 
         inline const std::string &id() const;
+        inline stdc::VersionNumber version() const;
         inline const std::filesystem::path &relativeLocation() const;
         inline const PackageListItemMetadata &metadata() const;
 
@@ -74,6 +75,10 @@ namespace ds {
 
     inline const std::string &PackageListItem::id() const {
         return _id;
+    }
+
+    inline stdc::VersionNumber PackageListItem::version() const {
+        return _version;
     }
 
     inline const std::filesystem::path &PackageListItem::relativeLocation() const {
