@@ -51,7 +51,7 @@ namespace {
 
 }
 
-BOOST_AUTO_TEST_SUITE(test_ObjectPool)
+BOOST_AUTO_TEST_SUITE(test_NamedObject)
 
 BOOST_AUTO_TEST_CASE(test_ObjectPool_Shared) {
     int live = 0;
@@ -189,6 +189,81 @@ BOOST_AUTO_TEST_CASE(test_ObjectPool_Notifications) {
     pool.removeSharedObject("id", shared.get());
     BOOST_REQUIRE(pool.log.size() == 1);
     BOOST_CHECK(pool.log[0] == "-shared id/s");
+}
+
+BOOST_AUTO_TEST_CASE(test_NamedObject_Name) {
+    NamedObject plain;
+    BOOST_CHECK(plain.objectName().empty());
+
+    plain.setObjectName("later");
+    BOOST_CHECK(plain.objectName() == "later");
+
+    NamedObject named("given");
+    BOOST_CHECK(named.objectName() == "given");
+}
+
+BOOST_AUTO_TEST_CASE(test_NamedObject_Property) {
+    NamedObject obj;
+
+    // A name that was never set reads as an empty value rather than throwing or inserting one.
+    BOOST_CHECK(!obj.property("absent").has_value());
+
+    obj.setProperty("count", 7);
+    BOOST_REQUIRE(obj.property("count").has_value());
+    BOOST_CHECK(std::any_cast<int>(obj.property("count")) == 7);
+
+    // Setting the same name again replaces what was there, type and all.
+    obj.setProperty("count", std::string("seven"));
+    BOOST_CHECK(std::any_cast<std::string>(obj.property("count")) == "seven");
+
+    // Asking for the wrong type is the caller's problem, and the pointer form says so quietly.
+    BOOST_CHECK(std::any_cast<int>(&obj.property("count")) == nullptr);
+}
+
+BOOST_AUTO_TEST_CASE(test_NO) {
+    int live = 0;
+    {
+        auto tracked = NO<Tracked>::create("t", &live);
+        BOOST_REQUIRE(tracked != nullptr);
+        BOOST_CHECK(live == 1);
+        BOOST_CHECK(tracked->objectName() == "t");
+
+        // Sharing is what it is for, and the object outlives any one of the references.
+        NO<NamedObject> base = tracked;
+        BOOST_CHECK(base.use_count() == 2);
+        BOOST_CHECK(base.as<Tracked>() == tracked);
+
+        tracked = {};
+        BOOST_CHECK(live == 1);
+    }
+    BOOST_CHECK(live == 0);
+}
+
+BOOST_AUTO_TEST_CASE(test_UNO) {
+    int live = 0;
+    {
+        auto owned = UNO<Tracked>::create("t", &live);
+        BOOST_REQUIRE(owned != nullptr);
+        BOOST_CHECK(live == 1);
+
+        // as() hands back a pointer and leaves ownership where it was, unlike NO::as().
+        NamedObject *borrowed = owned.as<NamedObject>();
+        BOOST_CHECK(borrowed == owned.get());
+        BOOST_CHECK(owned != nullptr);
+    }
+    BOOST_CHECK(live == 0);
+
+    // Moving into an NO is how a factory hands out sole ownership without deciding for its caller
+    // whether the object will be shared.
+    {
+        auto owned = UNO<Tracked>::create("t", &live);
+        auto raw = owned.get();
+        NO<NamedObject> shared = std::move(owned);
+        BOOST_CHECK(owned == nullptr);
+        BOOST_CHECK(shared.get() == raw);
+        BOOST_CHECK(live == 1);
+    }
+    BOOST_CHECK(live == 0);
 }
 
 BOOST_AUTO_TEST_SUITE_END()
