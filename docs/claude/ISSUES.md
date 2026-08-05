@@ -1,7 +1,7 @@
 # synthrt 代码审查问题清单
 
 > 生成于 2026-08-01，基于 commit `304b275`（分支 `main`）。
-> 最后回填 2026-08-05，对应 `main` 上 `304b275` 之后的 37 个提交。
+> 最后回填 2026-08-05，对应 `main` 上 `304b275` 之后的 48 个提交。
 > 每修复一条就把 `[ ]` 改成 `[x]`，并在条目末尾补一行 `> 修复：<commit/说明>`。
 >
 > 分组顺序即建议的处理顺序：**A（确定 bug）→ B（健壮性/并发）→ E（Error 重设计）→ C（代码质量）→ D（设计，最后讨论）**。
@@ -48,6 +48,16 @@
 | `32569ab` | 校验底层 JSON 值仍塞得下 | D2（前置） |
 | `2594825` | vcpkg 子模块：stdcorelib 的 `utf.h` | 无（外部依赖升级） |
 | `56eae97` | JSON 自己实现，不再包 nlohmann | A5 D2 |
+| `3d8e00d` | 回填 A5 / D2 / C9b | 无（文档） |
+| `05e01b4` | `ObjectPool` 按所有权拆成 shared / unique | D5（driver） |
+| `33d1189` | 测试文件与头文件一一对应 | D6（部分） |
+| `1afc2ba` | `PackageListConfig` 的 save / load 修复 | 新增 A19 |
+| `f3e5caf` | 补齐 Support 的测试 | D6（部分） |
+| `517e485` | `Tensor` 测试 + 两处修复 | 新增 A20 A21 |
+| `fab470d` | vcpkg 子模块：stdcorelib 的 `any` | 无（外部依赖升级） |
+| `e4c4d2c` | 属性袋改用 `stdc::any` | 新增 C13 |
+| `7f8b95f` | spec 持有 schema / configuration | D5（第一批） |
+| `861f898` | category 持有 interpreter / provider | D5（第二批） |
 
 ## 标记约定
 
@@ -478,6 +488,64 @@ InferenceContrib 第 114→175 行同理）。
 > 歌手 id、推理 id、import 的 `inferenceId` 全部改用 `isValidSegment`。
 > **按"直接拒绝"实现，无过渡期警告**——用户裁定内测期不必兼容存量。
 > `ContribCategory` 的构造函数也加了断言，要求 category 名本身是合法 segment（否则拼出来的定位器无法解析）。
+
+---
+
+### A19. `PackageListConfig` 写出空文件，且写出的东西自己读不回来
+- [x] **A19** — 已修（`1afc2ba`）。**写测试时发现**
+
+`save()` 构好文档后调的是 `toString()`——那是「取出这个值持有的字符串」的访问器，
+而对象不持有字符串，于是返回空的默认值，**空串被写进磁盘**。应为 `toJson()`。
+
+即使写对了，`load()` 也读不回来：`save()` 产出 `{"packages":[...]}`（对象），
+`load()` 却要求 `root.isArray()`（裸数组）。
+
+> **与 [A2b](#a2-contriblocatorfromstring-把--解析进版本号) 的关系**：A2b 修的是文件里**单个标识符**的解析，
+> 外层这个形状不一致一直压在它上面。当时把 A2b 当成「save/load 闭合了」是不完整的。
+
+这个类是 dsinfer 的导出公共 API，**至今零调用方**，也没有任何这种格式的文件存在，所以两个 bug 都没人碰到过。
+`load()` 已改为读 `save()` 实际写的形状（对象形式，留了位置以后放格式版本）。
+顺带补上 `PackageListItem::version()`——这个字段一直存着、一直被写出去，就是读不回来。
+
+**验证**：把实现还原到修复前重编，测试 5 个用例挂 4 个。
+
+---
+
+### A20. 默认构造的 `Tensor` 一被提问就中止进程
+- [x] **A20** — 已修（`517e485`）。**写测试时发现**
+
+[dsinfer/lib/Core/Tensor.cpp](../../dsinfer/lib/Core/Tensor.cpp) 的 `getElementSize()` 里是
+`assert(false && "Unsupported data type")`。而 `Undefined` 是**合法可达的状态**：
+
+- 默认构造留下的状态（头文件写着 "creates an empty/invalid Tensor"）
+- **移动之后源对象的状态**（`other._dataType = Undefined`）
+
+于是 `Tensor t; t.elementSize();` 在 Debug 下 abort，`elementCount()` 同理。
+`Tensor::create(Undefined, shape)` 也一样——文档写「On failure: An error」，实际中止；
+`verify()` 里明明有这个检查，但 `create()` 不走 `verify()`。
+
+`default:` 分支返回 0 本来就是对的行为，每个调用方也都处理了 0，assert 是多余的。已删除，
+并在 `create()` 开头补上 `Undefined` 的检查。
+
+> 与 [B6](#b6-sessionclose-用-assert-保护会导致-ub-的不变量) 同类：用 assert 去挡一个公开 API 的合法输入。
+
+---
+
+### A21. `ITensor::view<bool>()` 根本编译不过
+- [x] **A21** — 已修（`517e485`）。**写测试时发现**
+
+[Tensor.h](../../dsinfer/include/dsinfer/Core/Tensor.h) 里：
+
+```cpp
+return {reinterpret_cast<const T *>(rawData()), elementCount()};
+```
+
+对 `T = bool`，指针和计数**都能转成 `bool`**，于是这个花括号被当成 `std::initializer_list<bool>`，
+报收缩转换错误。`float` / `int64_t` 没事，是因为 `const float *` 转不成 `float`。
+
+**从来没有人实例化过 `view<bool>()`**，所以这个潜伏的编译错误一直没暴露——
+与 [A6](#a6-proxy_mapiterator-拷贝构造解引用空-optional) / [A7](#a7-proxy_maperaseconst_iterator-自我无限递归)
+「靠未被实例化侥幸没炸」是同一类。改成显式构造 `stdc::array_view<T>(ptr, count)`。
 
 ---
 
@@ -958,6 +1026,27 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
 ---
 
+### F10. `dllexport` 会强制实例化类的全部成员，包括没人调用的隐式拷贝构造
+- [x] **F10** — 已处理（`05e01b4`）
+
+给 `ObjectPool::Impl` 加一个 move-only 成员（`std::map<..., std::vector<UNO<...>>>`）之后，
+**每个包含 `NamedObject_p.h` 的 TU 都编译失败**，错误指向 `xmemory`，与真正的原因隔了七层实例化。
+
+原因是 [F9](#f9-类别集合并不封闭链接期依赖可以贡献一个类别) 那轮为了让 wolf 能继承而给这些 `Impl`
+加了 `SYNTHRT_EXPORT`。**`__declspec(dllexport)` 会强制实例化类的全部成员**，其中包括隐式拷贝构造，
+它于是去拷贝 map → vector → `UNO`，撞上被删除的拷贝构造。
+
+pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `ObjectPool::Impl` 显式
+`STDCORELIB_DISABLE_COPY`，并把原因写在注释里。
+
+⚠️ **这个坑会随每一个加进去的 move-only 成员重现**，而错误信息完全不指向真正的原因。
+
+> 另一个相邻发现：**`stdc::linked_map` 装不了 move-only 的值**——它的拷贝构造会实例化
+> `insert_impl(const V &)` 去逐个拷贝，而这个拷贝构造在它成为 `std::map` 的值类型时就会被编出来。
+> 池的内层容器因此换成了 `std::vector`。
+
+---
+
 ## C. 代码质量 / 可维护性（可批量处理）
 
 - [ ] **C1** `goto` + 标签的错误处理遍布核心逻辑，是 A1 那类 bug 的温床
@@ -1021,6 +1110,20 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
   *两条出路*：在 `vcpkg.json` 里给 stduuid 请求 `gsl-span` 特性（引入 Microsoft.GSL 依赖，换来全仓 C++17），
   或把这六个插件的 `FEATURES` 如实写成 `cxx_std_20`，让标准是**声明**的而不是**继承**来的。**未定，未动。**
+
+- [x] **C13** 属性袋用 `std::any` — 已改用 `stdc::any`（`e4c4d2c`）
+  `NamedObject::property()` / `setProperty()` 原来用 `std::any`。三个问题：
+  ① `any_cast` 靠比较 `typeid`，**依赖 RTTI**（lorelei 就是 `/GR-` 编译的）；
+  ② **跨模块身份不可靠**——同一类型在两个模块里的 `type_info` 可能比较不相等，`any_cast` 于是**静默返回空**，
+  而 `NamedObject` 正是在库与插件之间传递的东西；
+  ③ 大小是实现定义的，实测 MSVC **64 字节**（libstdc++ 16），那张 map 每个条目都在付。
+  `stdc::any` 用编译器给的类型名 + 单一导出表解析，三条都不适用，且固定 **24 字节**。
+
+  ⚠️ **`property()` / `setProperty()` 至今零调用方**，这一条只是把隐患换掉，没有解决「要不要留这个属性袋」。
+
+  > **无法验证的部分**：现有测试证明不了跨模块识别——`setProperty` 与 `any_cast` 都发生在测试二进制里，
+  > vtable 与 `entry_of<T>` 是同一个模块的。要验证得让 synthrt.dll 那侧构造一个 `any` 交出来，
+  > 而目前没有这样的 API。那条性质属于 stdcorelib 自己的契约。
 
 - [ ] 🔒 **C11** 可能的规格偏差 — **保留**（纯推测，非 bug）
   [InputParserCommon.cpp:73-86](../../dsinfer/util/inputparser/src/InputParserCommon.cpp#L73-L86) 的 `parseLibrosaPitch` **强制要求** cents 部分（`+0` / `-25`），
@@ -1130,7 +1233,7 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
   创建两个 OnnxDriver 实例会重复 dlopen + 重复 InitApi。
   *待讨论*：把 ORT 加载状态提升为进程级单例，还是明确"每进程只允许一个 driver 实例"并加检查。
 
-- [ ] **D5** `NO<T>`（`shared_ptr` 子类）作为公共 API 载体 — **部分处理（`1938962`），所有权部分已定案，类型识别部分仍待讨论**
+- [ ] **D5** `NO<T>`（`shared_ptr` 子类）作为公共 API 载体 — **所有权部分已全部完成**（`1938962` `05e01b4` `7f8b95f` `861f898`），**类型识别部分仍待讨论**
 
   [NamedObject.h](../../synthrt/include/synthrt/Core/NamedObject.h)。继承 `std::shared_ptr`，
   `as<U>()` 用的是 `static_pointer_cast`（无类型检查），配合 `objectName()` 字符串比较来做运行时类型识别。
@@ -1146,7 +1249,24 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
   只有约 5 处（张量跨推理阶段传递）是真正需要共享的。
   **是"按值返回 `NO` 的访问器"把本可独占的成员变成了共享的**——这是问题的根源。
 
-  已转换：`InferenceSession` 相关 13 处。剩余转换见待办表（按爆炸半径排序）。
+  **所有权部分已全部落地（2026-08-05）**，四批：
+
+  | 批次 | 提交 | 结果 |
+  |---|---|---|
+  | `InferenceSession` 相关 13 处 | `1938962` | 改 `UNO` |
+  | `driver` | `05e01b4` | 池持有，借用者改裸指针 |
+  | `schema` / `configuration` | `7f8b95f` | spec 持有，工厂返回 `UNO`，访问器返回裸指针 |
+  | `interp` / `prov` | `861f898` | category 的 cache 持有，`plugin->create()` 返回 `UNO` |
+  | `XxxResult` | — | 🔒 **裁定维持 `NO`**，见下 |
+  | ~~`TensorHelper::_tensor`~~ | — | **撤销**，见下 |
+
+  **前四批能干净转换的共同点：持有者比借用者活得久。** 池、spec、category 的 cache 都活到 unit 结束，
+  借用者（解释器、推理对象）是短命的，所以把借用方改成裸指针是纯粹的清理。
+
+  **`XxxResult` 正好反过来，所以不改（作者裁定 2026-08-05：「result 本来就应该是可复制的」）。**
+  结果通常**比产出它的 task 活得久**——跑完推理、拿走音频、推理对象就没了。
+  而且 `ITask::start()` 既返回结果又存一份（`result()` 供事后取用），共享是这个 API 形状的直接后果，
+  不是疏忽。改成裸指针不是清理，是制造悬垂读取。
 
   ⚠️ **张量那一项做过又撤销了（2026-08-04）。** 我曾把 7 个 `Tensor::create*` 工厂改成返回
   `UNO<Tensor>`，编译只错一处——其余 27 个调用点靠 `unique_ptr → shared_ptr` 的隐式转换照样通过，
@@ -1165,12 +1285,24 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
   *仍待讨论*：`as<U>()` 是否该换成 `dynamic_pointer_cast` 或加一个轻量类型 tag。**这部分没动。**
 
-- [ ] **D6** 测试覆盖
-  [synthrt/tests/auto/](../../synthrt/tests/auto/) 只覆盖 Contribute / PackageRef / DisplayText / Expected / JSON / Logging；
-  dsinfer 侧只有 PhonemeDict 和一个 onnxdriver 冒烟测试。
-  **上面 A 组的问题基本没有一条能被现有测试捕获。**
-  *待讨论*：至少要为 `ContribLocator` round-trip、`JsonObject` 迭代器/erase、`PhonemeDict::load` 失败路径、
-  `SynthUnit` 依赖解析（循环/缺失/重复）补上回归测试，作为 A 组修复的验收条件。
+- [ ] **D6** 测试覆盖 — **大幅推进，规则已定，尚未覆盖全部头文件**
+
+  **规则（`33d1189`，作者定）**：**一个测试文件对应一个头文件**，`A_p.h` 的测试写进 `test_A.cpp`。
+  一个 suite 是一个头文件，一个 case 是其中的一个类。
+
+  | 已覆盖 | 头文件 |
+  |---|---|
+  | synthrt Core | `Contribute.h`(+`_p`)、`NamedObject.h`(+`_p`)、`PackageRef.h`、`SynthUnit.h` |
+  | synthrt Support | `DisplayPath` `DisplayText` `Error` `Expected` `JSON` `Logging` 六个，齐 |
+  | dsinfer | `Core/Tensor.h`、`Support/` 四个，齐 |
+
+  **仍无测试**：synthrt 的 `Plugin/*`（3）、`SVS/*`（7）、`Task/ITask.h`；
+  dsinfer 的 `Core/ParamTag.h`、`Inference/*`。`Api/*` 是纯数据声明，无可测。
+
+  > **这一轮最值得记的一件事：写测试直接挖出了三个真 bug**——[A19](#a19-packagelistconfig-写出空文件且写出的东西自己读不回来)、
+  > [A20](#a20-默认构造的-tensor-一被提问就中止进程)、[A21](#a21-itensorviewbool-根本编译不过)。
+  > 三个都在**零调用方或从未实例化**的代码里，也就是说它们不会被任何既有用法碰到，只有专门去用才会现形。
+  > A 组早期那些「靠没人调用侥幸没炸」的条目（A6、A7、A15）是同一个形状。
 
 ---
 
@@ -1192,7 +1324,7 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 | ~~C9b~~ | ~~README 用法示例~~ | **已消失**（`e71f029`）——我的"不符"判断本身就是错的 |
 | **C11** | `parseLibrosaPitch` | 纯推测的规格偏差，非 bug |
 | ~~规范变更 6~~ | ~~`contributes` 子键改可选~~ | **已解锁并实现**（`efb8173`）——F9 让它从「分层不干净」变成「功能不可用」 |
-| **D1、D3、D4、D6** | 设计层 | 待讨论（D5 部分处理，D2 与 D7 已解决） |
+| **D1、D3、D4、D6** | 设计层 | 待讨论（D5 只剩类型识别部分，D2 与 D7 已解决） |
 
 ---
 
@@ -1200,13 +1332,13 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
 | 分组 | 可动手 | 🔒 保留 | 已完成 |
 |---|---|---|---|
-| A 确定 bug | 25 | 1 | **24**（仅剩 A16 环境问题） |
+| A 确定 bug | 28（+A19 A20 A21） | 1 | **27**（仅剩 A16 环境问题） |
 | B 健壮性 | 12（−B4） | 2 | **7**（B1 B2a–d B8a + B4 裁定不修） |
-| C 代码质量 | 10（−C3，升为 A18；+C12） | 1 | **4**（C6 C8 C9 C9b） |
+| C 代码质量 | 11（−C3，升为 A18；+C12 C13） | 1 | **5**（C6 C8 C9 C9b C13） |
 | E Error 重设计 | 2 | 0 | **2** |
-| F 注册与标识 | 9 | 0 | **9**（F1–F9） |
+| F 注册与标识 | 10（+F10） | 0 | **10**（F1–F10） |
 | D 设计 | 1（D5 剩类型识别部分） | 4 | **2**（D2 D7） |
-| **合计** | **59** | **8** | **48** |
+| **合计** | **64** | **8** | **53** |
 
 ### 剩余可动手的条目
 | 条目 | 性质 | 风险 |
@@ -1216,16 +1348,21 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 | **C1 C2 C4 C5 C7 C10** | 代码质量 | 低，可批量 |
 | **C12** | 六个插件的 C++ 标准名不副实 | 低，但要先定走哪条路 |
 | **E2 尾巴** | 渲染处（CLI + 各插件日志回调）改用 `toString()`，否则因果链看不见 | 低 |
-| **D5 收尾** | NO→UNO 剩余 16 处 | 见下表 |
+| **D5 剩余** | 只剩 `as<U>()` 的类型识别，**所有权部分已全部完成** | 需讨论，见 D5 |
 | **A16** | 构建环境，非代码 | 需用 `VSLANG=1033` 重新 configure |
 
-### NO/UNO 剩余转换（按爆炸半径）
-| 目标 | 处数 | 阻碍 |
-|---|---|---|
-| ~~`TensorHelper::_tensor`~~ | ~~1~~ | **已撤销**——`ITensor` 本来就是共享类型，见 D5 |
-| schema / configuration / options | 4 | 访问器现在**按值返回 `NO`**，要先改成返回裸指针 |
-| `XxxResult result` | 5 | 需改 `ITask` API——`start()` 既返回结果又存一份，共享是 API 形状造成的 |
-| `driver` / `interp` / `prov` | 7 | pool / cache 持有，借用者应改裸指针；需改 `getInferenceDriver()` 签名 |
+### NO/UNO 转换（已收尾）
+| 目标 | 结果 |
+|---|---|
+| `InferenceSession` 相关 13 处 | ✅ `1938962` |
+| `driver` | ✅ `05e01b4`——池持有，借用者裸指针 |
+| `schema` / `configuration` | ✅ `7f8b95f`——spec 持有，工厂返回 `UNO` |
+| `interp` / `prov` | ✅ `861f898`——category 的 cache 持有 |
+| `XxxResult` | 🔒 **裁定维持 `NO`**：结果比 task 活得久，本来就该可复制 |
+| ~~`TensorHelper::_tensor`~~ | **撤销**——`ITensor` 本来就是共享类型 |
+
+> **判据**：能干净改成「持有者 + 借用者」的，共同点是**持有者比借用者活得久**。
+> `XxxResult` 与 `ITensor` 正好反过来，所以维持共享不是妥协，是正确答案。
 
 ### 已裁定不修
 - **B4** sparsepp 迭代器内部字段 — 作者裁定保持现状，我的原评估过重（详见该条）
@@ -1233,10 +1370,10 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 
 ### 验证方式
 - 全量重建（`ninja -t clean` + build）：**exit 0**
-- **`ctest` 11 个用例全过**（每个类一个可执行文件，见 `1d969c5`）
+- **`ctest` 15 个用例全过**（一个头文件一个可执行文件，见 `33d1189`）
 - 手动套件 `dsinfer/tests/manual/` **5/5**，含真实 ONNX 推理。不进 ctest：`onnxdriver` 要模型，`txtdict` 要词典路径
 - ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
-- 断言总数约 **600**（其中 `test_JSON` 一家就有 264，见 D2）。
+- 断言总数约 **800**（其中 `test_JSON` 264、`test_AlignedAllocator` 1019 的循环断言不计入此数）。
   `ContribLocator` 有 `_Parse` / `_Reject` / `_RoundTrip` / `_VersionIsNormalized` / `_Segments`；
   **A 组早期修复里 A1、A8–A15 仍无测试覆盖**，D6 依旧成立。
   A6、A7 所在的 proxy 容器已随 D2 整个删除，那两条不再有对应代码。
@@ -1255,3 +1392,8 @@ extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategoryFa
 > `PitchInference` 被塞进 158 个 `withContext`（应为 15），`VarianceInference` 42 个（应为 10）。
 > **而且编译完全通过**——`withContext` 返回 `Error`，`Error` 又有 `withContext`，语法合法。
 > 靠 `grep -o <pattern> | wc -l` 数实际次数才发现（`grep -c` 数的是行数，会漏）。
+
+> **写测试是最有效的找 bug 手段（2026-08-05）**：这一轮补 `PackageListConfig`、`Tensor` 的测试时，
+> 直接挖出 A19（写空文件 + 形状不匹配）、A20（合法状态触发 abort）、A21（模板压根编译不过）三个真 bug。
+> 共同点是它们都躺在**零调用方或从未实例化**的代码里——既有用法碰不到，所以既不会崩也不会被审查发现。
+> **验证过 A19 的测试确实抓得住**：把实现还原到修复前重编，5 个用例挂 4 个。
