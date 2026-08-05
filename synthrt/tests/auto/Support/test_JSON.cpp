@@ -332,8 +332,13 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_Escapes) {
     };
 
     BOOST_CHECK(parse(R"({"k":"A"})") == "A");
-    BOOST_CHECK(parse(R"({"k":"\/"})") == "/");
     BOOST_CHECK(parse(R"({"k":"\b\f\n\r\t"})") == "\b\f\n\r\t");
+
+    // Named rather than written in place. MSVC's preprocessor re-reads a raw string in a macro
+    // argument as an ordinary one, and then warns (C4129) about the escapes a raw string does not
+    // have. Only the ones C does not recognise draw it, which is why the line above is fine.
+    const std::string escapedSolidus = R"({"k":"\/"})";
+    BOOST_CHECK(parse(escapedSolidus) == "/");
 
     // A code point outside the basic plane arrives as a surrogate pair and has to be put back
     // together before it is encoded.
@@ -375,8 +380,12 @@ BOOST_AUTO_TEST_CASE(test_JsonValue_Rejects) {
     BOOST_CHECK(rejected("{a:1}"));
     BOOST_CHECK(rejected("\"unterminated"));
     BOOST_CHECK(rejected("\"a\tb\""));  // a raw tab inside a string
-    BOOST_CHECK(rejected(R"("\q")"));   // an escape that means nothing
     BOOST_CHECK(rejected(R"("\u12")")); // too few hexadecimal digits
+
+    // Named for the reason given in test_JsonValue_Escapes: \q is not an escape C knows, so MSVC
+    // warns about it even though a raw string has no escapes at all.
+    const std::string meaninglessEscape = R"("\q")";
+    BOOST_CHECK(rejected(meaninglessEscape));
 
     // Written the long way round: a universal character name is still looked at inside a raw
     // string literal, and neither of these is a character.
