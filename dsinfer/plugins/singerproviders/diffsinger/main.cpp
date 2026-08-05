@@ -12,8 +12,8 @@ namespace ds {
             return "diffsinger";
         }
 
-        srt::NO<srt::SingerProvider> create() {
-            return srt::NO<DiffSingerProvider>::create();
+        srt::UNO<srt::SingerProvider> create() override {
+            return srt::UNO<DiffSingerProvider>::create();
         }
     };
 

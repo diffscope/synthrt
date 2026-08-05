@@ -18,7 +18,11 @@ namespace srt {
         }
 
     public:
-        virtual NO<InferenceInterpreter> create() = 0;
+        /// Builds an interpreter and hands over the only reference to it.
+        ///
+        /// \note Unique rather than shared, so the caller decides whether it ends up with one
+        ///       owner or several. A factory has no business making that call for it.
+        virtual UNO<InferenceInterpreter> create() = 0;
 
     public:
         STDCORELIB_DISABLE_COPY(InferenceInterpreterPlugin)

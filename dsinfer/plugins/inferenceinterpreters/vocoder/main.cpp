@@ -12,8 +12,8 @@ namespace ds {
             return "ai.svs.VocoderInference";
         }
 
-        srt::NO<srt::InferenceInterpreter> create() override {
-            return srt::NO<VocoderInterpreter>::create();
+        srt::UNO<srt::InferenceInterpreter> create() override {
+            return srt::UNO<VocoderInterpreter>::create();
         }
     };
 

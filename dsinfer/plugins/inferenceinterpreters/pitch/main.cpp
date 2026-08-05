@@ -12,8 +12,8 @@ namespace ds {
             return "ai.svs.PitchInference";
         }
 
-        srt::NO<srt::InferenceInterpreter> create() override {
-            return srt::NO<PitchInterpreter>::create();
+        srt::UNO<srt::InferenceInterpreter> create() override {
+            return srt::UNO<PitchInterpreter>::create();
         }
     };
 

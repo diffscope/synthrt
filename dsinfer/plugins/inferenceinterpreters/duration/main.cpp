@@ -12,8 +12,8 @@ namespace ds {
             return "ai.svs.DurationInference";
         }
 
-        srt::NO<srt::InferenceInterpreter> create() override {
-            return srt::NO<DurationInterpreter>::create();
+        srt::UNO<srt::InferenceInterpreter> create() override {
+            return srt::UNO<DurationInterpreter>::create();
         }
     };
 

@@ -18,7 +18,10 @@ namespace srt {
         }
 
     public:
-        virtual NO<SingerProvider> create() = 0;
+        /// Builds a provider and hands over the only reference to it.
+        ///
+        /// \note Unique rather than shared, as \c InferenceInterpreterPlugin::create() is.
+        virtual UNO<SingerProvider> create() = 0;
 
     public:
         STDCORELIB_DISABLE_COPY(SingerProviderPlugin)

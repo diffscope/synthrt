@@ -12,8 +12,8 @@ namespace ds {
             return "ai.svs.VarianceInference";
         }
 
-        srt::NO<srt::InferenceInterpreter> create() override {
-            return srt::NO<VarianceInterpreter>::create();
+        srt::UNO<srt::InferenceInterpreter> create() override {
+            return srt::UNO<VarianceInterpreter>::create();
         }
     };
 

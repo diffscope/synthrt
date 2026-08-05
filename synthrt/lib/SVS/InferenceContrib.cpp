@@ -37,7 +37,7 @@ namespace srt {
         JsonObject manifestConfiguration;
         UNO<InferenceConfiguration> configuration;
 
-        NO<InferenceInterpreter> interp = nullptr;
+        InferenceInterpreter *interp = nullptr;
     };
 
     static Expected<JsonObject> readJsonObjectFile(const std::filesystem::path &path,
@@ -260,7 +260,7 @@ namespace srt {
         ~Impl() {
         }
 
-        std::map<std::string, NO<InferenceInterpreter>> interpreters;
+        std::map<std::string, UNO<InferenceInterpreter>> interpreters;
     };
 
 
@@ -374,11 +374,11 @@ namespace srt {
                 auto spec_impl = static_cast<InferenceSpec::Impl *>(infSpec->_impl.get());
 
                 const auto &key = infSpec->className();
-                NO<InferenceInterpreter> interp;
+                InferenceInterpreter *interp = nullptr;
 
                 // Search interpreter cache
                 if (auto it = impl.interpreters.find(key); it != impl.interpreters.end()) {
-                    interp = it->second;
+                    interp = it->second.get();
                 } else {
                     // Search interpreter
                     auto plugin =
@@ -391,8 +391,9 @@ namespace srt {
                                 infSpec->className(), infSpec->id()),
                         };
                     }
-                    interp = plugin->create();
-                    impl.interpreters[key] = interp;
+                    auto &slot = impl.interpreters[key];
+                    slot = plugin->create();
+                    interp = slot.get();
                 }
 
                 // Check api level

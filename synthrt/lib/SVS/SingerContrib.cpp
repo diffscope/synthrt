@@ -54,7 +54,7 @@ namespace srt {
         JsonObject manifestConfiguration;
         UNO<SingerConfiguration> configuration;
 
-        NO<SingerProvider> prov = nullptr;
+        SingerProvider *prov = nullptr;
     };
 
     static bool isValidPackageIdentifier(std::string_view token) {
@@ -544,7 +544,7 @@ namespace srt {
             : ContribCategory::Impl(decl, "singer", su) {
         }
 
-        std::map<std::string, NO<SingerProvider>> providers;
+        std::map<std::string, UNO<SingerProvider>> providers;
     };
 
     SingerCategory::~SingerCategory() = default;
@@ -613,11 +613,11 @@ namespace srt {
                 auto spec_impl = static_cast<SingerSpec::Impl *>(singerSpec->_impl.get());
 
                 const auto &key = singerSpec->className();
-                NO<SingerProvider> prov;
+                SingerProvider *prov = nullptr;
 
                 // Search provider cache
                 if (auto it = impl.providers.find(key); it != impl.providers.end()) {
-                    prov = it->second;
+                    prov = it->second.get();
                 } else {
                     // Search provider
                     auto plugin =
@@ -629,8 +629,9 @@ namespace srt {
                                           singerSpec->className(), singerSpec->id()),
                         };
                     }
-                    prov = plugin->create();
-                    impl.providers[key] = prov;
+                    auto &slot = impl.providers[key];
+                    slot = plugin->create();
+                    prov = slot.get();
                 }
 
                 // Check api level
