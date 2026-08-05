@@ -578,6 +578,12 @@ BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会�
 
 **验证**：`test_jsonconformance` 全过（见 [验证方式](#验证方式)）。
 
+> **顺带确认、裁定不改**：`JsonValue(NaN) == JsonValue(NaN)` 是 **false**——数字按 IEEE 比，
+> 于是相等性对 NaN 不自反。Qt、nlohmann、LLVM 的 JSON 全都如此，且 NaN **进不来**：
+> JSON 没有这个语法，只有 `fromCbor` 能产生一个，而序列化又会把它写成 `null`。
+> 所以维持现状，写在这里是免得下次再发现一遍。CBOR 向量里比对两种写法用的是 runner 自己的
+> `sameValue()`（NaN 视作相等）——向量问的是「两种写法是不是解成同一个 item」，不是「两个 NaN 能否互换」。
+
 > **第二轮（四家语料，`faf0e91`）没再挖出库的问题**。这是好消息，但也说明**边际收益衰减很快**：
 > 第一家（nlohmann）出 4 条，后三家（JSONTestSuite / nativejson-benchmark / simdjson，
 > 检查数从 1174 涨到 4286）出 0 条。真正难的不是多跑几家，是**第一次去跑**。
@@ -1420,6 +1426,17 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
   [miloyip/nativejson-benchmark](https://github.com/miloyip/nativejson-benchmark) @ `478d5727`、
   [simdjson/simdjson-data](https://github.com/simdjson/simdjson-data) @ `4197c425`。
   语料在仓库外所以不进 ctest。跳过 25 项，每项都在原地注明理由。
+- 手动套件 `synthrt/tests/manual/cborconformance` **1463 条向量全过**（`08e04fc`）：
+  [cbor-wg/cbor-test-vectors](https://github.com/cbor-wg/cbor-test-vectors) @ `7e84843b`（IETF CBOR 工作组自己的向量）、
+  [cbor/test-vectors](https://github.com/cbor/test-vectors) @ `aba89b65`（RFC 7049 附录 A）。
+  **结果分三档而不是两档**：833 通过、630 落在 `JsonValue` 装不下的范围外、0 失败。
+  第二个数字才是重点——它把我们这套 CBOR 的边界写下来了：389 个 tag、212 个比 double 窄的浮点、
+  15 个 simple value、6 个非文本 map key、6 个超出 int64 的整数、2 个 undefined，**每一条都是解码器故意拒绝的**。
+  真正算缺陷的是第三档：良构的东西按不在名单上的理由被拒、非良构的被接受、或同一个 item 的两种写法被读成两个值。
+  > 工作组的测试文件**本身就是 CBOR**，用 `fromCbor` 读就成了自己测自己（而且读不了——描述 tag 的文件里就有 tag），
+  > 所以 `Vectors.cpp` 是一个独立的结构化 walker。
+  >
+  > **验证过它抓得住**：把负整数解码的 `-1` 去掉，四个文件一共 41 条向量变红。
 - ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
 - 断言总数约 **840**（其中 `test_JSON` 300、`test_AlignedAllocator` 1019 的循环断言不计入此数）。
   `ContribLocator` 有 `_Parse` / `_Reject` / `_RoundTrip` / `_VersionIsNormalized` / `_Segments`；
