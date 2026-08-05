@@ -576,7 +576,16 @@ BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会�
 单元测试用 RFC 8949 附录 A 的官方向量覆盖不定长。
 **原来那条不定长测试断言的是「应当被拒绝」，正好和现在的约定相反**，已替换。
 
-**验证**：`test_jsonconformance` 1175 项检查全过（见 [验证方式](#验证方式)）。
+**验证**：`test_jsonconformance` 全过（见 [验证方式](#验证方式)）。
+
+> **第二轮（四家语料，`faf0e91`）没再挖出库的问题**。这是好消息，但也说明**边际收益衰减很快**：
+> 第一家（nlohmann）出 4 条，后三家（JSONTestSuite / nativejson-benchmark / simdjson，
+> 检查数从 1174 涨到 4286）出 0 条。真正难的不是多跑几家，是**第一次去跑**。
+>
+> 后三家反而暴露出**语料之间互相矛盾**：simdjson 认为溢出成无穷大的数字（`[1e+1111]`）应当拒绝，
+> JSONTestSuite 的 `y_number_real_pos_overflow.json` 要求必须接受。
+> 这种时候只能回到语法本身裁——JSON 对数字大小没有上限，所以我们接受，序列化时写 `null`。
+> **凡是「按某家语料的期望」而不是「按规范」定的行为，都要在原地写明是谁的期望。**
 
 ---
 
@@ -1403,9 +1412,14 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
 - 全量重建（`ninja -t clean` + build）：**exit 0**
 - **`ctest` 15 个用例全过**（一个头文件一个可执行文件，见 `33d1189`）
 - 手动套件 `dsinfer/tests/manual/` **5/5**，含真实 ONNX 推理。不进 ctest：`onnxdriver` 要模型，`txtdict` 要词典路径
-- 手动套件 `synthrt/tests/manual/jsonconformance` **1175 项检查全过**（`1f77c95`）。
-  参数是 [nlohmann/json_test_data](https://github.com/nlohmann/json_test_data) 的 checkout，语料在仓库外所以不进 ctest。
-  跳过 12 项，每项都在原地注明理由（含无穷大无法往返、一个只有 1 字节的坏 fixture）。
+- 手动套件 `synthrt/tests/manual/jsonconformance` **4286 项检查全过**（`faf0e91`，debug 下约 90 秒）。
+  四家语料各是一个 vendor 表项，**记着各自的仓库和被测 commit**——套件本身稳定，但语料仓库会变，
+  pull 之后开始挂要先对着那个 commit 看，再当成我们的缺陷：
+  [nlohmann/json_test_data](https://github.com/nlohmann/json_test_data) @ `a1375cea`、
+  [nst/JSONTestSuite](https://github.com/nst/JSONTestSuite) @ `1ef36fa0`、
+  [miloyip/nativejson-benchmark](https://github.com/miloyip/nativejson-benchmark) @ `478d5727`、
+  [simdjson/simdjson-data](https://github.com/simdjson/simdjson-data) @ `4197c425`。
+  语料在仓库外所以不进 ctest。跳过 25 项，每项都在原地注明理由。
 - ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
 - 断言总数约 **840**（其中 `test_JSON` 300、`test_AlignedAllocator` 1019 的循环断言不计入此数）。
   `ContribLocator` 有 `_Parse` / `_Reject` / `_RoundTrip` / `_VersionIsNormalized` / `_Segments`；
