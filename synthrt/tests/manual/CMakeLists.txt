@@ -2,3 +2,5 @@
 # alongside the automatic tests but never registered with ctest.
 
 add_subdirectory(jsonconformance)
+
+add_subdirectory(cborconformance)
