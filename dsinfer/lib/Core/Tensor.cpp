@@ -2,9 +2,15 @@
 
 #include <cstdint>
 #include <limits>
+#include <optional>
 
 namespace ds {
 
+    /// \return the size of one element, or zero for a type that has none.
+    ///
+    /// \note Zero rather than an assertion. \c Undefined is the state a default constructed tensor
+    ///       is in, and \c create takes a data type from its caller, so reaching here with one is
+    ///       ordinary rather than a mistake to trap on.
     static inline size_t getElementSize(ITensor::DataType dataType) {
         switch (dataType) {
             case ITensor::Float:
@@ -14,7 +20,6 @@ namespace ds {
             case ITensor::Bool:
                 return sizeof(bool);
             default:
-                assert(false && "Unsupported data type");
                 return 0;
         }
     }
@@ -84,6 +89,9 @@ namespace ds {
 
     srt::Expected<srt::NO<Tensor>> Tensor::create(DataType dataType,
                                                   const std::vector<int64_t> &shape) {
+        if (dataType == Undefined) {
+            return srt::Error(srt::Error::InvalidArgument, "data type can not be Undefined");
+        }
         auto maybeTotalElements = getElementCountFromShape(dataType, shape);
         if (!maybeTotalElements.has_value()) {
             return srt::Error(srt::Error::InvalidArgument, "invalid shape");

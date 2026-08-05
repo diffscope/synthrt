@@ -136,7 +136,9 @@ namespace ds {
         if (tensor_traits<T>::data_type != dataType()) {
             return stdc::array_view<T>();
         }
-        return {reinterpret_cast<const T *>(rawData()), elementCount()};
+        // Spelled out rather than braced. A braced return is a list, and for \c bool a pointer and
+        // a count are both convertible to one, so the list wins and the narrowing is an error.
+        return stdc::array_view<T>(reinterpret_cast<const T *>(rawData()), elementCount());
     }
 
 
