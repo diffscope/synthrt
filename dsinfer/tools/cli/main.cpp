@@ -144,9 +144,9 @@ static void initializeSU(srt::SynthUnit &su, EP ep, int deviceIndex) {
             stdc::formatN(R"(failed to initialize onnx driver: %1)", exp.error().message()));
     }
 
-    // Add driver
+    // Add driver, which the category owns from here on.
     auto &ic = *su.category("inference");
-    ic.addObject("dsdriver", onnxDriver);
+    ic.addUniqueObject("dsdriver", std::move(onnxDriver));
 }
 
 struct InputObject {

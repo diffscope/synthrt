@@ -124,7 +124,7 @@ struct InferenceFixture {
 
 
     static inline srt::SynthUnit su;
-    static inline srt::NO<ds::InferenceDriver> driver;
+    static inline srt::UNO<ds::InferenceDriver> driver;
     fs::path modelDir;
     fs::path caseDir;
 };

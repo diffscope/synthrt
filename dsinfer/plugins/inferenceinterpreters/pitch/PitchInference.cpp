@@ -50,7 +50,7 @@ namespace ds {
     class PitchInference::Impl {
     public:
         srt::NO<Pit::PitchResult> result;
-        srt::NO<InferenceDriver> driver;
+        InferenceDriver *driver = nullptr;
         srt::UNO<InferenceSession> encoderSession;
         srt::UNO<InferenceSession> predictorSession;
         mutable std::shared_mutex mutex;

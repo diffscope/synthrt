@@ -6,18 +6,18 @@
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
 namespace ds::inferutil {
-    srt::Expected<srt::NO<InferenceDriver>> getInferenceDriver(const srt::Inference *obj) {
+    srt::Expected<InferenceDriver *> getInferenceDriver(const srt::Inference *obj) {
         namespace Onnx = Api::Onnx;
         namespace DiffSinger = Api::DiffSinger::L1;
 
         auto inferenceCate = obj->spec()->SU()->category("inference");
-        auto dsdriverObject = inferenceCate->getFirstObject("dsdriver");
+        auto dsdriverObject = inferenceCate->getFirstUniqueObject("dsdriver");
 
         if (!dsdriverObject) {
             return srt::Error(ds::ErrorCode::NotInitialized, "could not find dsdriver");
         }
 
-        auto onnxDriver = dsdriverObject.as<InferenceDriver>();
+        auto onnxDriver = static_cast<InferenceDriver *>(dsdriverObject);
 
         const auto arch = onnxDriver->arch();
         constexpr auto expectedArch = DiffSinger::API_NAME;

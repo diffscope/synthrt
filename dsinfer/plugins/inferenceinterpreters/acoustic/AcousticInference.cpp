@@ -49,7 +49,7 @@ namespace ds {
     class AcousticInference::Impl {
     public:
         srt::NO<Ac::AcousticResult> result;
-        srt::NO<InferenceDriver> driver;
+        InferenceDriver *driver = nullptr;
         srt::UNO<InferenceSession> session;
         mutable std::shared_mutex mutex;
     };

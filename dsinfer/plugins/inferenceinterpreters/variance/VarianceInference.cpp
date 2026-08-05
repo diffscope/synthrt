@@ -65,7 +65,7 @@ namespace ds {
     class VarianceInference::Impl {
     public:
         srt::NO<Var::VarianceResult> result;
-        srt::NO<InferenceDriver> driver;
+        InferenceDriver *driver = nullptr;
         srt::UNO<InferenceSession> encoderSession;
         srt::UNO<InferenceSession> predictorSession;
         mutable std::shared_mutex mutex;

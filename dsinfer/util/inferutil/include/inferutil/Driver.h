@@ -6,7 +6,14 @@
 #include <dsinfer/Inference/InferenceDriver.h>
 
 namespace ds::inferutil {
-    srt::Expected<srt::NO<InferenceDriver>> getInferenceDriver(const srt::Inference *obj);
+
+    /// Returns the driver registered on the inference category, checked against the arch and
+    /// backend this build expects.
+    ///
+    /// \note Borrowed, not owned. The category owns the driver and outlives every inference that
+    ///       runs against it.
+    srt::Expected<InferenceDriver *> getInferenceDriver(const srt::Inference *obj);
+
 }
 
 #endif // DSINFER_INFERUTIL_DRIVER_H

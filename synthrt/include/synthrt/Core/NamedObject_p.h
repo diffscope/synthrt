@@ -22,6 +22,15 @@ namespace srt {
         }
         virtual ~Impl() = default;
 
+        /// An implementation belongs to the one object that made it, so there is nothing for a
+        /// copy to mean.
+        ///
+        /// \note Saying so rather than leaving it implicit, because these classes are exported, and
+        ///       \c dllexport instantiates every member a class has. An implicit copy constructor
+        ///       is one of them, and it is compiled whether or not anyone calls it, taking every
+        ///       member down with it.
+        STDCORELIB_DISABLE_COPY(Impl)
+
         NamedObject *_decl;
 
         std::string name;
@@ -34,8 +43,20 @@ namespace srt {
         }
         virtual ~Impl();
 
-        std::map<std::string, stdc::linked_map<const NamedObject *, NO<NamedObject>>, std::less<>>
-            objects;
+        STDCORELIB_DISABLE_COPY(Impl)
+
+        /// The objects under one identifier, in the order they were registered, so tearing them
+        /// down in reverse takes the later ones out first.
+        ///
+        /// \note A vector rather than \c stdc::linked_map, which holds nothing move-only: its copy
+        ///       constructor copies each entry, and it is instantiated as soon as the container
+        ///       becomes the mapped type of a \c std::map. A pool holds a handful of objects under
+        ///       any one identifier anyway, which is what \c getFirstSharedObject assumes.
+        template <class Ptr>
+        using ObjectMap = std::map<std::string, std::vector<Ptr>, std::less<>>;
+
+        ObjectMap<NO<NamedObject>> sharedObjects;
+        ObjectMap<UNO<NamedObject>> uniqueObjects;
     };
 
 }

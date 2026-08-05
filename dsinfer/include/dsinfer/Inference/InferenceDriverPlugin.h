@@ -18,7 +18,11 @@ namespace ds {
         }
 
     public:
-        virtual srt::NO<InferenceDriver> create() = 0;
+        /// Builds a driver and hands over the only reference to it.
+        ///
+        /// \note Unique rather than shared, so the caller decides whether the driver ends up with
+        ///       one owner or several. A factory has no business making that call for it.
+        virtual srt::UNO<InferenceDriver> create() = 0;
 
     public:
         STDCORELIB_DISABLE_COPY(InferenceDriverPlugin)

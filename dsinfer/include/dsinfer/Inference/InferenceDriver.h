@@ -38,11 +38,13 @@ namespace ds {
     ///
     /// It is used like the following.
     /// \code
-    ///     void init(srt::SynthUnit &su, InferenceDriver *driver) {
+    ///     void init(srt::SynthUnit &su, srt::UNO<InferenceDriver> driver) {
     ///         ContribCategory &ic = *su.category("inference");
-    ///         ic.addObject("dsdriver", driver);
+    ///         ic.addUniqueObject("dsdriver", std::move(driver));
     ///     }
     /// \endcode
+    ///
+    /// The category is the owner, and an interpreter borrows the driver for as long as it runs.
     class InferenceDriver : public srt::NamedObject {
     public:
         virtual ~InferenceDriver() = default;

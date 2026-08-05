@@ -98,7 +98,7 @@ namespace ds {
     class DurationInference::Impl {
     public:
         srt::NO<Dur::DurationResult> result;
-        srt::NO<InferenceDriver> driver;
+        InferenceDriver *driver = nullptr;
         srt::UNO<InferenceSession> encoderSession;
         srt::UNO<InferenceSession> predictorSession;
         mutable std::shared_mutex mutex;

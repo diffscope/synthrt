@@ -99,31 +99,70 @@ namespace srt {
         }
     };
 
+    /// ObjectPool - Objects registered under a string, for parts of the program that have to find
+    /// each other without knowing each other.
+    ///
+    /// Ownership is not one thing, so it is not one set. An object either has other owners besides
+    /// the pool or it has none, and which it is decides what a lookup can hand back: a reference
+    /// the caller may keep, or a pointer to borrow while the pool still holds it. The two sets are
+    /// separate, so an identifier registered in one is not found in the other.
     class SYNTHRT_EXPORT ObjectPool : public NamedObject {
     public:
         explicit ObjectPool();
         ~ObjectPool();
 
     public:
-        void addObject(const NO<NamedObject> &obj);
-        void addObject(std::string_view id, const NO<NamedObject> &obj);
-        inline void addObjects(std::string_view id, stdc::array_view<NO<NamedObject>> objs) {
+        /// \name Shared objects
+        ///
+        /// Objects the pool holds a reference to alongside whoever else holds one. A lookup hands
+        /// back a reference, so the object outlives the pool if a caller keeps it.
+        /// @{
+        void addSharedObject(const NO<NamedObject> &obj);
+        void addSharedObject(std::string_view id, const NO<NamedObject> &obj);
+        inline void addSharedObjects(std::string_view id, stdc::array_view<NO<NamedObject>> objs) {
             for (const auto &obj : objs) {
-                addObject(id, obj);
+                addSharedObject(id, obj);
             }
         }
-        void removeObject(const NamedObject *obj);
-        void removeObject(std::string_view id, const NamedObject *obj);
-        void removeObjects(std::string_view id);
-        void removeAllObjects();
+        void removeSharedObject(const NamedObject *obj);
+        void removeSharedObject(std::string_view id, const NamedObject *obj);
+        void removeSharedObjects(std::string_view id);
+        void removeAllSharedObjects();
 
-        std::vector<NO<NamedObject>> allObjects() const;
-        std::vector<NO<NamedObject>> getObjects(std::string_view id) const;
-        NO<NamedObject> getFirstObject(std::string_view id) const;
+        std::vector<NO<NamedObject>> getSharedObjects(std::string_view id) const;
+        NO<NamedObject> getFirstSharedObject(std::string_view id) const;
+        std::vector<NO<NamedObject>> allSharedObjects() const;
+        /// @}
+
+        /// \name Unique objects
+        ///
+        /// Objects the pool alone owns. A lookup hands back a pointer to borrow, and removing one
+        /// destroys it, so nothing can be left holding it afterwards.
+        /// @{
+        void addUniqueObject(UNO<NamedObject> obj);
+        void addUniqueObject(std::string_view id, UNO<NamedObject> obj);
+        void removeUniqueObject(const NamedObject *obj);
+        void removeUniqueObject(std::string_view id, const NamedObject *obj);
+        void removeUniqueObjects(std::string_view id);
+        void removeAllUniqueObjects();
+
+        std::vector<NamedObject *> getUniqueObjects(std::string_view id) const;
+        NamedObject *getFirstUniqueObject(std::string_view id) const;
+        std::vector<NamedObject *> allUniqueObjects() const;
+        /// @}
 
     protected:
-        virtual void objectAdded(std::string_view id, const NO<NamedObject> &obj);
-        virtual void aboutToRemoveObject(std::string_view id, const NO<NamedObject> &obj);
+        /// \name Notifications
+        ///
+        /// Each pair carries what its own set can hand out, so an override sees the same ownership
+        /// a lookup would have given it.
+        /// @{
+        virtual void sharedObjectAdded(std::string_view id, const NO<NamedObject> &obj);
+        virtual void aboutToRemoveSharedObject(std::string_view id, const NO<NamedObject> &obj);
+
+        virtual void uniqueObjectAdded(std::string_view id, NamedObject *obj);
+        virtual void aboutToRemoveUniqueObject(std::string_view id, NamedObject *obj);
+        /// @}
 
     protected:
         class Impl;

@@ -40,7 +40,7 @@ namespace ds {
     class VocoderInference::Impl {
     public:
         srt::NO<Vo::VocoderResult> result;
-        srt::NO<InferenceDriver> driver;
+        InferenceDriver *driver = nullptr;
         srt::UNO<InferenceSession> session;
         mutable std::shared_mutex mutex;
     };
