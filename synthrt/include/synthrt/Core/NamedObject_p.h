@@ -34,7 +34,7 @@ namespace srt {
         NamedObject *_decl;
 
         std::string name;
-        std::map<std::string, std::any, std::less<>> properties;
+        std::map<std::string, stdc::any, std::less<>> properties;
     };
 
     class SYNTHRT_EXPORT ObjectPool::Impl : public NamedObject::Impl {

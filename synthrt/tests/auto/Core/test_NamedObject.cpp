@@ -207,17 +207,30 @@ BOOST_AUTO_TEST_CASE(test_NamedObject_Property) {
 
     // A name that was never set reads as an empty value rather than throwing or inserting one.
     BOOST_CHECK(!obj.property("absent").has_value());
+    BOOST_CHECK(stdc::any_cast<int>(&obj.property("absent")) == nullptr);
 
     obj.setProperty("count", 7);
     BOOST_REQUIRE(obj.property("count").has_value());
-    BOOST_CHECK(std::any_cast<int>(obj.property("count")) == 7);
+    BOOST_CHECK(obj.property("count").holds<int>());
+    BOOST_REQUIRE(stdc::any_cast<int>(&obj.property("count")) != nullptr);
+    BOOST_CHECK(*stdc::any_cast<int>(&obj.property("count")) == 7);
 
     // Setting the same name again replaces what was there, type and all.
     obj.setProperty("count", std::string("seven"));
-    BOOST_CHECK(std::any_cast<std::string>(obj.property("count")) == "seven");
+    BOOST_CHECK(obj.property("count").holds<std::string>());
+    BOOST_CHECK(*stdc::any_cast<std::string>(&obj.property("count")) == "seven");
 
-    // Asking for the wrong type is the caller's problem, and the pointer form says so quietly.
-    BOOST_CHECK(std::any_cast<int>(&obj.property("count")) == nullptr);
+    // Asking for the wrong type is the caller's problem, and the pointer form says so quietly
+    // rather than throwing.
+    BOOST_CHECK(stdc::any_cast<int>(&obj.property("count")) == nullptr);
+
+    // A value wider than the buffer goes to the heap, and comes back the same either way.
+    {
+        std::vector<int> big(100, 3);
+        obj.setProperty("big", big);
+        BOOST_REQUIRE(obj.property("big").holds<std::vector<int>>());
+        BOOST_CHECK(stdc::any_cast<std::vector<int>>(&obj.property("big"))->size() == 100);
+    }
 }
 
 BOOST_AUTO_TEST_CASE(test_NO) {

@@ -24,12 +24,12 @@ namespace srt {
         impl.name = std::move(name);
     }
 
-    static std::any &staticEmptyObjectProperty() {
-        static std::any empty;
+    static stdc::any &staticEmptyObjectProperty() {
+        static stdc::any empty;
         return empty;
     }
 
-    const std::any &NamedObject::property(std::string_view name) const {
+    const stdc::any &NamedObject::property(std::string_view name) const {
         stdc_impl_t;
         auto it = impl.properties.find(name);
         if (it == impl.properties.end()) {
@@ -38,7 +38,7 @@ namespace srt {
         return it->second;
     }
 
-    void NamedObject::setProperty(std::string_view name, std::any value) {
+    void NamedObject::setProperty(std::string_view name, stdc::any value) {
         stdc_impl_t;
         auto it = impl.properties.find(name);
         if (it == impl.properties.end()) {

@@ -5,8 +5,8 @@
 #include <string_view>
 #include <vector>
 #include <memory>
-#include <any>
 
+#include <stdcorelib/adt/any.h>
 #include <stdcorelib/adt/array_view.h>
 
 #include <synthrt/synthrt_global.h>
@@ -22,8 +22,15 @@ namespace srt {
         const std::string &objectName() const;
         void setObjectName(std::string name);
 
-        const std::any &property(std::string_view name) const;
-        void setProperty(std::string_view name, std::any value);
+        /// Arbitrary values kept alongside the object, by name.
+        ///
+        /// \note \c stdc::any rather than \c std::any. Objects here travel between the library and
+        ///       the plugins that extend it, and the standard one identifies a type by \c typeid,
+        ///       which two modules do not always agree on, and needs RTTI to do it.
+        ///
+        /// \sa stdc::any_cast()
+        const stdc::any &property(std::string_view name) const;
+        void setProperty(std::string_view name, stdc::any value);
 
     protected:
         class Impl;
