@@ -12,9 +12,9 @@ namespace ds {
 
     public:
         int apiLevel() const override;
-        srt::Expected<srt::NO<srt::InferenceSchema>>
+        srt::Expected<srt::UNO<srt::InferenceSchema>>
             createSchema(const srt::InferenceSpec *spec) const override;
-        srt::Expected<srt::NO<srt::InferenceConfiguration>>
+        srt::Expected<srt::UNO<srt::InferenceConfiguration>>
             createConfiguration(const srt::InferenceSpec *spec) const override;
         srt::Expected<srt::NO<srt::InferenceImportOptions>>
             createImportOptions(const srt::InferenceSpec *spec,

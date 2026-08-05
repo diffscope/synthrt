@@ -32,10 +32,10 @@ namespace srt {
         int apiLevel = 0;
 
         JsonObject manifestSchema;
-        NO<InferenceSchema> schema;
+        UNO<InferenceSchema> schema;
 
         JsonObject manifestConfiguration;
-        NO<InferenceConfiguration> configuration;
+        UNO<InferenceConfiguration> configuration;
 
         NO<InferenceInterpreter> interp = nullptr;
     };
@@ -141,8 +141,7 @@ namespace srt {
             if (!it->second.isString() || it->second.toString() != "1.0") {
                 return Error{
                     Error::FeatureNotSupported,
-                    stdc::formatN(R"(format version "%1" is not supported)",
-                                  it->second.toString()),
+                    stdc::formatN(R"(format version "%1" is not supported)", it->second.toString()),
                 };
             }
             fmtVersion_ = stdc::VersionNumber(1);
@@ -185,9 +184,10 @@ namespace srt {
         {
             auto it = obj.find("name");
             if (it != obj.end()) {
-                auto exp = DisplayText::fromJsonValue(it->second)
-                               .withContext(Error::InvalidFormat,
-                                            R"("name" field has invalid value in inference manifest)");
+                auto exp =
+                    DisplayText::fromJsonValue(it->second)
+                        .withContext(Error::InvalidFormat,
+                                     R"("name" field has invalid value in inference manifest)");
                 if (!exp) {
                     return exp.error();
                 }
@@ -287,9 +287,9 @@ namespace srt {
         return impl.manifestSchema;
     }
 
-    NO<InferenceSchema> InferenceSpec::schema() const {
+    InferenceSchema *InferenceSpec::schema() const {
         stdc_impl_t;
-        return impl.schema;
+        return impl.schema.get();
     }
 
     const JsonObject &InferenceSpec::manifestConfiguration() const {
@@ -297,9 +297,9 @@ namespace srt {
         return impl.manifestConfiguration;
     }
 
-    NO<InferenceConfiguration> InferenceSpec::configuration() const {
+    InferenceConfiguration *InferenceSpec::configuration() const {
         stdc_impl_t;
-        return impl.configuration;
+        return impl.configuration.get();
     }
 
     const std::filesystem::path &InferenceSpec::path() const {
@@ -413,7 +413,7 @@ namespace srt {
                 if (!schema) {
                     return schema.error();
                 }
-                spec_impl->schema = schema.get();
+                spec_impl->schema = schema.take();
 
                 auto config = interp->createConfiguration(infSpec).withContext(
                     Error::InvalidFormat,
@@ -422,7 +422,7 @@ namespace srt {
                 if (!config) {
                     return config.error();
                 }
-                spec_impl->configuration = config.get();
+                spec_impl->configuration = config.take();
                 spec_impl->interp = interp;
                 return ContribCategory::loadSpec(spec, state);
             }

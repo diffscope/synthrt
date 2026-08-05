@@ -87,7 +87,8 @@ namespace srt {
         stdc::array_view<SingerImport> imports() const;
 
         const JsonObject &manifestConfiguration() const;
-        NO<SingerConfiguration> configuration() const;
+        /// \note Borrowed. The specification owns it and outlives every singer built from it.
+        SingerConfiguration *configuration() const;
 
         const std::filesystem::path &path() const;
 

@@ -21,7 +21,7 @@ namespace ds {
         return 1;
     }
 
-    srt::Expected<srt::NO<srt::InferenceSchema>>
+    srt::Expected<srt::UNO<srt::InferenceSchema>>
         AcousticInterpreter::createSchema(const srt::InferenceSpec *spec) const {
         if (!spec) {
             // fatal error: null pointer, return immediately
@@ -32,7 +32,7 @@ namespace ds {
         }
 
         const auto &schema = spec->manifestSchema();
-        auto result = srt::NO<Ac::AcousticSchema>::create();
+        auto result = srt::UNO<Ac::AcousticSchema>::create();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -48,8 +48,8 @@ namespace ds {
         // varianceControls, set<ParamTag> (json value is string[])
         {
             static_assert(std::is_same_v<decltype(result->varianceControls), std::set<ParamTag>>);
-            parser.parse_parameters<inferutil::ParameterType::Variance>(
-                result->varianceControls, "varianceControls");
+            parser.parse_parameters<inferutil::ParameterType::Variance>(result->varianceControls,
+                                                                        "varianceControls");
         } // varianceControls
 
         // transitionControls, set<ParamTag> (json value is string[])
@@ -68,7 +68,7 @@ namespace ds {
         return result;
     }
 
-    srt::Expected<srt::NO<srt::InferenceConfiguration>>
+    srt::Expected<srt::UNO<srt::InferenceConfiguration>>
         AcousticInterpreter::createConfiguration(const srt::InferenceSpec *spec) const {
         if (!spec) {
             // fatal error: null pointer, return immediately
@@ -79,7 +79,7 @@ namespace ds {
         }
 
         const auto &config = spec->manifestConfiguration();
-        auto result = srt::NO<Ac::AcousticConfiguration>::create();
+        auto result = srt::UNO<Ac::AcousticConfiguration>::create();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -136,7 +136,7 @@ namespace ds {
         {
             static_assert(std::is_same_v<decltype(result->parameters), std::set<ParamTag>>);
             parser.parse_parameters<inferutil::ParameterType::All>(result->parameters,
-                                                                           "parameters");
+                                                                   "parameters");
         } // parameters
 
         // useContinuousAcceleration, bool

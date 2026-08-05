@@ -13,7 +13,7 @@ namespace ds {
     public:
         int apiLevel() const override;
 
-        srt::Expected<srt::NO<srt::SingerConfiguration>>
+        srt::Expected<srt::UNO<srt::SingerConfiguration>>
             createConfiguration(const srt::SingerSpec *spec) const override;
     };
 

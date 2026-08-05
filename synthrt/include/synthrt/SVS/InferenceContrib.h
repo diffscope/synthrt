@@ -70,10 +70,12 @@ namespace srt {
         int apiLevel() const;
 
         const JsonObject &manifestSchema() const;
-        NO<InferenceSchema> schema() const;
+        /// \note Borrowed. The specification owns it and outlives every inference built from it.
+        InferenceSchema *schema() const;
 
         const JsonObject &manifestConfiguration() const;
-        NO<InferenceConfiguration> configuration() const;
+        /// \note Borrowed, as \c schema() is.
+        InferenceConfiguration *configuration() const;
 
         const std::filesystem::path &path() const;
 

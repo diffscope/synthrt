@@ -9,7 +9,7 @@ namespace ds {
     namespace Ds = Api::DiffSinger::L1;
 
     static inline std::string formatErrorMessage(const std::string &msgPrefix,
-                                             const std::vector<std::string> &errorList);
+                                                 const std::vector<std::string> &errorList);
 
     DiffSingerProvider::DiffSingerProvider() = default;
 
@@ -19,7 +19,7 @@ namespace ds {
         return Ds::API_LEVEL;
     }
 
-    srt::Expected<srt::NO<srt::SingerConfiguration>>
+    srt::Expected<srt::UNO<srt::SingerConfiguration>>
         DiffSingerProvider::createConfiguration(const srt::SingerSpec *spec) const {
         if (!spec) {
             // fatal error: null pointer, return immediately
@@ -30,7 +30,7 @@ namespace ds {
         }
 
         const auto &config = spec->manifestConfiguration();
-        auto result = srt::NO<Ds::DiffSingerConfiguration>::create();
+        auto result = srt::UNO<Ds::DiffSingerConfiguration>::create();
 
         // Collect all the errors and return to user
         bool hasErrors = false;

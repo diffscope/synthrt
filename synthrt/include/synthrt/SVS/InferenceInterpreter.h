@@ -12,10 +12,10 @@ namespace srt {
         virtual int apiLevel() const = 0;
 
         /// Called when \c InferenceSpec loads.
-        virtual Expected<NO<InferenceSchema>> createSchema(const InferenceSpec *spec) const = 0;
+        virtual Expected<UNO<InferenceSchema>> createSchema(const InferenceSpec *spec) const = 0;
 
         /// Called when \c InferenceSpec loads.
-        virtual Expected<NO<InferenceConfiguration>>
+        virtual Expected<UNO<InferenceConfiguration>>
             createConfiguration(const InferenceSpec *spec) const = 0;
 
         /// Called when \c SingerSpec loads.

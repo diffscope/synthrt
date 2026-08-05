@@ -23,7 +23,7 @@ namespace ds {
     namespace Onnx = Api::Onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
-    static inline srt::Expected<srt::NO<Vo::VocoderConfiguration>>
+    static inline srt::Expected<const Vo::VocoderConfiguration *>
         getConfig(const srt::InferenceSpec *spec) {
 
         const auto genericConfig = spec->configuration();
@@ -34,7 +34,7 @@ namespace ds {
               genericConfig->objectName() == Vo::API_NAME)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid vocoder configuration");
         }
-        return genericConfig.as<Vo::VocoderConfiguration>();
+        return static_cast<const Vo::VocoderConfiguration *>(genericConfig);
     }
 
     class VocoderInference::Impl {
@@ -98,14 +98,16 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<srt::NO<srt::TaskResult>> VocoderInference::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<srt::NO<srt::TaskResult>>
+        VocoderInference::start(const srt::NO<srt::TaskStartInput> &input) {
         stdc_impl_t;
 
         {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
                 setState(Failed);
-                return srt::Error(ds::ErrorCode::NotInitialized, "inference driver not initialized");
+                return srt::Error(ds::ErrorCode::NotInitialized,
+                                  "inference driver not initialized");
             }
         }
 

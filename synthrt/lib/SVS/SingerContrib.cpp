@@ -49,11 +49,10 @@ namespace srt {
         stdc::vlarray<SingerDemoAudio> demoAudios;
 
         stdc::vlarray<SingerImportData, kNumSingerImportFields> importDataList;
-        stdc::vlarray<SingerImport, kNumSingerImportFields>
-            importList; // wrapper of importDataList
+        stdc::vlarray<SingerImport, kNumSingerImportFields> importList; // wrapper of importDataList
 
         JsonObject manifestConfiguration;
-        NO<SingerConfiguration> configuration;
+        UNO<SingerConfiguration> configuration;
 
         NO<SingerProvider> prov = nullptr;
     };
@@ -118,7 +117,8 @@ namespace srt {
         }
         auto obj = val.toObject();
         {
-            const std::set<std::string_view> allowedKeys = {"id", "options", "inferenceId", "version"};
+            const std::set<std::string_view> allowedKeys = {"id", "options", "inferenceId",
+                                                            "version"};
             for (const auto &item : obj) {
                 if (!allowedKeys.count(std::string_view(item.first))) {
                     *errorMessage = stdc::formatN(R"(unknown field "%1")", item.first);
@@ -232,8 +232,8 @@ namespace srt {
 
         {
             const std::set<std::string_view> allowedKeys = {
-                "$version",   "avatar",      "background", "class", "configuration",
-                "demoAudio",  "id",          "imports",    "level", "name",
+                "$version",  "avatar", "background", "class", "configuration",
+                "demoAudio", "id",     "imports",    "level", "name",
             };
             for (const auto &item : obj) {
                 if (!allowedKeys.count(std::string_view(item.first))) {
@@ -257,8 +257,7 @@ namespace srt {
             if (!it->second.isString() || it->second.toString() != "1.0") {
                 return Error{
                     Error::FeatureNotSupported,
-                    stdc::formatN(R"(format version "%1" is not supported)",
-                                  it->second.toString()),
+                    stdc::formatN(R"(format version "%1" is not supported)", it->second.toString()),
                 };
             }
             fmtVersion_ = stdc::VersionNumber(1);
@@ -372,22 +371,21 @@ namespace srt {
                                     demoAudios_.size() + 1),
                             };
                         }
-                        auto exp = readDemoAudioItem(item.toObject())
-                                       .withContext(Error::InvalidFormat,
-                                                    stdc::formatN(
-                                                        R"(invalid "demoAudio" field entry %1)",
-                                                        demoAudios_.size() + 1));
+                        auto exp =
+                            readDemoAudioItem(item.toObject())
+                                .withContext(Error::InvalidFormat,
+                                             stdc::formatN(R"(invalid "demoAudio" field entry %1)",
+                                                           demoAudios_.size() + 1));
                         if (!exp) {
                             return exp.error();
                         }
                         demoAudios_.push_back(exp.take());
                     }
                 } else {
-                    auto exp =
-                        DisplayPath::fromJsonValue(it->second)
-                            .withContext(
-                                Error::InvalidFormat,
-                                R"("demoAudio" field has invalid value in singer manifest)");
+                    auto exp = DisplayPath::fromJsonValue(it->second)
+                                   .withContext(
+                                       Error::InvalidFormat,
+                                       R"("demoAudio" field has invalid value in singer manifest)");
                     if (!exp) {
                         return exp.error();
                     }
@@ -526,9 +524,9 @@ namespace srt {
         return impl.manifestConfiguration;
     }
 
-    NO<SingerConfiguration> SingerSpec::configuration() const {
+    SingerConfiguration *SingerSpec::configuration() const {
         stdc_impl_t;
-        return impl.configuration;
+        return impl.configuration.get();
     }
 
     const std::filesystem::path &SingerSpec::path() const {
@@ -647,15 +645,16 @@ namespace srt {
                 }
 
                 // Create configuration
-                auto config = prov->createConfiguration(singerSpec)
-                                  .withContext(Error::InvalidFormat,
-                                               stdc::formatN(
-                                                   R"(failed to parse singer configuration of "%1")",
-                                                   singerSpec->id()));
+                auto config =
+                    prov->createConfiguration(singerSpec)
+                        .withContext(
+                            Error::InvalidFormat,
+                            stdc::formatN(R"(failed to parse singer configuration of "%1")",
+                                          singerSpec->id()));
                 if (!config) {
                     return config.error();
                 }
-                spec_impl->configuration = config.get();
+                spec_impl->configuration = config.take();
                 spec_impl->prov = prov;
 
                 // Fix imports

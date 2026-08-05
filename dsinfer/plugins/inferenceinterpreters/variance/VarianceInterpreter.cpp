@@ -22,7 +22,7 @@ namespace ds {
         return 1;
     }
 
-    srt::Expected<srt::NO<srt::InferenceSchema>>
+    srt::Expected<srt::UNO<srt::InferenceSchema>>
         VarianceInterpreter::createSchema(const srt::InferenceSpec *spec) const {
         if (!spec) {
             // fatal error: null pointer, return immediately
@@ -32,7 +32,7 @@ namespace ds {
             };
         }
 
-        auto result = srt::NO<Var::VarianceSchema>::create();
+        auto result = srt::UNO<Var::VarianceSchema>::create();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -64,7 +64,7 @@ namespace ds {
         return result;
     }
 
-    srt::Expected<srt::NO<srt::InferenceConfiguration>>
+    srt::Expected<srt::UNO<srt::InferenceConfiguration>>
         VarianceInterpreter::createConfiguration(const srt::InferenceSpec *spec) const {
         if (!spec) {
             // fatal error: null pointer, return immediately
@@ -75,7 +75,7 @@ namespace ds {
         }
 
         const auto &config = spec->manifestConfiguration();
-        auto result = srt::NO<Var::VarianceConfiguration>::create();
+        auto result = srt::UNO<Var::VarianceConfiguration>::create();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -118,7 +118,8 @@ namespace ds {
         {
             static_assert(std::is_same_v<decltype(result->speakers),
                                          std::map<std::string, std::vector<float>>>);
-            parser.parse_speakers_and_load_emb(result->useSpeakerEmbedding, result->hiddenSize, result->speakers);
+            parser.parse_speakers_and_load_emb(result->useSpeakerEmbedding, result->hiddenSize,
+                                               result->speakers);
         } // speakers
 
         // [REQUIRED] encoder, path (json value is string)
@@ -152,7 +153,8 @@ namespace ds {
         // useContinuousAcceleration, bool
         {
             static_assert(std::is_same_v<decltype(result->useContinuousAcceleration), bool>);
-            parser.parse_bool_optional(result->useContinuousAcceleration, "useContinuousAcceleration");
+            parser.parse_bool_optional(result->useContinuousAcceleration,
+                                       "useContinuousAcceleration");
         }
 
         if (ec.hasErrors()) {

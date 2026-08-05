@@ -32,7 +32,7 @@ namespace ds {
     namespace Onnx = Api::Onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
-    static inline srt::Expected<srt::NO<Dur::DurationConfiguration>>
+    static inline srt::Expected<const Dur::DurationConfiguration *>
         getConfig(const srt::InferenceSpec *spec) {
 
         const auto genericConfig = spec->configuration();
@@ -43,7 +43,7 @@ namespace ds {
               genericConfig->objectName() == Dur::API_NAME)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid duration configuration");
         }
-        return genericConfig.as<Dur::DurationConfiguration>();
+        return static_cast<const Dur::DurationConfiguration *>(genericConfig);
     }
 
     static inline srt::Expected<srt::NO<ITensor>>

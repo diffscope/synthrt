@@ -32,7 +32,7 @@ namespace ds {
     namespace Onnx = Api::Onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
-    static inline srt::Expected<srt::NO<Ac::AcousticConfiguration>>
+    static inline srt::Expected<const Ac::AcousticConfiguration *>
         getConfig(const srt::InferenceSpec *spec) {
 
         const auto genericConfig = spec->configuration();
@@ -43,7 +43,7 @@ namespace ds {
               genericConfig->objectName() == Ac::API_NAME)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid acoustic configuration");
         }
-        return genericConfig.as<Ac::AcousticConfiguration>();
+        return static_cast<const Ac::AcousticConfiguration *>(genericConfig);
     }
 
     class AcousticInference::Impl {

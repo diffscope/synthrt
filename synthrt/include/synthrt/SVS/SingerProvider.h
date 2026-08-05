@@ -12,7 +12,7 @@ namespace srt {
         virtual int apiLevel() const = 0;
 
         /// Called when \c SingerSpec loads.
-        virtual Expected<NO<SingerConfiguration>>
+        virtual Expected<UNO<SingerConfiguration>>
             createConfiguration(const SingerSpec *spec) const = 0;
     };
 

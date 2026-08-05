@@ -34,7 +34,7 @@ namespace ds {
     namespace Onnx = Api::Onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
-    static inline srt::Expected<srt::NO<Var::VarianceConfiguration>>
+    static inline srt::Expected<const Var::VarianceConfiguration *>
         getConfig(const srt::InferenceSpec *spec) {
 
         const auto genericConfig = spec->configuration();
@@ -45,10 +45,10 @@ namespace ds {
               genericConfig->objectName() == Var::API_NAME)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance configuration");
         }
-        return genericConfig.as<Var::VarianceConfiguration>();
+        return static_cast<const Var::VarianceConfiguration *>(genericConfig);
     }
 
-    static inline srt::Expected<srt::NO<Var::VarianceSchema>>
+    static inline srt::Expected<const Var::VarianceSchema *>
         getSchema(const srt::InferenceSpec *spec) {
 
         const auto genericSchema = spec->schema();
@@ -59,7 +59,7 @@ namespace ds {
               genericSchema->objectName() == Var::API_NAME)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance schema");
         }
-        return genericSchema.as<Var::VarianceSchema>();
+        return static_cast<const Var::VarianceSchema *>(genericSchema);
     }
 
     class VarianceInference::Impl {

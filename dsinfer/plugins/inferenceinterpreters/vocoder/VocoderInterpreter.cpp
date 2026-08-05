@@ -22,12 +22,12 @@ namespace ds {
         return 1;
     }
 
-    srt::Expected<srt::NO<srt::InferenceSchema>>
+    srt::Expected<srt::UNO<srt::InferenceSchema>>
         VocoderInterpreter::createSchema(const srt::InferenceSpec *spec) const {
-        return srt::NO<Vo::VocoderSchema>::create();
+        return srt::UNO<Vo::VocoderSchema>::create();
     }
 
-    srt::Expected<srt::NO<srt::InferenceConfiguration>>
+    srt::Expected<srt::UNO<srt::InferenceConfiguration>>
         VocoderInterpreter::createConfiguration(const srt::InferenceSpec *spec) const {
         if (!spec) {
             // fatal error: null pointer, return immediately
@@ -38,7 +38,7 @@ namespace ds {
         }
 
         const auto &config = spec->manifestConfiguration();
-        auto result = srt::NO<Vo::VocoderConfiguration>::create();
+        auto result = srt::UNO<Vo::VocoderConfiguration>::create();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;

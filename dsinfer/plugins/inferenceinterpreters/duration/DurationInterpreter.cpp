@@ -23,7 +23,7 @@ namespace ds {
         return 1;
     }
 
-    srt::Expected<srt::NO<srt::InferenceSchema>>
+    srt::Expected<srt::UNO<srt::InferenceSchema>>
         DurationInterpreter::createSchema(const srt::InferenceSpec *spec) const {
         if (!spec) {
             // fatal error: null pointer, return immediately
@@ -33,7 +33,7 @@ namespace ds {
             };
         }
 
-        auto result = srt::NO<Dur::DurationSchema>::create();
+        auto result = srt::UNO<Dur::DurationSchema>::create();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -55,7 +55,7 @@ namespace ds {
         return result;
     }
 
-    srt::Expected<srt::NO<srt::InferenceConfiguration>>
+    srt::Expected<srt::UNO<srt::InferenceConfiguration>>
         DurationInterpreter::createConfiguration(const srt::InferenceSpec *spec) const {
         if (!spec) {
             // fatal error: null pointer, return immediately
@@ -66,7 +66,7 @@ namespace ds {
         }
 
         const auto &config = spec->manifestConfiguration();
-        auto result = srt::NO<Dur::DurationConfiguration>::create();
+        auto result = srt::UNO<Dur::DurationConfiguration>::create();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -109,7 +109,8 @@ namespace ds {
         {
             static_assert(std::is_same_v<decltype(result->speakers),
                                          std::map<std::string, std::vector<float>>>);
-            parser.parse_speakers_and_load_emb(result->useSpeakerEmbedding, result->hiddenSize, result->speakers);
+            parser.parse_speakers_and_load_emb(result->useSpeakerEmbedding, result->hiddenSize,
+                                               result->speakers);
         } // speakers
 
         // [REQUIRED] encoder, path (json value is string)

@@ -33,7 +33,7 @@ namespace ds {
     namespace Onnx = Api::Onnx;
     namespace DiffSinger = Api::DiffSinger::L1;
 
-    static inline srt::Expected<srt::NO<Pit::PitchConfiguration>>
+    static inline srt::Expected<const Pit::PitchConfiguration *>
         getConfig(const srt::InferenceSpec *spec) {
 
         const auto genericConfig = spec->configuration();
@@ -44,7 +44,7 @@ namespace ds {
               genericConfig->objectName() == Pit::API_NAME)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid pitch configuration");
         }
-        return genericConfig.as<Pit::PitchConfiguration>();
+        return static_cast<const Pit::PitchConfiguration *>(genericConfig);
     }
 
     class PitchInference::Impl {
