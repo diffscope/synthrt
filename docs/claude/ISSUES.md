@@ -549,6 +549,37 @@ return {reinterpret_cast<const T *>(rawData()), elementCount()};
 
 ---
 
+### A22. JSON 读不了别人写的东西：BOM、深嵌套、CBOR 不定长
+- [x] **A22** — 已修（`fcb94ce`）。**跑外部语料时发现**
+
+拿 [nlohmann/json_test_data](https://github.com/nlohmann/json_test_data) 整个语料跑我们自己实现的
+JSON，三处读不进来、一处不该被问：
+
+**a. UTF-8 BOM 直接判成语法错误。** `json_nlohmann_tests/bom.json` 第一列就挂。
+BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会写**，
+而 `desc.json` 正是用户手写、可能从这类编辑器存出来的文件。RFC 8259 允许跳过，现已跳过。
+只跳最前面的一个——出现在别处它就是文本里的字符，在字符串外面不构成文档。
+
+**b. 嵌套上限 200 太低。** `json_testsuite/sample.json` 实际嵌套 **468 层**，被拒。
+上限提到 512。这个数不是随手定的：**实测** debug 构建（帧最宽、栈 1 MB）在约 **950 层**上栈溢出，
+512 在最坏情况下仍留了将近一倍余量，release 下余量大得多。
+> 中途一度改成 Qt 的 1024，**当场栈溢出**（`0xC00000FD`）——所以这个限制必须按最坏构建来定，不能照抄别人的数字。
+
+**c. CBOR 不定长（indefinite length）整个不支持。** 我们自己从不写，
+但**别人会写**，解不了就读不了别人的输出。现已支持：字符串拼接各段、数组与映射读到 break 为止。
+段本身又是不定长的（nlohmann 接受、RFC 8949 明确禁止）仍然拒绝。
+顺带补上：值之后的多余字节不再被静默丢弃。
+
+**d. `binary_data/cbor_binary.cbor` 本就不是良构 CBOR**——尾巴是 fuzzer 产物，
+嵌套的不定长字节串。我们拒绝是对的，测试改为断言「拒绝，且拒绝的理由正是这一条」。
+
+单元测试用 RFC 8949 附录 A 的官方向量覆盖不定长。
+**原来那条不定长测试断言的是「应当被拒绝」，正好和现在的约定相反**，已替换。
+
+**验证**：`test_jsonconformance` 1175 项检查全过（见 [验证方式](#验证方式)）。
+
+---
+
 ### A16. 构建目录的头文件依赖追踪是坏的（环境问题，非代码）
 - [ ] **A16**
 
@@ -1332,13 +1363,13 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
 
 | 分组 | 可动手 | 🔒 保留 | 已完成 |
 |---|---|---|---|
-| A 确定 bug | 28（+A19 A20 A21） | 1 | **27**（仅剩 A16 环境问题） |
+| A 确定 bug | 29（+A19 A20 A21 A22） | 1 | **28**（仅剩 A16 环境问题） |
 | B 健壮性 | 12（−B4） | 2 | **7**（B1 B2a–d B8a + B4 裁定不修） |
 | C 代码质量 | 11（−C3，升为 A18；+C12 C13） | 1 | **5**（C6 C8 C9 C9b C13） |
 | E Error 重设计 | 2 | 0 | **2** |
 | F 注册与标识 | 10（+F10） | 0 | **10**（F1–F10） |
 | D 设计 | 1（D5 剩类型识别部分） | 4 | **2**（D2 D7） |
-| **合计** | **64** | **8** | **53** |
+| **合计** | **65** | **8** | **54** |
 
 ### 剩余可动手的条目
 | 条目 | 性质 | 风险 |
@@ -1372,8 +1403,11 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
 - 全量重建（`ninja -t clean` + build）：**exit 0**
 - **`ctest` 15 个用例全过**（一个头文件一个可执行文件，见 `33d1189`）
 - 手动套件 `dsinfer/tests/manual/` **5/5**，含真实 ONNX 推理。不进 ctest：`onnxdriver` 要模型，`txtdict` 要词典路径
+- 手动套件 `synthrt/tests/manual/jsonconformance` **1175 项检查全过**（`1f77c95`）。
+  参数是 [nlohmann/json_test_data](https://github.com/nlohmann/json_test_data) 的 checkout，语料在仓库外所以不进 ctest。
+  跳过 12 项，每项都在原地注明理由（含无穷大无法往返、一个只有 1 字节的坏 fixture）。
 - ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
-- 断言总数约 **800**（其中 `test_JSON` 264、`test_AlignedAllocator` 1019 的循环断言不计入此数）。
+- 断言总数约 **840**（其中 `test_JSON` 300、`test_AlignedAllocator` 1019 的循环断言不计入此数）。
   `ContribLocator` 有 `_Parse` / `_Reject` / `_RoundTrip` / `_VersionIsNormalized` / `_Segments`；
   **A 组早期修复里 A1、A8–A15 仍无测试覆盖**，D6 依旧成立。
   A6、A7 所在的 proxy 容器已随 D2 整个删除，那两条不再有对应代码。
@@ -1392,6 +1426,12 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
 > `PitchInference` 被塞进 158 个 `withContext`（应为 15），`VarianceInference` 42 个（应为 10）。
 > **而且编译完全通过**——`withContext` 返回 `Error`，`Error` 又有 `withContext`，语法合法。
 > 靠 `grep -o <pattern> | wc -l` 数实际次数才发现（`grep -c` 数的是行数，会漏）。
+
+> **自己写的测试只能证明「和我想的一样」（2026-08-05）**：`test_JSON` 当时已有 264 条断言、
+> 对着 LLVM 的 `JSONTest.cpp` 逐条补过，仍然一条 A22 都没抓到。
+> 原因很直接——**BOM、468 层嵌套、CBOR 不定长，这三样都不在我脑子里的「JSON 长什么样」里面**，
+> 所以既不会写进实现，也不会写进测试。抓到它们的是**别人的语料**：拿外部实现的测试数据跑一遍，
+> 一次就出四条。凡是要和外界交换的格式，都值得找一份现成语料跑。
 
 > **写测试是最有效的找 bug 手段（2026-08-05）**：这一轮补 `PackageListConfig`、`Tensor` 的测试时，
 > 直接挖出 A19（写空文件 + 形状不匹配）、A20（合法状态触发 abort）、A21（模板压根编译不过）三个真 bug。
