@@ -24,7 +24,7 @@ namespace srt {
         virtual UNO<SingerProvider> create() = 0;
 
     public:
-        STDCORELIB_DISABLE_COPY(SingerProviderPlugin)
+        STDC_DISABLE_COPY(SingerProviderPlugin)
     };
 
 }

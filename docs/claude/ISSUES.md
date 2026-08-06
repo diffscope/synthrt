@@ -58,6 +58,17 @@
 | `e4c4d2c` | 属性袋改用 `stdc::any` | 新增 C13 |
 | `7f8b95f` | spec 持有 schema / configuration | D5（第一批） |
 | `861f898` | category 持有 interpreter / provider | D5（第二批） |
+| `fcb94ce` | JSON / CBOR 读得进别人写的东西 | 新增 A22 |
+| `1f77c95` `faf0e91` | 四家 JSON 语料的一致性套件 | A22（验证） |
+| `08e04fc` | 两家 CBOR 向量的一致性套件 | A22（验证） |
+| `bb0f4e5` | 消掉 MSVC 对裸字符串里转义的误报 | 无（警告） |
+| *(本轮)* | 跟上 `JsonValue` 迁往 stdcorelib | 见下 |
+
+> **`JsonValue` 已经不在这个仓库了。** stdcorelib 那边 `c701124` 把它收了过去，
+> `d830c7c` 把两套语料工具一并带走，[Support/JSON.h](../../synthrt/include/synthrt/Support/JSON.h)
+> 现在只剩三个 `using`。同一次升级里 stdcorelib 把宏前缀 `STDCORELIB_*` 改成了 `STDC_*`
+> ——**这个改名和 JSON 无关，但它和 JSON 在同一个 REF 里**，所以升级 port 之后
+> synthrt / dsinfer / wolf 一起编不过，六个宏共 18 处。已全部跟上。
 
 ## 标记约定
 
@@ -551,6 +562,10 @@ return {reinterpret_cast<const T *>(rawData()), elementCount()};
 
 ### A22. JSON 读不了别人写的东西：BOM、深嵌套、CBOR 不定长
 - [x] **A22** — 已修（`fcb94ce`）。**跑外部语料时发现**
+
+> **代码已不在本仓库**：`JsonValue` 连同两套语料测试一起迁进了 stdcorelib
+> （`stdcorelib` 侧 `c701124` + `d830c7c`），synthrt 这边 `Support/JSON.h` 只剩三个别名。
+> 下面这些 `JSON.cpp` 的行号指向的是迁移前的状态，作为「当时发生了什么」的记录保留。
 
 拿 [nlohmann/json_test_data](https://github.com/nlohmann/json_test_data) 整个语料跑我们自己实现的
 JSON，三处读不进来、一处不该被问：
@@ -1416,29 +1431,11 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
 
 ### 验证方式
 - 全量重建（`ninja -t clean` + build）：**exit 0**
-- **`ctest` 15 个用例全过**（一个头文件一个可执行文件，见 `33d1189`）
+- **`ctest` 14 个用例全过**（一个头文件一个可执行文件，见 `33d1189`）
 - 手动套件 `dsinfer/tests/manual/` **5/5**，含真实 ONNX 推理。不进 ctest：`onnxdriver` 要模型，`txtdict` 要词典路径
-- 手动套件 `synthrt/tests/manual/jsonconformance` **4286 项检查全过**（`faf0e91`，debug 下约 90 秒）。
-  四家语料各是一个 vendor 表项，**记着各自的仓库和被测 commit**——套件本身稳定，但语料仓库会变，
-  pull 之后开始挂要先对着那个 commit 看，再当成我们的缺陷：
-  [nlohmann/json_test_data](https://github.com/nlohmann/json_test_data) @ `a1375cea`、
-  [nst/JSONTestSuite](https://github.com/nst/JSONTestSuite) @ `1ef36fa0`、
-  [miloyip/nativejson-benchmark](https://github.com/miloyip/nativejson-benchmark) @ `478d5727`、
-  [simdjson/simdjson-data](https://github.com/simdjson/simdjson-data) @ `4197c425`。
-  语料在仓库外所以不进 ctest。跳过 25 项，每项都在原地注明理由。
-- 手动套件 `synthrt/tests/manual/cborconformance` **1463 条向量全过**（`08e04fc`）：
-  [cbor-wg/cbor-test-vectors](https://github.com/cbor-wg/cbor-test-vectors) @ `7e84843b`（IETF CBOR 工作组自己的向量）、
-  [cbor/test-vectors](https://github.com/cbor/test-vectors) @ `aba89b65`（RFC 7049 附录 A）。
-  **结果分三档而不是两档**：833 通过、630 落在 `JsonValue` 装不下的范围外、0 失败。
-  第二个数字才是重点——它把我们这套 CBOR 的边界写下来了：389 个 tag、212 个比 double 窄的浮点、
-  15 个 simple value、6 个非文本 map key、6 个超出 int64 的整数、2 个 undefined，**每一条都是解码器故意拒绝的**。
-  真正算缺陷的是第三档：良构的东西按不在名单上的理由被拒、非良构的被接受、或同一个 item 的两种写法被读成两个值。
-  > 工作组的测试文件**本身就是 CBOR**，用 `fromCbor` 读就成了自己测自己（而且读不了——描述 tag 的文件里就有 tag），
-  > 所以 `Vectors.cpp` 是一个独立的结构化 walker。
-  >
-  > **验证过它抓得住**：把负整数解码的 `-1` 去掉，四个文件一共 41 条向量变红。
+- **JSON 与两套语料测试已随 `JsonValue` 迁往 stdcorelib**（见下），本仓库不再有它们
 - ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
-- 断言总数约 **840**（其中 `test_JSON` 300、`test_AlignedAllocator` 1019 的循环断言不计入此数）。
+- 断言总数约 **540**（`test_AlignedAllocator` 1019 的循环断言不计入此数）。
   `ContribLocator` 有 `_Parse` / `_Reject` / `_RoundTrip` / `_VersionIsNormalized` / `_Segments`；
   **A 组早期修复里 A1、A8–A15 仍无测试覆盖**，D6 依旧成立。
   A6、A7 所在的 proxy 容器已随 D2 整个删除，那两条不再有对应代码。

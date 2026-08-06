@@ -136,7 +136,7 @@ namespace srt {
     private:
         SYNTHRT_EXPORT void forceClose();
 
-        STDCORELIB_DISABLE_COPY(ScopedPackageRef);
+        STDC_DISABLE_COPY(ScopedPackageRef);
     };
 
 }

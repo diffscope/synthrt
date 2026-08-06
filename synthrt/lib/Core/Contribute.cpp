@@ -330,4 +330,4 @@ namespace srt {
 // Owns the category list. Exported so that the head and tail a caller outside this library reaches
 // through ContribCategoryRegistry are the ones the registrations actually filled in, rather than an
 // empty list of its own. Has to sit at global scope so that it can name stdc.
-STDCORELIB_INSTANTIATE_STATIC_REGISTRY_EXPORT(srt::ContribCategoryFactoryBase, SYNTHRT_EXPORT)
+STDC_INSTANTIATE_STATIC_REGISTRY_EXPORT(srt::ContribCategoryFactoryBase, SYNTHRT_EXPORT)

@@ -46,7 +46,7 @@ namespace srt {
 
         explicit PluginFactory(Impl &impl);
 
-        STDCORELIB_DISABLE_COPY_MOVE(PluginFactory);
+        STDC_DISABLE_COPY_MOVE(PluginFactory);
     };
 
     /// \a T names its interface through a static \c IID.

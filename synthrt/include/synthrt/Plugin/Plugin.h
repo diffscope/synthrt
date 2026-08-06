@@ -39,7 +39,7 @@ namespace srt {
 }
 
 #define SYNTHRT_EXPORT_PLUGIN(PLUGIN_NAME)                                                         \
-    extern "C" STDCORELIB_DECL_EXPORT srt::Plugin *synthrt_plugin_instance() {                     \
+    extern "C" STDC_DECL_EXPORT srt::Plugin *synthrt_plugin_instance() {                     \
         static PLUGIN_NAME _instance;                                                              \
         return &_instance;                                                                         \
     }

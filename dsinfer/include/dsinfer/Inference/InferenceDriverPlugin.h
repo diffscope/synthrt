@@ -25,7 +25,7 @@ namespace ds {
         virtual srt::UNO<InferenceDriver> create() = 0;
 
     public:
-        STDCORELIB_DISABLE_COPY(InferenceDriverPlugin)
+        STDC_DISABLE_COPY(InferenceDriverPlugin)
     };
 
 }

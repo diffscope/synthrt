@@ -29,7 +29,7 @@ namespace srt {
         ///       \c dllexport instantiates every member a class has. An implicit copy constructor
         ///       is one of them, and it is compiled whether or not anyone calls it, taking every
         ///       member down with it.
-        STDCORELIB_DISABLE_COPY(Impl)
+        STDC_DISABLE_COPY(Impl)
 
         NamedObject *_decl;
 
@@ -43,7 +43,7 @@ namespace srt {
         }
         virtual ~Impl();
 
-        STDCORELIB_DISABLE_COPY(Impl)
+        STDC_DISABLE_COPY(Impl)
 
         /// The objects under one identifier, in the order they were registered, so tearing them
         /// down in reverse takes the later ones out first.

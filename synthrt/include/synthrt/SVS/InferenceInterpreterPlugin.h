@@ -25,7 +25,7 @@ namespace srt {
         virtual UNO<InferenceInterpreter> create() = 0;
 
     public:
-        STDCORELIB_DISABLE_COPY(InferenceInterpreterPlugin)
+        STDC_DISABLE_COPY(InferenceInterpreterPlugin)
     };
 
 }

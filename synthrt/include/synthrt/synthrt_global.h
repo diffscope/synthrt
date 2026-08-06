@@ -8,9 +8,9 @@
 #    define SYNTHRT_EXPORT
 #  else
 #    ifdef SYNTHRT_LIBRARY
-#      define SYNTHRT_EXPORT STDCORELIB_DECL_EXPORT
+#      define SYNTHRT_EXPORT STDC_DECL_EXPORT
 #    else
-#      define SYNTHRT_EXPORT STDCORELIB_DECL_IMPORT
+#      define SYNTHRT_EXPORT STDC_DECL_IMPORT
 #    endif
 #  endif
 #endif
