@@ -353,9 +353,8 @@ namespace srt::g2p {
                 }
             }
         } catch (const std::exception &e) {
-            pkgMgrLog.srtWarning(
-                "refreshPackageIndexes: filesystem error while scanning context '%1': %2",
-                ctxKey.toString(), e.what());
+            pkgMgrLog.srtWarning("refreshPackageIndexes: filesystem error while scanning context '%1': %2",
+                                 ctxKey.toString(), e.what());
         }
     }
 
@@ -376,7 +375,7 @@ namespace srt::g2p {
         // returns an empty path on failure. fs::is_directory is also called
         // with error_code to avoid filesystem_error exceptions on race or
         // permission errors.
-        auto canonicalPath = stdc::path::canonical(path);
+        auto            canonicalPath = stdc::path::canonical(path);
         std::error_code ec;
         if (canonicalPath.empty() || !fs::is_directory(canonicalPath, ec)) {
             return Error(ErrorCode::G2pFileSystemError, "Invalid package path: " + stdc::path::to_utf8(path));
@@ -401,7 +400,7 @@ namespace srt::g2p {
         }
 
         // Get contributes from moduleSpecs
-        llvm::SmallVector<srt::core::ModuleSpec *> contributes;
+        std::vector<srt::core::ModuleSpec *> contributes;
         for (const auto &[cat, byId] : pd->m_moduleSpecs) {
             for (const auto &[mid, spec] : byId) {
                 contributes.push_back(spec);
@@ -636,9 +635,7 @@ namespace srt::g2p {
         // NOTE: This is identical to the hook registration in the default
         // constructor; both paths must register it since Manager bypasses
         // the default constructor.
-        srt::core::Runtime::setGlobalShutdownHook([this]() {
-            _impl->shutdown();
-        });
+        srt::core::Runtime::setGlobalShutdownHook([this]() { _impl->shutdown(); });
     }
 
     PackageManager::PackageManager() : srt::core::PluginFactory(), _impl(new Impl(this)) {
@@ -657,9 +654,7 @@ namespace srt::g2p {
         // The hook captures `this` (raw pointer to the static singleton,
         // whose address is stable for the process lifetime). shutdown() is
         // idempotent, so a later destructor call is a no-op.
-        srt::core::Runtime::setGlobalShutdownHook([this]() {
-            _impl->shutdown();
-        });
+        srt::core::Runtime::setGlobalShutdownHook([this]() { _impl->shutdown(); });
     }
 
     PackageManager::~PackageManager() = default;
@@ -928,8 +923,8 @@ namespace srt::g2p {
 
         auto taskExp = taskPlugin->createTask(moduleSpec);
         if (!taskExp) {
-            pkgMgrLog.srtWarning("createModuleTask: createTask failed module=%1: %2",
-                                 moduleInfo.moduleId, taskExp.error().message());
+            pkgMgrLog.srtWarning("createModuleTask: createTask failed module=%1: %2", moduleInfo.moduleId,
+                                 taskExp.error().message());
             return taskExp.error();
         }
 
@@ -944,22 +939,21 @@ namespace srt::g2p {
         try {
             auto initExp = task->initialize();
             if (!initExp) {
-                pkgMgrLog.srtWarning("createModuleTask: task->initialize failed module=%1: %2",
-                                     moduleInfo.moduleId, initExp.error().message());
+                pkgMgrLog.srtWarning("createModuleTask: task->initialize failed module=%1: %2", moduleInfo.moduleId,
+                                     initExp.error().message());
                 return initExp.error();
             }
         } catch (const std::exception &e) {
             pkgMgrLog.srtWarning("createModuleTask: task->initialize threw exception module=%1: %2",
                                  moduleInfo.moduleId, e.what());
             return Error::g2pError(ErrorCode::G2pInitializationError,
-                                   stdc::formatN("Task initialization threw exception: %1", e.what()),
-                                   {}, moduleInfo.packageId);
+                                   stdc::formatN("Task initialization threw exception: %1", e.what()), {},
+                                   moduleInfo.packageId);
         } catch (...) {
             pkgMgrLog.srtWarning("createModuleTask: task->initialize threw unknown exception module=%1",
                                  moduleInfo.moduleId);
-            return Error::g2pError(ErrorCode::G2pInitializationError,
-                                   "Task initialization threw unknown exception",
-                                   {}, moduleInfo.packageId);
+            return Error::g2pError(ErrorCode::G2pInitializationError, "Task initialization threw unknown exception", {},
+                                   moduleInfo.packageId);
         }
 
         return task;
@@ -1103,9 +1097,8 @@ namespace srt::g2p {
                 }
             }
         } catch (const std::exception &e) {
-            pkgMgrLog.srtWarning(
-                "getModuleMetadatas: filesystem error while scanning context '%1': %2",
-                ctxKey.toString(), e.what());
+            pkgMgrLog.srtWarning("getModuleMetadatas: filesystem error while scanning context '%1': %2",
+                                 ctxKey.toString(), e.what());
         }
 
         impl.m_contextModuleInfos[ctxKey] = metadatas;

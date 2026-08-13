@@ -1,25 +1,23 @@
 #include "PluginFactory.h"
-#include "PluginFactory_p.h"
-
-#include <utility>
-#include <cstring>
-#include <fstream>
-#include <mutex>
-
-#include <nlohmann/json.hpp>
 
 #include <stdcorelib/path.h>
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
-#include <stdcorelib/3rdparty/llvm/smallvector.h>
-
 #include <synthrt/Core/Support/Logging.h>
+
+#include <cstring>
+#include <fstream>
+#include <mutex>
+#include <nlohmann/json.hpp>
+#include <utility>
+
+#include "PluginFactory_p.h"
 
 namespace fs = std::filesystem;
 
 namespace srt::core {
 
-    using StaticPluginMap = std::map<std::string, llvm::SmallVector<StaticPlugin, 10>>;
+    using StaticPluginMap = std::map<std::string, std::vector<StaticPlugin>>;
 
     static srt::LogCategory PluginLog("plugin.factory");
 
@@ -55,7 +53,7 @@ namespace srt::core {
         bool allLoaded = true;
         for (fs::directory_iterator it(sharedDir, ec), end; !ec && it != end; it.increment(ec)) {
             const auto &entry = *it;
-            const auto &p = entry.path();
+            const auto &p     = entry.path();
             if (!stdc::SharedLibrary::isLibrary(p))
                 continue;
 
@@ -65,8 +63,7 @@ namespace srt::core {
 
             stdc::SharedLibrary lib;
             if (lib.open(p)) {
-                m_preloadedLibraries.emplace(key,
-                                           std::make_unique<stdc::SharedLibrary>(std::move(lib)));
+                m_preloadedLibraries.emplace(key, std::make_unique<stdc::SharedLibrary>(std::move(lib)));
             } else {
                 allLoaded = false;
                 PluginLog.srtWarning("preloadSharedLibraries: failed to load shared library %1",
@@ -78,7 +75,7 @@ namespace srt::core {
 
     fs::path PluginFactory::Impl::sharedLibraryPath(const fs::path &categoryDir) {
         std::error_code ec;
-        auto normalizedPath = fs::weakly_canonical(categoryDir, ec);
+        auto            normalizedPath = fs::weakly_canonical(categoryDir, ec);
         if (ec) {
             ec.clear();
             normalizedPath = fs::absolute(categoryDir, ec);
@@ -128,7 +125,10 @@ namespace srt::core {
                     continue;
 
                 // Parse plugin.json
-                struct PluginDesc { std::string target; bool valid = false; };
+                struct PluginDesc {
+                    std::string target;
+                    bool        valid = false;
+                };
                 PluginDesc desc;
                 try {
                     std::ifstream ifs(descPath);
@@ -140,21 +140,21 @@ namespace srt::core {
                     const std::string jsonStr((std::istreambuf_iterator(ifs)), std::istreambuf_iterator<char>());
 
                     std::string jsonErr;
-                    auto jsonVal = nlohmann::json::parse(jsonStr, nullptr, false);
+                    auto        jsonVal = nlohmann::json::parse(jsonStr, nullptr, false);
                     if (jsonVal.is_discarded()) {
                         PluginLog.srtWarning("scanPlugins: invalid JSON in plugin.json in %1, skipping",
                                              stdc::path::to_utf8(pluginDir));
                         continue;
                     }
                     auto &obj = jsonVal;
-                    auto it = obj.find("target");
+                    auto  it  = obj.find("target");
                     if (it == obj.end() || !it->is_string()) {
                         PluginLog.srtWarning("scanPlugins: plugin.json in %1 missing string 'target' field, skipping",
                                              stdc::path::to_utf8(pluginDir));
                         continue;
                     }
                     desc.target = it->get<std::string>();
-                    desc.valid = true;
+                    desc.valid  = true;
                 } catch (const std::exception &e) {
                     PluginLog.srtWarning("scanPlugins: exception while parsing plugin.json in %1: %2, skipping",
                                          stdc::path::to_utf8(pluginDir), e.what());
@@ -182,7 +182,7 @@ namespace srt::core {
                 }
 
                 using PluginGetter = Plugin *(*)();
-                auto getter = reinterpret_cast<PluginGetter>(so.resolve("srt_plugin_instance"));
+                auto getter        = reinterpret_cast<PluginGetter>(so.resolve("srt_plugin_instance"));
                 if (!getter) {
                     PluginLog.srtWarning("scanPlugins: symbol 'srt_plugin_instance' not found in %1, skipping",
                                          stdc::path::to_utf8(dllPath));
@@ -208,8 +208,8 @@ namespace srt::core {
                     continue;
                 }
                 if (!plugins.insert(std::make_pair(plugin->key(), plugin)).second) {
-                    PluginLog.srtWarning("scanPlugins: duplicate plugin key '%1' in %2, skipping",
-                                         plugin->key(), stdc::path::to_utf8(dllPath));
+                    PluginLog.srtWarning("scanPlugins: duplicate plugin key '%1' in %2, skipping", plugin->key(),
+                                         stdc::path::to_utf8(dllPath));
                     continue;
                 }
 
@@ -231,7 +231,7 @@ namespace srt::core {
     PluginFactory::~PluginFactory() = default;
 
     std::vector<std::string> PluginFactory::staticPluginSets() {
-        auto &map = getStaticPluginMap();
+        auto                    &map = getStaticPluginMap();
         std::vector<std::string> pluginSets;
         pluginSets.reserve(map.size());
         for (const auto &item : map) {
@@ -242,7 +242,7 @@ namespace srt::core {
 
     std::vector<StaticPlugin> PluginFactory::staticPlugins(const char *pluginSet) {
         auto &map = getStaticPluginMap();
-        auto it = map.find(pluginSet);
+        auto  it  = map.find(pluginSet);
         if (it == map.end()) {
             return {};
         }
@@ -250,9 +250,9 @@ namespace srt::core {
     }
 
     std::vector<Plugin *> PluginFactory::staticInstances(const char *pluginSet) {
-        auto &map = getStaticPluginMap();
+        auto                 &map = getStaticPluginMap();
         std::vector<Plugin *> instances;
-        auto it = map.find(pluginSet);
+        auto                  it = map.find(pluginSet);
         if (it == map.end()) {
             return {};
         }
@@ -264,24 +264,24 @@ namespace srt::core {
     }
 
     void PluginFactory::addRuntimePlugin(Plugin *plugin) {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::unique_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
         impl.m_runtimePlugins.emplace(plugin);
         impl.m_pluginsDirty.insert(plugin->iid());
     }
 
     std::vector<Plugin *> PluginFactory::runtimePlugins() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::shared_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
         return {impl.m_runtimePlugins.begin(), impl.m_runtimePlugins.end()};
     }
 
     void PluginFactory::addPluginPath(const char *iid, const std::filesystem::path &path) {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         std::unique_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
-        auto &sharedDirs = impl.m_sharedDirs[iid];
-        const auto sharedDir = Impl::sharedLibraryPath(path);
+        auto                               &sharedDirs = impl.m_sharedDirs[iid];
+        const auto                          sharedDir  = Impl::sharedLibraryPath(path);
         if (std::find(sharedDirs.begin(), sharedDirs.end(), sharedDir) == sharedDirs.end())
             sharedDirs.push_back(sharedDir);
 
@@ -309,8 +309,8 @@ namespace srt::core {
                 }
             }
         } catch (const std::exception &e) {
-            PluginLog.srtWarning("addPluginPath: failed to scan plugin path %1: %2",
-                                 stdc::path::to_utf8(canonicalPath), e.what());
+            PluginLog.srtWarning("addPluginPath: failed to scan plugin path %1: %2", stdc::path::to_utf8(canonicalPath),
+                                 e.what());
             impl.m_pluginsDirty.insert(iid);
             return;
         }
@@ -318,28 +318,30 @@ namespace srt::core {
         impl.m_pluginsDirty.insert(iid);
     }
 
-    void PluginFactory::setPluginPaths(const char *iid,
-                                       stdc::array_view<std::filesystem::path> paths) {
-        __stdc_impl_t;
+    void PluginFactory::setPluginPaths(const char *iid, stdc::array_view<std::filesystem::path> paths) {
+        stdc_impl_t;
         std::unique_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
 
         impl.m_pluginDirs.erase(iid);
         impl.m_sharedDirs.erase(iid);
 
         if (!paths.empty()) {
-            llvm::SmallVector<fs::path> dirs;
-            llvm::SmallVector<fs::path> sharedDirs;
+            std::vector<fs::path> dirs;
+            std::vector<fs::path> sharedDirs;
             for (const auto &path : paths) {
                 const auto sharedDir = Impl::sharedLibraryPath(path);
                 if (std::find(sharedDirs.begin(), sharedDirs.end(), sharedDir) == sharedDirs.end())
                     sharedDirs.push_back(sharedDir);
                 std::error_code ec;
-                if (!fs::is_directory(path, ec)) continue;
+                if (!fs::is_directory(path, ec))
+                    continue;
                 fs::path canonicalPath = fs::canonical(path, ec);
-                if (ec) continue;
+                if (ec)
+                    continue;
                 try {
                     for (const auto &entry : fs::directory_iterator(canonicalPath)) {
-                        if (!entry.is_directory()) continue;
+                        if (!entry.is_directory())
+                            continue;
                         const auto &pluginDir = fs::canonical(entry.path());
                         if (fs::path descPath = pluginDir / "plugin.json"; fs::exists(descPath)) {
                             dirs.push_back(pluginDir);
@@ -363,10 +365,10 @@ namespace srt::core {
     }
 
     std::vector<std::filesystem::path> PluginFactory::pluginPaths(const char *iid) const {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         std::shared_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
-        auto it = impl.m_pluginDirs.find(iid);
+        auto                                it = impl.m_pluginDirs.find(iid);
         if (it == impl.m_pluginDirs.end()) {
             return {};
         }
@@ -374,7 +376,7 @@ namespace srt::core {
     }
 
     Plugin *PluginFactory::plugin(const char *iid, const char *key) const {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         std::unique_lock<std::shared_mutex> lock(impl.m_plugins_mtx);
         if (impl.m_pluginsDirty.count(iid)) {
@@ -387,7 +389,7 @@ namespace srt::core {
         }
 
         const auto &pluginsMap = it->second;
-        auto it2 = pluginsMap.find(key);
+        auto        it2        = pluginsMap.find(key);
         if (it2 == pluginsMap.end()) {
             return nullptr;
         }
@@ -400,4 +402,4 @@ namespace srt::core {
     PluginFactory::PluginFactory(Impl &impl) : _impl(&impl) {
     }
 
-}
+} // namespace srt::core

@@ -3,12 +3,11 @@
 #include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
 #include <stdcorelib/support/sharedlibrary.h>
-
 #include <synthrt/Driver/onnx/OnnxDriverApi.h>
 #include <synthrt/Driver/onnx/OnnxTensor.h>
 
-#include "OnnxSession.h"
 #include "OnnxDriver_Logger.h"
+#include "OnnxSession.h"
 #include "internal/Env.h"
 
 #ifndef ORT_API_MANUAL_INIT
@@ -18,11 +17,11 @@
 #include <onnxruntime_cxx_api.h>
 
 #if defined(_WIN32)
-#  define ONNXRUNTIME_DYLIB_FILENAME _TSTR("onnxruntime.dll")
+#  define ONNXRUNTIME_DYLIB_FILENAME ORT_TSTR("onnxruntime.dll")
 #elif defined(__APPLE__)
-#  define ONNXRUNTIME_DYLIB_FILENAME _TSTR("libonnxruntime.dylib")
+#  define ONNXRUNTIME_DYLIB_FILENAME ORT_TSTR("libonnxruntime.dylib")
 #else
-#  define ONNXRUNTIME_DYLIB_FILENAME _TSTR("libonnxruntime.so")
+#  define ONNXRUNTIME_DYLIB_FILENAME ORT_TSTR("libonnxruntime.so")
 #endif
 
 namespace fs = std::filesystem;
@@ -53,14 +52,13 @@ namespace srt::driver::onnx {
 #endif
             if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint |
                                        stdc::SharedLibrary::ExportExternalSymbolsHint)) {
-                std::string msg =
-                    stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
+                std::string msg = stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);
 #ifdef _WIN32
                 stdc::SharedLibrary::setLibraryPath(orgLibPath);
 #endif
                 return std::move(srt::core::Error(srt::core::Error::SessionError, std::move(msg))
-                    .withTrace(std::source_location::current(), "OnnxDriver::Impl::load"));
+                                     .withTrace(std::source_location::current(), "OnnxDriver::Impl::load"));
             }
 #ifdef _WIN32
             stdc::SharedLibrary::setLibraryPath(orgLibPath);
@@ -69,14 +67,12 @@ namespace srt::driver::onnx {
              *  2. Get Ort Api getter handle
              */
             Log.srtDebug("Init - Getting ORT API handle");
-            auto handle =
-                reinterpret_cast<OrtApiBase *(ORT_API_CALL *) ()>(dylib->resolve("OrtGetApiBase"));
+            auto handle = reinterpret_cast<OrtApiBase *(ORT_API_CALL *)()>(dylib->resolve("OrtGetApiBase"));
             if (!handle) {
-                std::string msg =
-                    stdc::formatN("Failed to get API handle: %1 [%2]", dylib->lastError(), path);
+                std::string msg = stdc::formatN("Failed to get API handle: %1 [%2]", dylib->lastError(), path);
                 Log.srtCritical("Init - %1", msg);
                 return std::move(srt::core::Error(srt::core::Error::SessionError, std::move(msg))
-                    .withTrace(std::source_location::current(), "OnnxDriver::Impl::load"));
+                                     .withTrace(std::source_location::current(), "OnnxDriver::Impl::load"));
             }
 
             /**
@@ -84,12 +80,12 @@ namespace srt::driver::onnx {
              */
             Log.srtDebug("Init - ORT_API_VERSION is %1", ORT_API_VERSION);
             auto apiBase = handle();
-            auto api = apiBase->GetApi(ORT_API_VERSION);
+            auto api     = apiBase->GetApi(ORT_API_VERSION);
             if (!api) {
                 std::string msg = stdc::formatN("%1: failed to get API instance");
                 Log.srtCritical("Init - %1", msg);
                 return std::move(srt::core::Error(srt::core::Error::SessionError, std::move(msg))
-                    .withTrace(std::source_location::current(), "OnnxDriver::Impl::load"));
+                                     .withTrace(std::source_location::current(), "OnnxDriver::Impl::load"));
             }
             Log.srtDebug("Init - ORT library version is %1", apiBase->GetVersionString());
 
@@ -103,10 +99,10 @@ namespace srt::driver::onnx {
 
             ortDSO.swap(dylib);
 
-            loaded = true;
-            ortPath = path;
+            loaded     = true;
+            ortPath    = path;
             ortApiBase = apiBase;
-            ortApi = api;
+            ortApi     = api;
 
             Log.srtInfo("Init - Onnx environment Load successful");
             return srt::core::Expected<void>();
@@ -115,12 +111,12 @@ namespace srt::driver::onnx {
         std::unique_ptr<stdc::SharedLibrary> ortDSO;
 
         // Metadata
-        bool loaded = false;
+        bool     loaded = false;
         fs::path ortPath;
 
         // Library data
-        void *hLibrary = nullptr;
-        const OrtApi *ortApi = nullptr;
+        void             *hLibrary   = nullptr;
+        const OrtApi     *ortApi     = nullptr;
         const OrtApiBase *ortApiBase = nullptr;
     };
 
@@ -139,23 +135,21 @@ namespace srt::driver::onnx {
         return API_NAME;
     }
 
-    srt::core::Expected<void>
-        OnnxDriver::initialize(const srt::core::NO<srt::driver::InferenceDriverInitArgs> &args) {
+    srt::core::Expected<void> OnnxDriver::initialize(const srt::core::NO<srt::driver::InferenceDriverInitArgs> &args) {
         auto &impl = *m_impl;
 
         if (args->objectName() != API_NAME) {
             return std::move(srt::core::Error{
                 srt::core::Error::InvalidArgument,
-                stdc::formatN(R"(invalid driver name: expected "%s", got "%s")", API_NAME,
-                              args->objectName()),
-            }.withTrace(std::source_location::current(), "OnnxDriver::initialize"));
+                stdc::formatN(R"(invalid driver name: expected "%s", got "%s")", API_NAME, args->objectName()),
+            }
+                                 .withTrace(std::source_location::current(), "OnnxDriver::initialize"));
         }
 
         auto onnxArgs = args.as<DriverInitArgs>();
         if (!onnxArgs) {
-            return std::move(srt::core::Error{srt::core::Error::InvalidArgument,
-                                    "onnx args is null pointer"}
-                .withTrace(std::source_location::current(), "OnnxDriver::initialize"));
+            return std::move(srt::core::Error{srt::core::Error::InvalidArgument, "onnx args is null pointer"}.withTrace(
+                std::source_location::current(), "OnnxDriver::initialize"));
         }
 
         // Example logging
@@ -165,19 +159,19 @@ namespace srt::driver::onnx {
             return std::move(srt::core::Error{
                 srt::core::Error::FileDuplicated,
                 "onnx runtime has been initialized by another instance",
-            }.withTrace(std::source_location::current(), "OnnxDriver::initialize"));
+            }
+                                 .withTrace(std::source_location::current(), "OnnxDriver::initialize"));
         }
 
         auto dllPath = onnxArgs->runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
 
         auto loadExp = impl.load(dllPath);
         if (!loadExp) {
-            return std::move(loadExp.takeError()
-                .withTrace(std::source_location::current(), "OnnxDriver::initialize"));
+            return std::move(loadExp.takeError().withTrace(std::source_location::current(), "OnnxDriver::initialize"));
         }
 
         Env::DeviceConfig devConfig;
-        devConfig.ep = onnxArgs->ep;
+        devConfig.ep          = onnxArgs->ep;
         devConfig.deviceIndex = onnxArgs->deviceIndex;
         Env::setDeviceConfig(devConfig);
         return srt::core::Expected<void>();
@@ -188,4 +182,4 @@ namespace srt::driver::onnx {
         return session;
     }
 
-}
+} // namespace srt::driver::onnx

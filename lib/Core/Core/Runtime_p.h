@@ -1,5 +1,9 @@
 #pragma once
 
+#include <synthrt/Core/Core/NamedObject.h>
+#include <synthrt/Core/Core/Runtime.h>
+#include <synthrt/Core/Plugin/PluginFactory.h>
+
 #include <atomic>
 #include <filesystem>
 #include <functional>
@@ -7,12 +11,6 @@
 #include <memory>
 #include <shared_mutex>
 #include <vector>
-
-#include <stdcorelib/3rdparty/llvm/smallvector.h>
-
-#include <synthrt/Core/Core/Runtime.h>
-#include <synthrt/Core/Core/NamedObject.h>
-#include <synthrt/Core/Plugin/PluginFactory.h>
 
 namespace srt::core {
 
@@ -36,8 +34,8 @@ namespace srt::core {
         // The ServiceRegistry owns the PluginFactory; `m_plugins` is a cached
         // non-owning pointer (== the instance registered in `m_services`) used
         // for fast forwarding.
-        ServiceRegistry m_services;
-        PluginFactory *m_plugins = nullptr;
+        ServiceRegistry             m_services;
+        PluginFactory              *m_plugins = nullptr;
         std::unique_ptr<ObjectPool> m_objectPool;
 
         // --- Stage 1 state (scanPackages) ---
@@ -57,7 +55,7 @@ namespace srt::core {
         // and relative inputs.
         struct LoadedPackage {
             std::filesystem::path canonicalPath;
-            std::string packageId;
+            std::string           packageId;
         };
         std::vector<LoadedPackage> m_loadedPackages;
 
@@ -95,7 +93,7 @@ namespace srt::core {
         std::vector<std::function<void()>> m_destructionCallbacks;
 
     public:
-        static llvm::SmallVector<ModuleCategory *(*)(Runtime *)> moduleCategoryFactories;
+        static std::vector<ModuleCategory *(*)(Runtime *)> moduleCategoryFactories;
 
         /// Process-wide shutdown hook set by static-singleton subsystems
         /// (e.g. srt::g2p::PackageManager) via Runtime::setGlobalShutdownHook().
@@ -106,4 +104,4 @@ namespace srt::core {
         static std::function<void()> &globalShutdownHook();
     };
 
-}
+} // namespace srt::core

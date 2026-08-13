@@ -1,5 +1,10 @@
 #pragma once
 
+#include <stdcorelib/support/versionnumber.h>
+#include <synthrt/Core/Plugin/PluginFactory.h>
+#include <synthrt/Core/Support/ContextKey.h>
+#include <synthrt/G2P/Core/PackageManager.h>
+
 #include <list>
 #include <map>
 #include <memory>
@@ -8,14 +13,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include <stdcorelib/3rdparty/llvm/smallvector.h>
-#include <stdcorelib/support/versionnumber.h>
-
-#include <synthrt/Core/Plugin/PluginFactory.h>
-#include <synthrt/Core/Support/ContextKey.h>
-
-#include <synthrt/G2P/Core/PackageManager.h>
 
 namespace srt::g2p {
 
@@ -29,28 +26,29 @@ namespace srt::g2p {
         PackageManager *m_q;
 
         struct LoadedPackageBlock {
-            PackageData *spec = nullptr;
-            int ref = 0;
-            llvm::SmallVector<srt::core::ModuleSpec *> contributes;
-            llvm::SmallVector<PackageData *> linked;
+            PackageData                         *spec = nullptr;
+            int                                  ref  = 0;
+            std::vector<srt::core::ModuleSpec *> contributes;
+            std::vector<PackageData *>           linked;
         };
 
         struct PackageBrief {
             std::filesystem::path path;
-            stdc::VersionNumber compatVersion;
+            stdc::VersionNumber   compatVersion;
         };
 
         struct LoadedPackageMap {
-            std::list<LoadedPackageBlock> packages;
+            std::list<LoadedPackageBlock>                                                           packages;
             std::map<std::filesystem::path::string_type, decltype(packages)::iterator, std::less<>> pathIndexes;
-            std::map<std::string, std::unordered_map<stdc::VersionNumber, decltype(packages)::iterator>, std::less<>> idIndexes;
+            std::map<std::string, std::unordered_map<stdc::VersionNumber, decltype(packages)::iterator>, std::less<>>
+                                                                            idIndexes;
             std::unordered_map<PackageData *, decltype(packages)::iterator> pointerIndexes;
         };
 
         srt::core::Expected<PackageData *> openPackage(const std::filesystem::path &path);
-        bool closePackage(PackageData *spec);
-        void closeAllLoadedPackages();
-        void refreshPackageIndexes(const srt::core::ContextKey &ctxKey);
+        bool                               closePackage(PackageData *spec);
+        void                               closeAllLoadedPackages();
+        void                               refreshPackageIndexes(const srt::core::ContextKey &ctxKey);
 
         /// Release all object references held by category ObjectPools, close
         /// loaded packages, and delete categories. Idempotent (safe to call
@@ -70,7 +68,7 @@ namespace srt::g2p {
         std::map<std::string, srt::core::ModuleCategory *, std::less<>> m_cateKeyMap;
 
         // Per-context package paths
-        std::map<srt::core::ContextKey, llvm::SmallVector<std::filesystem::path>> m_contextPackagePaths;
+        std::map<srt::core::ContextKey, std::vector<std::filesystem::path>> m_contextPackagePaths;
 
         // Per-context initialization states
         std::map<srt::core::ContextKey, ContextState> m_contextStates;
@@ -80,17 +78,19 @@ namespace srt::g2p {
 
         // Per-context module metadata cache
         std::map<srt::core::ContextKey, std::vector<srt::dependency::ModuleMetadata>> m_contextModuleInfos;
-        std::map<srt::core::ContextKey, bool> m_contextDependencyResolved;
+        std::map<srt::core::ContextKey, bool>                                         m_contextDependencyResolved;
 
         // Per-context dependency graphs
         std::map<srt::core::ContextKey, srt::dependency::DependencyGraph> m_contextDependencyGraphs;
 
         // Loaded package management
-        LoadedPackageMap m_loadedPackageMap;
+        LoadedPackageMap                  m_loadedPackageMap;
         std::unordered_set<PackageData *> m_resourcePackages;
-        bool m_packagePathsDirty = false;
-        std::map<srt::core::ContextKey, std::map<std::string, std::map<stdc::VersionNumber, PackageBrief>, std::less<>>> m_contextCachedIndexes;
-        std::map<std::string, std::unordered_map<stdc::VersionNumber, std::filesystem::path>, std::less<>> m_pendingPackages;
+        bool                              m_packagePathsDirty = false;
+        std::map<srt::core::ContextKey, std::map<std::string, std::map<stdc::VersionNumber, PackageBrief>, std::less<>>>
+            m_contextCachedIndexes;
+        std::map<std::string, std::unordered_map<stdc::VersionNumber, std::filesystem::path>, std::less<>>
+            m_pendingPackages;
 
         // 3-level map: category → ContextKey → moduleId → Task
         std::map<std::string, std::map<srt::core::ContextKey, std::map<std::string, srt::core::NO<Task>>>> m_tasks;

@@ -1,14 +1,12 @@
+#include <sparsepp/spp.h>
+#include <stdcorelib/pimpl.h>
+#include <stdcorelib/str.h>
 #include <synthrt/G2P/Support/PhonemeDict.h>
 
 #include <cstring>
 #include <fstream>
 
-#include <sparsepp/spp.h>
-#include <stdcorelib/pimpl.h>
-#include <stdcorelib/str.h>
-
-namespace srt::g2p
-{
+namespace srt::g2p {
 
     static std::error_code make_last_error() {
 #ifdef _WIN32
@@ -25,7 +23,9 @@ namespace srt::g2p
     };
 
     struct const_char_equal {
-        bool operator()(const char *key1, const char *key2) const noexcept { return std::strcmp(key1, key2) == 0; }
+        bool operator()(const char *key1, const char *key2) const noexcept {
+            return std::strcmp(key1, key2) == 0;
+        }
     };
 
     class PhonemeDict::Impl {
@@ -34,16 +34,15 @@ namespace srt::g2p
             uint32_t offset;
             uint32_t count;
         };
-        using MapType = spp::sparse_hash_map<char *, Entry, const_char_hash, const_char_equal>;
+        using MapType     = spp::sparse_hash_map<char *, Entry, const_char_hash, const_char_equal>;
         using SppIterator = MapType::const_iterator;
 
         std::vector<char> filebuf;
-        MapType map;
+        MapType           map;
 
         // Store/load a sparsepp const_iterator to/from the two void* slots (_row, _col).
         // Uses memcpy to safely round-trip without accessing sparsepp internal member names.
-        static_assert(sizeof(SppIterator) <= 2 * sizeof(void *),
-                      "sparsepp iterator size exceeds two void* slots");
+        static_assert(sizeof(SppIterator) <= 2 * sizeof(void *), "sparsepp iterator size exceeds two void* slots");
 
         static SppIterator loadIter(const void *row, const void *col) {
             SppIterator it{};
@@ -60,11 +59,14 @@ namespace srt::g2p
         }
     };
 
-    PhonemeDict::PhonemeDict() : _impl(std::make_shared<Impl>()) {}
+    PhonemeDict::PhonemeDict() : _impl(std::make_shared<Impl>()) {
+    }
 
     PhonemeDict::~PhonemeDict() = default;
 
-    void PhonemeDict::reset() { _impl = std::make_shared<Impl>(); }
+    void PhonemeDict::reset() {
+        _impl = std::make_shared<Impl>();
+    }
 
     bool PhonemeDict::load(const std::filesystem::path &path, std::error_code *ec) {
         if (ec)
@@ -77,9 +79,9 @@ namespace srt::g2p
             return false;
         }
 
-        __stdc_impl_t;
+        stdc_impl_t;
         auto &filebuf = impl.filebuf;
-        auto &map = impl.map;
+        auto &map     = impl.map;
 
         file.seekg(0, std::ios::end);
         const std::streamsize file_size = file.tellg();
@@ -105,7 +107,7 @@ namespace srt::g2p
 
         // Parse the buffer
         const auto buffer_begin = filebuf.data();
-        const auto buffer_end = buffer_begin + filebuf.size();
+        const auto buffer_end   = buffer_begin + filebuf.size();
 
         // Estimate line numbers if the file is too large
         static constexpr size_t large_file_size = 1 * 1024 * 1024;
@@ -169,10 +171,10 @@ namespace srt::g2p
                 // PhonemeList iterator (which advances by strlen+1) never
                 // returns spurious empty phonemes.
                 {
-                    char *read = value_start;
-                    char *write = value_start;
-                    const char *end = (p < buffer_end) ? p : (buffer_end - 1);
-                    uint32_t compacted_count = 0;
+                    char       *read            = value_start;
+                    char       *write           = value_start;
+                    const char *end             = (p < buffer_end) ? p : (buffer_end - 1);
+                    uint32_t    compacted_count = 0;
                     while (read <= end) {
                         const size_t len = std::strlen(read);
                         if (len > 0) {
@@ -191,7 +193,7 @@ namespace srt::g2p
                 }
 
                 map[start] = Impl::Entry{static_cast<uint32_t>(value_start - buffer_begin), value_cnt};
-                start = p + 1;
+                start      = p + 1;
             }
         }
         return true;
@@ -205,7 +207,7 @@ namespace srt::g2p
         if (_copy) {
             return;
         }
-        auto it = Impl::loadIter(_row, _col);
+        auto        it  = Impl::loadIter(_row, _col);
         const char *key = it->first;
         PhonemeList value(_buf + it->second.offset, it->second.count);
         _copy = std::make_pair(key, value);
@@ -232,7 +234,7 @@ namespace srt::g2p
     }
 
     PhonemeDict::iterator PhonemeDict::find(const char *key) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto &map = impl.map;
         if (!key) {
             return end();
@@ -249,7 +251,7 @@ namespace srt::g2p
     }
 
     bool PhonemeDict::contains(const char *key) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto &map = impl.map;
         if (!key) {
             return false;
@@ -259,7 +261,7 @@ namespace srt::g2p
     }
 
     PhonemeList PhonemeDict::operator[](const char *key) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto &map = impl.map;
         if (!key) {
             return PhonemeList();
@@ -273,18 +275,18 @@ namespace srt::g2p
     }
 
     bool PhonemeDict::empty() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.map.empty();
     }
 
     size_t PhonemeDict::size() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.map.size();
     }
 
     PhonemeDict::iterator PhonemeDict::begin() const {
-        __stdc_impl_t;
-        const auto it = impl.map.begin();
+        stdc_impl_t;
+        const auto  it  = impl.map.begin();
         const void *row = nullptr;
         const void *col = nullptr;
         Impl::storeIter(it, row, col);
@@ -292,8 +294,8 @@ namespace srt::g2p
     }
 
     PhonemeDict::iterator PhonemeDict::end() const {
-        __stdc_impl_t;
-        const auto it = impl.map.end();
+        stdc_impl_t;
+        const auto  it  = impl.map.end();
         const void *row = nullptr;
         const void *col = nullptr;
         Impl::storeIter(it, row, col);

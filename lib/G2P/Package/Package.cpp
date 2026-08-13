@@ -1,11 +1,10 @@
+#include <stdcorelib/path.h>
+#include <stdcorelib/str.h>
 #include <synthrt/G2P/Package/Package.h>
 
 #include <fstream>
 #include <sstream>
 #include <system_error>
-
-#include <stdcorelib/path.h>
-#include <stdcorelib/str.h>
 
 #include "Core/PackageManager_p.h"
 #include "Package/Package_p.h"
@@ -26,20 +25,20 @@ namespace srt::g2p {
         }
     }
 
-    srt::core::Expected<void> PackageData::parse(
-        const std::filesystem::path &dir,
-        const std::map<std::string, srt::core::ModuleCategory *, std::less<>> &categories,
-        llvm::SmallVectorImpl<srt::core::ModuleSpec *> *outModules) {
-        auto manifestPath = dir / "package.json";
+    srt::core::Expected<void>
+        PackageData::parse(const std::filesystem::path                                           &dir,
+                           const std::map<std::string, srt::core::ModuleCategory *, std::less<>> &categories,
+                           std::vector<srt::core::ModuleSpec *>                                  *outModules) {
+        auto            manifestPath = dir / "package.json";
         std::error_code ec;
         if (!fs::exists(manifestPath, ec)) {
             return Error(ErrorCode::G2pFileSystemError,
-                         stdc::formatN("Package manifest not found: %1",
-                                       stdc::path::to_utf8(manifestPath)));
+                         stdc::formatN("Package manifest not found: %1", stdc::path::to_utf8(manifestPath)));
         }
 
         auto expObj = readDesc(manifestPath);
-        if (!expObj) return expObj.error();
+        if (!expObj)
+            return expObj.error();
         auto root = expObj.take();
 
         // Required: packageId
@@ -80,12 +79,13 @@ namespace srt::g2p {
         // Optional: vendor / copyright / description / url
         auto readDisplayText = [&](const std::string &key) -> DisplayText {
             auto it = root.find(key);
-            if (it == root.end()) return DisplayText{};
+            if (it == root.end())
+                return DisplayText{};
             return DisplayText{it->second}; // 走 JsonValue 构造，正确处理 defaultText
         };
         m_description = readDisplayText("description");
-        m_vendor = readDisplayText("vendor");
-        m_copyright = readDisplayText("copyright");
+        m_vendor      = readDisplayText("vendor");
+        m_copyright   = readDisplayText("copyright");
         {
             auto it = root.find("url");
             if (it != root.end() && it->second.isString())
@@ -93,7 +93,7 @@ namespace srt::g2p {
         }
         // readme
         {
-            auto readmePath = dir / "README.md";
+            auto            readmePath = dir / "README.md";
             std::error_code ec;
             if (fs::exists(readmePath, ec))
                 m_readme = readmePath;
@@ -110,7 +110,8 @@ namespace srt::g2p {
         const auto &modulesObj = it->second.toObject();
 
         for (const auto &[categoryName, moduleListVal] : modulesObj) {
-            if (!moduleListVal.isArray()) continue;
+            if (!moduleListVal.isArray())
+                continue;
             const auto &moduleList = moduleListVal.toArray();
 
             auto catIt = categories.find(categoryName);
@@ -121,7 +122,8 @@ namespace srt::g2p {
             auto *category = catIt->second;
 
             for (const auto &moduleEntry : moduleList) {
-                if (!moduleEntry.isObject()) continue;
+                if (!moduleEntry.isObject())
+                    continue;
                 const auto &entryObj = moduleEntry.toObject();
 
                 // moduleId
@@ -132,7 +134,8 @@ namespace srt::g2p {
 
                 // Parse via category
                 auto specExp = category->parseSpec(dir, moduleEntry);
-                if (!specExp) continue;
+                if (!specExp)
+                    continue;
                 auto *spec = specExp.take();
 
                 // Register in package
@@ -162,7 +165,7 @@ namespace srt::g2p {
             ss << file.rdbuf();
 
             std::string parseError;
-            const auto root = srt::core::JsonValue::fromJson(ss.str(), true, &parseError);
+            const auto  root = srt::core::JsonValue::fromJson(ss.str(), true, &parseError);
             if (!parseError.empty()) {
                 return Error{
                     ErrorCode::G2pConfigError,
@@ -193,7 +196,8 @@ namespace srt::g2p {
         return empty;
     }
 
-    Package::Package() : _data(&staticEmptyPackageData()) {}
+    Package::Package() : _data(&staticEmptyPackageData()) {
+    }
 
     Package::~Package() = default;
 
@@ -208,31 +212,47 @@ namespace srt::g2p {
         return true;
     }
 
-    const std::string &Package::id() const { return _data->m_id; }
+    const std::string &Package::id() const {
+        return _data->m_id;
+    }
 
-    stdc::VersionNumber Package::version() const { return _data->m_version; }
+    stdc::VersionNumber Package::version() const {
+        return _data->m_version;
+    }
 
-    stdc::VersionNumber Package::compatVersion() const { return _data->m_compatVersion; }
+    stdc::VersionNumber Package::compatVersion() const {
+        return _data->m_compatVersion;
+    }
 
-    DisplayText Package::description() const { return _data->m_description; }
+    DisplayText Package::description() const {
+        return _data->m_description;
+    }
 
-    DisplayText Package::vendor() const { return _data->m_vendor; }
+    DisplayText Package::vendor() const {
+        return _data->m_vendor;
+    }
 
-    DisplayText Package::copyright() const { return _data->m_copyright; }
+    DisplayText Package::copyright() const {
+        return _data->m_copyright;
+    }
 
-    const std::filesystem::path &Package::readme() const { return _data->m_readme; }
+    const std::filesystem::path &Package::readme() const {
+        return _data->m_readme;
+    }
 
-    const std::string &Package::url() const { return _data->m_url; }
+    const std::string &Package::url() const {
+        return _data->m_url;
+    }
 
     std::vector<srt::core::ModuleSpec *> Package::moduleSpecs(const std::string_view &category) const {
-        auto &modules = _data->m_moduleSpecs;
-        const auto it = modules.find(category);
+        auto      &modules = _data->m_moduleSpecs;
+        const auto it      = modules.find(category);
         if (it == modules.end()) {
             return {};
         }
 
         std::vector<srt::core::ModuleSpec *> res;
-        const auto &byId = it->second;
+        const auto                          &byId = it->second;
         res.reserve(byId.size());
         for (const auto &[_, spec] : std::as_const(byId)) {
             res.push_back(spec);
@@ -240,29 +260,36 @@ namespace srt::g2p {
         return res;
     }
 
-    srt::core::ModuleSpec *Package::moduleSpec(const std::string_view &category,
-                                                const std::string_view &id) const {
-        auto &modules = _data->m_moduleSpecs;
-        const auto it = modules.find(category);
+    srt::core::ModuleSpec *Package::moduleSpec(const std::string_view &category, const std::string_view &id) const {
+        auto      &modules = _data->m_moduleSpecs;
+        const auto it      = modules.find(category);
         if (it == modules.end()) {
             return nullptr;
         }
 
         const auto &byId = it->second;
-        const auto it2 = byId.find(id);
+        const auto  it2  = byId.find(id);
         if (it2 == byId.end()) {
             return nullptr;
         }
         return it2->second;
     }
 
-    const std::filesystem::path &Package::path() const { return _data->m_path; }
+    const std::filesystem::path &Package::path() const {
+        return _data->m_path;
+    }
 
-    Error Package::error() const { return _data->m_err; }
+    Error Package::error() const {
+        return _data->m_err;
+    }
 
-    bool Package::isLoaded() const { return _data->m_loaded; }
+    bool Package::isLoaded() const {
+        return _data->m_loaded;
+    }
 
-    PackageManager *Package::Mgr() const { return _data->m_mgr; }
+    PackageManager *Package::Mgr() const {
+        return _data->m_mgr;
+    }
 
     // ============================================================================
     // ScopedPackageRef

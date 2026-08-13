@@ -1,14 +1,14 @@
 #include "DisplayText.h"
 
-#include <optional>
-
 #include <stdcorelib/pimpl.h>
+
+#include <optional>
 
 namespace srt::core {
 
     class DisplayText::Impl {
     public:
-        std::string defaultText;
+        std::string                                                    defaultText;
         std::optional<std::map<std::string, std::string, std::less<>>> texts;
 
         void clear() {
@@ -21,21 +21,20 @@ namespace srt::core {
     }
 
     DisplayText::DisplayText(std::string text) : _impl(std::make_shared<Impl>()) {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.defaultText = std::move(text);
     }
 
-    DisplayText::DisplayText(std::string defaultText,
-                             const std::map<std::string, std::string> &texts)
+    DisplayText::DisplayText(std::string defaultText, const std::map<std::string, std::string> &texts)
         : DisplayText(std::move(defaultText)) {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.texts = {texts.begin(), texts.end()};
     }
 
     DisplayText::~DisplayText() = default;
 
     DisplayText &DisplayText::operator=(std::string text) {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.defaultText = std::move(text);
         return *this;
     }
@@ -52,8 +51,8 @@ namespace srt::core {
             };
         }
 
-        const auto &obj = value.toObject();
-        auto itDefault = obj.find("_");
+        const auto &obj       = value.toObject();
+        auto        itDefault = obj.find("_");
         if (itDefault == obj.end()) {
             return Error{
                 Error::InvalidFormat,
@@ -84,12 +83,12 @@ namespace srt::core {
     }
 
     const std::string &DisplayText::text() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.defaultText;
     }
 
     const std::string &DisplayText::text(std::string_view locale) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         if (!impl.texts) {
             return impl.defaultText;
         }
@@ -101,8 +100,8 @@ namespace srt::core {
     }
 
     bool DisplayText::isEmpty() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.defaultText.empty();
     }
 
-}
+} // namespace srt::core

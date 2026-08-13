@@ -1,5 +1,9 @@
 #include "Runtime.h"
-#include "Runtime_p.h"
+
+#include <stdcorelib/path.h>
+#include <synthrt/Core/Module/Module.h>
+#include <synthrt/Core/Support/JSON.h>
+#include <synthrt/Core/Support/Logging.h>
 
 #include <algorithm>
 #include <filesystem>
@@ -9,12 +13,7 @@
 #include <sstream>
 #include <utility>
 
-#include <stdcorelib/path.h>
-#include <stdcorelib/3rdparty/llvm/smallvector.h>
-
-#include <synthrt/Core/Module/Module.h>
-#include <synthrt/Core/Support/JSON.h>
-#include <synthrt/Core/Support/Logging.h>
+#include "Runtime_p.h"
 
 // Module_p.h defines ModuleSpec::Impl (with packageId/packageVersion fields)
 // which Runtime::loadPackage writes to inject package identity. The header is
@@ -28,13 +27,13 @@ namespace srt::core {
 
     static srt::LogCategory RuntimeLog("core.runtime");
 
-    llvm::SmallVector<ModuleCategory *(*)(Runtime *)> Runtime::Impl::moduleCategoryFactories;
+    std::vector<ModuleCategory *(*)(Runtime *)> Runtime::Impl::moduleCategoryFactories;
 
     Runtime::Impl::Impl(Runtime *q) : m_q(q) {
         // ARCH-03: compose services instead of inheriting PluginFactory/
         // ObjectPool. The PluginFactory provides the plugin discovery/load
         // ability (PluginService) and is owned by the ServiceRegistry.
-        m_plugins = m_services.registerService<PluginFactory>(std::make_unique<PluginFactory>());
+        m_plugins    = m_services.registerService<PluginFactory>(std::make_unique<PluginFactory>());
         m_objectPool = std::make_unique<ObjectPool>();
     }
 
@@ -44,8 +43,7 @@ namespace srt::core {
         // m_services, which is destroyed after this destructor body runs as
         // part of member destruction). This lets subsystems release shared_ptrs
         // to plugin-DLL-resident objects while the DLLs are still loaded.
-        for (auto it = m_destructionCallbacks.rbegin();
-             it != m_destructionCallbacks.rend(); ++it) {
+        for (auto it = m_destructionCallbacks.rbegin(); it != m_destructionCallbacks.rend(); ++it) {
             if (*it) {
                 (*it)();
             }
@@ -65,7 +63,7 @@ namespace srt::core {
         }
 
         for (const auto &[name, cate] : m_moduleCategories) {
-            (void) name;
+            (void)name;
             delete cate;
         }
         m_moduleCategories.clear();
@@ -115,20 +113,22 @@ namespace srt::core {
 
     Expected<void> Runtime::scanPackages(const std::filesystem::path &rootDir) {
         if (_impl->m_initializing.load() || _impl->m_initialized.load()) {
-            return Error{Diagnostic{
-                ErrorCode::PackageScanAfterInitialize,
-                Severity::Error,
-                "cannot scan package sources after Runtime initialization has started",
-            }};
+            return Error{
+                Diagnostic{
+                           ErrorCode::PackageScanAfterInitialize,
+                           Severity::Error,
+                           "cannot scan package sources after Runtime initialization has started", }
+            };
         }
 
         if (rootDir.empty() || !fs::is_directory(rootDir)) {
-            return Error{Diagnostic{
-                ErrorCode::PackageRootInvalid,
-                Severity::Error,
-                "invalid package root directory",
-                stdc::path::to_utf8(rootDir),
-            }};
+            return Error{
+                Diagnostic{
+                           ErrorCode::PackageRootInvalid,
+                           Severity::Error,
+                           "invalid package root directory", stdc::path::to_utf8(rootDir),
+                           }
+            };
         }
 
         // Wrap filesystem operations in try-catch: fs::canonical and
@@ -157,7 +157,7 @@ namespace srt::core {
         }
 
         _impl->m_scanRoot = canonical;
-        _impl->m_scanned = true;
+        _impl->m_scanned  = true;
         return Expected<void>();
     }
 
@@ -179,7 +179,7 @@ namespace srt::core {
         // loadSpec(Initialized) can resolve InferenceSpec pointers by inferenceId.
 
         // 1. Check path/desc.json exists (ROBUST-02: filesystem boundary).
-        const auto descPath = path / "desc.json";
+        const auto      descPath = path / "desc.json";
         std::error_code ec;
         if (!fs::exists(descPath, ec)) {
             return Error{
@@ -210,7 +210,7 @@ namespace srt::core {
 
         // 3. Parse JSON (ROBUST-02: JSON parse boundary).
         std::string parseErr;
-        auto root = JsonValue::fromJson(text, true, &parseErr);
+        auto        root = JsonValue::fromJson(text, true, &parseErr);
         if (!parseErr.empty()) {
             return Error{
                 Error::InvalidFormat,
@@ -226,7 +226,7 @@ namespace srt::core {
         const auto &obj = root.toObject();
 
         // 4. Extract package identity from desc.json id and version.
-        std::string pkgId;
+        std::string         pkgId;
         stdc::VersionNumber pkgVersion;
         {
             auto it = obj.find("id");
@@ -253,17 +253,16 @@ namespace srt::core {
             if (it != obj.end() && it->second.isObject()) {
                 const auto &contrib = it->second.toObject();
                 std::string refError;
-                auto parseRefs = [&path, &refError](const JsonObject &contribObj,
-                                                     const char *key) -> std::vector<fs::path> {
+                auto        parseRefs = [&path, &refError](const JsonObject &contribObj,
+                                                    const char       *key) -> std::vector<fs::path> {
                     std::vector<fs::path> refs;
-                    auto refIt = contribObj.find(key);
+                    auto                  refIt = contribObj.find(key);
                     if (refIt == contribObj.end() || !refIt->second.isArray()) {
                         return refs;
                     }
                     for (const auto &item : refIt->second.toArray()) {
                         if (!item.isString()) {
-                            refError = std::string("contributes.") + key +
-                                       " array contains non-string item";
+                            refError = std::string("contributes.") + key + " array contains non-string item";
                             return {};
                         }
                         fs::path p(item.toString());
@@ -302,10 +301,10 @@ namespace srt::core {
         // committed) is held by a unique_ptr so it is freed on early return.
         struct CommittedSpec {
             ModuleCategory *cat;
-            ModuleSpec *spec;
+            ModuleSpec     *spec;
         };
         std::vector<CommittedSpec> committed;
-        auto rollbackCommitted = [&committed]() {
+        auto                       rollbackCommitted = [&committed]() {
             // Roll back in reverse order (singers were appended after inferences,
             // so they roll back first — matching the dependency direction).
             for (auto it = committed.rbegin(); it != committed.rend(); ++it) {
@@ -313,9 +312,8 @@ namespace srt::core {
                 // warning and still delete the spec below to avoid leaks.
                 auto delResult = it->cat->loadSpec(it->spec, ModuleSpec::Deleted);
                 if (!delResult) {
-                    RuntimeLog.srtWarning(
-                        "loadPackage rollback: loadSpec(Deleted) failed for spec '%1': %2",
-                        it->spec->id(), delResult.errorString());
+                    RuntimeLog.srtWarning("loadPackage rollback: loadSpec(Deleted) failed for spec '%1': %2",
+                                                                it->spec->id(), delResult.errorString());
                 }
                 delete it->spec;
             }
@@ -348,13 +346,12 @@ namespace srt::core {
                 rollbackCommitted();
                 return Error{
                     Error::FileNotOpen,
-                    "failed to read inference config: " + stdc::path::to_utf8(ref) +
-                        ": " + e.what(),
+                    "failed to read inference config: " + stdc::path::to_utf8(ref) + ": " + e.what(),
                 };
             }
 
             std::string cfgErr;
-            auto configJson = JsonValue::fromJson(configText, true, &cfgErr);
+            auto        configJson = JsonValue::fromJson(configText, true, &cfgErr);
             if (!cfgErr.empty() || !configJson.isObject()) {
                 rollbackCommitted();
                 return Error{
@@ -367,14 +364,14 @@ namespace srt::core {
             if (!parseResult) {
                 rollbackCommitted();
                 return std::move(parseResult.takeError()
-                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
-                    .withContext({}, {}, pkgId));
+                                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                                     .withContext({}, {}, pkgId));
             }
             // unique_ptr frees spec on early return (e.g. duplicate detection,
             // loadSpec failure) — plug the previous leak where parseSpec'd specs
             // were not deleted on the duplicate-detection error path.
             std::unique_ptr<ModuleSpec> spec(parseResult.value());
-            spec->_impl->m_packageId = pkgId;
+            spec->_impl->m_packageId      = pkgId;
             spec->_impl->m_packageVersion = pkgVersion;
 
             // Duplicate detection: reject a spec whose (id, packageId,
@@ -385,15 +382,13 @@ namespace srt::core {
             // different packages may legitimately share the same .onnx files
             // on disk.
             for (auto *existing : infCat->specs()) {
-                if (existing->id() == spec->id() &&
-                    existing->packageId() == pkgId &&
+                if (existing->id() == spec->id() && existing->packageId() == pkgId &&
                     existing->packageVersion() == pkgVersion) {
                     rollbackCommitted();
-                    return Error::packageError(
-                        ErrorCode::PackageDuplicate,
-                        "duplicate inference spec already loaded: id='" + spec->id() +
-                            "' in package " + pkgId + "[" + pkgVersion.toString() + "]",
-                        pkgId);
+                    return Error::packageError(ErrorCode::PackageDuplicate,
+                                               "duplicate inference spec already loaded: id='" + spec->id() +
+                                                   "' in package " + pkgId + "[" + pkgVersion.toString() + "]",
+                                               pkgId);
                 }
             }
 
@@ -403,8 +398,8 @@ namespace srt::core {
                 // in the list here — unique_ptr will free it.
                 rollbackCommitted();
                 return std::move(initResult.takeError()
-                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
-                    .withContext({}, {}, pkgId));
+                                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                                     .withContext({}, {}, pkgId));
             }
             auto readyResult = infCat->loadSpec(spec.get(), ModuleSpec::Ready);
             if (!readyResult) {
@@ -414,18 +409,18 @@ namespace srt::core {
                 if (!infDelResult) {
                     // ROBUST-05: log the rollback failure instead of swallowing.
                     RuntimeLog.srtWarning(
-                        "loadPackage: failed to roll back inference spec '%1' after Ready failure: %2",
-                        spec->id(), infDelResult.errorString());
+                        "loadPackage: failed to roll back inference spec '%1' after Ready failure: %2", spec->id(),
+                        infDelResult.errorString());
                 }
                 rollbackCommitted();
                 return std::move(readyResult.takeError()
-                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
-                    .withContext({}, {}, pkgId));
+                                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                                     .withContext({}, {}, pkgId));
             }
             // Success: commit (release ownership — category now holds the raw
             // pointer in its modules list, matching the existing ownership model).
             committed.push_back({infCat, spec.get()});
-            (void) spec.release();
+            (void)spec.release();
         }
 
         // 7. Load singer specs.
@@ -464,13 +459,12 @@ namespace srt::core {
                 rollbackCommitted();
                 return Error{
                     Error::FileNotOpen,
-                    "failed to read singer config: " + stdc::path::to_utf8(ref) +
-                        ": " + e.what(),
+                    "failed to read singer config: " + stdc::path::to_utf8(ref) + ": " + e.what(),
                 };
             }
 
             std::string cfgErr;
-            auto configJson = JsonValue::fromJson(configText, true, &cfgErr);
+            auto        configJson = JsonValue::fromJson(configText, true, &cfgErr);
             if (!cfgErr.empty() || !configJson.isObject()) {
                 rollbackCommitted();
                 return Error{
@@ -483,11 +477,11 @@ namespace srt::core {
             if (!parseResult) {
                 rollbackCommitted();
                 return std::move(parseResult.takeError()
-                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
-                    .withContext({}, {}, pkgId));
+                                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                                     .withContext({}, {}, pkgId));
             }
             std::unique_ptr<ModuleSpec> spec(parseResult.value());
-            spec->_impl->m_packageId = pkgId;
+            spec->_impl->m_packageId      = pkgId;
             spec->_impl->m_packageVersion = pkgVersion;
 
             // Duplicate detection: reject a singer whose (singerId, packageId,
@@ -495,15 +489,13 @@ namespace srt::core {
             // semantics as the inference check above — multi-version isolation
             // preserved, model file paths not compared.
             for (auto *existing : singerCat->specs()) {
-                if (existing->id() == spec->id() &&
-                    existing->packageId() == pkgId &&
+                if (existing->id() == spec->id() && existing->packageId() == pkgId &&
                     existing->packageVersion() == pkgVersion) {
                     rollbackCommitted();
-                    return Error::packageError(
-                        ErrorCode::PackageDuplicate,
-                        "duplicate singer spec already loaded: id='" + spec->id() +
-                            "' in package " + pkgId + "[" + pkgVersion.toString() + "]",
-                        pkgId);
+                    return Error::packageError(ErrorCode::PackageDuplicate,
+                                               "duplicate singer spec already loaded: id='" + spec->id() +
+                                                   "' in package " + pkgId + "[" + pkgVersion.toString() + "]",
+                                               pkgId);
                 }
             }
 
@@ -511,25 +503,24 @@ namespace srt::core {
             if (!initResult) {
                 rollbackCommitted();
                 return std::move(initResult.takeError()
-                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
-                    .withContext({}, {}, pkgId));
+                                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                                     .withContext({}, {}, pkgId));
             }
             auto readyResult = singerCat->loadSpec(spec.get(), ModuleSpec::Ready);
             if (!readyResult) {
                 auto singerDelResult = singerCat->loadSpec(spec.get(), ModuleSpec::Deleted);
                 if (!singerDelResult) {
                     // ROBUST-05: log the rollback failure instead of swallowing.
-                    RuntimeLog.srtWarning(
-                        "loadPackage: failed to roll back singer spec '%1' after Ready failure: %2",
-                        spec->id(), singerDelResult.errorString());
+                    RuntimeLog.srtWarning("loadPackage: failed to roll back singer spec '%1' after Ready failure: %2",
+                                          spec->id(), singerDelResult.errorString());
                 }
                 rollbackCommitted();
                 return std::move(readyResult.takeError()
-                    .withTrace(std::source_location::current(), "Runtime::loadPackage")
-                    .withContext({}, {}, pkgId));
+                                     .withTrace(std::source_location::current(), "Runtime::loadPackage")
+                                     .withContext({}, {}, pkgId));
             }
             committed.push_back({singerCat, spec.get()});
-            (void) spec.release();
+            (void)spec.release();
         }
 
         // Record the loaded package so unloadPackage(path) can resolve the
@@ -537,7 +528,7 @@ namespace srt::core {
         // on disk between load and unload). Use canonical path to tolerate
         // trailing-slash / relative-input differences at the call site.
         std::error_code canonEc;
-        auto canonicalPath = fs::canonical(path, canonEc);
+        auto            canonicalPath = fs::canonical(path, canonEc);
         if (canonEc) {
             // Canonicalization may fail if the directory was removed between
             // the fs::exists checks above and here. Fall back to lexically
@@ -558,7 +549,7 @@ namespace srt::core {
         // Resolve the canonical path the same way loadPackage does, so path
         // identity holds across trailing-slash / relative-input differences.
         std::error_code canonEc;
-        auto canonicalPath = fs::canonical(path, canonEc);
+        auto            canonicalPath = fs::canonical(path, canonEc);
         if (canonEc) {
             canonicalPath = path.lexically_normal();
         }
@@ -567,15 +558,12 @@ namespace srt::core {
         // return RuntimePackageNotLoaded so callers can distinguish "not
         // loaded by Runtime" from "filesystem missing".
         std::string pkgId;
-        auto loadedIt = std::find_if(
-            _impl->m_loadedPackages.begin(), _impl->m_loadedPackages.end(),
-            [&](const Runtime::Impl::LoadedPackage &p) {
-                return p.canonicalPath == canonicalPath;
-            });
+        auto        loadedIt =
+            std::find_if(_impl->m_loadedPackages.begin(), _impl->m_loadedPackages.end(),
+                         [&](const Runtime::Impl::LoadedPackage &p) { return p.canonicalPath == canonicalPath; });
         if (loadedIt == _impl->m_loadedPackages.end()) {
-            return Error::packageError(
-                ErrorCode::RuntimePackageNotLoaded,
-                "package not loaded: " + stdc::path::to_utf8(canonicalPath));
+            return Error::packageError(ErrorCode::RuntimePackageNotLoaded,
+                                       "package not loaded: " + stdc::path::to_utf8(canonicalPath));
         }
         pkgId = loadedIt->packageId;
 
@@ -587,7 +575,7 @@ namespace srt::core {
         // loadPackage.
         struct SpecToRemove {
             ModuleCategory *cat;
-            ModuleSpec *spec;
+            ModuleSpec     *spec;
         };
         std::vector<SpecToRemove> toRemove;
 
@@ -623,7 +611,7 @@ namespace srt::core {
         // loadSpec(Deleted) succeeds, the spec is no longer reachable from
         // the category, so delete is safe.
         srt::core::Error firstError;
-        bool hadError = false;
+        bool             hadError = false;
         for (const auto &entry : toRemove) {
             auto delResult = entry.cat->loadSpec(entry.spec, ModuleSpec::Deleted);
             if (!delResult) {
@@ -633,15 +621,13 @@ namespace srt::core {
                 // runs.
                 if (!hadError) {
                     firstError = std::move(delResult.takeError()
-                        .withTrace(std::source_location::current(),
-                                   "Runtime::unloadPackage")
-                        .withContext({}, {}, pkgId));
-                    hadError = true;
+                                               .withTrace(std::source_location::current(), "Runtime::unloadPackage")
+                                               .withContext({}, {}, pkgId));
+                    hadError   = true;
                 }
-                RuntimeLog.srtWarning(
-                    "unloadPackage: loadSpec(Deleted) failed for spec '%1' in "
-                    "package %2: %3",
-                    entry.spec->id(), pkgId, delResult.errorString());
+                RuntimeLog.srtWarning("unloadPackage: loadSpec(Deleted) failed for spec '%1' in "
+                                      "package %2: %3",
+                                      entry.spec->id(), pkgId, delResult.errorString());
                 continue;
             }
             delete entry.spec;
@@ -717,4 +703,4 @@ namespace srt::core {
         Impl::moduleCategoryFactories.push_back(fac);
     }
 
-}
+} // namespace srt::core

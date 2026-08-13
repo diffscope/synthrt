@@ -1,19 +1,16 @@
 #pragma once
 
-#include <filesystem>
-#include <map>
-#include <string>
-
-#include <stdcorelib/3rdparty/llvm/smallvector.h>
 #include <stdcorelib/support/versionnumber.h>
-
 #include <synthrt/Core/Module/Module.h>
 #include <synthrt/Core/Support/Expected.h>
 #include <synthrt/Core/Support/JSON.h>
-
 #include <synthrt/G2P/Package/Package.h>
 #include <synthrt/G2P/Support/DisplayText.h>
 #include <synthrt/G2P/Support/Error.h>
+
+#include <filesystem>
+#include <map>
+#include <string>
 
 namespace srt::g2p {
 
@@ -27,15 +24,16 @@ namespace srt::g2p {
     /// NotImplementedError; full manifest parsing lands in P3.2.
     class PackageData {
     public:
-        explicit PackageData(PackageManager *mgr) : m_mgr(mgr) {}
+        explicit PackageData(PackageManager *mgr) : m_mgr(mgr) {
+        }
         ~PackageData();
 
         /// Parse package.json from `dir` and populate fields.
         /// Phase 3.1: stubbed (returns NotImplementedError).
-        srt::core::Expected<void> parse(
-            const std::filesystem::path &dir,
-            const std::map<std::string, srt::core::ModuleCategory *, std::less<>> &categories,
-            llvm::SmallVectorImpl<srt::core::ModuleSpec *> *outModules);
+        srt::core::Expected<void>
+            parse(const std::filesystem::path                                           &dir,
+                  const std::map<std::string, srt::core::ModuleCategory *, std::less<>> &categories,
+                  std::vector<srt::core::ModuleSpec *>                                  *outModules);
 
         /// Read and parse package.json from `descPath` into a JsonObject.
         /// Implemented in P3.1 (used by PackageManager for package discovery).
@@ -44,24 +42,23 @@ namespace srt::g2p {
         PackageManager *m_mgr;
 
         std::filesystem::path m_path;
-        std::string m_id;
+        std::string           m_id;
 
         stdc::VersionNumber m_version;
         stdc::VersionNumber m_compatVersion;
 
-        DisplayText m_description;
-        DisplayText m_vendor;
-        DisplayText m_copyright;
+        DisplayText           m_description;
+        DisplayText           m_vendor;
+        DisplayText           m_copyright;
         std::filesystem::path m_readme;
-        std::string m_url;
+        std::string           m_url;
 
         int m_level = 1;
 
-        std::map<std::string, std::map<std::string, srt::core::ModuleSpec *, std::less<>>, std::less<>>
-            m_moduleSpecs;
+        std::map<std::string, std::map<std::string, srt::core::ModuleSpec *, std::less<>>, std::less<>> m_moduleSpecs;
 
         Error m_err;
-        bool m_loaded = false;
+        bool  m_loaded = false;
     };
 
 } // namespace srt::g2p

@@ -1,7 +1,8 @@
 #include "NamedObject.h"
-#include "NamedObject_p.h"
 
 #include <stdcorelib/pimpl.h>
+
+#include "NamedObject_p.h"
 
 namespace srt::core {
 
@@ -15,12 +16,12 @@ namespace srt::core {
     NamedObject::~NamedObject() = default;
 
     const std::string &NamedObject::objectName() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         return impl.m_name;
     }
 
     void NamedObject::setObjectName(std::string name) {
-        __stdc_impl_t;
+        stdc_impl_t;
         impl.m_name = std::move(name);
     }
 
@@ -30,7 +31,7 @@ namespace srt::core {
     }
 
     const std::any &NamedObject::property(std::string_view name) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.m_properties.find(name);
         if (it == impl.m_properties.end()) {
             return staticEmptyObjectProperty();
@@ -39,7 +40,7 @@ namespace srt::core {
     }
 
     void NamedObject::setProperty(std::string_view name, std::any value) {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.m_properties.find(name);
         if (it == impl.m_properties.end()) {
             impl.m_properties[std::string(name)] = std::move(value);
@@ -64,7 +65,7 @@ namespace srt::core {
     }
 
     void ObjectPool::addObject(std::string_view id, const NO<NamedObject> &obj) {
-        __stdc_impl_t;
+        stdc_impl_t;
 
         if (!obj) {
             return;
@@ -72,10 +73,8 @@ namespace srt::core {
 
         auto it = impl.m_objects.find(id);
         if (it == impl.m_objects.end()) {
-            it = impl.m_objects
-                     .emplace(std::string(id),
-                              stdc::linked_map<const NamedObject *, NO<NamedObject>>())
-                     .first;
+            it =
+                impl.m_objects.emplace(std::string(id), stdc::linked_map<const NamedObject *, NO<NamedObject>>()).first;
         }
         it->second.append(obj.get(), obj);
         objectAdded(id, obj);
@@ -86,7 +85,7 @@ namespace srt::core {
     }
 
     void ObjectPool::removeObject(std::string_view id, const NamedObject *obj) {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.m_objects.find(id);
         if (it == impl.m_objects.end()) {
             return;
@@ -106,7 +105,7 @@ namespace srt::core {
     }
 
     void ObjectPool::removeObjects(std::string_view id) {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.m_objects.find(id);
         if (it == impl.m_objects.end()) {
             return;
@@ -119,7 +118,7 @@ namespace srt::core {
     }
 
     void ObjectPool::removeAllObjects() {
-        __stdc_impl_t;
+        stdc_impl_t;
         for (auto &item : impl.m_objects) {
             auto &map = item.second;
             for (auto it = map.rbegin(); it != map.rend(); ++it) {
@@ -130,7 +129,7 @@ namespace srt::core {
     }
 
     std::vector<NO<NamedObject>> ObjectPool::allObjects() const {
-        __stdc_impl_t;
+        stdc_impl_t;
         std::vector<NO<NamedObject>> res;
         for (const auto &item : impl.m_objects) {
             auto values = item.second.values();
@@ -140,7 +139,7 @@ namespace srt::core {
     }
 
     std::vector<NO<NamedObject>> ObjectPool::getObjects(std::string_view id) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.m_objects.find(id);
         if (it == impl.m_objects.end()) {
             return {};
@@ -149,7 +148,7 @@ namespace srt::core {
     }
 
     NO<NamedObject> ObjectPool::getFirstObject(std::string_view id) const {
-        __stdc_impl_t;
+        stdc_impl_t;
         auto it = impl.m_objects.find(id);
         if (it == impl.m_objects.end()) {
             return {};
@@ -158,16 +157,16 @@ namespace srt::core {
     }
 
     void ObjectPool::objectAdded(std::string_view id, const NO<NamedObject> &obj) {
-        (void) id;
-        (void) obj;
+        (void)id;
+        (void)obj;
     }
 
     void ObjectPool::aboutToRemoveObject(std::string_view id, const NO<NamedObject> &obj) {
-        (void) id;
-        (void) obj;
+        (void)id;
+        (void)obj;
     }
 
     ObjectPool::ObjectPool(Impl &impl) : NamedObject(impl) {
     }
 
-}
+} // namespace srt::core
