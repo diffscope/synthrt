@@ -128,13 +128,14 @@ namespace srt {
                     stdc::formatN(R"(%1: missing "version" field)", descPath),
                 };
             }
-            version_ = stdc::VersionNumber::fromString(it->second.toString());
-            if (version_.isEmpty()) {
+            const auto parsed = stdc::VersionNumber::fromString(it->second.toString());
+            if (!parsed || parsed->isEmpty()) {
                 return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: invalid version)", descPath),
                 };
             }
+            version_ = *parsed;
         }
         // name
         {
@@ -396,15 +397,17 @@ namespace srt {
             };
         }
 
-        PackageDependency res;
-        res.id = id;
-        res.version = stdc::VersionNumber::fromString(it->second.toStringView());
-        if (res.version.isEmpty()) {
+        const auto parsed = stdc::VersionNumber::fromString(it->second.toStringView());
+        if (!parsed || parsed->isEmpty()) {
             return Error{
                 Error::InvalidFormat,
                 R"(invalid version)",
             };
         }
+
+        PackageDependency res;
+        res.id = id;
+        res.version = *parsed;
         return res;
     }
 

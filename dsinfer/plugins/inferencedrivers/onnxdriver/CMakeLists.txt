@@ -24,6 +24,13 @@ endif()
 
 set(_onnxdriver_ep_macros ${_onnxdriver_ep_macro_dml} ${_onnxdriver_ep_macro_cuda})
 
+if(WIN32)
+    # dml_provider_factory.h reaches windows.h, which defines min and max as macros, and any
+    # header calling std::max after that no longer compiles. stdcorelib/flags.h is one, arriving
+    # through sharedlibrary.h. This is the switch windows.h provides for exactly that.
+    list(APPEND _onnxdriver_ep_macros NOMINMAX)
+endif()
+
 find_package(stduuid CONFIG REQUIRED)
 find_package(blake3 CONFIG REQUIRED)
 

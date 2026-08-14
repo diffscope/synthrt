@@ -87,7 +87,7 @@ namespace ds {
                 if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint |
                                            stdc::SharedLibrary::ExportExternalSymbolsHint)) {
                     std::string msg =
-                        stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
+                        stdc::formatN("Load library failed: %1 [%2]", dylib->errorMessage(), path);
                     Log.srtCritical("Init - %1", msg);
                     return srt::Error(ds::ErrorCode::DriverLoadFailed, std::move(msg));
                 }
@@ -101,7 +101,7 @@ namespace ds {
                 reinterpret_cast<OrtApiBase *(ORT_API_CALL *) ()>(dylib->resolve("OrtGetApiBase"));
             if (!handle) {
                 std::string msg =
-                    stdc::formatN("Failed to get API handle: %1 [%2]", dylib->lastError(), path);
+                    stdc::formatN("Failed to get API handle: %1 [%2]", dylib->errorMessage(), path);
                 Log.srtCritical("Init - %1", msg);
                 return srt::Error(ds::ErrorCode::DriverLoadFailed, std::move(msg));
             }

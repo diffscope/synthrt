@@ -118,8 +118,14 @@ namespace srt {
             if (!isValidVersion(version)) {
                 return {};
             }
+            // isValidVersion() is the stricter of the two, so this should not fail. Asking anyway
+            // rather than dereferencing on the strength of that.
+            const auto parsed = stdc::VersionNumber::fromString(version);
+            if (!parsed) {
+                return {};
+            }
             result._package = package;
-            result._version = stdc::VersionNumber::fromString(version);
+            result._version = *parsed;
         } else {
             result._package = left;
         }

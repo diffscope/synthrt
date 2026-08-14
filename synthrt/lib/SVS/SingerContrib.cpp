@@ -152,11 +152,12 @@ namespace srt {
 
         it = obj.find("version");
         if (it != obj.end()) {
-            version = stdc::VersionNumber::fromString(it->second.toString());
-            if (version.isEmpty()) {
+            const auto parsed = stdc::VersionNumber::fromString(it->second.toString());
+            if (!parsed || parsed->isEmpty()) {
                 *errorMessage = R"("version" field has invalid value)";
                 return false;
             }
+            version = *parsed;
         }
 
         res.inferenceLocator =

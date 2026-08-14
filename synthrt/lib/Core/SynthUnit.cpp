@@ -485,7 +485,11 @@ namespace srt {
                     if (it == obj.end()) {
                         continue;
                     }
-                    version_ = stdc::VersionNumber::fromString(it->second.toString());
+                    const auto parsed = stdc::VersionNumber::fromString(it->second.toString());
+                    if (!parsed) {
+                        continue;
+                    }
+                    version_ = *parsed;
                 }
                 // Store
                 cachedPackageIndexesMap[id_][version_] = {
