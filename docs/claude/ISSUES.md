@@ -69,17 +69,6 @@
 > 现在只剩三个 `using`。同一次升级里 stdcorelib 把宏前缀 `STDCORELIB_*` 改成了 `STDC_*`
 > ——**这个改名和 JSON 无关，但它和 JSON 在同一个 REF 里**，所以升级 port 之后
 > synthrt / dsinfer / wolf 一起编不过，六个宏共 18 处。已全部跟上。
->
-> 再往后一个 REF（`24eba4fc`）又带来两处 API 变化和一个连锁反应：
-> `VersionNumber::fromString()` 改返回 `std::optional`（5 处，顺手把「解析失败」和「版本是 0.0.0」
-> 分开了，原来两者都表现为 `isEmpty()`）；`SharedLibrary::lastError()` 拆成
-> `errorMessage()` / `errorCode()`（2 处）。
->
-> **连锁反应值得单独记**：`sharedlibrary.h` 新增的 `LoadHints` 把 `flags.h` 带了进来，
-> 而 `flags.h` 里有一句没加括号的 `std::max`。onnxdriver 那个 TU 经 `dml_provider_factory.h`
-> 引入了 `windows.h`，`max` 宏一展开，**报错报在 stdcorelib 的头文件里，跟我们改的东西毫无关系**。
-> 本仓库这边给 onnxdriver 加 `NOMINMAX` 解决。
-> 但根因在 stdcorelib：公共头文件里应当写 `(std::max)(...)`，否则每个 Windows 使用方都要各自绕。
 
 ## 标记约定
 
