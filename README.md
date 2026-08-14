@@ -46,8 +46,7 @@ CMake 3.19 or later.
 + [BLAKE3](https://github.com/BLAKE3-team/BLAKE3)
 + [sparsepp](https://github.com/greg7mdp/sparsepp)
 + [qmsetup](https://github.com/stdware/qmsetup)
-+ [syscmdline](https://github.com/SineStriker/syscmdline)
-+ [stdcorelib](https://github.com/SineStriker/stdcorelib)
++ [stdcorelib](https://github.com/stdware/stdcorelib)
 
 ONNX Runtime is fetched separately, see below. Boost.Test is needed only to build the tests.
 
