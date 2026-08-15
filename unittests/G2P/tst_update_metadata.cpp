@@ -172,7 +172,7 @@ TEST_CASE("updateMetadata adds new package to diff.added",
     const std::string pkgB = "upd.add.b";
     const std::string singerA = "add_singer_a";
     const std::string singerB = "add_singer_b";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerA, "cmn", {
         {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
@@ -223,7 +223,7 @@ TEST_CASE("updateMetadata removes package and cleans Manager context",
     const std::string pkgA = "upd.rm.a";
     const std::string pkgB = "upd.rm.b";
     const std::string singerB = "rm_singer_b";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", "rm_singer_a", "cmn", {
         {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
@@ -282,7 +282,7 @@ TEST_CASE("updateMetadata no-change diff is all unchanged",
     const auto root = makeTempDir("nochange");
     const std::string pkgA = "upd.nc.a";
     const std::string pkgB = "upd.nc.b";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", "nc_singer_a", "cmn", {
         {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
@@ -330,7 +330,7 @@ TEST_CASE("updateMetadata after modelsReady returns G2pAlreadyInitialized",
           "[g2p][update-metadata]") {
     const auto root = makeTempDir("after-models");
     const std::string pkgA = "upd.am.a";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", "am_singer", "cmn", {
         {"cmn", "g2p-cmn-official", "dict", "assets/cmn.txt", {}, ""},
@@ -388,7 +388,7 @@ TEST_CASE("updateMetadata clears Manager context via removeContextsByPrefix",
     const auto root = makeTempDir("ctx-cleanup");
     const std::string pkgA = "upd.ctx.a";
     const std::string singerA = "ctx_singer_a";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerA, "cmn", {
         {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
@@ -433,8 +433,8 @@ TEST_CASE("updateMetadata multi-version hot reload preserves coexisting version 
     const auto root = makeTempDir("multi-ver");
     const std::string pkgA = "upd.mv.a";
     const std::string singerA = "mv_singer_a";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
-    const auto v2 = stdc::VersionNumber::fromString("2.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
+    const auto v2 = stdc::VersionNumber::fromString("2.0.0").value();
 
     // Two on-disk packages sharing packageId+singerId but different versions.
     createPackage(root / "pkg_a_v1", pkgA, "1.0.0", singerA, "cmn", {
@@ -495,8 +495,8 @@ TEST_CASE("updateMetadata multi-version hot reload retires higher version preser
     const auto root = makeTempDir("multi-ver-inv");
     const std::string pkgB = "upd.mv.b";
     const std::string singerB = "mv_singer_b";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
-    const auto v2 = stdc::VersionNumber::fromString("2.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
+    const auto v2 = stdc::VersionNumber::fromString("2.0.0").value();
 
     createPackage(root / "pkg_b_v1", pkgB, "1.0.0", singerB, "cmn", {
         {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",

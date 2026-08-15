@@ -72,9 +72,9 @@ PackageCoordinate coordinateOf(const ds::bank::SingerSnapshot &singer) {
     PackageCoordinate c;
     c.packageId = singer.ref.packageId;
     if (!singer.version.empty())
-        c.version = stdc::VersionNumber::fromString(singer.version);
+        c.version = stdc::VersionNumber::fromString(singer.version).value_or(stdc::VersionNumber());
     else if (!singer.ref.version.empty())
-        c.version = stdc::VersionNumber::fromString(singer.ref.version);
+        c.version = stdc::VersionNumber::fromString(singer.ref.version).value_or(stdc::VersionNumber());
     return c;
 }
 
@@ -836,7 +836,7 @@ srt::core::Expected<std::vector<srt::g2p::G2pRes>>
     // (e.g. ONNX runtime exceptions, std::bad_alloc). CODING-02 requires
     // third-party exceptions to be converted to Error at the API boundary
     // instead of crossing into the host (lite / dsinfer-cli / C ABI).
-    const auto version = stdc::VersionNumber::fromString(singerKey.version);
+    const auto version = stdc::VersionNumber::fromString(singerKey.version).value_or(stdc::VersionNumber());
     try {
         return svc->convert(singerKey.packageId, version, singerKey.singerId, language, inputs);
     } catch (const std::exception &e) {
@@ -884,7 +884,7 @@ srt::core::Expected<S2pResult>
     // scenarios route transparently (backward compat). Mirrors convertG2p's
     // pattern so multi-version same-packageId S2P conversion is routed
     // precisely.
-    const auto version = stdc::VersionNumber::fromString(singerKey.version);
+    const auto version = stdc::VersionNumber::fromString(singerKey.version).value_or(stdc::VersionNumber());
     auto resExp = svc->resolveS2pResource(singerKey.packageId, version, singerKey.singerId, language);
     if (!resExp) {
         return resExp.takeError();
@@ -1016,7 +1016,7 @@ srt::core::Expected<std::shared_ptr<ModelSetHandle>>
                                        : singer->ref.version;
         stdc::VersionNumber ver;
         if (!verStr.empty()) {
-            ver = stdc::VersionNumber::fromString(verStr);
+            ver = stdc::VersionNumber::fromString(verStr).value_or(stdc::VersionNumber());
         }
         auto loadExp = loadVoicebank(singer->ref.packageId, ver);
         if (!loadExp) {
@@ -1057,7 +1057,7 @@ srt::core::Expected<std::shared_ptr<ModelSetHandle>>
     // Key must match loadVoicebank's format: packageId + "\n" + VersionNumber::toString()
     stdc::VersionNumber pkgVer;
     if (!version.empty()) {
-        pkgVer = stdc::VersionNumber::fromString(version);
+        pkgVer = stdc::VersionNumber::fromString(version).value_or(stdc::VersionNumber());
     }
     const auto pkgKey = singer->ref.packageId + "\n" + pkgVer.toString();
     {
@@ -1351,7 +1351,7 @@ std::vector<LoadedVoicebankInfo> VoicebankSession::loadedVoicebanks() const {
         const auto sep = key.find('\n');
         if (sep != std::string::npos) {
             info.packageId = key.substr(0, sep);
-            info.version = stdc::VersionNumber::fromString(key.substr(sep + 1));
+            info.version = stdc::VersionNumber::fromString(key.substr(sep + 1)).value_or(stdc::VersionNumber());
         }
         info.packagePath = entry.normalizedPath;
         info.loadedGeneration = entry.loadedGeneration;
@@ -1384,8 +1384,8 @@ VoicebankSnapshot::findSinger(const ds::bank::SingerRef &ref) const {
         // is empty (avoids treating "" as "0.0.0").
         if (s.ref.version.empty() || ref.version.empty())
             continue;
-        if (stdc::VersionNumber::fromString(s.ref.version) ==
-            stdc::VersionNumber::fromString(ref.version)) {
+        if (stdc::VersionNumber::fromString(s.ref.version).value_or(stdc::VersionNumber()) ==
+            stdc::VersionNumber::fromString(ref.version).value_or(stdc::VersionNumber())) {
             return &s;
         }
     }

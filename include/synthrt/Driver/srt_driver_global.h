@@ -7,9 +7,9 @@
 #    define SRT_DRIVER_EXPORT
 #  else
 #    ifdef SRT_DRIVER_LIBRARY
-#      define SRT_DRIVER_EXPORT STDCORELIB_DECL_EXPORT
+#      define SRT_DRIVER_EXPORT STDC_DECL_EXPORT
 #    else
-#      define SRT_DRIVER_EXPORT STDCORELIB_DECL_IMPORT
+#      define SRT_DRIVER_EXPORT STDC_DECL_IMPORT
 #    endif
 #  endif
 #endif

@@ -46,7 +46,7 @@ namespace ds::infer::inferutil {
             }
         }
 
-        if (STDCORELIB_UNLIKELY(!helper.isComplete())) {
+        if (STDC_UNLIKELY(!helper.isComplete())) {
             return srt::core::Error(
                 srt::core::Error::SessionError,
                 "parsePhonemeTokens: tensor element count does not match phoneme count");
@@ -77,7 +77,7 @@ namespace ds::infer::inferutil {
             }
         }
 
-        if (STDCORELIB_UNLIKELY(!helper.isComplete())) {
+        if (STDC_UNLIKELY(!helper.isComplete())) {
             return srt::core::Error(
                 srt::core::Error::SessionError,
                 "parsePhonemeLanguages: tensor element count does not match phoneme count");
@@ -144,7 +144,7 @@ namespace ds::infer::inferutil {
             phoneDurSum += wordDuration;
         }
 
-        if (STDCORELIB_UNLIKELY(!helper.isComplete())) {
+        if (STDC_UNLIKELY(!helper.isComplete())) {
             return srt::core::Error(
                 srt::core::Error::SessionError,
                 "parsePhonemeDurations: tensor element count does not match phoneme count");

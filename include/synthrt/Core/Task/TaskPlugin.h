@@ -20,7 +20,7 @@ namespace srt::core {
         virtual int apiLevel() const = 0;
         virtual Expected<NO<Task>> createTask(const ModuleSpec *spec) = 0;
 
-        STDCORELIB_DISABLE_COPY(TaskPlugin)
+        STDC_DISABLE_COPY(TaskPlugin)
     };
 
     class SRT_CORE_EXPORT DriverPlugin : public Plugin {
@@ -34,7 +34,7 @@ namespace srt::core {
         virtual int apiLevel() const = 0;
         virtual Expected<NO<SessionFactory>> create() = 0;
 
-        STDCORELIB_DISABLE_COPY(DriverPlugin)
+        STDC_DISABLE_COPY(DriverPlugin)
     };
 
 } // namespace srt::core

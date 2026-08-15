@@ -413,13 +413,13 @@ TEST_CASE("ensureLanguageReady failure is idempotent across repeated calls",
 
     // 首次调用：Runtime 未注入 → RuntimePackageNotLoaded。
     auto exp1 = session.ensureLanguageReady(
-        "session.test", stdc::VersionNumber::fromString("1.0.0"), "cmn");
+        "session.test", stdc::VersionNumber::fromString("1.0.0").value(), "cmn");
     REQUIRE_FALSE(exp1.hasValue());
     REQUIRE(exp1.isError(srt::core::ErrorCode::RuntimePackageNotLoaded));
 
     // 二次调用：状态未变 → 相同错误。
     auto exp2 = session.ensureLanguageReady(
-        "session.test", stdc::VersionNumber::fromString("1.0.0"), "cmn");
+        "session.test", stdc::VersionNumber::fromString("1.0.0").value(), "cmn");
     REQUIRE_FALSE(exp2.hasValue());
     REQUIRE(exp2.isError(srt::core::ErrorCode::RuntimePackageNotLoaded));
 
@@ -438,7 +438,7 @@ TEST_CASE("ensureLanguageReady returns SessionError when no snapshot published",
     resources.runtime = &runtime;
     ds::session::VoicebankSession session(std::move(resources));
     auto exp = session.ensureLanguageReady(
-        "any.pkg", stdc::VersionNumber::fromString("1.0.0"), "cmn");
+        "any.pkg", stdc::VersionNumber::fromString("1.0.0").value(), "cmn");
     REQUIRE_FALSE(exp.hasValue());
     REQUIRE(exp.isError(srt::core::ErrorCode::SessionError));
 }

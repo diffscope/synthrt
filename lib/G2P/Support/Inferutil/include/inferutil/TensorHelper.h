@@ -23,7 +23,7 @@ namespace srt::g2p::plugins::InferUtil
             }
             helper._tensor = exp.take();
             auto dataPtr = helper._tensor->mutableData<T>();
-            if (STDCORELIB_UNLIKELY(dataPtr == nullptr)) {
+            if (STDC_UNLIKELY(dataPtr == nullptr)) {
                 return srt::g2p::Error(ErrorCode::G2pRuntimeError, "failed to create tensor");
             }
             helper._current = dataPtr;
@@ -47,7 +47,7 @@ namespace srt::g2p::plugins::InferUtil
 
         NO<Tensor> &&take() { return std::move(_tensor); }
 
-        STDCORELIB_DISABLE_COPY(TensorHelper)
+        STDC_DISABLE_COPY(TensorHelper)
 
         TensorHelper(TensorHelper &&other) noexcept :
             _tensor(std::move(other._tensor)), _current(other._current), _end(other._end) {

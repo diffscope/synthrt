@@ -31,7 +31,7 @@ namespace srt::g2p {
 
         virtual srt::core::Expected<srt::core::NO<Task>> createTask(const ModuleSpec *spec) = 0;
 
-        STDCORELIB_DISABLE_COPY(TaskPlugin)
+        STDC_DISABLE_COPY(TaskPlugin)
     };
 
     /// DriverPlugin - Base class for G2P driver plugins.
@@ -51,7 +51,7 @@ namespace srt::g2p {
 
         virtual srt::core::Expected<srt::core::NO<SessionFactory>> create() = 0;
 
-        STDCORELIB_DISABLE_COPY(DriverPlugin)
+        STDC_DISABLE_COPY(DriverPlugin)
     };
 
 } // namespace srt::g2p

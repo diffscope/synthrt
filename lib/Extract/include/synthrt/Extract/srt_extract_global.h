@@ -7,9 +7,9 @@
 #    define SRT_EXTRACT_EXPORT
 #  else
 #    ifdef SRT_EXTRACT_LIBRARY
-#      define SRT_EXTRACT_EXPORT STDCORELIB_DECL_EXPORT
+#      define SRT_EXTRACT_EXPORT STDC_DECL_EXPORT
 #    else
-#      define SRT_EXTRACT_EXPORT STDCORELIB_DECL_IMPORT
+#      define SRT_EXTRACT_EXPORT STDC_DECL_IMPORT
 #    endif
 #  endif
 #endif

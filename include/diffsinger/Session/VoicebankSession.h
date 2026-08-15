@@ -65,7 +65,7 @@ namespace ds::session {
 
         /// Find a singer snapshot by exact (packageId, singerId, version) match.
         /// Returns nullptr if not found. Version comparison uses
-        /// stdc::VersionNumber::fromString() normalization so "1.0" matches
+        /// stdc::VersionNumber::fromString().value_or(stdc::VersionNumber()) normalization so "1.0" matches
         /// "1.0.0"; empty version matches only empty version (A2-T02).
         const ds::bank::SingerSnapshot *findSinger(const ds::bank::SingerRef &ref) const;
 

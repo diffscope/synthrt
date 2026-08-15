@@ -33,7 +33,7 @@ namespace srt::extract {
         virtual srt::core::Expected<srt::core::NO<PitchExtractor>>
         createExtractor(srt::core::Runtime *runtime) = 0;
 
-        STDCORELIB_DISABLE_COPY(PitchExtractorPlugin)
+        STDC_DISABLE_COPY(PitchExtractorPlugin)
     };
 
 } // namespace srt::extract

@@ -340,14 +340,14 @@ namespace srt::g2p {
                     auto verIt = obj.find("version");
                     if (verIt == obj.end() || !verIt->second.isString())
                         continue;
-                    auto version = stdc::VersionNumber::fromString(verIt->second.toString());
+                    auto version = stdc::VersionNumber::fromString(verIt->second.toString()).value_or(stdc::VersionNumber());
                     if (version.isEmpty())
                         continue;
 
                     stdc::VersionNumber compatVersion = version;
                     auto                cvIt          = obj.find("compatVersion");
                     if (cvIt != obj.end() && cvIt->second.isString())
-                        compatVersion = stdc::VersionNumber::fromString(cvIt->second.toString());
+                        compatVersion = stdc::VersionNumber::fromString(cvIt->second.toString()).value_or(stdc::VersionNumber());
 
                     cachedIndexes[pkgId][version] = {fs::canonical(entry.path()), compatVersion};
                 }

@@ -86,7 +86,7 @@ namespace srt::g2p {
 
     private:
         void forceClose();
-        STDCORELIB_DISABLE_COPY(ScopedPackageRef);
+        STDC_DISABLE_COPY(ScopedPackageRef);
     };
 
 } // namespace srt::g2p

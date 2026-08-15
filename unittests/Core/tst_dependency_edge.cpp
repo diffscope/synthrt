@@ -16,7 +16,7 @@
 //     returns true for cycles (does not fail), cycles are exposed via findCycles().
 //     This case asserts findCycles() is non-empty.
 //   - DEP-004/005/006/010: stdc::VersionNumber has no string constructor,
-//     must use VersionNumber::fromString(...). VersionNumber("...")
+//     must use VersionNumber::fromString(...).value_or(stdc::VersionNumber()). VersionNumber("...")
 //     syntax in matrix is uniformly mapped to fromString. fromString uses std::from_chars,
 //     stops after parsing digits at segment start for non-digit chars
 //     (does not throw, does not return Error).
@@ -153,7 +153,7 @@ TEST_CASE("DEP-004/005/006: VersionNumber::fromString edge cases",
     SECTION("DEP-004: 6-segment version truncates to 4") {
         // API difference: VersionNumber has no string constructor, use
         // fromString; truncates beyond 4 segments.
-        auto v = VersionNumber::fromString("1.2.3.4.5.6");
+        auto v = VersionNumber::fromString("1.2.3.4.5.6").value();
         REQUIRE(v.major() == 1);
         REQUIRE(v.minor() == 2);
         REQUIRE(v.patch() == 3);
@@ -161,7 +161,7 @@ TEST_CASE("DEP-004/005/006: VersionNumber::fromString edge cases",
     }
 
     SECTION("DEP-005: empty string -> isEmpty()") {
-        auto v = VersionNumber::fromString("");
+        auto v = VersionNumber::fromString("").value();
         REQUIRE(v.isEmpty());
         REQUIRE(v.major() == 0);
         REQUIRE(v.minor() == 0);
@@ -177,7 +177,7 @@ TEST_CASE("DEP-004/005/006: VersionNumber::fromString edge cases",
     SECTION("DEP-006: non-numeric chars -> numeric prefix only") {
         // from_chars stops when encountering non-digit within segment,
         // "2abc" parsed as 2.
-        auto v = VersionNumber::fromString("1.2abc.3");
+        auto v = VersionNumber::fromString("1.2abc.3").value();
         REQUIRE(v.major() == 1);
         REQUIRE(v.minor() == 2);
         REQUIRE(v.patch() == 3);
@@ -187,7 +187,7 @@ TEST_CASE("DEP-004/005/006: VersionNumber::fromString edge cases",
 
     SECTION("DEP-006b: leading dot -> first segment 0") {
         // Boundary: a leading dot yields an empty first segment, parsed as 0.
-        auto v = VersionNumber::fromString(".1.2");
+        auto v = VersionNumber::fromString(".1.2").value();
         REQUIRE(v.major() == 0);
         REQUIRE(v.minor() == 1);
         REQUIRE(v.patch() == 2);
@@ -281,7 +281,7 @@ TEST_CASE("DEP-009: diamond dependency topological order", "[dep][edge]") {
 // ---------------------------------------------------------------------------
 TEST_CASE("DEP-010: compare null/empty version against 1.0", "[dep][edge]") {
     VersionNumber empty;
-    auto v10 = VersionNumber::fromString("1.0");
+    auto v10 = VersionNumber::fromString("1.0").value();
 
     REQUIRE(empty.isEmpty());
     REQUIRE_FALSE(v10.isEmpty());

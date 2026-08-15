@@ -181,7 +181,7 @@ TEST_CASE("BF-51-003: unknown module category returns G2pNotImplementedError",
 TEST_CASE("BF-51-004: modules field wrong type loads as empty package",
           "[g2p][bf-51][extreme]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     SECTION("modules is array") {
         const auto dir = makeTempDir("mods-array");
@@ -236,7 +236,7 @@ TEST_CASE("BF-51-004: modules field wrong type loads as empty package",
 TEST_CASE("BF-51-005: re-open same path increments ref count without duplication",
           "[g2p][bf-51][extreme]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
     const auto dir = makeTempDir("reopen");
     writeFile(dir / "package.json", validManifest("p.reopen", "1.0.0"));
 
@@ -275,7 +275,7 @@ TEST_CASE("BF-51-005: re-open same path increments ref count without duplication
 TEST_CASE("BF-51-006: duplicate package from different path is recorded as failed",
           "[g2p][bf-51][extreme]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
     const auto dir1 = makeTempDir("dup-first");
     const auto dir2 = makeTempDir("dup-second");
     writeFile(dir1 / "package.json", validManifest("p.dup", "1.0.0"));
@@ -325,7 +325,7 @@ TEST_CASE("BF-51-006: duplicate package from different path is recorded as faile
 TEST_CASE("BF-51-007: failed open does not block re-open after manifest fix",
           "[g2p][bf-51][extreme]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
     const auto dir = makeTempDir("retry");
 
     // 1. Malformed manifest -> open fails (G2pConfigError), no residual.
@@ -416,7 +416,7 @@ TEST_CASE("BF-51-009: open rejects invalid path arguments", "[g2p][bf-51][extrem
 // ===========================================================================
 TEST_CASE("BF-51-010: destructor handles mixed loaded/failed/duplicate state",
           "[g2p][bf-51][extreme]") {
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     // Use a scope so the PackageManager destructor runs at end of scope.
     {
@@ -506,7 +506,7 @@ TEST_CASE("BF-51-011: re-open of duplicate at SAME path is refcount, not duplica
 TEST_CASE("BF-51-012: two distinct packages coexist in loaded map",
           "[g2p][bf-51][extreme]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     const auto dir1 = makeTempDir("coexist-a");
     const auto dir2 = makeTempDir("coexist-b");

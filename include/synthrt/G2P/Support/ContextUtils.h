@@ -50,7 +50,7 @@ namespace srt::g2p {
                 } else {
                     result.context = std::string(contextPart.substr(0, atPos));
                     result.version =
-                        stdc::VersionNumber::fromString(std::string(contextPart.substr(atPos + 1)));
+                        stdc::VersionNumber::fromString(std::string(contextPart.substr(atPos + 1))).value_or(stdc::VersionNumber());
                 }
             }
             return result;

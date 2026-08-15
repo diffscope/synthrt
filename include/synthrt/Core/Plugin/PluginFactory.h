@@ -48,7 +48,7 @@ namespace srt::core {
 
         explicit PluginFactory(Impl &impl);
 
-        STDCORELIB_DISABLE_COPY_MOVE(PluginFactory);
+        STDC_DISABLE_COPY_MOVE(PluginFactory);
     };
 
     template <class T>

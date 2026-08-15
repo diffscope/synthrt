@@ -22,7 +22,7 @@ namespace ds::infer::inferutil {
             }
             helper.m_tensor = exp.take();
             auto dataPtr = helper.m_tensor->template mutableData<T>();
-            if (STDCORELIB_UNLIKELY(dataPtr == nullptr)) {
+            if (STDC_UNLIKELY(dataPtr == nullptr)) {
                 return srt::core::Error(srt::core::Error::SessionError, "failed to create tensor");
             }
             helper.m_current = dataPtr;
@@ -54,7 +54,7 @@ namespace ds::infer::inferutil {
             return std::move(m_tensor);
         }
 
-        STDCORELIB_DISABLE_COPY(TensorHelper)
+        STDC_DISABLE_COPY(TensorHelper)
 
         TensorHelper(TensorHelper &&other) noexcept
             : m_tensor(std::move(other.m_tensor)), m_current(other.m_current), m_end(other.m_end) {

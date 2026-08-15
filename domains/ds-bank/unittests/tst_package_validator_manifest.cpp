@@ -32,7 +32,7 @@ namespace {
         PackageManifest info;
         info.setPackageId("pkg.complete");
         info.setName("Complete Package");
-        info.setVersion(stdc::VersionNumber::fromString("1.0.0"));
+        info.setVersion(stdc::VersionNumber::fromString("1.0.0").value());
 
         SingerManifest singer;
         singer.setSingerId("singer_a");
@@ -139,7 +139,7 @@ TEST_CASE("PackageValidator validate reports all singers when none have singerId
     PackageManifest info;
     info.setPackageId("pkg.empty-singers");
     info.setName("Empty Singers");
-    info.setVersion(stdc::VersionNumber::fromString("1.0.0"));
+    info.setVersion(stdc::VersionNumber::fromString("1.0.0").value());
 
     // 添加 3 个空 singerId 的 singer
     std::vector<SingerManifest> singers;

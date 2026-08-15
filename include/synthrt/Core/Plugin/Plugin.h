@@ -61,7 +61,7 @@ namespace srt::core {
 /// and is intentionally NOT introduced here; until then SRT_EXPORT_PLUGIN
 /// remains the single registration mechanism.
 #define SRT_EXPORT_PLUGIN(PLUGIN_NAME)                                                              \
-    extern "C" STDCORELIB_DECL_EXPORT srt::core::Plugin *srt_plugin_instance() {                    \
+    extern "C" STDC_DECL_EXPORT srt::core::Plugin *srt_plugin_instance() {                    \
         static PLUGIN_NAME _instance;                                                               \
         return &_instance;                                                                          \
     }

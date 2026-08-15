@@ -7,9 +7,9 @@
 #    define DSINFER_EXPORT
 #  else
 #    ifdef DSINFER_LIBRARY
-#      define DSINFER_EXPORT STDCORELIB_DECL_EXPORT
+#      define DSINFER_EXPORT STDC_DECL_EXPORT
 #    else
-#      define DSINFER_EXPORT STDCORELIB_DECL_IMPORT
+#      define DSINFER_EXPORT STDC_DECL_IMPORT
 #    endif
 #  endif
 #endif

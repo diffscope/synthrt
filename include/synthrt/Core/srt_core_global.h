@@ -7,9 +7,9 @@
 #    define SRT_CORE_EXPORT
 #  else
 #    ifdef SRT_CORE_LIBRARY
-#      define SRT_CORE_EXPORT STDCORELIB_DECL_EXPORT
+#      define SRT_CORE_EXPORT STDC_DECL_EXPORT
 #    else
-#      define SRT_CORE_EXPORT STDCORELIB_DECL_IMPORT
+#      define SRT_CORE_EXPORT STDC_DECL_IMPORT
 #    endif
 #  endif
 #endif

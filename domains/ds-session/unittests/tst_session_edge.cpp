@@ -309,7 +309,7 @@ TEST_CASE("SES-009: ensureLanguageReady repeated calls are idempotent",
     const auto snap1 = session.snapshot();
     REQUIRE(snap1 != nullptr);
 
-    const auto version = stdc::VersionNumber::fromString("1.0.0");
+    const auto version = stdc::VersionNumber::fromString("1.0.0").value();
     // First call: no Runtime -> RuntimePackageNotLoaded
     auto exp1 = session.ensureLanguageReady("session.test", version, "cmn");
     REQUIRE_FALSE(exp1.hasValue());
@@ -616,7 +616,7 @@ TEST_CASE("SES-020: ensureLanguageReady on default session without refresh retur
     ds::session::VoicebankSession session; // Default construction: not refreshed, snapshot nullptr
     REQUIRE(session.snapshot() == nullptr);
 
-    const auto version = stdc::VersionNumber::fromString("1.0.0");
+    const auto version = stdc::VersionNumber::fromString("1.0.0").value();
     auto exp = session.ensureLanguageReady("any.pkg", version, "cmn");
     REQUIRE_FALSE(exp.hasValue());
     REQUIRE(exp.isError(ErrorCode::SessionError));

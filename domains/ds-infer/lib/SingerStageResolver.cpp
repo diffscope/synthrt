@@ -162,7 +162,7 @@ namespace ds::infer {
         stdc::VersionNumber requestedVersion;
         if (!version.empty()) {
             try {
-                requestedVersion = stdc::VersionNumber::fromString(version);
+                requestedVersion = stdc::VersionNumber::fromString(version).value_or(stdc::VersionNumber());
             } catch (const std::exception &e) {
                 // BUG-13: 第三方异常边界隔离（ROBUST-02）。fromString 是第三方接口，
                 // 非法 version 字符串可能抛 std::exception，必须在此边界转换为 Error，

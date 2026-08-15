@@ -83,11 +83,11 @@ TEST_CASE("PackageListConfig round-trip preserves all fields", "[ds-bank][list-c
     // 构造一个包含两条记录的配置
     std::vector<PackageListItem> items;
     items.emplace_back(
-        PackageListItem{"pkg.a", stdc::VersionNumber::fromString("1.0.0"),
+        PackageListItem{"pkg.a", stdc::VersionNumber::fromString("1.0.0").value(),
                         std::filesystem::path("pkg_a/pkg.a"),
                         PackageListItemMetadata{true, 1700000000}});
     items.emplace_back(
-        PackageListItem{"pkg.b", stdc::VersionNumber::fromString("2.5.1"),
+        PackageListItem{"pkg.b", stdc::VersionNumber::fromString("2.5.1").value(),
                         std::filesystem::path("pkg_b/pkg.b"),
                         PackageListItemMetadata{false, 0}});
 
@@ -292,7 +292,7 @@ TEST_CASE("PackageListConfig preserves insertion order across save/load",
     const std::vector<std::string> ids = {"zeta", "alpha", "middle", "beta"};
     for (const auto &id : ids) {
         items.emplace_back(PackageListItem{
-            id, stdc::VersionNumber::fromString("1.0.0"),
+            id, stdc::VersionNumber::fromString("1.0.0").value(),
             std::filesystem::path(id + "/"),
             PackageListItemMetadata{true, 0}});
     }

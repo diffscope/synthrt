@@ -147,7 +147,7 @@ TEST_CASE("resolveS2pResource cache hit returns same shared_ptr",
     const auto root = makeTempDir("cache-hit");
     const std::string pkgA = "s2p.cache.hit";
     const std::string singerId = "cache_hit_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerId, "cmn", {
         {"cmn", "g2p-cmn-official", "dict", "assets/cmn.txt", {}, ""},
@@ -188,7 +188,7 @@ TEST_CASE("resolveS2pResource different singer different resource",
     const std::string pkgB = "s2p.diff.singer.b";
     const std::string singerA = "diff_singer_a";
     const std::string singerB = "diff_singer_b";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerA, "cmn", {
         {"cmn", "g2p-cmn-official", "dict", "assets/cmn.txt", {}, ""},
@@ -232,7 +232,7 @@ TEST_CASE("resolveS2pResource different language different resource",
     const auto root = makeTempDir("diff-lang");
     const std::string pkgA = "s2p.diff.lang";
     const std::string singerId = "diff_lang_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerId, "cmn", {
         {"cmn", "g2p-cmn-official", "dict", "assets/cmn.txt", {}, ""},
@@ -284,7 +284,7 @@ TEST_CASE("resolveS2pResource unknown singer returns G2pRouteNotFound",
     const auto root = makeTempDir("unknown-singer");
     const std::string pkgA = "s2p.unknown.singer";
     const std::string singerId = "known_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerId, "cmn", {
         {"cmn", "g2p-cmn-official", "dict", "assets/cmn.txt", {}, ""},
@@ -316,7 +316,7 @@ TEST_CASE("resolveS2pResource dict mode convert returns expected phonemes",
     const auto root = makeTempDir("dict-convert");
     const std::string pkgA = "s2p.dict.convert";
     const std::string singerId = "dict_convert_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerId, "cmn", {
         {"cmn", "g2p-cmn-official", "dict", "assets/cmn.txt", {}, ""},

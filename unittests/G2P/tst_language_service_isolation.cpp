@@ -163,8 +163,8 @@ TEST_CASE("LanguageService multi-version isolation across 5 layers",
     const auto root = makeTempDir("multi-version");
     const std::string packageId = "iso.multiver";
     const std::string singerId = "iso_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
-    const auto v2 = stdc::VersionNumber::fromString("2.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
+    const auto v2 = stdc::VersionNumber::fromString("2.0.0").value();
 
     // Both versions use the same G2P subpackage version (1.5.0) to verify
     // that isolation is driven by the voicebank version, NOT the G2P subpackage
@@ -231,8 +231,8 @@ TEST_CASE("LanguageService ambiguous without version returns G2pVersionAmbiguous
     const auto root = makeTempDir("ambiguous");
     const std::string packageId = "iso.ambiguous";
     const std::string singerId = "amb_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
-    const auto v2 = stdc::VersionNumber::fromString("2.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
+    const auto v2 = stdc::VersionNumber::fromString("2.0.0").value();
 
     createPackage(root / "pkg_v1", packageId, "1.0.0", singerId, "cmn", {
         {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
@@ -270,7 +270,7 @@ TEST_CASE("LanguageService empty version + single match succeeds",
     const auto root = makeTempDir("single-version");
     const std::string packageId = "iso.single";
     const std::string singerId = "single_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_v1", packageId, "1.0.0", singerId, "cmn", {
         {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
@@ -304,8 +304,8 @@ TEST_CASE("LanguageService unknown version returns G2pPackageNotFound",
     const auto root = makeTempDir("unknown-version");
     const std::string packageId = "iso.unknown";
     const std::string singerId = "unk_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
-    const auto v9 = stdc::VersionNumber::fromString("9.9.9");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
+    const auto v9 = stdc::VersionNumber::fromString("9.9.9").value();
 
     createPackage(root / "pkg_v1", packageId, "1.0.0", singerId, "cmn", {
         {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
@@ -336,7 +336,7 @@ TEST_CASE("LanguageService duplicate packageId+version returns PackageDuplicate"
     const auto root = makeTempDir("duplicate");
     const std::string packageId = "iso.duplicate";
     const std::string singerId = "dup_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", packageId, "1.0.0", singerId, "cmn", {
         {"cmn", "g2p-cmn-custom", "dict", "assets/cmn.txt",
@@ -371,7 +371,7 @@ TEST_CASE("LanguageService official G2P route has empty context",
     const auto root = makeTempDir("official");
     const std::string packageId = "iso.official";
     const std::string singerId = "off_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     // No g2pPackages → official G2P route.
     createPackage(root / "pkg_off", packageId, "1.0.0", singerId, "cmn", {

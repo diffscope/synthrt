@@ -146,7 +146,7 @@ TEST_CASE("LanguageService readiness state transitions",
           "[g2p][convert][readiness]") {
     const auto root = makeTempDir("readiness");
     const std::string pkgA = "conv.readiness";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", "rd_singer", "cmn", {
         {"cmn", "g2p-cmn-official", "dict", "assets/cmn.txt", {}, ""},
@@ -214,7 +214,7 @@ TEST_CASE("convertLyric without modelsReady returns failed results",
 TEST_CASE("convert with unknown packageId returns G2pPackageNotFound",
           "[g2p][convert][error]") {
     LanguageService langSvc;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     auto exp = langSvc.convert(
         "nonexistent.conv.pkg", v1, "singer_x", "cmn",
@@ -234,7 +234,7 @@ TEST_CASE("convert with unsupported language returns G2pValidationError",
     const auto root = makeTempDir("unsupported-lang");
     const std::string pkgA = "conv.unsupported";
     const std::string singerId = "unsup_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     // Singer declares only cmn; requesting en must fail validation.
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerId, "cmn", {
@@ -266,7 +266,7 @@ TEST_CASE("resolveS2pResource returns resource for valid input",
     const auto root = makeTempDir("s2p-valid");
     const std::string pkgA = "conv.s2p.valid";
     const std::string singerId = "s2p_valid_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerId, "cmn", {
         {"cmn", "g2p-cmn-official", "dict", "assets/cmn.txt", {}, ""},
@@ -317,7 +317,7 @@ TEST_CASE("resolveLanguageRoute official G2P uses kOfficialContext",
     const auto root = makeTempDir("official-route");
     const std::string pkgA = "conv.official.route";
     const std::string singerId = "off_route_singer";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     // No g2pPackages → official G2P route.
     createPackage(root / "pkg_a", pkgA, "1.0.0", singerId, "cmn", {

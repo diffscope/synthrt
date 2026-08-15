@@ -77,7 +77,7 @@ namespace {
         {
             PackageStatus p;
             p.packageId = "pkg.alpha";
-            p.version = VersionNumber::fromString("1.0.0");
+            p.version = VersionNumber::fromString("1.0.0").value();
             p.rootPath = "voicebanks/alpha/v1";
             p.valid = true;
             snap.packages.push_back(std::move(p));
@@ -86,7 +86,7 @@ namespace {
         {
             PackageStatus p;
             p.packageId = "pkg.alpha";
-            p.version = VersionNumber::fromString("2.0.0");
+            p.version = VersionNumber::fromString("2.0.0").value();
             p.rootPath = "voicebanks/alpha/v2";
             p.valid = true;
             snap.packages.push_back(std::move(p));
@@ -95,7 +95,7 @@ namespace {
         {
             PackageStatus p;
             p.packageId = "pkg.beta";
-            p.version = VersionNumber::fromString("1.0.0");
+            p.version = VersionNumber::fromString("1.0.0").value();
             p.rootPath = "voicebanks/beta";
             p.valid = true;
             snap.packages.push_back(std::move(p));
@@ -104,7 +104,7 @@ namespace {
         {
             PackageStatus p;
             p.packageId = "pkg.gamma";
-            p.version = VersionNumber::fromString("1.0.0");
+            p.version = VersionNumber::fromString("1.0.0").value();
             p.rootPath = "voicebanks/gamma";
             p.valid = false;
             snap.packages.push_back(std::move(p));
@@ -115,19 +115,19 @@ namespace {
         {
             PackageManifest m;
             m.setPackageId("pkg.alpha");
-            m.setVersion(VersionNumber::fromString("1.0.0"));
+            m.setVersion(VersionNumber::fromString("1.0.0").value());
             snap.manifests.push_back(std::move(m));
         }
         {
             PackageManifest m;
             m.setPackageId("pkg.alpha");
-            m.setVersion(VersionNumber::fromString("2.0.0"));
+            m.setVersion(VersionNumber::fromString("2.0.0").value());
             snap.manifests.push_back(std::move(m));
         }
         {
             PackageManifest m;
             m.setPackageId("pkg.beta");
-            m.setVersion(VersionNumber::fromString("1.0.0"));
+            m.setVersion(VersionNumber::fromString("1.0.0").value());
             snap.manifests.push_back(std::move(m));
         }
 
@@ -232,7 +232,7 @@ TEST_CASE("A2-T06: findPackage returns valid PackageStatus",
           "[ds-session][snapshot-query][a2]") {
     const auto snap = makeSampleSnapshot();
 
-    const auto *p = snap.findPackage("pkg.alpha", VersionNumber::fromString("1.0.0"));
+    const auto *p = snap.findPackage("pkg.alpha", VersionNumber::fromString("1.0.0").value());
     REQUIRE(p != nullptr);
     REQUIRE(p->packageId == "pkg.alpha");
     REQUIRE(p->valid == true);
@@ -250,7 +250,7 @@ TEST_CASE("A2-T07: findPackage returns invalid PackageStatus (still present)",
           "[ds-session][snapshot-query][a2]") {
     const auto snap = makeSampleSnapshot();
 
-    const auto *p = snap.findPackage("pkg.gamma", VersionNumber::fromString("1.0.0"));
+    const auto *p = snap.findPackage("pkg.gamma", VersionNumber::fromString("1.0.0").value());
     REQUIRE(p != nullptr);
     REQUIRE(p->packageId == "pkg.gamma");
     REQUIRE(p->valid == false);
@@ -264,7 +264,7 @@ TEST_CASE("A2-T08: findPackage with unknown package returns nullptr",
           "[ds-session][snapshot-query][a2]") {
     const auto snap = makeSampleSnapshot();
 
-    const auto *p = snap.findPackage("nonexistent.pkg", VersionNumber::fromString("1.0.0"));
+    const auto *p = snap.findPackage("nonexistent.pkg", VersionNumber::fromString("1.0.0").value());
     REQUIRE(p == nullptr);
 }
 
@@ -276,7 +276,7 @@ TEST_CASE("A2-T09: findManifest returns PackageManifest for valid package",
           "[ds-session][snapshot-query][a2]") {
     const auto snap = makeSampleSnapshot();
 
-    const auto *m = snap.findManifest("pkg.alpha", VersionNumber::fromString("1.0.0"));
+    const auto *m = snap.findManifest("pkg.alpha", VersionNumber::fromString("1.0.0").value());
     REQUIRE(m != nullptr);
     REQUIRE(m->packageId() == "pkg.alpha");
 }
@@ -293,7 +293,7 @@ TEST_CASE("A2-T10: findManifest returns nullptr for invalid package",
           "[ds-session][snapshot-query][a2]") {
     const auto snap = makeSampleSnapshot();
 
-    const auto *m = snap.findManifest("pkg.gamma", VersionNumber::fromString("1.0.0"));
+    const auto *m = snap.findManifest("pkg.gamma", VersionNumber::fromString("1.0.0").value());
     REQUIRE(m == nullptr);
 }
 
@@ -323,7 +323,7 @@ TEST_CASE("A2-T11: concurrent findSinger reads are data-race-free",
     for (int t = 0; t < kThreads; ++t) {
         threads.emplace_back([&snap, &successCount, &nullCount, t]() {
             const auto ref = SingerRef("pkg.alpha", "singerA", "1.0.0");
-            const auto ver = VersionNumber::fromString("1.0.0");
+            const auto ver = VersionNumber::fromString("1.0.0").value();
             for (int i = 0; i < kIterations; ++i) {
                 // Alternate between findSinger / findPackage / findManifest
                 // so all three methods are exercised concurrently.

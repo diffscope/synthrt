@@ -125,7 +125,7 @@ namespace ds::bank {
 
         auto g2pPackageVersion = stringField(obj, "g2pPackageVersion");
         if (!g2pPackageVersion.empty()) {
-            lang.setG2pPackageVersion(stdc::VersionNumber::fromString(g2pPackageVersion));
+            lang.setG2pPackageVersion(stdc::VersionNumber::fromString(g2pPackageVersion).value_or(stdc::VersionNumber()));
         }
 
         lang.setDict(resolvePath(packageRoot, basePath, stringField(obj, "dict"), err,
@@ -440,7 +440,7 @@ namespace ds::bank {
         {
             auto it = obj.find("version");
             if (it != obj.end() && it->second.isString()) {
-                info.setVersion(stdc::VersionNumber::fromString(it->second.toString()));
+                info.setVersion(stdc::VersionNumber::fromString(it->second.toString()).value_or(stdc::VersionNumber()));
             } else {
                 return Error::packageError(
                     srt::core::ErrorCode::PackageManifestMissingField,
@@ -454,7 +454,7 @@ namespace ds::bank {
         {
             auto it = obj.find("compatVersion");
             if (it != obj.end() && it->second.isString()) {
-                info.setCompatVersion(stdc::VersionNumber::fromString(it->second.toString()));
+                info.setCompatVersion(stdc::VersionNumber::fromString(it->second.toString()).value_or(stdc::VersionNumber()));
             }
         }
 

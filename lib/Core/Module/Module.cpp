@@ -69,7 +69,7 @@ namespace srt::core {
         }
         result._package = package;
         result._version = stdc::VersionNumber::fromString(
-            leftPart.substr(openBracket + 1, leftPart.size() - openBracket - 2));
+            leftPart.substr(openBracket + 1, leftPart.size() - openBracket - 2)).value_or(stdc::VersionNumber());
         return result;
     }
 

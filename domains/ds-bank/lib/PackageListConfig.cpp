@@ -32,7 +32,7 @@ namespace ds::bank {
             return false;
         }
         auto versionStr = token.substr(openBracket + 1, token.size() - openBracket - 2);
-        version = stdc::VersionNumber::fromString(versionStr);
+        version = stdc::VersionNumber::fromString(versionStr).value_or(stdc::VersionNumber());
         return !version.isEmpty();
     }
 

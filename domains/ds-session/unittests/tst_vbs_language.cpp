@@ -42,7 +42,7 @@ TEST_CASE("ensureLanguageReady returns RuntimePackageNotLoaded when Runtime not 
     REQUIRE(session.refreshAsync().get().succeeded);
 
     auto exp = session.ensureLanguageReady(
-        "session.test", stdc::VersionNumber::fromString("1.0.0"), "cmn");
+        "session.test", stdc::VersionNumber::fromString("1.0.0").value(), "cmn");
     REQUIRE_FALSE(exp.hasValue());
     REQUIRE(exp.isError(srt::core::ErrorCode::RuntimePackageNotLoaded));
 
@@ -65,7 +65,7 @@ TEST_CASE("ensureLanguageReady returns G2pNotImplementedError when LanguageServi
     REQUIRE(session.refreshAsync().get().succeeded);
 
     auto exp = session.ensureLanguageReady(
-        "session.test", stdc::VersionNumber::fromString("1.0.0"), "cmn");
+        "session.test", stdc::VersionNumber::fromString("1.0.0").value(), "cmn");
     REQUIRE_FALSE(exp.hasValue());
     REQUIRE(exp.isError(srt::core::ErrorCode::G2pNotImplementedError));
 
@@ -84,7 +84,7 @@ TEST_CASE("ensureLanguageReady returns G2pPackageNotFound for unknown packageId"
     REQUIRE(session.refreshAsync().get().succeeded);
 
     auto exp = session.ensureLanguageReady(
-        "missing.pkg", stdc::VersionNumber::fromString("1.0.0"), "cmn");
+        "missing.pkg", stdc::VersionNumber::fromString("1.0.0").value(), "cmn");
     REQUIRE_FALSE(exp.hasValue());
     REQUIRE(exp.isError(srt::core::ErrorCode::G2pPackageNotFound));
 
@@ -141,7 +141,7 @@ TEST_CASE("ensureLanguageReady with explicit version skips ambiguity for multi-v
     REQUIRE(session.refreshAsync().get().succeeded);
 
     auto exp = session.ensureLanguageReady(
-        "session.dup", stdc::VersionNumber::fromString("2.0.0"), "cmn");
+        "session.dup", stdc::VersionNumber::fromString("2.0.0").value(), "cmn");
     REQUIRE_FALSE(exp.hasValue());
     REQUIRE(exp.isError(srt::core::ErrorCode::RuntimePackageNotLoaded));
 
@@ -207,8 +207,8 @@ TEST_CASE("convertS2p returns G2pVersionAmbiguous for multi-version packageId wi
     REQUIRE(dupCount == 2);
 
     std::vector<srt::g2p::PackageDirectoryEntry> entries = {
-        {"session.dup", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
-        {"session.dup", stdc::VersionNumber::fromString("2.0.0"), root / "bank2"},
+        {"session.dup", stdc::VersionNumber::fromString("1.0.0").value(), root / "bank"},
+        {"session.dup", stdc::VersionNumber::fromString("2.0.0").value(), root / "bank2"},
     };
     REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
 
@@ -247,8 +247,8 @@ TEST_CASE("convertS2p with explicit version routes to that version",
     REQUIRE(session.refreshAsync().get().succeeded);
 
     std::vector<srt::g2p::PackageDirectoryEntry> entries = {
-        {"session.dup", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
-        {"session.dup", stdc::VersionNumber::fromString("2.0.0"), root / "bank2"},
+        {"session.dup", stdc::VersionNumber::fromString("1.0.0").value(), root / "bank"},
+        {"session.dup", stdc::VersionNumber::fromString("2.0.0").value(), root / "bank2"},
     };
     REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
 
@@ -363,7 +363,7 @@ TEST_CASE("convertS2p with unknown language returns G2pValidationError",
     REQUIRE(session.refreshAsync().get().succeeded);
 
     std::vector<srt::g2p::PackageDirectoryEntry> entries = {
-        {"session.test", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
+        {"session.test", stdc::VersionNumber::fromString("1.0.0").value(), root / "bank"},
     };
     REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
 
@@ -388,7 +388,7 @@ TEST_CASE("convertG2p with unknown language returns G2pValidationError",
     REQUIRE(session.refreshAsync().get().succeeded);
 
     std::vector<srt::g2p::PackageDirectoryEntry> entries = {
-        {"session.test", stdc::VersionNumber::fromString("1.0.0"), root / "bank"},
+        {"session.test", stdc::VersionNumber::fromString("1.0.0").value(), root / "bank"},
     };
     REQUIRE(langSvc->initializeMetadata({}, {}, entries).hasValue());
 

@@ -31,7 +31,7 @@ namespace srt::extract {
         virtual srt::core::Expected<srt::core::NO<MidiExtractor>>
         createExtractor(srt::core::Runtime *runtime) = 0;
 
-        STDCORELIB_DISABLE_COPY(MidiExtractorPlugin)
+        STDC_DISABLE_COPY(MidiExtractorPlugin)
     };
 
 } // namespace srt::extract

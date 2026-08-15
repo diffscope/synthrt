@@ -63,7 +63,7 @@ TEST_CASE("loadVoicebank fails with SessionError when no snapshot", "[lifecycle]
 TEST_CASE("loadVoicebank fails with InferenceNotInitialized when no Runtime", "[lifecycle][s2]") {
     ds::session::VoicebankSession session;
     configureSessionNoRuntime(session);
-    auto exp = session.loadVoicebank("session.test", stdc::VersionNumber::fromString("1.0.0"));
+    auto exp = session.loadVoicebank("session.test", stdc::VersionNumber::fromString("1.0.0").value());
     REQUIRE(!exp);
     REQUIRE(exp.error().code() == srt::core::ErrorCode::InferenceNotInitialized);
 }
@@ -81,7 +81,7 @@ TEST_CASE("loadVoicebank fails with RuntimePackageNotLoaded for unknown package"
 TEST_CASE("unloadVoicebank fails with RuntimePackageNotLoaded when not loaded", "[lifecycle][s2]") {
     ds::session::VoicebankSession session;
     configureSessionNoRuntime(session);
-    auto exp = session.unloadVoicebank("session.test", stdc::VersionNumber::fromString("1.0.0"));
+    auto exp = session.unloadVoicebank("session.test", stdc::VersionNumber::fromString("1.0.0").value());
     REQUIRE(!exp);
     REQUIRE(exp.error().code() == srt::core::ErrorCode::RuntimePackageNotLoaded);
 }
@@ -89,7 +89,7 @@ TEST_CASE("unloadVoicebank fails with RuntimePackageNotLoaded when not loaded", 
 TEST_CASE("unloadVoicebank ForceUnloadTag fails with RuntimePackageNotLoaded when not loaded", "[lifecycle][s2]") {
     ds::session::VoicebankSession session;
     configureSessionNoRuntime(session);
-    auto exp = session.unloadVoicebank("session.test", stdc::VersionNumber::fromString("1.0.0"),
+    auto exp = session.unloadVoicebank("session.test", stdc::VersionNumber::fromString("1.0.0").value(),
                                         ds::session::ForceUnloadTag{});
     REQUIRE(!exp);
     REQUIRE(exp.error().code() == srt::core::ErrorCode::RuntimePackageNotLoaded);

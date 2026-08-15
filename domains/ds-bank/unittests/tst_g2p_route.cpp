@@ -145,7 +145,7 @@ TEST_CASE("G2pInput default construction has empty fields", "[g2p][route][input]
 }
 
 TEST_CASE("G2pInput full construction propagates all fields", "[g2p][route][input]") {
-    auto version = stdc::VersionNumber::fromString("2.1.0");
+    auto version = stdc::VersionNumber::fromString("2.1.0").value();
     G2pInput input("hello", "g2p-en-official", "my_singer", version);
     REQUIRE(input.lyric == "hello");
     REQUIRE(input.g2pId == "g2p-en-official");
@@ -241,7 +241,7 @@ TEST_CASE("G2pRes g2pSource defaults to empty", "[g2p][route][res]") {
 }
 
 TEST_CASE("G2pRes g2pSource set to voicebank in full constructor", "[g2p][route][res]") {
-    auto version = stdc::VersionNumber::fromString("1.0");
+    auto version = stdc::VersionNumber::fromString("1.0").value();
     G2pRes res("test", "g2p-x", "my_singer", version, "t eh s t",
                {}, kG2pModeConvert, NoError, kG2pSourceVoicebank);
     REQUIRE(res.g2pSource == kG2pSourceVoicebank);

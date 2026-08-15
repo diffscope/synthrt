@@ -235,7 +235,7 @@ namespace srt::core {
             }
             it = obj.find("version");
             if (it != obj.end() && it->second.isString()) {
-                pkgVersion = stdc::VersionNumber::fromString(it->second.toString());
+                pkgVersion = stdc::VersionNumber::fromString(it->second.toString()).value_or(stdc::VersionNumber());
             }
         }
         if (pkgId.empty()) {

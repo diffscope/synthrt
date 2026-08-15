@@ -7,9 +7,9 @@
 #    define DSBANK_EXPORT
 #  else
 #    ifdef DSBANK_LIBRARY
-#      define DSBANK_EXPORT STDCORELIB_DECL_EXPORT
+#      define DSBANK_EXPORT STDC_DECL_EXPORT
 #    else
-#      define DSBANK_EXPORT STDCORELIB_DECL_IMPORT
+#      define DSBANK_EXPORT STDC_DECL_IMPORT
 #    endif
 #  endif
 #endif

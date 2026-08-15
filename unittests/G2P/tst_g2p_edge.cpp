@@ -108,7 +108,7 @@ namespace {
 // ===========================================================================
 TEST_CASE("G2P-001/002: addPackagePath error cases", "[g2p][edge]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     SECTION("G2P-001a: empty context + non-empty version -> G2pValidationError") {
         // R-8: default context cannot carry a version.
@@ -169,7 +169,7 @@ TEST_CASE("G2P-004: removeContextsByPrefix after initialize fails", "[g2p][edge]
     ensureManagerInitialized(mgr);
     REQUIRE(mgr->initialized());
 
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
     auto exp = mgr->removeContextsByPrefix("edge_prefix", v1);
     REQUIRE(!exp.hasValue());
     REQUIRE(exp.takeError().code() == ErrorCode::G2pAlreadyInitialized);
@@ -182,7 +182,7 @@ TEST_CASE("G2P-004: removeContextsByPrefix after initialize fails", "[g2p][edge]
 TEST_CASE("G2P-005: contextState for unregistered context is NotRegistered",
           "[g2p][edge]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
     const ContextKey unregistered("unregistered_ctx", v1);
     REQUIRE(pm.contextState(unregistered) == ContextState::NotRegistered);
 }
@@ -210,7 +210,7 @@ TEST_CASE("G2P-006: open with malformed package.json", "[g2p][edge]") {
 TEST_CASE("G2P-007: find with nonexistent packageId returns empty Package",
           "[g2p][edge]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     auto pkg = pm.find("nonexistent_pkg_id", v1);
     REQUIRE(!pkg.isValid());
@@ -222,8 +222,8 @@ TEST_CASE("G2P-007: find with nonexistent packageId returns empty Package",
 // ===========================================================================
 TEST_CASE("G2P-008: multi-version same packageId coexistence", "[g2p][edge]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
-    const auto v2 = stdc::VersionNumber::fromString("2.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
+    const auto v2 = stdc::VersionNumber::fromString("2.0.0").value();
     const std::string pkgId = "edge.coxist";
 
     const auto dir1 = makeTempDir("g2p008-v1");
@@ -280,7 +280,7 @@ TEST_CASE("G2P-010: convert with empty-string G2pInput does not crash",
 TEST_CASE("G2P-011: task with nonexistent category returns RouteNotFound",
           "[g2p][edge]") {
     Manager *mgr = Manager::instance();
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     auto exp = mgr->task("nonexistent_category", "ctx", v1, "some_id");
     REQUIRE(!exp.hasValue());
@@ -347,7 +347,7 @@ TEST_CASE("G2P-014: PackageManager contextKeys empty on fresh instance",
 TEST_CASE("G2P-015: PackageManager packagePaths for unregistered context is empty",
           "[g2p][edge]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
     REQUIRE(pm.packagePaths("unregistered_ctx", v1).empty());
 }
 
@@ -404,7 +404,7 @@ TEST_CASE("G2P-019: VersionNumber empty version construction and comparison",
     const stdc::VersionNumber empty;
     REQUIRE(empty.isEmpty());
 
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
     REQUIRE(!v1.isEmpty());
     REQUIRE(empty == stdc::VersionNumber{});
     REQUIRE(!(empty == v1));
@@ -420,7 +420,7 @@ TEST_CASE("G2P-019: VersionNumber empty version construction and comparison",
 TEST_CASE("G2P-020: addPackagePath accumulates distinct paths for same context",
           "[g2p][edge]") {
     PackageManager pm;
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
     const auto dir1 = makeTempDir("g2p020-a");
     const auto dir2 = makeTempDir("g2p020-b");
 

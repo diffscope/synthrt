@@ -308,7 +308,7 @@ namespace srt::svs {
                                 break;
                             }
                             auto declaredVer =
-                                stdc::VersionNumber::fromString(import._declaredVersion);
+                                stdc::VersionNumber::fromString(import._declaredVersion).value_or(stdc::VersionNumber());
                             if (infSpec->packageVersion() == declaredVer) {
                                 found = infSpec;
                                 break;

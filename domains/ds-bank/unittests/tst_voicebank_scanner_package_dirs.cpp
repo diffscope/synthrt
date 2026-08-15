@@ -90,8 +90,8 @@ TEST_CASE("VoicebankScanner packageDirectories returns all versions",
     const std::string packageId = "pkgdirs.multiver";
     const auto pkgDir1 = root / "pkg_v1";
     const auto pkgDir2 = root / "pkg_v2";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
-    const auto v2 = stdc::VersionNumber::fromString("2.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
+    const auto v2 = stdc::VersionNumber::fromString("2.0.0").value();
 
     createPackage(pkgDir1, packageId, "1.0.0");
     createPackage(pkgDir2, packageId, "2.0.0");
@@ -156,7 +156,7 @@ TEST_CASE("VoicebankScanner packageDirectories dedups same version",
     const auto root1 = makeTempDir("dedup-1");
     const auto root2 = makeTempDir("dedup-2");
     const std::string packageId = "pkgdirs.dedup";
-    const auto v1 = stdc::VersionNumber::fromString("1.0.0");
+    const auto v1 = stdc::VersionNumber::fromString("1.0.0").value();
 
     // Same packageId+version in two search paths. The second refresh
     // overwrites the first's path (matches legacy overwrite-on-same-packageId

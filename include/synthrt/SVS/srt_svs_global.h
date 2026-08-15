@@ -10,9 +10,9 @@
 #    define SRT_SVS_EXPORT
 #  else
 #    ifdef SRT_SVS_LIBRARY
-#      define SRT_SVS_EXPORT STDCORELIB_DECL_EXPORT
+#      define SRT_SVS_EXPORT STDC_DECL_EXPORT
 #    else
-#      define SRT_SVS_EXPORT STDCORELIB_DECL_IMPORT
+#      define SRT_SVS_EXPORT STDC_DECL_IMPORT
 #    endif
 #  endif
 #endif

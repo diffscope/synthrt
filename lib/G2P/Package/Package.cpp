@@ -54,7 +54,7 @@ namespace srt::g2p {
             auto it = root.find("version");
             if (it == root.end() || !it->second.isString())
                 return Error(ErrorCode::G2pConfigError, "package.json missing required field: version");
-            m_version = stdc::VersionNumber::fromString(it->second.toString());
+            m_version = stdc::VersionNumber::fromString(it->second.toString()).value_or(stdc::VersionNumber());
             if (m_version.isEmpty())
                 return Error(ErrorCode::G2pConfigError, "package.json version is empty/zero");
         }
@@ -63,7 +63,7 @@ namespace srt::g2p {
         {
             auto it = root.find("compatVersion");
             if (it != root.end() && it->second.isString()) {
-                m_compatVersion = stdc::VersionNumber::fromString(it->second.toString());
+                m_compatVersion = stdc::VersionNumber::fromString(it->second.toString()).value_or(stdc::VersionNumber());
             } else {
                 m_compatVersion = m_version;
             }

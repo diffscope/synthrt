@@ -45,8 +45,8 @@ namespace ds::bank {
         if (stored == query) {
             return true;
         }
-        const auto storedVN = stdc::VersionNumber::fromString(stored);
-        const auto queryVN = stdc::VersionNumber::fromString(query);
+        const auto storedVN = stdc::VersionNumber::fromString(stored).value_or(stdc::VersionNumber());
+        const auto queryVN = stdc::VersionNumber::fromString(query).value_or(stdc::VersionNumber());
         return storedVN == queryVN;
     }
 

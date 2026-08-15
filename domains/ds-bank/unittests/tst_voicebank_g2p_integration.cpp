@@ -582,7 +582,7 @@ TEST_CASE("Integration: G2pRes skip mode for empty lyric", "[integration][g2p-re
 
 TEST_CASE("Integration: G2pRes failure with voicebank source", "[integration][g2p-res]") {
     // Simulate a voicebank G2P that failed.
-    auto version = stdc::VersionNumber::fromString("1.0");
+    auto version = stdc::VersionNumber::fromString("1.0").value();
     G2pRes res("unknown_word", "g2p-cmn-custom", "singer_vb", version,
                "unknown_word", {}, kG2pModeCopy, ModelInferenceFailed, kG2pSourceVoicebank);
     REQUIRE(res.isFailed());

@@ -24,7 +24,7 @@ namespace srt::driver {
         virtual srt::core::NO<InferenceDriver> create() = 0;
 
     public:
-        STDCORELIB_DISABLE_COPY(InferenceDriverPlugin)
+        STDC_DISABLE_COPY(InferenceDriverPlugin)
     };
 
 }
