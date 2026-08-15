@@ -52,7 +52,7 @@ namespace srt::driver::onnx {
 #endif
             if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint |
                                        stdc::SharedLibrary::ExportExternalSymbolsHint)) {
-                std::string msg = stdc::formatN("Load library failed: %1 [%2]", dylib->lastError(), path);
+                std::string msg = stdc::formatN("Load library failed: %1 [%2]", dylib->errorMessage(), path);
                 Log.srtCritical("Init - %1", msg);
 #ifdef _WIN32
                 stdc::SharedLibrary::setLibraryPath(orgLibPath);
@@ -69,7 +69,7 @@ namespace srt::driver::onnx {
             Log.srtDebug("Init - Getting ORT API handle");
             auto handle = reinterpret_cast<OrtApiBase *(ORT_API_CALL *)()>(dylib->resolve("OrtGetApiBase"));
             if (!handle) {
-                std::string msg = stdc::formatN("Failed to get API handle: %1 [%2]", dylib->lastError(), path);
+                std::string msg = stdc::formatN("Failed to get API handle: %1 [%2]", dylib->errorMessage(), path);
                 Log.srtCritical("Init - %1", msg);
                 return std::move(srt::core::Error(srt::core::Error::SessionError, std::move(msg))
                                      .withTrace(std::source_location::current(), "OnnxDriver::Impl::load"));
