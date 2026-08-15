@@ -5,6 +5,10 @@
 #include <optional>
 #include <mutex>
 
+#ifdef _WIN32
+#  include <stdcorelib/platform/windows/stdc_windows.h>
+#endif
+
 #if __has_include(<dml_provider_factory.h>)
 #  define ONNXDRIVER_FOUND_DML
 #  include <dml_provider_factory.h>
