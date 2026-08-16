@@ -9,6 +9,7 @@
 #include <stdcorelib/pimpl.h>
 
 #include <synthrt/Core/Dependency/DependencyGraph.h>
+#include <synthrt/Core/Dependency/DependencyResolver.h>
 #include <synthrt/Core/Dependency/LevelCompatibilityChecker.h>
 #include <synthrt/Core/Support/Logging.h>
 #include <synthrt/G2P/Support/ContextUtils.h>
@@ -86,6 +87,14 @@ namespace srt::g2p {
         return compatible;
     }
 
+    /// 解析模块间声明的依赖（package.json 的 dependencies），
+    /// 填充 resolvedDependencies，使依赖图能按拓扑序初始化包
+    /// （如 chain 包依赖 multig2p 时，multig2p 必须先于 chain 创建）。
+    static bool resolveModuleDependencies(std::vector<srt::dependency::ModuleMetadata> &compatibleModules) {
+        srt::dependency::DependencyResolver resolver;
+        return resolver.resolveAllDependencies(compatibleModules, {});
+    }
+
     srt::core::Expected<void> Manager::initialize() {
         auto &impl = *static_cast<PackageManager::Impl *>(_impl.get());
 
@@ -156,6 +165,10 @@ namespace srt::g2p {
                         "Ord-1: Default context has no compatible modules after Level check; "
                         "official G2P unavailable");
                 } else {
+                    if (!resolveModuleDependencies(compatibleModules)) {
+                        return Error(ErrorCode::G2pDependencyError,
+                                     "Ord-1: Failed to resolve module dependencies for default context");
+                    }
                     auto &depGraph = impl.m_contextDependencyGraphs[srt::core::ContextKey("")];
                     depGraph.clear();
                     for (const auto &info : compatibleModules)

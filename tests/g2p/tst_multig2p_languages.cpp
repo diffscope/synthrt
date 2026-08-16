@@ -381,6 +381,10 @@ TEST_CASE("multig2p inference produces phonemes per language", "[g2p][multig2p][
 // those words fell into copy mode and ds_cmudict-07b.txt was never consulted
 // — producing "unknown token <lyric>" downstream. The regex now accepts
 // internal apostrophes and hyphens.
+//
+// Hyphenated words not in the dictionary (e.g. "hello-world") are split into
+// parts, each inferred through the ONNX model, then the phoneme lists are
+// merged back — see ModelStep.
 
 TEST_CASE("eng chain converts apostrophe and hyphen words through the manager",
           "[g2p][chain][eng][package-data]") {
@@ -397,8 +401,14 @@ TEST_CASE("eng chain converts apostrophe and hyphen words through the manager",
         {"don't", "d ow n t"},
         {"e-mail", "iy m ey l"},
         {"it's", "ih t s"},
-        {"x-ray", "eh k s r ey"},
-        {"hello", "hh ax l ow"}, // plain word: no regression
+        {"x-ray", "eh k s r ey"},        // in dict: hyphen lookup, no model
+        {"hello", "hh ax l ow"},         // plain word: dict hit
+        {"hello-world", "hh ax l ow w er l d"}, // dict-first per part: hello/world resolved by dict, merged into ONE sequence
+        {"hello--world", "hh ax l ow w er l d"}, // double hyphen: empty part skipped, dict-first merge
+        {"happy-birthday", "hh ae p iy b er th d ey"}, // both parts in dict: no model call at all
+        {"hello-zzzzz", "hh ax l ow z eh z"}, // dict part (hello) + OOV part (zzzzz): only the miss hits the model, merged
+        {"world", "w er l d"},           // hello-world part: dict path sanity
+        {"zzzzz", "z eh z"},             // OOV: not in ds_cmudict, pure model path
     };
 
     for (const auto &c : cases) {
@@ -429,6 +439,30 @@ TEST_CASE("eng chain keeps pure-uppercase words in copy mode",
     REQUIRE(resultExp);
     const auto result = resultExp.take();
     REQUIRE(result.mode == srt::g2p::kG2pModeCopy);
+}
+
+// === eng chain: hyphen word fails as a whole when any part fails ===
+// All-or-nothing semantics in ModelStep: "hello-''" splits into "hello"
+// (dict hit) and "''" (apostrophe-only part the model cannot phonemize —
+// empty phonemes → PhonemeGenerationFailed). The whole hyphen word must
+// fail: no partial merged sequence may be produced.
+
+TEST_CASE("eng chain fails the whole hyphen word when any part fails",
+          "[g2p][chain][eng][package-data]") {
+    auto &f = fixture();
+    if (!f.ready) {
+        SKIP("L2 fixture not ready: " << f.setupError);
+    }
+
+    auto resultExp = runG2pWithTask("hello-''", "g2p-eng-official");
+    REQUIRE(resultExp);
+    const auto result = resultExp.take();
+    INFO("pronunciation='" << result.pronunciation << "' mode='"
+         << result.mode << "' errorType="
+         << static_cast<int>(result.errorType));
+    REQUIRE_FALSE(result.ok);
+    REQUIRE(result.errorType == srt::g2p::PhonemeGenerationFailed);
+    REQUIRE(result.pronunciation == "hello-''");
 }
 
 // === jpn chain: kana must reach kana2romaji.txt; ん → lowercase n ===

@@ -9,7 +9,7 @@
         "moduleId": "g2p-eng-official",
         "class": "g2p.chain.ChainG2pInference",
         "configuration": "modules/ChainG2p-Eng/config.json",
-        "dependencies": ["g2p-multig2p-multi-official"]
+        "dependencies": [{"packageId": "multi-official", "moduleId": "g2p-multig2p-multi-official", "level": -1}]
       }
     ]
   }
