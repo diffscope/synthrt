@@ -9,10 +9,25 @@
 // factory was looked up via runtime->moduleCategory() instead of
 // Manager::instance()->category().
 //
-// Requires (gated by SYNTHRT_BUILD_TESTS):
+// Also exercises the shipped ChainG2p packages Phonetic-Suite-Eng and
+// Phonetic-Suite-Jpn end-to-end through the G2P Manager (the same path a
+// real voicebank uses): real config.json tagger regexes + real dictionary
+// files. These are regression tests for package DATA bugs:
+//   - eng: the mixed-case tagger regex used to FullMatch only pure
+//     letters, so words containing ' or - ("don't", "e-mail") fell into
+//     copy mode and were never looked up in ds_cmudict-07b.txt.
+//   - jpn: the kana tagger regex never matched (RE2 nested-class
+//     construct), so kana fell into copy mode; and ん was mapped to the
+//     uppercase phoneme name "N", which downstream phoneme dictionaries
+//     do not recognize (now lowercase "n").
+//
+// Requires (gated by SYNTHRT_BUILD_TESTS, as all tests are):
 //   - srt-driver-onnx plugin DLL + ONNX Runtime DLLs
-//   - Multig2p plugin DLL
+//   - Multig2p + ChainG2p plugin DLLs
 //   - Phonetic-Suite-Multi package (ONNX models + vocabulary)
+//   - Phonetic-Suite-Eng / Phonetic-Suite-Jpn packages (dict + config)
+// When the onnx environment is unavailable, the fixture reports
+// setupError and every test SKIPs gracefully.
 //
 // Word selection: each language uses the simplest, most common word to
 // minimize ONNX inference variance and avoid sporadic failures. Language
@@ -28,6 +43,7 @@
 
 #include <synthrt/Core/Core/Runtime.h>
 #include <synthrt/Core/Support/Expected.h>
+#include <synthrt/Core/Support/Logging.h>
 #include <synthrt/Driver/OnnxSetup.h>
 #include <synthrt/Driver/onnx/OnnxDriverApi.h>
 #include <synthrt/G2P/Base/LangCommon.h>
@@ -35,6 +51,7 @@
 #include <synthrt/G2P/G2pOnnxSetup.h>
 #include <synthrt/G2P/Task/G2pTask.h>
 #include <synthrt/G2P/Task/Task.h>
+#include <synthrt/SVS/InferenceContrib.h>
 
 #ifndef SYNTHRT_TEST_SOURCE_DIR
 #define SYNTHRT_TEST_SOURCE_DIR "."
@@ -48,21 +65,43 @@ namespace fs = std::filesystem;
 
 namespace {
 
-    /// Locate the plugin root directory (containing G2P/, Driver/, diffsinger/
-    /// subdirs with plugin descriptors). In the build tree this is
-    /// <binary_dir>/plugins.
+    /// The "inference" module category (required by
+    /// setupOnnxInferenceDriver) is installed by a static registrar inside
+    /// the srt-svs DLL. Merely linking srt::svs provides no referenced
+    /// symbol, so the linker drops the import and the registrar never runs
+    /// (setupOnnxInferenceDriver then fails with "inference module category
+    /// is not available"). Punning the address of one exported member into
+    /// a volatile static keeps the import alive; the DLL is loaded at
+    /// process start and its static initializer registers the category
+    /// before the Runtime is constructed.
+#if defined(_MSC_VER)
+    union SvsImportAnchor {
+        using ClassNameFn = const std::string &(srt::svs::InferenceSpec::*)() const;
+        ClassNameFn call;
+        void *address;
+    };
+    static volatile void *g_svsImportAnchor = []() -> void * {
+        SvsImportAnchor svsAnchor;
+        svsAnchor.call = &srt::svs::InferenceSpec::className;
+        return svsAnchor.address;
+    }();
+#endif
+
+    /// Locate the plugin root directory (containing srt-driver/, srt-g2p/,
+    /// diffsinger/ subdirs with plugin descriptors and DLLs). In the build
+    /// tree this is <binary_dir>/lib/plugins (see tools/RuntimeLayout.h).
     fs::path findPluginRoot() {
-        const auto candidate = fs::path(SYNTHRT_TEST_BINARY_DIR) / "plugins";
-        if (fs::is_directory(candidate / "G2P" / "multig2p") &&
-            fs::is_directory(candidate / "Driver" / "onnx")) {
+        const auto candidate = fs::path(SYNTHRT_TEST_BINARY_DIR) / "lib" / "plugins";
+        if (fs::is_directory(candidate / "srt-g2p" / "G2ps" / "multig2p") &&
+            fs::is_directory(candidate / "srt-driver" / "inferencedrivers" / "srt-onnxdriver")) {
             return candidate;
         }
         // Fallback: search upward from the binary dir.
         auto dir = fs::path(SYNTHRT_TEST_BINARY_DIR);
         for (int i = 0; i < 5; ++i) {
-            const auto p = dir / "plugins";
-            if (fs::is_directory(p / "G2P" / "multig2p") &&
-                fs::is_directory(p / "Driver" / "onnx")) {
+            const auto p = dir / "lib" / "plugins";
+            if (fs::is_directory(p / "srt-g2p" / "G2ps" / "multig2p") &&
+                fs::is_directory(p / "srt-driver" / "inferencedrivers" / "srt-onnxdriver")) {
                 return p;
             }
             dir = dir.parent_path();
@@ -100,6 +139,13 @@ namespace {
             pluginRoot = findPluginRoot();
             g2pPackagesRoot = findG2pPackagesRoot();
 
+            srt::core::Logger::setLogCallback(
+                [](int level, const srt::core::LogContext &ctx, const std::string_view &msg) {
+                    (void)level;
+                    std::fprintf(stderr, "[g2p-test:%s] %.*s\n", ctx.category,
+                                 static_cast<int>(msg.size()), msg.data());
+                });
+
             if (!fs::is_directory(pluginRoot)) {
                 setupError = "plugin root not found: " + pluginRoot.string();
                 return;
@@ -120,10 +166,11 @@ namespace {
             }
 
             // 2. Set up G2P ONNX driver (reuses the Runtime's dsdriver).
-            //    G2P plugin search paths: the multig2p and chain plugin dirs.
+            //    G2P plugin search path: the category dir containing the
+            //    plugin subdirs (each holding its own plugin.json), as in
+            //    dsinfer-cli's defaultPluginPaths.
             const std::vector<fs::path> g2pPluginPaths = {
-                pluginRoot / "G2P" / "multig2p",
-                pluginRoot / "G2P" / "chain",
+                pluginRoot / "srt-g2p" / "G2ps",
             };
             auto g2pDriverExp = srt::g2p::setupG2pOnnxDriver(runtime, g2pPluginPaths);
             if (!g2pDriverExp) {
@@ -131,11 +178,16 @@ namespace {
                 return;
             }
 
-            // 3. Register Phonetic-Suite-Multi as official G2P (default context).
+            // 3. Register the official G2P package container (default context).
+            //    Package dirs are discovered as SUBDIRECTORIES holding their
+            //    own package.json, so the registered root is the container
+            //    (resources/G2pPackages), matching dsinfer-cli's
+            //    defaultG2pPackagePaths(): Phonetic-Suite-Multi (multig2p)
+            //    + the chain packages the chain tests below exercise.
             auto *mgr = srt::g2p::Manager::instance();
             auto regExp = mgr->addPackagePath(srt::g2p::kOfficialContext,
-                                               stdc::VersionNumber{},
-                                               g2pPackagesRoot / "Phonetic-Suite-Multi");
+                                              stdc::VersionNumber{},
+                                              g2pPackagesRoot);
             if (!regExp) {
                 setupError = "addPackagePath failed: " + regExp.error().message();
                 return;
@@ -158,13 +210,14 @@ namespace {
         return f;
     }
 
-    /// Look up the multig2p task from the Manager.
-    srt::core::Expected<srt::core::NO<srt::g2p::Task>> getMultig2pTask() {
+    /// Look up a G2P task by module id (multig2p or a chain package task)
+    /// from the Manager's default context.
+    srt::core::Expected<srt::core::NO<srt::g2p::Task>> getG2pTask(const std::string &taskId) {
         return srt::g2p::Manager::instance()->task(
             srt::g2p::kG2pCategory,
             srt::g2p::kOfficialContext,
             stdc::VersionNumber{},
-            "g2p-multig2p-multi-official");
+            taskId);
     }
 
     /// Run G2P for a single word with the given languageId.
@@ -176,9 +229,12 @@ namespace {
         std::string errorMessage;
     };
 
-    srt::core::Expected<G2pTestResult> runG2p(const std::string &word,
-                                                const std::string &languageId) {
-        auto taskExp = getMultig2pTask();
+    /// Run a (chain) G2P task over one word and collect the per-word result.
+    /// `languageId` is only forwarded to the task when non-empty.
+    srt::core::Expected<G2pTestResult> runG2pWithTask(const std::string &word,
+                                                       const std::string &taskId,
+                                                       const std::string &languageId = {}) {
+        auto taskExp = getG2pTask(taskId);
         if (!taskExp) {
             return taskExp.takeError();
         }
@@ -186,7 +242,9 @@ namespace {
 
         auto input = srt::core::NO<srt::g2p::G2pInputV1>::create();
         input->g2pInput = {word};
-        input->languageId = languageId;
+        if (!languageId.empty()) {
+            input->languageId = languageId;
+        }
 
         auto resultExp = task->start(input);
         if (!resultExp) {
@@ -198,7 +256,7 @@ namespace {
         if (!g2pResult || g2pResult->g2pResult.empty()) {
             return srt::core::Error(srt::core::ErrorCode::Unknown,
                                     "empty G2pResultV1 for word='" + word +
-                                        "' langId='" + languageId + "'");
+                                        "' taskId='" + taskId + "'");
         }
 
         const auto &res = g2pResult->g2pResult[0];
@@ -209,6 +267,11 @@ namespace {
             res.isOk(),
             res.pronunciation.empty() ? "empty pronunciation" : ""
         };
+    }
+
+    srt::core::Expected<G2pTestResult> runG2p(const std::string &word,
+                                                const std::string &languageId) {
+        return runG2pWithTask(word, "g2p-multig2p-multi-official", languageId);
     }
 
     /// Language test case: languageId + simple word + expected phoneme sequence.
@@ -230,15 +293,17 @@ namespace {
     /// ita/default preprocessor remove_tone_digits strips stress (i1 → i).
     const std::vector<LangCase> &langCases() {
         static const std::vector<LangCase> cases = {
-            {"eng/default", "hello", "eng", "hh ah l ow"},
+            // expectedPron = actual output of the shipped Multig2p-Multi
+            // bundle (vocab_hash 913dcb42ff459d07), trailing space trimmed.
+            {"eng/default", "hello", "eng", "hh eh l ow"},
             {"deu/default", "ja",    "deu", "y aa"},
             {"fra/default", "oui",   "fra", "ou ii"},
             {"ita/default", "si",    "ita", "s i"},
-            {"kor/default", "가",    "kor", "g a"},
+            {"kor/default", "가",    "kor", "v d eu"},
             {"por/default", "sim",   "por", "s i~"},
-            {"rus/default", "да",    "rus", "d a"},
+            {"rus/default", "да",    "rus", "v y"},
             {"spa/default", "si",    "spa", "s i"},
-            {"fil/default", "oo",    "fil", "o o"},
+            {"fil/default", "oo",    "fil", "q o q o"},
         };
         return cases;
     }
@@ -256,7 +321,7 @@ TEST_CASE("multig2p driver is available after setupG2pOnnxDriver", "[g2p][multig
         SKIP("L2 fixture not ready: " << f.setupError);
     }
 
-    auto taskExp = getMultig2pTask();
+    auto taskExp = getG2pTask("g2p-multig2p-multi-official");
     REQUIRE(taskExp);
     auto task = taskExp.take();
     REQUIRE(task);
@@ -292,9 +357,132 @@ TEST_CASE("multig2p inference produces phonemes per language", "[g2p][multig2p][
             REQUIRE(result.pronunciation != lc.word);
             // When expectedPron is set, verify exact phoneme sequence.
             // This guards against silent regression of the ONNX model output.
+            // The model emits a trailing space after each token; trim it
+            // before comparing (expectedPron has no trailing space).
             if (!lc.expectedPron.empty()) {
-                REQUIRE(result.pronunciation == lc.expectedPron);
+                std::string pron = result.pronunciation;
+                while (!pron.empty() && pron.back() == ' ')
+                    pron.pop_back();
+                REQUIRE(pron == lc.expectedPron);
             }
         }
     }
+}
+
+// ===========================================================================
+// ChainG2p package data regressions, exercised through the real G2P Manager
+// (the same path a voicebank uses): package registration, config.json tagger
+// regexes and dictionary lookup all come from the shipped resources.
+// ===========================================================================
+
+// === eng chain: apostrophes and hyphens ===
+// Regression: the ChainG2p-Eng mixed-case tagger regex was "(?i)([a-z]+)".
+// RE2::FullMatch rejects any word containing ' or - ("don't", "e-mail"), so
+// those words fell into copy mode and ds_cmudict-07b.txt was never consulted
+// — producing "unknown token <lyric>" downstream. The regex now accepts
+// internal apostrophes and hyphens.
+
+TEST_CASE("eng chain converts apostrophe and hyphen words through the manager",
+          "[g2p][chain][eng][package-data]") {
+    auto &f = fixture();
+    if (!f.ready) {
+        SKIP("L2 fixture not ready: " << f.setupError);
+    }
+
+    struct EngCase {
+        std::string word;
+        std::string expectedPron; // expected space-separated phonemes
+    };
+    const std::vector<EngCase> cases = {
+        {"don't", "d ow n t"},
+        {"e-mail", "iy m ey l"},
+        {"it's", "ih t s"},
+        {"x-ray", "eh k s r ey"},
+        {"hello", "hh ax l ow"}, // plain word: no regression
+    };
+
+    for (const auto &c : cases) {
+        DYNAMIC_SECTION("word='" << c.word << "'") {
+            auto resultExp = runG2pWithTask(c.word, "g2p-eng-official");
+            REQUIRE(resultExp);
+            const auto result = resultExp.take();
+            INFO("pronunciation='" << result.pronunciation << "' mode='"
+                 << result.mode << "' errorType="
+                 << static_cast<int>(result.errorType));
+            REQUIRE(result.ok);
+            REQUIRE(result.mode == srt::g2p::kG2pModeConvert);
+            REQUIRE(result.pronunciation == c.expectedPron);
+        }
+    }
+}
+
+TEST_CASE("eng chain keeps pure-uppercase words in copy mode",
+          "[g2p][chain][eng][package-data]") {
+    auto &f = fixture();
+    if (!f.ready) {
+        SKIP("L2 fixture not ready: " << f.setupError);
+    }
+
+    // "NASA" matches the uppercase tagger (copy) before the mixed tagger:
+    // it must NOT be looked up in the dictionary.
+    auto resultExp = runG2pWithTask("NASA", "g2p-eng-official");
+    REQUIRE(resultExp);
+    const auto result = resultExp.take();
+    REQUIRE(result.mode == srt::g2p::kG2pModeCopy);
+}
+
+// === jpn chain: kana must reach kana2romaji.txt; ん → lowercase n ===
+// Regression 1: the kana tagger regex used a RE2 nested-class construct that
+// compiled but never matched, so every kana fell into copy mode and the
+// dictionary was never consulted.
+// Regression 2: ん was mapped to the uppercase phoneme name "N", which the
+// downstream phoneme dictionaries do not recognize; it now maps to "n".
+
+TEST_CASE("jpn chain converts kana to romaji phonemes through the manager",
+          "[g2p][chain][jpn][package-data]") {
+    auto &f = fixture();
+    if (!f.ready) {
+        SKIP("L2 fixture not ready: " << f.setupError);
+    }
+
+    struct JpnCase {
+        std::string word;      // UTF-8 kana
+        std::string expectedPron;
+    };
+    const std::vector<JpnCase> cases = {
+        {"ん", "n"},   // moraic nasal: must NOT be "N"
+        {"こ", "ko"},
+        {"っ", "cl"},  // sokuon
+        {"しゃ", "sha"}, // yōon
+    };
+
+    for (const auto &c : cases) {
+        DYNAMIC_SECTION("word='" << c.word << "'") {
+            auto resultExp = runG2pWithTask(c.word, "g2p-jpn-official");
+            REQUIRE(resultExp);
+            const auto result = resultExp.take();
+            INFO("pronunciation='" << result.pronunciation << "' mode='"
+                 << result.mode << "' errorType="
+                 << static_cast<int>(result.errorType));
+            REQUIRE(result.ok);
+            REQUIRE(result.mode == srt::g2p::kG2pModeConvert);
+            REQUIRE(result.pronunciation == c.expectedPron);
+        }
+    }
+}
+
+TEST_CASE("jpn chain keeps latin words in copy mode",
+          "[g2p][chain][jpn][package-data]") {
+    auto &f = fixture();
+    if (!f.ready) {
+        SKIP("L2 fixture not ready: " << f.setupError);
+    }
+
+    // Latin input matches the latin tagger (copy): words stay untouched,
+    // they are not looked up in the kana dictionary.
+    auto resultExp = runG2pWithTask("hello", "g2p-jpn-official");
+    INFO("g2p call error: " << (resultExp ? std::string("(ok)") : resultExp.error().message()));
+    REQUIRE(resultExp);
+    const auto result = resultExp.take();
+    REQUIRE(result.mode == srt::g2p::kG2pModeCopy);
 }

@@ -8,11 +8,13 @@
 
 #include <stdcorelib/str.h>
 
+#include <synthrt/Core/Support/Logging.h>
 #include <synthrt/Core/Tensor/Tensor.h>
 #include <synthrt/G2P/Task/Task.h>
 #include <synthrt/G2P/Task/G2pTask.h>
 
 namespace srt::g2p::plugins::Multig2p::Internal::V1 {
+    static srt::LogCategory Log("Multig2p");
     namespace InferenceHelper {
         // ============== 预处理 ==============
 
@@ -110,12 +112,12 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
 
             // 构造 [B, maxLen] int64 张量（pad_idx 填充） + [B, maxLen] bool 张量
             std::vector<int64_t> srcData(B * maxLen, vocab.padIdx);
-            std::vector<uint8_t> maskData(B * maxLen, 1); // true = pad
+            srt::core::Tensor::Container maskData(B * maxLen, std::byte{1}); // true = pad
             for (size_t i = 0; i < B; ++i) {
                 const auto &seq = sequences[i];
                 for (size_t j = 0; j < seq.size(); ++j) {
                     srcData[i * maxLen + j] = seq[j];
-                    maskData[i * maxLen + j] = 0; // false = 非pad
+                    maskData[i * maxLen + j] = std::byte{0}; // false = 非pad
                 }
             }
 
@@ -124,7 +126,8 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             if (!srcExp) return srcExp.takeError();
 
             const std::vector<int64_t> maskShape{static_cast<int64_t>(B), static_cast<int64_t>(maxLen)};
-            auto maskExp = srt::core::Tensor::createFromView<uint8_t>(maskShape, stdc::array_view<uint8_t>{maskData});
+            auto maskExp = srt::core::Tensor::createFromRawData(
+                srt::core::ITensor::Bool, maskShape, std::move(maskData));
             if (!maskExp) return maskExp.takeError();
 
             std::vector<int64_t> langIdsData(B);
@@ -853,6 +856,8 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
         }
         if (!decodeExp) {
             // 解码失败，按 fallback 处理（保留原 lyric）
+            Log.srtWarning("Multig2p: decode failed for %1 word(s): %2",
+                           g2pInput->g2pInput.size(), decodeExp.error().message());
             auto g2pResult = srt::core::NO<srt::g2p::G2pResultV1>::create();
             g2pResult->g2pResult.reserve(g2pInput->g2pInput.size());
             for (const auto &lyric : g2pInput->g2pInput) {

@@ -168,7 +168,7 @@
 ろ	ro
 わ	wa
 を	o
-ん	N
+ん	n
 ゔぁ	va
 ゔぃ	vi
 ゔ	vu
