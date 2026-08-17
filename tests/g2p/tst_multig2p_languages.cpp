@@ -382,9 +382,11 @@ TEST_CASE("multig2p inference produces phonemes per language", "[g2p][multig2p][
 // — producing "unknown token <lyric>" downstream. The regex now accepts
 // internal apostrophes and hyphens.
 //
-// Hyphenated words not in the dictionary (e.g. "hello-world") are split into
-// parts, each inferred through the ONNX model, then the phoneme lists are
-// merged back — see ModelStep.
+// Hyphenated words not in the dictionary (e.g. "hello-world") are sent to the
+// ONNX model as a WHOLE word (the model vocabulary contains the '-' token,
+// see Multig2p-Multi/vocabulary.json "eng/default/-"), and the model emits a
+// single phoneme sequence for the whole word — see ModelStep. Words that DO
+// match the dictionary as full words (e.g. "x-ray") keep the dict path.
 
 TEST_CASE("eng chain converts apostrophe and hyphen words through the manager",
           "[g2p][chain][eng][package-data]") {
@@ -403,10 +405,10 @@ TEST_CASE("eng chain converts apostrophe and hyphen words through the manager",
         {"it's", "ih t s"},
         {"x-ray", "eh k s r ey"},        // in dict: hyphen lookup, no model
         {"hello", "hh ax l ow"},         // plain word: dict hit
-        {"hello-world", "hh ax l ow w er l d"}, // dict-first per part: hello/world resolved by dict, merged into ONE sequence
-        {"hello--world", "hh ax l ow w er l d"}, // double hyphen: empty part skipped, dict-first merge
+        {"hello-world", "hh eh l ow w er l d"}, // whole word through the model (hyphen token consumed by the model)
+        {"hello--world", "hh eh l ow w er l d"}, // double hyphen: still one word, model path
         {"happy-birthday", "hh ae p iy b er th d ey"}, // both parts in dict: no model call at all
-        {"hello-zzzzz", "hh ax l ow z eh z"}, // dict part (hello) + OOV part (zzzzz): only the miss hits the model, merged
+        {"hello-zzzzz", "hh eh l ow z z"}, // whole word through the model; OOV part pronounced by the model
         {"world", "w er l d"},           // hello-world part: dict path sanity
         {"zzzzz", "z eh z"},             // OOV: not in ds_cmudict, pure model path
     };
@@ -441,13 +443,14 @@ TEST_CASE("eng chain keeps pure-uppercase words in copy mode",
     REQUIRE(result.mode == srt::g2p::kG2pModeCopy);
 }
 
-// === eng chain: hyphen word fails as a whole when any part fails ===
-// All-or-nothing semantics in ModelStep: "hello-''" splits into "hello"
-// (dict hit) and "''" (apostrophe-only part the model cannot phonemize —
-// empty phonemes → PhonemeGenerationFailed). The whole hyphen word must
-// fail: no partial merged sequence may be produced.
+// === eng chain: hyphen words go through the model as ONE whole word ===
+// Whole-word semantics in ModelStep: "hello-''" is sent to the ONNX model
+// as a single unit (no part splitting/merging). The model vocabulary
+// contains the apostrophe/hyphen tokens (Multig2p-Multi/vocabulary.json
+// "eng/default/-", "eng/default/'"), so the model consumes them and emits
+// one phoneme sequence for the whole word — exactly like any other OOV word.
 
-TEST_CASE("eng chain fails the whole hyphen word when any part fails",
+TEST_CASE("eng chain converts the whole hyphen word through the model",
           "[g2p][chain][eng][package-data]") {
     auto &f = fixture();
     if (!f.ready) {
@@ -460,9 +463,10 @@ TEST_CASE("eng chain fails the whole hyphen word when any part fails",
     INFO("pronunciation='" << result.pronunciation << "' mode='"
          << result.mode << "' errorType="
          << static_cast<int>(result.errorType));
-    REQUIRE_FALSE(result.ok);
-    REQUIRE(result.errorType == srt::g2p::PhonemeGenerationFailed);
-    REQUIRE(result.pronunciation == "hello-''");
+    REQUIRE(result.ok);
+    REQUIRE(result.mode == srt::g2p::kG2pModeConvert);
+    REQUIRE(result.errorType == srt::g2p::NoError);
+    REQUIRE(result.pronunciation == "hh eh l ow z");
 }
 
 // === jpn chain: kana must reach kana2romaji.txt; ん → lowercase n ===
