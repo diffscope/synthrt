@@ -469,6 +469,31 @@ TEST_CASE("eng chain converts the whole hyphen word through the model",
     REQUIRE(result.pronunciation == "hh eh l ow z");
 }
 
+// === deu chain: '-' token absent from the deu vocabulary → whole word fails ===
+// The multig2p vocabulary assigns the '-' symbol per language ({lang}/default/-);
+// deu (like ita/kor) has no such token. Sending "hello-world" with deu/default
+// would silently encode '-' as <unk> and produce garbage phonemes, so the whole
+// hyphenated word must fail instead (PhonemeGenerationFailed + original lyric),
+// never a partial or fabricated sequence.
+
+TEST_CASE("deu chain fails hyphen words because deu vocab has no '-' token",
+          "[g2p][chain][deu][package-data]") {
+    auto &f = fixture();
+    if (!f.ready) {
+        SKIP("L2 fixture not ready: " << f.setupError);
+    }
+
+    auto resultExp = runG2pWithTask("hello-world", "g2p-deu-official");
+    REQUIRE(resultExp);
+    const auto result = resultExp.take();
+    INFO("pronunciation='" << result.pronunciation << "' mode='"
+         << result.mode << "' errorType="
+         << static_cast<int>(result.errorType));
+    REQUIRE_FALSE(result.ok);
+    REQUIRE(result.errorType == srt::g2p::PhonemeGenerationFailed);
+    REQUIRE(result.pronunciation == "hello-world");
+}
+
 // === jpn chain: kana must reach kana2romaji.txt; ん → lowercase n ===
 // Regression 1: the kana tagger regex used a RE2 nested-class construct that
 // compiled but never matched, so every kana fell into copy mode and the

@@ -59,6 +59,7 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             srt::core::NO<srt::core::ITensor> langIds;
             std::vector<int> langIdList;       // 每个样本的 lang_id（用于 beam expand）
             std::vector<int> missingLangIndices; // lang_ref 未在 LangIdMap 中找到的样本下标
+            std::vector<int> unsupportedIndices; // 词含该语言词表不支持的 '-' 的样本下标
         };
 
         static srt::core::Expected<PreprocessResult>
@@ -82,6 +83,7 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             sequences.reserve(B);
             std::vector<int> langIdList(B, 0);
             std::vector<int> missingLangIndices;
+            std::vector<int> unsupportedIndices;
 
             // 语言前缀拆分（langRef = "lang/variant"）
             auto splitLangRef = [](const std::string &ref) -> std::pair<std::string, std::string> {
@@ -95,6 +97,13 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             size_t maxLen = 0;
             for (size_t i = 0; i < B; ++i) {
                 const auto [lang, variant] = splitLangRef(langRefs[i]);
+                // 连字符支持检查：'-' 必须存在于该语言词表（如 {lang}/default/-）。
+                // 词表缺 '-' 时 encodeWord 会把 '-' 编码成 <unk>，模型静默产出
+                // 错误音素序列——整词应报错而不是被当作 <unk> 糊过去。
+                if (words[i].find('-') != std::string::npos &&
+                    vocab.lookup(lang + "/" + variant + "/-") < 0) {
+                    unsupportedIndices.push_back(static_cast<int>(i));
+                }
                 auto seq = encodeWord(words[i], lang, variant, vocab);
                 maxLen = std::max(maxLen, seq.size());
                 sequences.push_back(std::move(seq));
@@ -142,6 +151,7 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
             r.langIds = langIdsExp.take();
             r.langIdList = std::move(langIdList);
             r.missingLangIndices = std::move(missingLangIndices);
+            r.unsupportedIndices = std::move(unsupportedIndices);
             return r;
         }
 
@@ -875,8 +885,22 @@ namespace srt::g2p::plugins::Multig2p::Internal::V1 {
         auto g2pResult = srt::core::NO<srt::g2p::G2pResultV1>::create();
         g2pResult->g2pResult.reserve(g2pInput->g2pInput.size());
 
+        // 词表不支持 '-' 的样本（如 deu/ita/kor 无 {lang}/default/-）：
+        // 整词报错，不做模型推理，避免 '-' 被编码为 <unk> 静默产出错误音素。
+        const std::unordered_set<int> unsupported(pre.unsupportedIndices.begin(),
+                                                  pre.unsupportedIndices.end());
+
         for (size_t i = 0; i < g2pInput->g2pInput.size(); ++i) {
             const auto &lyric = g2pInput->g2pInput[i];
+            if (unsupported.count(static_cast<int>(i))) {
+                g2pResult->g2pResult.emplace_back(srt::g2p::G2pRes{
+                    std::string(lyric), std::string(m_spec->id()), std::string(),
+                    stdc::VersionNumber{}, std::string(lyric),
+                    std::vector<std::string>(), std::string(srt::g2p::kG2pModeCopy),
+                    srt::g2p::PhonemeGenerationFailed, std::string()});
+                continue;
+            }
+
             auto phonemes = InferenceHelper::decodePhonemes(decodeResult.tokens[i], m_vocab);
 
             std::string pronStr;
