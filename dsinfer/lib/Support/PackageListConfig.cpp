@@ -35,13 +35,13 @@ namespace ds {
             std::stringstream ss;
             ss << file.rdbuf();
 
-            std::string error2;
+            stdc::JsonParseError error2;
             auto root = JsonValue::fromJson(ss.str(), true, &error2);
-            if (!error2.empty()) {
+            if (error2) {
                 return Error{
                     Error::InvalidFormat,
                     stdc::formatN(R"(%1: invalid package list configuration format: %2)", path,
-                                  error2),
+                                  error2.message()),
                 };
             }
             if (!root.isObject()) {

@@ -1,9 +1,12 @@
 #include <filesystem>
+#include <fstream>
 #include <string>
 #include <string_view>
 
-#include <synthrt/Core/Contribute.h>
+#include <synthrt/Core/ContribLocator.h>
+#include <synthrt/Core/ContribHandler.h>
 #include <synthrt/Core/Contribute_p.h>
+#include <synthrt/Core/PackageRef.h>
 #include <synthrt/Core/SynthUnit.h>
 
 #define BOOST_TEST_MAIN
@@ -28,30 +31,39 @@ namespace {
 
     class SampleSpec : public ContribSpec {
     public:
-        class Impl : public ContribSpec::Impl {
+        class Handler : public srt::ContribSpecHandler {
         public:
-            Impl() : ContribSpec::Impl("sample") {
-            }
-
-            Expected<void> read(const std::filesystem::path &basePath,
-                                const JsonObject &obj) override {
+            Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj) {
                 (void) basePath;
                 (void) obj;
 
-                // Setting the identifier is the reason the implementation class has to be
-                // derivable at all: PackageRef reads it straight back off the parsed spec, and
-                // nothing public can write it.
-                id = "greeting";
+                // No identifier here. What this module is called is the package's business, and
+                // PackageRef fills it in from desc.json once this returns.
                 fmtVersion = stdc::VersionNumber(1, 0);
                 return Expected<void>();
             }
+
+            // Where the package pointed. A real category would open it; this one only records it,
+            // so a test can check what the framework handed over.
+            std::string pointedAt;
         };
 
-        SampleSpec() : ContribSpec(*new Impl()) {
+        SampleSpec() : ContribSpec("sample", std::make_unique<Handler>()) {
+        }
+
+        const std::string &pointedAt() const {
+            srt_handler_t;
+            return handler.pointedAt;
+        }
+
+        void setPointedAt(std::string path) {
+            srt_handler_t;
+            handler.pointedAt = std::move(path);
         }
 
         Expected<void> readFrom(const JsonObject &obj) {
-            return static_cast<Impl *>(_impl.get())->read({}, obj);
+            srt_handler_t;
+            return handler.read({}, obj);
         }
     };
 
@@ -68,8 +80,9 @@ namespace {
         Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
                                           const JsonValue &config) const override {
             (void) basePath;
-            (void) config;
-            return new SampleSpec();
+            auto spec = new SampleSpec();
+            spec->setPointedAt(config.toString());
+            return spec;
         }
 
         explicit SampleCategory(SynthUnit *su) : srt::ContribCategory(*new Impl(this, su)) {
@@ -82,6 +95,47 @@ namespace {
 
 static srt::ContribCategoryRegistry::Add<srt::ContribCategoryFactory<SampleCategory>>
     registrar("sample", "Sample contributes, defined outside synthrt");
+
+namespace {
+
+    namespace fs = std::filesystem;
+
+    /// A package directory holding nothing but a desc.json, removed when the test leaves scope.
+    ///
+    /// The modules it names are never written. A package is parsed by reading desc.json and
+    /// handing each path to its category, and SampleCategory does not open what it is given -- so
+    /// these cases reach the framework's own handling and stop there.
+    class TempPackage {
+    public:
+        explicit TempPackage(const std::string &desc) {
+            static int counter = 0;
+            _dir = fs::temp_directory_path() / ("srt_test_package_" + std::to_string(++counter));
+
+            std::error_code ec;
+            fs::remove_all(_dir, ec);
+            fs::create_directories(_dir);
+
+            std::ofstream file(_dir / "desc.json", std::ios::binary);
+            file << desc;
+        }
+
+        ~TempPackage() {
+            std::error_code ec;
+            fs::remove_all(_dir, ec);
+        }
+
+        const fs::path &dir() const {
+            return _dir;
+        }
+
+        TempPackage(const TempPackage &) = delete;
+        TempPackage &operator=(const TempPackage &) = delete;
+
+    private:
+        fs::path _dir;
+    };
+
+}
 
 BOOST_AUTO_TEST_SUITE(test_Contribute)
 
@@ -231,8 +285,9 @@ BOOST_AUTO_TEST_CASE(test_ContribCategory_BuiltByEveryUnit) {
     BOOST_CHECK(other.category("sample") != sample);
 }
 
-// A spec defined outside synthrt can carry the identifier PackageRef will ask it for.
-BOOST_AUTO_TEST_CASE(test_ContribSpec_CarriesItsIdentifier) {
+// A spec starts out belonging to nobody. Its identifier arrives from the package that names it,
+// which is what the cases below go through desc.json to check.
+BOOST_AUTO_TEST_CASE(test_ContribSpec_StartsWithoutAnIdentifier) {
     SampleSpec spec;
 
     BOOST_CHECK(spec.category() == "sample");
@@ -241,7 +296,87 @@ BOOST_AUTO_TEST_CASE(test_ContribSpec_CarriesItsIdentifier) {
 
     JsonObject obj;
     BOOST_REQUIRE(spec.readFrom(obj));
-    BOOST_CHECK(spec.id() == "greeting");
+    BOOST_CHECK(spec.id().empty());
+}
+
+// desc.json names each contribute and says where it is. The name is the package's -- it is what a
+// reference from elsewhere resolves against -- so it lives here rather than in the module's own
+// manifest, and the module is never asked what it is called.
+BOOST_AUTO_TEST_CASE(test_PackageRef_TakesContributeIdsFromDesc) {
+    // "dependencies" is written out because the loader requires it, even though the format
+    // document calls it optional.
+    TempPackage pkg(R"({
+        "id": "vendor/sample",
+        "version": "1.0.0.0",
+        "dependencies": [],
+        "contributes": {
+            "sample": [
+                { "id": "greeting", "path": "./greeting.json" },
+                { "id": "farewell", "path": "./elsewhere/farewell.json" }
+            ]
+        }
+    })");
+
+    SynthUnit su;
+    auto opened = su.open(pkg.dir(), true);
+    if (!opened) {
+        BOOST_TEST_MESSAGE(opened.error().message());
+    }
+    BOOST_REQUIRE(opened);
+
+    // Closed on the way out. A unit releases what it loaded when it goes, but not what was only
+    // opened, so a reference taken in this mode is the caller's to give back.
+    srt::ScopedPackageRef ref(opened.take());
+
+    auto specs = ref.contributes("sample");
+    BOOST_REQUIRE(specs.size() == 2);
+
+    // Sorted by identifier, which is how the package indexes them.
+    BOOST_CHECK(specs[0]->id() == "farewell");
+    BOOST_CHECK(specs[1]->id() == "greeting");
+    BOOST_CHECK(specs[0]->category() == "sample");
+
+    // The path reached the category untouched, for it to resolve as it sees fit.
+    BOOST_CHECK(specs[0]->as<SampleSpec>()->pointedAt() == "./elsewhere/farewell.json");
+    BOOST_CHECK(specs[1]->as<SampleSpec>()->pointedAt() == "./greeting.json");
+
+    // And one can be found by the name the package gave it.
+    BOOST_CHECK(ref.contribute("sample", "greeting") == specs[1]);
+    BOOST_CHECK(ref.contribute("sample", "nothing") == nullptr);
+}
+
+// Whatever is wrong with an entry is wrong before any module is opened.
+BOOST_AUTO_TEST_CASE(test_PackageRef_RejectsBadContributeEntries) {
+    auto rejected = [](const std::string &entries) {
+        TempPackage pkg(
+            R"({"id": "vendor/sample", "version": "1.0.0.0", "dependencies": [], "contributes": )" +
+            entries + "}");
+        SynthUnit su;
+        auto opened = su.open(pkg.dir(), true);
+        if (!opened) {
+            return true;
+        }
+        // A package that opened but did not parse comes back carrying the reason.
+        srt::ScopedPackageRef ref(opened.take());
+        return !ref.error().ok();
+    };
+
+    BOOST_CHECK(rejected(R"({"sample": ["./greeting.json"]})"));               // no longer a path
+    BOOST_CHECK(rejected(R"({"sample": [{"path": "./greeting.json"}]})"));     // no id
+    BOOST_CHECK(rejected(R"({"sample": [{"id": "greeting"}]})"));              // no path
+    BOOST_CHECK(rejected(R"({"sample": [{"id": "", "path": "./g.json"}]})"));  // not a segment
+    BOOST_CHECK(rejected(R"({"sample": [{"id": "a/b", "path": "./g.json"}]})")); // nor is this
+    BOOST_CHECK(rejected(R"({"sample": [{"id": "g", "path": 1}]})"));          // path is not text
+    BOOST_CHECK(rejected(R"({"sample": [{"id": "g", "path": "./g.json", "extra": 1}]})"));
+    BOOST_CHECK(rejected(R"({"unregistered": [{"id": "g", "path": "./g.json"}]})"));
+
+    // Two entries claiming one name, which is caught without opening either.
+    BOOST_CHECK(rejected(
+        R"({"sample": [{"id": "g", "path": "./a.json"}, {"id": "g", "path": "./b.json"}]})"));
+
+    // The shape that works, so the cases above fail for the reason intended and not because the
+    // surrounding document is wrong.
+    BOOST_CHECK(!rejected(R"({"sample": [{"id": "g", "path": "./g.json"}]})"));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

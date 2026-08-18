@@ -16,12 +16,9 @@ namespace fs = std::filesystem;
 
 namespace srt {
 
-    class InferenceSpec::Impl : public ContribSpec::Impl {
+    class InferenceSpec::Handler : public ContribSpecHandler {
     public:
-        Impl() : ContribSpec::Impl("inference") {
-        }
-
-        Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj) override;
+        Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj);
         Expected<void> readDesc(const std::filesystem::path &basePath, const JsonValue &pathValue);
 
         std::filesystem::path path;
@@ -53,12 +50,13 @@ namespace srt {
         std::stringstream ss;
         ss << file.rdbuf();
 
-        std::string error;
+        stdc::JsonParseError error;
         auto root = JsonValue::fromJson(ss.str(), true, &error);
-        if (!error.empty()) {
+        if (error) {
             return Error{
                 Error::InvalidFormat,
-                stdc::formatN(R"(%1: invalid %2 manifest format: %3)", path, displayName, error),
+                stdc::formatN(R"(%1: invalid %2 manifest format: %3)", path, displayName,
+                              error.message()),
             };
         }
         if (!root.isObject()) {
@@ -70,7 +68,7 @@ namespace srt {
         return root.toObject();
     }
 
-    Expected<void> InferenceSpec::Impl::readDesc(const std::filesystem::path &basePath,
+    Expected<void> InferenceSpec::Handler::readDesc(const std::filesystem::path &basePath,
                                                  const JsonValue &pathValue) {
         if (!pathValue.isString()) {
             return Error{
@@ -101,11 +99,10 @@ namespace srt {
         return Expected<void>();
     }
 
-    Expected<void> InferenceSpec::Impl::read(const std::filesystem::path &basePath,
+    Expected<void> InferenceSpec::Handler::read(const std::filesystem::path &basePath,
                                              const JsonObject &obj) {
         (void) basePath;
         stdc::VersionNumber fmtVersion_;
-        std::string id_;
         std::string className_;
 
         DisplayText name_;
@@ -116,7 +113,7 @@ namespace srt {
 
         {
             const std::set<std::string_view> allowedKeys = {
-                "$version", "class", "configuration", "id", "level", "name", "schema",
+                "$version", "class", "configuration", "level", "name", "schema",
             };
             for (const auto &item : obj) {
                 if (!allowedKeys.count(std::string_view(item.first))) {
@@ -145,23 +142,6 @@ namespace srt {
                 };
             }
             fmtVersion_ = stdc::VersionNumber(1);
-        }
-        // id
-        {
-            auto it = obj.find("id");
-            if (it == obj.end()) {
-                return Error{
-                    Error::InvalidFormat,
-                    R"(missing "id" field in inference manifest)",
-                };
-            }
-            id_ = it->second.toString();
-            if (!ContribLocator::isValidSegment(id_)) {
-                return Error{
-                    Error::InvalidFormat,
-                    R"("id" field has invalid value in inference manifest)",
-                };
-            }
         }
         // class
         {
@@ -193,9 +173,8 @@ namespace srt {
                 }
                 name_ = exp.take();
             }
-            if (name_.isEmpty()) {
-                name_ = id_;
-            }
+            // Left empty when the manifest gives none. The identifier it falls back to is the
+            // package's, which this file no longer knows, so name() fills it in instead.
         }
         // level
         {
@@ -242,7 +221,6 @@ namespace srt {
         }
 
         fmtVersion = fmtVersion_;
-        id = std::move(id_);
         className = std::move(className_);
         name = std::move(name_);
         apiLevel = apiLevel_;
@@ -268,59 +246,60 @@ namespace srt {
     InferenceSpec::~InferenceSpec() = default;
 
     const std::string &InferenceSpec::className() const {
-        stdc_impl_t;
-        return impl.className;
+        srt_handler_t;
+        return handler.className;
     }
 
     DisplayText InferenceSpec::name() const {
-        stdc_impl_t;
-        return impl.name;
+        srt_handler_t;
+        // A manifest that names itself nothing is displayed as whatever its package calls it.
+        return handler.name.isEmpty() ? DisplayText(id()) : handler.name;
     }
 
     int InferenceSpec::apiLevel() const {
-        stdc_impl_t;
-        return impl.apiLevel;
+        srt_handler_t;
+        return handler.apiLevel;
     }
 
     const JsonObject &InferenceSpec::manifestSchema() const {
-        stdc_impl_t;
-        return impl.manifestSchema;
+        srt_handler_t;
+        return handler.manifestSchema;
     }
 
     InferenceSchema *InferenceSpec::schema() const {
-        stdc_impl_t;
-        return impl.schema.get();
+        srt_handler_t;
+        return handler.schema.get();
     }
 
     const JsonObject &InferenceSpec::manifestConfiguration() const {
-        stdc_impl_t;
-        return impl.manifestConfiguration;
+        srt_handler_t;
+        return handler.manifestConfiguration;
     }
 
     InferenceConfiguration *InferenceSpec::configuration() const {
-        stdc_impl_t;
-        return impl.configuration.get();
+        srt_handler_t;
+        return handler.configuration.get();
     }
 
     const std::filesystem::path &InferenceSpec::path() const {
-        stdc_impl_t;
-        return impl.path;
+        srt_handler_t;
+        return handler.path;
     }
 
     Expected<NO<InferenceImportOptions>>
         InferenceSpec::createImportOptions(const JsonValue &options) const {
-        stdc_impl_t;
-        return impl.interp->createImportOptions(this, options);
+        srt_handler_t;
+        return handler.interp->createImportOptions(this, options);
     }
 
     Expected<NO<Inference>>
         InferenceSpec::createInference(const NO<InferenceImportOptions> &importOptions,
                                        const NO<InferenceRuntimeOptions> &runtimeOptions) const {
-        stdc_impl_t;
-        return impl.interp->createInference(this, importOptions, runtimeOptions);
+        srt_handler_t;
+        return handler.interp->createInference(this, importOptions, runtimeOptions);
     }
 
-    InferenceSpec::InferenceSpec() : ContribSpec(*new Impl()) {
+    InferenceSpec::InferenceSpec() : ContribSpec("inference", std::make_unique<Handler>()) {
     }
 
     InferenceCategory::~InferenceCategory() = default;
@@ -358,8 +337,8 @@ namespace srt {
             };
         }
         auto spec = new InferenceSpec();
-        auto spec_impl = static_cast<InferenceSpec::Impl *>(spec->_impl.get());
-        if (auto exp = spec_impl->readDesc(basePath, config); !exp) {
+        auto spec_handler = static_cast<InferenceSpec::Handler *>(spec->handlerObject());
+        if (auto exp = spec_handler->readDesc(basePath, config); !exp) {
             delete spec;
             return exp.error();
         }
@@ -371,7 +350,7 @@ namespace srt {
         switch (state) {
             case ContribSpec::Initialized: {
                 auto infSpec = static_cast<InferenceSpec *>(spec);
-                auto spec_impl = static_cast<InferenceSpec::Impl *>(infSpec->_impl.get());
+                auto spec_handler = static_cast<InferenceSpec::Handler *>(infSpec->handlerObject());
 
                 const auto &key = infSpec->className();
                 InferenceInterpreter *interp = nullptr;
@@ -414,7 +393,7 @@ namespace srt {
                 if (!schema) {
                     return schema.error();
                 }
-                spec_impl->schema = schema.take();
+                spec_handler->schema = schema.take();
 
                 auto config = interp->createConfiguration(infSpec).withContext(
                     Error::InvalidFormat,
@@ -423,8 +402,8 @@ namespace srt {
                 if (!config) {
                     return config.error();
                 }
-                spec_impl->configuration = config.take();
-                spec_impl->interp = interp;
+                spec_handler->configuration = config.take();
+                spec_handler->interp = interp;
                 return ContribCategory::loadSpec(spec, state);
             }
 

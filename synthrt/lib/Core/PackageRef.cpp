@@ -264,35 +264,77 @@ namespace srt {
                         goto out_failed;
                     }
 
-                    std::set<std::string_view> idSet;
+                    // Each entry is the package naming a module and saying where it is. The
+                    // identifier belongs here rather than in the module's own manifest because it
+                    // is what a reference from anywhere else names - it is the package's word for
+                    // the module, not a property of the module. Keeping it here is also what lets
+                    // a reference be resolved from this file alone, without opening every module.
+                    const auto entryError = [&contributeKey](size_t index, const std::string &what) {
+                        return Error{
+                            Error::InvalidFormat,
+                            stdc::formatN(R"(contribute "%1" entry %2 %3 in package manifest)",
+                                          contributeKey, index, what),
+                        };
+                    };
+
+                    std::set<std::string> idSet;
+                    size_t index = 0;
                     for (const auto &item : pair.second.toArray()) {
-                        if (!item.isString()) {
+                        index++;
+                        if (!item.isObject()) {
+                            error1 = entryError(index, "must be an object");
+                            goto out_failed;
+                        }
+                        const auto &entry = item.toObject();
+                        {
+                            static const std::set<std::string_view> allowedKeys = {"id", "path"};
+                            bool unknown = false;
+                            for (const auto &field : entry) {
+                                if (!allowedKeys.count(std::string_view(field.first))) {
+                                    error1 = entryError(
+                                        index, stdc::formatN(R"(has unknown field "%1")",
+                                                             field.first));
+                                    unknown = true;
+                                    break;
+                                }
+                            }
+                            if (unknown) {
+                                goto out_failed;
+                            }
+                        }
+
+                        auto idIt = entry.find("id");
+                        if (idIt == entry.end() || !idIt->second.isString() ||
+                            !ContribLocator::isValidSegment(idIt->second.toStringView())) {
+                            error1 = entryError(index, R"(has a missing or invalid "id" field)");
+                            goto out_failed;
+                        }
+                        auto contributeId = idIt->second.toString();
+
+                        // Caught before the module is opened, so a package that names the same
+                        // module twice is rejected without the cost of reading it twice.
+                        if (!idSet.emplace(contributeId).second) {
                             error1 = {
                                 Error::InvalidFormat,
-                                stdc::formatN(
-                                    R"(contribute "%1" field entry %2 has invalid value in package manifest)",
-                                    contributeKey, idSet.size() + 1),
+                                stdc::formatN(R"(contribute "%1" object has duplicated id "%2")",
+                                              contributeKey, contributeId),
                             };
                             goto out_failed;
                         }
-                        auto contribute = cc->parseSpec(canonicalDir, item);
+
+                        auto pathIt = entry.find("path");
+                        if (pathIt == entry.end() || !pathIt->second.isString()) {
+                            error1 = entryError(index, R"(has a missing or invalid "path" field)");
+                            goto out_failed;
+                        }
+
+                        auto contribute = cc->parseSpec(canonicalDir, pathIt->second);
                         if (!contribute) {
                             error1 = contribute.error();
                             goto out_failed;
                         }
+                        contribute.get()->_impl->id = std::move(contributeId);
                         contributes_.push_back(contribute.get());
-
-                        // Check id
-                        const auto &contributeId = contribute.get()->id();
-                        if (idSet.count(contributeId)) {
-                            error1 = {
-                                Error::InvalidFormat,
-                                stdc::formatN(R"(contribute "%1" object has duplicated id "%2")",
-                                              pair.first, contributeId),
-                            };
-                            goto out_failed;
-                        }
-                        idSet.emplace(contributeId);
                     }
                 }
 
@@ -331,12 +373,13 @@ namespace srt {
         std::stringstream ss;
         ss << file.rdbuf();
 
-        std::string error2;
+        stdc::JsonParseError error2;
         auto root = JsonValue::fromJson(ss.str(), true, &error2);
-        if (!error2.empty()) {
+        if (error2) {
             return Error{
                 Error::InvalidFormat,
-                stdc::formatN(R"("%1": invalid package manifest format: %2)", descPath, error2),
+                stdc::formatN(R"("%1": invalid package manifest format: %2)", descPath,
+                              error2.message()),
             };
         }
         if (!root.isObject()) {

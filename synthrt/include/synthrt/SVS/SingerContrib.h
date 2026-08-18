@@ -3,7 +3,7 @@
 
 #include <synthrt/Support/DisplayPath.h>
 #include <synthrt/Support/DisplayText.h>
-#include <synthrt/Core/Contribute.h>
+#include <synthrt/Core/ContribHandler.h>
 #include <synthrt/SVS/InferenceContrib.h>
 
 namespace srt {
@@ -93,7 +93,7 @@ namespace srt {
         const std::filesystem::path &path() const;
 
     protected:
-        class Impl;
+        class Handler;
         SingerSpec();
 
         friend class SingerCategory;

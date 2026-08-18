@@ -1,7 +1,6 @@
 #include "TestCaseLoader.h"
 
 #include <algorithm>
-#include <cctype>
 #include <fstream>
 #include <string>
 #include <string_view>
@@ -142,11 +141,11 @@ namespace test {
 
         std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 
-        std::string error;
+        stdc::JsonParseError error;
         auto root = srt::JsonValue::fromJson(json, true, &error);
-        if (!error.empty())
+        if (error)
             throw TestCaseException("JSON parse error in file '" + jsonPath.string() +
-                                    "': " + error);
+                                    "': " + error.message());
 
         auto caseData = std::make_shared<TestCaseData>();
         caseData->meta.test_id = root["test_id"].toString();

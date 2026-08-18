@@ -496,11 +496,11 @@ namespace ds::inferutil {
         file.seekg(0);
         file.read(buffer.data(), size);
 
-        std::string errString;
-        auto j = srt::JsonValue::fromJson(buffer, true, &errString);
-        if (!errString.empty()) {
+        stdc::JsonParseError parseError;
+        auto j = srt::JsonValue::fromJson(buffer, true, &parseError);
+        if (parseError) {
             if (ec) {
-                ec->collectError(std::move(errString));
+                ec->collectError(parseError.message());
             }
             return false;
         }

@@ -1,6 +1,5 @@
 #include "InputParserCommon_p.h"
 
-#include <cctype>
 #include <cmath>
 #include <optional>
 #include <string>
@@ -18,10 +17,10 @@ namespace ds {
         int i = 0, j = n - 1;
 
         // 0. skip leading and trailing spaces
-        while (i < n && std::isspace(static_cast<unsigned char>(s[i]))) {
+        while (i < n && stdc::str::is_space(s[i])) {
             ++i;
         }
-        while (j >= 0 && std::isspace(static_cast<unsigned char>(s[j]))) {
+        while (j >= 0 && stdc::str::is_space(s[j])) {
             --j;
         }
         if (i > j) {
@@ -32,16 +31,16 @@ namespace ds {
         int len = j - i + 1;
 
         // 1. check for rest (case-insensitive)
-        if (len == 4 && (std::toupper(static_cast<unsigned char>(s[i])) == 'R') &&
-            (std::toupper(static_cast<unsigned char>(s[i + 1])) == 'E') &&
-            (std::toupper(static_cast<unsigned char>(s[i + 2])) == 'S') &&
-            (std::toupper(static_cast<unsigned char>(s[i + 3])) == 'T')) {
+        if (len == 4 && (stdc::str::to_upper(s[i]) == 'R') &&
+            (stdc::str::to_upper(s[i + 1]) == 'E') &&
+            (stdc::str::to_upper(s[i + 2]) == 'S') &&
+            (stdc::str::to_upper(s[i + 3]) == 'T')) {
             // rest
             return std::make_optional(std::make_tuple(0, 0, true));
         }
 
         // 2. read key name (case-insensitive)
-        char c = std::toupper(static_cast<unsigned char>(s[i]));
+        char c = stdc::str::to_upper(s[i]);
         if (c < 'A' || c > 'G') {
             // invalid key name
             return std::nullopt;
@@ -61,10 +60,10 @@ namespace ds {
         noteIdx = (noteIdx % 12 + 12) % 12;
 
         // 4. octave (non-negative, multi digits)
-        if (i > j || !std::isdigit(static_cast<unsigned char>(s[i])))
+        if (i > j || !stdc::str::is_digit(s[i]))
             return std::nullopt;
         int octave = 0;
-        while (i <= j && std::isdigit(static_cast<unsigned char>(s[i]))) {
+        while (i <= j && stdc::str::is_digit(s[i])) {
             octave = octave * 10 + (s[i] - '0');
             ++i;
         }
@@ -76,10 +75,10 @@ namespace ds {
         ++i;
 
         // 6. cents number
-        if (i > j || !std::isdigit(static_cast<unsigned char>(s[i])))
+        if (i > j || !stdc::str::is_digit(s[i]))
             return std::nullopt;
         int cents = 0;
-        while (i <= j && std::isdigit(static_cast<unsigned char>(s[i]))) {
+        while (i <= j && stdc::str::is_digit(s[i])) {
             cents = cents * 10 + (s[i] - '0');
             ++i;
         }

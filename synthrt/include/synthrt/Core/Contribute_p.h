@@ -8,6 +8,7 @@
 
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Core/Contribute.h>
+#include <synthrt/Core/ContribHandler.h>
 #include <synthrt/Core/NamedObject_p.h>
 
 /// \file
@@ -26,22 +27,21 @@ namespace srt {
 
     class SYNTHRT_EXPORT ContribSpec::Impl {
     public:
-        explicit Impl(std::string category) : category(std::move(category)), state(Invalid) {
-        }
-        virtual ~Impl() = default;
-
-    public:
-        virtual Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj) {
-            return Error(Error::NotImplemented);
+        Impl(std::string category, std::unique_ptr<ContribSpecHandler> handler)
+            : category(std::move(category)), state(Invalid), handler(std::move(handler)) {
         }
 
     public:
         std::string category;
         std::string id;
-        stdc::VersionNumber fmtVersion;
 
         State state;
         PackageData *package;
+
+        /// The author's half, which this one owns and nothing else may keep.
+        std::unique_ptr<ContribSpecHandler> handler;
+
+        STDC_DISABLE_COPY(Impl)
     };
 
     class SYNTHRT_EXPORT ContribCategory::Impl : public ObjectPool::Impl {

@@ -1,7 +1,7 @@
 #ifndef SYNTHRT_INFERENCECONTRIB_H
 #define SYNTHRT_INFERENCECONTRIB_H
 
-#include <synthrt/Core/Contribute.h>
+#include <synthrt/Core/ContribHandler.h>
 #include <synthrt/Support/DisplayText.h>
 
 namespace srt {
@@ -89,7 +89,7 @@ namespace srt {
                             const NO<InferenceRuntimeOptions> &runtimeOptions) const;
 
     protected:
-        class Impl;
+        class Handler;
         InferenceSpec();
 
         friend class InferenceCategory;

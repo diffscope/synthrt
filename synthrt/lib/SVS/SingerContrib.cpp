@@ -29,13 +29,9 @@ namespace srt {
         NO<InferenceImportOptions> options;
     };
 
-    class SingerSpec::Impl : public ContribSpec::Impl {
+    class SingerSpec::Handler : public ContribSpecHandler {
     public:
-        Impl() : ContribSpec::Impl("singer") {
-        }
-
-    public:
-        Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj) override;
+        Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj);
 
         std::filesystem::path path;
 
@@ -75,12 +71,13 @@ namespace srt {
         std::stringstream ss;
         ss << file.rdbuf();
 
-        std::string error;
+        stdc::JsonParseError error;
         auto root = JsonValue::fromJson(ss.str(), true, &error);
-        if (!error.empty()) {
+        if (error) {
             return Error{
                 Error::InvalidFormat,
-                stdc::formatN(R"(%1: invalid %2 manifest format: %3)", path, displayName, error),
+                stdc::formatN(R"(%1: invalid %2 manifest format: %3)", path, displayName,
+                              error.message()),
             };
         }
         if (!root.isObject()) {
@@ -214,11 +211,10 @@ namespace srt {
         return SingerDemoAudio{name.take(), path.take()};
     }
 
-    Expected<void> SingerSpec::Impl::read(const std::filesystem::path &basePath,
+    Expected<void> SingerSpec::Handler::read(const std::filesystem::path &basePath,
                                           const JsonObject &obj) {
         (void) basePath;
         stdc::VersionNumber fmtVersion_;
-        std::string id_;
         std::string className_;
 
         DisplayText name_;
@@ -233,8 +229,8 @@ namespace srt {
 
         {
             const std::set<std::string_view> allowedKeys = {
-                "$version",  "avatar", "background", "class", "configuration",
-                "demoAudio", "id",     "imports",    "level", "name",
+                "$version",  "avatar",  "background", "class", "configuration",
+                "demoAudio", "imports", "level",      "name",
             };
             for (const auto &item : obj) {
                 if (!allowedKeys.count(std::string_view(item.first))) {
@@ -262,23 +258,6 @@ namespace srt {
                 };
             }
             fmtVersion_ = stdc::VersionNumber(1);
-        }
-        // id
-        {
-            auto it = obj.find("id");
-            if (it == obj.end()) {
-                return Error{
-                    Error::InvalidFormat,
-                    R"(missing "id" field in singer manifest)",
-                };
-            }
-            id_ = it->second.toString();
-            if (!ContribLocator::isValidSegment(id_)) {
-                return Error{
-                    Error::InvalidFormat,
-                    R"("id" field has invalid value in singer manifest)",
-                };
-            }
         }
         // class
         {
@@ -309,9 +288,8 @@ namespace srt {
                 }
                 name_ = exp.take();
             }
-            if (name_.isEmpty()) {
-                name_ = id_;
-            }
+            // Left empty when the manifest gives none. The identifier it falls back to is the
+            // package's, which this file no longer knows, so name() fills it in instead.
         }
         // level
         {
@@ -438,7 +416,6 @@ namespace srt {
         }
 
         fmtVersion = fmtVersion_;
-        id = std::move(id_);
         className = std::move(className_);
         name = std::move(name_);
         apiLevel = apiLevel_;
@@ -486,56 +463,57 @@ namespace srt {
     SingerSpec::~SingerSpec() = default;
 
     const std::string &SingerSpec::className() const {
-        stdc_impl_t;
-        return impl.className;
+        srt_handler_t;
+        return handler.className;
     }
 
     DisplayText SingerSpec::name() const {
-        stdc_impl_t;
-        return impl.name;
+        srt_handler_t;
+        // A manifest that names itself nothing is displayed as whatever its package calls it.
+        return handler.name.isEmpty() ? DisplayText(id()) : handler.name;
     }
 
     int SingerSpec::apiLevel() const {
-        stdc_impl_t;
-        return impl.apiLevel;
+        srt_handler_t;
+        return handler.apiLevel;
     }
 
     DisplayPath SingerSpec::avatar() const {
-        stdc_impl_t;
-        return impl.avatar;
+        srt_handler_t;
+        return handler.avatar;
     }
 
     DisplayPath SingerSpec::background() const {
-        stdc_impl_t;
-        return impl.background;
+        srt_handler_t;
+        return handler.background;
     }
 
     stdc::array_view<SingerDemoAudio> SingerSpec::demoAudios() const {
-        stdc_impl_t;
-        return impl.demoAudios;
+        srt_handler_t;
+        return handler.demoAudios;
     }
 
     stdc::array_view<SingerImport> SingerSpec::imports() const {
-        stdc_impl_t;
-        return impl.importList;
+        srt_handler_t;
+        return handler.importList;
     }
 
     const JsonObject &SingerSpec::manifestConfiguration() const {
-        stdc_impl_t;
-        return impl.manifestConfiguration;
+        srt_handler_t;
+        return handler.manifestConfiguration;
     }
 
     SingerConfiguration *SingerSpec::configuration() const {
-        stdc_impl_t;
-        return impl.configuration.get();
+        srt_handler_t;
+        return handler.configuration.get();
     }
 
     const std::filesystem::path &SingerSpec::path() const {
-        stdc_impl_t;
-        return impl.path;
+        srt_handler_t;
+        return handler.path;
     }
 
-    SingerSpec::SingerSpec() : ContribSpec(*new Impl()) {
+    SingerSpec::SingerSpec() : ContribSpec("singer", std::make_unique<Handler>()) {
     }
 
 
@@ -597,12 +575,12 @@ namespace srt {
         }
 
         auto spec = new SingerSpec();
-        if (auto exp = spec->_impl->read({}, obj.get()); !exp) {
+        if (auto exp = static_cast<SingerSpec::Handler *>(spec->handlerObject())->read({}, obj.get()); !exp) {
             delete spec;
             return exp.error();
         }
-        auto spec_impl = static_cast<SingerSpec::Impl *>(spec->_impl.get());
-        spec_impl->path = fs::canonical(descPath).parent_path();
+        auto spec_handler = static_cast<SingerSpec::Handler *>(spec->handlerObject());
+        spec_handler->path = fs::canonical(descPath).parent_path();
         return spec;
     }
 
@@ -611,7 +589,7 @@ namespace srt {
         switch (state) {
             case ContribSpec::Initialized: {
                 auto singerSpec = static_cast<SingerSpec *>(spec);
-                auto spec_impl = static_cast<SingerSpec::Impl *>(singerSpec->_impl.get());
+                auto spec_handler = static_cast<SingerSpec::Handler *>(singerSpec->handlerObject());
 
                 const auto &key = singerSpec->className();
                 SingerProvider *prov = nullptr;
@@ -656,11 +634,11 @@ namespace srt {
                 if (!config) {
                     return config.error();
                 }
-                spec_impl->configuration = config.take();
-                spec_impl->prov = prov;
+                spec_handler->configuration = config.take();
+                spec_handler->prov = prov;
 
                 // Fix imports
-                for (auto &imp : spec_impl->importDataList) {
+                for (auto &imp : spec_handler->importDataList) {
                     auto &loc = imp.inferenceLocator;
                     auto package = loc.package();
                     auto version = loc.version();
@@ -692,9 +670,9 @@ namespace srt {
             case ContribSpec::Ready: {
                 // Check inferences
                 auto spec1 = static_cast<SingerSpec *>(spec);
-                auto spec_impl = static_cast<SingerSpec::Impl *>(spec1->_impl.get());
+                auto spec_handler = static_cast<SingerSpec::Handler *>(spec1->handlerObject());
                 auto inferenceReg = impl.su->category("inference")->as<InferenceCategory>();
-                auto &importDataList = spec_impl->importDataList;
+                auto &importDataList = spec_handler->importDataList;
                 for (auto &imp : importDataList) {
                     // Find inference
                     auto inferences = inferenceReg->findInferences(imp.inferenceLocator);
@@ -727,7 +705,7 @@ namespace srt {
                 for (const auto &imp : std::as_const(importDataList)) {
                     imports.push_back(SingerImport(&imp));
                 }
-                spec_impl->importList = std::move(imports);
+                spec_handler->importList = std::move(imports);
                 return Expected<void>();
             }
 
