@@ -1,1 +1,0 @@
-{"$version": "1.0", "level": 1, "schema": {}, "configuration": {"operations": ["lowercase"], "description": "Basic cleaner: converts text to lowercase. Supports operations: lowercase, uppercase, trim, remove-punctuation, remove-numbers, remove-duplicates, normalize-whitespace"}}
