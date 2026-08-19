@@ -5,15 +5,6 @@
   "configuration": {
     "verify": [
       {
-        "type": "array",
-        "value": [
-          "SP",
-          "AP",
-          "EP"
-        ],
-        "mode": "copy"
-      },
-      {
         "type": "dict",
         "value": [
           "../../assets/ds-zh-pinyin-lite.txt"
