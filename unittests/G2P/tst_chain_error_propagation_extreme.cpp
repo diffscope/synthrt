@@ -508,6 +508,121 @@ TEST_CASE("G2P-045: tagger regexes keep language special characters in convert m
     }
 }
 // ===========================================================================
+// G2P-046: mixed-case matrix through the real two-pass chain.
+//
+// G2P-044 only exercised title-case ("Hello"). Real lyrics can mix case at any
+// position, include apostrophes/hyphens, or carry non-ASCII casing (Cyrillic,
+// umlauts). This test feeds a casing matrix into the full shipped chain
+// (tagger -> dict[raw] -> format[lowercase] -> dict[cleaned]) and asserts the
+// dictionary pronunciation + fromDict for every casing variant, plus a
+// dict-miss fallback. Each language uses its own shipped tagger so that
+// apostrophe/hyphen words are not stripped before the dict (Eng) and accented
+// characters stay on the convert path (Deu/Rus via ".+").
+// ===========================================================================
+TEST_CASE("G2P-046: mixed-case words resolve through two-pass dict chain",
+          "[g2p][bf-53][extreme]") {
+    struct ChainCase {
+        std::string label;
+        std::string tagger;             // shipped tagger JSON for this language
+        std::string dictContent;        // lowercase dictionary entries
+        std::vector<std::pair<std::string, std::string>> words;  // word -> pronunciation ("" = dict miss)
+    };
+
+    const std::vector<ChainCase> cases = {
+        {
+            "eng-apostrophe-hyphen",
+            R"t({"type":"regex","value":["([A-Za-z'\\-]+)"],"tag":"word","action":"convert"})t",
+            "hello\thh ax l ow\n"
+            "don't\td aa n t\n"
+            "x-ray\teh k s r ey\n",
+            {
+                {"HELLO", "hh ax l ow"},        // all-caps
+                {"HeLLo", "hh ax l ow"},        // internal mixed case
+                {"hELLo", "hh ax l ow"},
+                {"DON'T", "d aa n t"},          // all-caps apostrophe
+                {"Don't", "d aa n t"},          // title-case apostrophe
+                {"dOn'T", "d aa n t"},
+                {"X-Ray", "eh k s r ey"},       // title-case hyphen
+                {"X-RAY", "eh k s r ey"},
+                {"x-ray", "eh k s r ey"},       // already lowercase, raw hit
+                {"nope", ""},                   // dict miss -> fallback
+            },
+        },
+        {
+            "deu-umlaut",
+            R"t({"type":"regex","value":["(.+)"],"tag":"all","action":"convert"})t",
+            "\xc3\xbc" "ber\tuu b er\n",        // über
+            {
+                {"\xc3\x9c" "ber", "uu b er"},  // Über (capital U umlaut)
+                {"\xc3\xbc" "ber", "uu b er"},  // über raw hit
+                {"\xc3\x9c" "BER", "uu b er"},  // Über all-caps
+            },
+        },
+        {
+            "rus-cyrillic",
+            R"t({"type":"regex","value":["(.+)"],"tag":"all","action":"convert"})t",
+            "\xd0\xbd\xd0\xb5\xd1\x82\tnn je t\n",  // нет
+            {
+                {"\xd0\xbd\xd0\xb5\xd1\x82", "nn je t"},  // нет raw hit
+                {"\xd0\x9d\xd0\xb5\xd1\x82", "nn je t"},  // Нет (first-letter caps)
+                {"\xd0\x9d\xd0\x95\xd0\xa2", "nn je t"},  // НЕТ (all caps)
+            },
+        },
+    };
+
+    for (const auto &c : cases) {
+        DYNAMIC_SECTION(c.label) {
+            const auto dir = makeTempDir("g2p046-mixedcase");
+            const auto dictFile = dir / "dict.txt";
+            writeFile(dictFile, c.dictContent);
+            std::string dictPath = dictFile.generic_string();
+
+            TestModuleSpec spec;
+            G2pPipeline pipeline(&spec, /*task=*/nullptr);
+
+            const std::string steps =
+                R"t({"step":"tagAndValidate","params":{"tagger":[)t" + c.tagger + R"t(]}},)t"
+                R"t({"step":"dict","params":{"file":")t" + dictPath + R"t("}},)t"
+                R"t({"step":"format","params":{"cleaner":{"operations":["lowercase"]}}},)t"
+                R"t({"step":"dict","params":{"file":")t" + dictPath + R"t("}},)t"
+                R"t({"step":"fallback"})t";
+            const auto cfg = chainConfig(steps);
+            auto cfgResult = pipeline.configure(cfg);
+            if (!cfgResult) {
+                FAIL(cfgResult.error().message());
+            }
+
+            std::vector<std::string> words;
+            for (const auto &w : c.words) words.push_back(w.first);
+
+            G2pContext context(words, &spec);
+            pipeline.process(context);
+
+            REQUIRE(context.words().size() == c.words.size());
+            for (size_t i = 0; i < c.words.size(); ++i) {
+                const auto &word = c.words[i];
+                const auto &w = context.words()[i];
+                INFO("word[" << i << "]: " << word.first);
+                // Original lyric never modified.
+                REQUIRE(w.lyric == word.first);
+                REQUIRE(w.mode == srt::g2p::kG2pModeConvert);
+                if (word.second.empty()) {
+                    // Dict miss: fallback keeps the original lyric.
+                    REQUIRE_FALSE(w.fromDict);
+                    REQUIRE(w.pronunciation == word.first);
+                } else {
+                    // Dict hit after cleaner lowercase; cleaned lyric is the
+                    // lowercase form regardless of input casing.
+                    REQUIRE(w.fromDict);
+                    REQUIRE(w.pronunciation == word.second);
+                    REQUIRE(w.errorType == srt::g2p::NoError);
+                }
+            }
+            std::filesystem::remove_all(dir);
+        }
+    }
+}
+// ===========================================================================
 // G2P-033: Normal conversion via DictStep does not regress.
 //
 // A working chain (tagAndValidate -> dict -> fallback) must still resolve
