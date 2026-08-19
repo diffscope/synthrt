@@ -428,19 +428,67 @@ TEST_CASE("eng chain converts apostrophe and hyphen words through the manager",
     }
 }
 
-TEST_CASE("eng chain keeps pure-uppercase words in copy mode",
+TEST_CASE("eng chain lowercases uppercase words via cleaner and hits the dict",
           "[g2p][chain][eng][package-data]") {
     auto &f = fixture();
     if (!f.ready) {
         SKIP("L2 fixture not ready: " << f.setupError);
     }
 
-    // "NASA" matches the uppercase tagger (copy) before the mixed tagger:
-    // it must NOT be looked up in the dictionary.
+    // The chain is now "raw lookup -> cleaner -> re-lookup -> model": the
+    // tagger no longer short-circuits uppercase words into copy mode. "NASA"
+    // is looked up exactly as-is (miss), then the cleaner pass lowercases it
+    // to "nasa", which IS in ds_cmudict-07b.txt ("nasa" -> "n ae s ax"), so
+    // it converts instead of staying copy.
     auto resultExp = runG2pWithTask("NASA", "g2p-eng-official");
     REQUIRE(resultExp);
     const auto result = resultExp.take();
-    REQUIRE(result.mode == srt::g2p::kG2pModeCopy);
+    INFO("pronunciation='" << result.pronunciation << "' mode='"
+         << result.mode << "' errorType="
+         << static_cast<int>(result.errorType));
+    REQUIRE(result.ok);
+    REQUIRE(result.mode == srt::g2p::kG2pModeConvert);
+    REQUIRE(result.pronunciation == "n ae s ax");
+}
+
+// === eng chain: single uppercase letters ===
+// Regression: the ChainG2p-Eng uppercase tagger was "([A-Z]+)", which also
+// matched single uppercase letters ("I", "A") and put them in copy mode —
+// they were never lowercased and never looked up in ds_cmudict-07b.txt.
+// The uppercase tagger is now gone; single letters match the word tagger,
+// the raw lookup misses, the chain's cleaner pass lowercases them, and they
+// hit the dictionary ("i" -> "ay", "a" -> "ax").
+
+TEST_CASE("eng chain converts single uppercase letters through the manager",
+          "[g2p][chain][eng][package-data]") {
+    auto &f = fixture();
+    if (!f.ready) {
+        SKIP("L2 fixture not ready: " << f.setupError);
+    }
+
+    struct EngCase {
+        std::string word;
+        std::string expectedPron;
+    };
+    const std::vector<EngCase> cases = {
+        {"I", "ay"},
+        {"A", "ax"},
+        {"I'M", "ay m"},
+    };
+
+    for (const auto &c : cases) {
+        DYNAMIC_SECTION("word='" << c.word << "'") {
+            auto resultExp = runG2pWithTask(c.word, "g2p-eng-official");
+            REQUIRE(resultExp);
+            const auto result = resultExp.take();
+            INFO("pronunciation='" << result.pronunciation << "' mode='"
+                 << result.mode << "' errorType="
+                 << static_cast<int>(result.errorType));
+            REQUIRE(result.ok);
+            REQUIRE(result.mode == srt::g2p::kG2pModeConvert);
+            REQUIRE(result.pronunciation == c.expectedPron);
+        }
+    }
 }
 
 // === eng chain: hyphen words go through the model as ONE whole word ===

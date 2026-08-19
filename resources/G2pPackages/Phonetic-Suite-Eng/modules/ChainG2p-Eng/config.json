@@ -1,1 +1,66 @@
-{"$version": "1.0", "level": 1, "mode": "standard", "schema": {}, "configuration": {"steps": [{"step": "tagAndValidate", "params": {"tagger": [{"type": "regex", "value": ["([A-Z]+)"], "tag": "uppercase", "action": "copy"}, {"type": "regex", "value": ["(?i)([a-z'\\-]+)"], "tag": "mixed", "action": "convert"}]}}, {"step": "dict", "params": {"enabled": true, "file": "ds_cmudict-07b.txt"}}, {"step": "model", "params": {"enabled": true, "id": "g2p-multig2p-multi-official", "langRef": "eng/default", "batchSize": 20, "file": "ds_cmudict-07b.txt"}}, {"step": "fallback", "params": {"useOriginal": true, "markFailed": true}}]}}
+{
+  "$version": "1.0",
+  "level": 1,
+  "mode": "standard",
+  "schema": {},
+  "configuration": {
+    "steps": [
+      {
+        "step": "tagAndValidate",
+        "params": {
+          "tagger": [
+            {
+              "type": "regex",
+              "value": [
+                "([A-Za-z'\\-]+)"
+              ],
+              "tag": "word",
+              "action": "convert"
+            }
+          ]
+        }
+      },
+      {
+        "step": "dict",
+        "params": {
+          "enabled": true,
+          "file": "ds_cmudict-07b.txt"
+        }
+      },
+      {
+        "step": "format",
+        "params": {
+          "cleaner": {
+            "operations": [
+              "lowercase"
+            ]
+          }
+        }
+      },
+      {
+        "step": "dict",
+        "params": {
+          "enabled": true,
+          "file": "ds_cmudict-07b.txt"
+        }
+      },
+      {
+        "step": "model",
+        "params": {
+          "enabled": true,
+          "id": "g2p-multig2p-multi-official",
+          "langRef": "eng/default",
+          "batchSize": 20,
+          "file": "ds_cmudict-07b.txt"
+        }
+      },
+      {
+        "step": "fallback",
+        "params": {
+          "useOriginal": true,
+          "markFailed": true
+        }
+      }
+    ]
+  }
+}

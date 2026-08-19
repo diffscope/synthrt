@@ -54,17 +54,16 @@ namespace srt::g2p::plugins::ChainG2p {
         }
 
         for (auto &word : context.words()) {
-            // 只处理需要转换且未丢弃的词
-            if (word.mode != srt::g2p::kG2pModeConvert || word.discard) {
+            // 只处理需要转换、未丢弃且尚未获得发音的词
+            if (word.mode != srt::g2p::kG2pModeConvert || word.discard ||
+                !word.pronunciation.empty()) {
                 continue;
             }
 
-            // 使用清洗后的词进行查找（如果有）。
-            // 字典中的词均为小写（如 cmudict），因此将 lookupKey 转为小写
-            // 以实现大小写不敏感的匹配（例如 "Hello" → "hello" 命中字典）。
+            // 原样精确查找：优先使用 FormatStep 清洗后的词（cleanedLyric），
+            // 否则使用原歌词。本步骤不做任何大小写转换（转小写由 FormatStep
+            // 的 cleaner 统一负责），也不修改歌词。
             std::string lookupKey = word.cleanedLyric.empty() ? word.lyric : word.cleanedLyric;
-            std::transform(lookupKey.begin(), lookupKey.end(), lookupKey.begin(),
-                           [](unsigned char c) { return static_cast<unsigned char>(std::tolower(c)); });
 
             // 查找字典
             auto phonemes = lookup(lookupKey);

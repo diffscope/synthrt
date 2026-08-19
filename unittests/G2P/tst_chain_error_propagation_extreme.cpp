@@ -296,6 +296,87 @@ TEST_CASE("G2P-032: setStopProcessing(true) breaks pipeline after first step",
 }
 
 // ===========================================================================
+// G2P-043: FormatStep cleaner lowercases lyrics into cleanedLyric.
+//
+// 歌词清洗统一由 FormatStep 的 cleaner 操作完成（对应 Cleaner-Eng
+// "operations":["lowercase"]），写入 cleanedLyric；原词 lyric 保持原样。
+// 其他步骤（dict/model/fallback）不得修改歌词。
+// ===========================================================================
+TEST_CASE("G2P-043: format step cleaner lowercases lyrics into cleanedLyric",
+          "[g2p][bf-53][extreme]") {
+    TestModuleSpec spec;
+    G2pPipeline pipeline(&spec, /*task=*/nullptr);
+
+    auto cfg = chainConfig(
+        R"raw({"step":"tagAndValidate","params":{"tagger":[{"type":"regex","value":["(?i)([a-z]+)"],"tag":"word","action":"convert"}]}},)raw"
+        R"({"step":"format","params":{"cleaner":{"operations":["lowercase"]}}},)"
+        R"({"step":"fallback"})");
+    REQUIRE(pipeline.configure(cfg).hasValue());
+
+    G2pContext context({"Hello", "hello"}, &spec);
+    pipeline.process(context);
+
+    const auto &mixed = context.words()[0];
+    // 原歌词不被修改，清洗结果写入 cleanedLyric。
+    REQUIRE(mixed.lyric == "Hello");
+    REQUIRE(mixed.cleanedLyric == "hello");
+    REQUIRE(mixed.mode == srt::g2p::kG2pModeConvert);
+    // fallback 仍使用原歌词。
+    REQUIRE(mixed.pronunciation == "Hello");
+    REQUIRE(mixed.errorType == srt::g2p::PhonemeGenerationFailed);
+
+    const auto &lower = context.words()[1];
+    REQUIRE(lower.lyric == "hello");
+    REQUIRE(lower.cleanedLyric == "hello");
+}
+
+// ===========================================================================
+// G2P-044: two-pass dict chain with format cleaner resolves mixed-case words.
+//
+// 责任链 tagAndValidate -> dict(原样) -> format(cleaner 转小写) -> dict(清洗后)
+// 的语义：第一遍用原词精确查找；查不到的经 FormatStep 清洗（转小写）后
+// 第二遍再查一次，命中字典即转换成功。这是 ChainG2p-Eng 的默认流程。
+// ===========================================================================
+TEST_CASE("G2P-044: two-pass dict with format cleaner resolves mixed-case words",
+          "[g2p][bf-53][extreme]") {
+    const auto dir = makeTempDir("g2p044-twopass-dict");
+    const auto dictFile = dir / "dict.txt";
+    writeFile(dictFile, "hello\thh ax l ow\n");
+
+    TestModuleSpec spec;
+    G2pPipeline pipeline(&spec, /*task=*/nullptr);
+
+    const auto cfg = chainConfig(
+        R"raw({"step":"tagAndValidate","params":{"tagger":[{"type":"regex","value":["(?i)([a-z]+)"],"tag":"word","action":"convert"}]}},)raw"
+        R"({"step":"dict","params":{"file":")" +
+        dictFile.generic_string() + R"("}},)"
+        R"({"step":"format","params":{"cleaner":{"operations":["lowercase"]}}},)"
+        R"({"step":"dict","params":{"file":")" +
+        dictFile.generic_string() + R"("}},)"
+        R"({"step":"fallback"})");
+    REQUIRE(pipeline.configure(cfg).hasValue());
+
+    G2pContext context({"Hello", "hello"}, &spec);
+    pipeline.process(context);
+
+    // "Hello"：第一遍原样查找 miss，cleaner 转小写后第二遍命中。
+    const auto &mixed = context.words()[0];
+    REQUIRE(mixed.lyric == "Hello");
+    REQUIRE(mixed.cleanedLyric == "hello");
+    REQUIRE(mixed.pronunciation == "hh ax l ow");
+    REQUIRE(mixed.fromDict);
+    REQUIRE(mixed.errorType == srt::g2p::NoError);
+
+    // "hello"：第一遍原样直接命中，无需清洗。
+    const auto &lower = context.words()[1];
+    REQUIRE(lower.lyric == "hello");
+    REQUIRE(lower.pronunciation == "hh ax l ow");
+    REQUIRE(lower.fromDict);
+    REQUIRE(lower.errorType == srt::g2p::NoError);
+
+    std::filesystem::remove_all(dir);
+}
+// ===========================================================================
 // G2P-033: Normal conversion via DictStep does not regress.
 //
 // A working chain (tagAndValidate -> dict -> fallback) must still resolve
