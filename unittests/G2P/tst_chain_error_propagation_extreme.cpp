@@ -410,6 +410,104 @@ TEST_CASE("G2P-044: two-pass dict with format cleaner resolves mixed-case words"
     std::filesystem::remove_all(dir);
 }
 // ===========================================================================
+// G2P-045: shipped tagger regexes route each language's special characters.
+//
+// tagAndValidate taggers decide convert vs copy per word. The shipped
+// ChainG2p regexes must not misroute a language's own characters:
+//   - Eng: "([A-Za-z'\-]+)" — letters plus the apostrophe and hyphen used in
+//     English lyrics ("don't", "e-mail"). A word containing ONLY these chars
+//     must convert (go to dict/model), never fall to copy.
+//   - Deu/Fra/Ita/Kor/Por/Rus/Spa/Fil: "(.+)" — a catch-all under RE2 UTF-8,
+//     so umlauts, accents, cedillas, tildes, Cyrillic and Hangul are all
+//     matched -> convert. This is the safety property that keeps e.g.
+//     "über" or "НЕТ" (Cyrillic) on the conversion path.
+// Each case builds a tagAndValidate-only chain using the same regex the
+// shipped config uses and asserts the expected mode. (L1: no dict/model.)
+// ===========================================================================
+TEST_CASE("G2P-045: tagger regexes keep language special characters in convert mode",
+          "[g2p][bf-53][extreme]") {
+    TestModuleSpec spec;
+    G2pPipeline pipeline(&spec, /*task=*/nullptr);
+
+    // tagAndValidate-only step, tagger is injected per DYNAMIC_SECTION.
+    auto makeCfg = [](const std::string &taggerJson) {
+        return chainConfig(
+            R"t({"step":"tagAndValidate","params":{"tagger":[)t" + taggerJson + R"t(]}})t");
+    };
+
+    struct TaggerCase {
+        std::string label;
+        std::string tagger;   // full {"type","value","tag","action"} object JSON
+        std::vector<std::string> words;  // expected ALL convert for these
+    };
+    const std::vector<TaggerCase> cases = {
+        {
+            "eng-don-t",
+            R"t({"type":"regex","value":["([A-Za-z'\\-]+)"],"tag":"word","action":"convert"})t",
+            {"don't", "e-mail", "x-ray", "NASA", "I", "hello"},
+        },
+        {
+            "deu-umlaut",
+            R"t({"type":"regex","value":["(.+)"],"tag":"all","action":"convert"})t",
+            {"\xc3\x9c" "ber",   // Über
+             "\xc3\xa4",           // ä
+             "stra\xc3\x9f" "e"},  // Straße
+        },
+        {
+            "fra-accent",
+            R"t({"type":"regex","value":["(.+)"],"tag":"all","action":"convert"})t",
+            {"c'est", "fran\xc3\xa7" "ais",     // français
+             "tr\xc3\xa8" "s"},                 // très
+        },
+        {
+            "ita-accent",
+            R"t({"type":"regex","value":["(.+)"],"tag":"all","action":"convert"})t",
+            {"perch\xc3\xa9", "citt\xc3\xa0"},  // perché, città
+        },
+        {
+            "por-cedilla-tilde",
+            R"t({"type":"regex","value":["(.+)"],"tag":"all","action":"convert"})t",
+            {"cora\xc3\xa7" "\xc3\xa3" "o",     // coração
+             "n\xc3\xa3" "o"},                  // não
+        },
+        {
+            "rus-cyrillic",
+            R"t({"type":"regex","value":["(.+)"],"tag":"all","action":"convert"})t",
+            {"\xd0\x9d\xd0\x95\xd0\xa2",        // НЕТ
+             "\xd0\xb4\xd0\xb0"},               // да
+        },
+        {
+            "spa-tilde",
+            R"t({"type":"regex","value":["(.+)"],"tag":"all","action":"convert"})t",
+            {"se\xc3\xb1" "or",                 // señor
+             "adi\xc3\xb3" "s"},                // adiós
+        },
+        {
+            "kor-hangul",
+            R"t({"type":"regex","value":["(.+)"],"tag":"all","action":"convert"})t",
+            {"\xed\x95\x9c\xea\xb5\xad\xec\x96\xb4"},  // 한국어
+        },
+    };
+
+    for (const auto &c : cases) {
+        DYNAMIC_SECTION(c.label) {
+            auto cfg = makeCfg(c.tagger);
+            REQUIRE(pipeline.configure(cfg).hasValue());
+
+            G2pContext context(c.words, &spec);
+            pipeline.process(context);
+
+            REQUIRE(context.words().size() == c.words.size());
+            for (size_t i = 0; i < c.words.size(); ++i) {
+                INFO("word[" << i << "]: "
+                     << static_cast<int>(reinterpret_cast<const unsigned char &>(
+                            c.words[i][0])));
+                REQUIRE(context.words()[i].mode == srt::g2p::kG2pModeConvert);
+            }
+        }
+    }
+}
+// ===========================================================================
 // G2P-033: Normal conversion via DictStep does not regress.
 //
 // A working chain (tagAndValidate -> dict -> fallback) must still resolve
