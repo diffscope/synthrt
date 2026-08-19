@@ -331,6 +331,39 @@ TEST_CASE("G2P-043: format step cleaner lowercases lyrics into cleanedLyric",
 }
 
 // ===========================================================================
+// G2P-043b: cleaner lowercase is UTF-8 aware (Cyrillic).
+//
+// 西里尔文大写（"НЕТ"）在 C 语言环境的 std::tolower 下保持不变，必须经
+// UTF-8 码点映射转为小写（"нет"）才能命中小写字典（rus_dict.txt），
+// IDictStep 不再做 tolower。
+// ===========================================================================
+TEST_CASE("G2P-043b: format cleaner lowercases Cyrillic uppercase lyrics",
+          "[g2p][bf-53][extreme]") {
+    TestModuleSpec spec;
+    G2pPipeline pipeline(&spec, /*task=*/nullptr);
+
+    auto cfg = chainConfig(
+        R"raw({"step":"tagAndValidate","params":{"tagger":[{"type":"regex","value":["(.+)"],"tag":"word","action":"convert"}]}},)raw"
+        R"({"step":"format","params":{"cleaner":{"operations":["lowercase"]}}},)"
+        R"({"step":"fallback"})");
+    REQUIRE(pipeline.configure(cfg).hasValue());
+
+    G2pContext context({"\xd0\x9d\xd0\x95\xd0\xa2", "\xd0\xbd\xd0\xb5\xd1\x82"}, &spec);
+    pipeline.process(context);
+
+    // "НЕТ" → "нет"（UTF-8 小写），原歌词不变。
+    const auto &upper = context.words()[0];
+    REQUIRE(upper.lyric == "\xd0\x9d\xd0\x95\xd0\xa2");
+    REQUIRE(upper.cleanedLyric == "\xd0\xbd\xd0\xb5\xd1\x82");
+    REQUIRE(upper.mode == srt::g2p::kG2pModeConvert);
+
+    // 已小写词保持不变。
+    const auto &lower = context.words()[1];
+    REQUIRE(lower.lyric == "\xd0\xbd\xd0\xb5\xd1\x82");
+    REQUIRE(lower.cleanedLyric == "\xd0\xbd\xd0\xb5\xd1\x82");
+}
+
+// ===========================================================================
 // G2P-044: two-pass dict chain with format cleaner resolves mixed-case words.
 //
 // 责任链 tagAndValidate -> dict(原样) -> format(cleaner 转小写) -> dict(清洗后)

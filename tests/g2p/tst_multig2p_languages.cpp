@@ -517,6 +517,52 @@ TEST_CASE("eng chain converts the whole hyphen word through the model",
     REQUIRE(result.pronunciation == "hh eh l ow z");
 }
 
+// === non-eng chain languages: lowercase cleaner + two-pass dict ===
+// The ChainG2p-Deu/Fra/Ita/Por/Rus/Spa packages follow Eng's chain shape
+// ("raw lookup -> cleaner -> re-lookup -> model"). Corpus lyrics often
+// arrive capitalized ("Ja", "Oui"), but the *_dict.txt files (like
+// ds_cmudict-07b.txt) are lowercase-only, and DictStep no longer applies
+// tolower internally. The cleaner pass lowercases the word and the second
+// dict pass then resolves it, so capitalized words convert to phonemes
+// instead of falling to the model (or copy).
+
+TEST_CASE("non-eng chains lowercase capitalized words via cleaner and hit the dict",
+          "[g2p][chain][package-data]") {
+    auto &f = fixture();
+    if (!f.ready) {
+        SKIP("L2 fixture not ready: " << f.setupError);
+    }
+
+    struct ChainCase {
+        std::string taskId;
+        std::string word;       // capitalized input
+        std::string expectedPron; // expected space-separated phonemes (dict hit)
+    };
+    // Expected values are the exact *_dict.txt entries (dict path, no model).
+    const std::vector<ChainCase> cases = {
+        {"g2p-deu-official", "JA",    "y aa"},      // "ja" in deu_dict.txt
+        {"g2p-fra-official", "OUI",   "ou ii"},     // "oui" in fra_dict.txt
+        {"g2p-ita-official", "ABITA", "a b i t a"}, // "abita" in ita_dict.txt
+        {"g2p-por-official", "SIM",   "s i~"},      // "sim" in por_dict.txt
+        {"g2p-rus-official", "НЕТ",   "nn je t"},   // "нет" in rus_dict.txt
+        {"g2p-spa-official", "SI",    "s i"},       // "si" in spa_dict.txt
+    };
+
+    for (const auto &c : cases) {
+        DYNAMIC_SECTION(c.taskId << " word='" << c.word << "'") {
+            auto resultExp = runG2pWithTask(c.word, c.taskId);
+            REQUIRE(resultExp);
+            const auto result = resultExp.take();
+            INFO("pronunciation='" << result.pronunciation << "' mode='"
+                 << result.mode << "' errorType="
+                 << static_cast<int>(result.errorType));
+            REQUIRE(result.ok);
+            REQUIRE(result.mode == srt::g2p::kG2pModeConvert);
+            REQUIRE(result.pronunciation == c.expectedPron);
+        }
+    }
+}
+
 // === deu chain: '-' token absent from the deu vocabulary → whole word fails ===
 // The multig2p vocabulary assigns the '-' symbol per language ({lang}/default/-);
 // deu (like ita/kor) has no such token. Sending "hello-world" with deu/default

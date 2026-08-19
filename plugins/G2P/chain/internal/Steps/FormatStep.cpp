@@ -1,4 +1,5 @@
 #include "FormatStep.h"
+#include <stdcorelib/utf.h>
 #include <algorithm>
 #include <cctype>
 
@@ -36,17 +37,59 @@ namespace srt::g2p::plugins::ChainG2p {
     /// cleaner 操作实现：目前支持 "lowercase"，其余操作忽略。
     /// 清洗产生的任何歌词修改都集中在此（FormatStep 内），
     /// 不在 ds-dict / multig2p / 其他步骤中做大小写转换。
+    ///
+    /// lowercase 为 UTF-8 感知：对每个 Unicode 码点做小写映射。
+    /// 仅处理各 ChainG2p 既有语言脚本的常见大写 → 小写区间（拉丁字母、
+    /// 拉丁文增补 1、拉丁文扩展-A、西里尔文）；C 语言环境的 std::tolower
+    /// 只覆盖 ASCII，无法处理西里尔文（俄语）等非 ASCII 大写字母。
     std::string FormatStep::applyCleaner(const std::string &lyric,
                                          const std::vector<std::string> &operations)
     {
         std::string result = lyric;
         for (const auto &op : operations) {
             if (op == "lowercase") {
-                std::transform(result.begin(), result.end(), result.begin(),
-                               [](unsigned char c) { return static_cast<unsigned char>(std::tolower(c)); });
+                result = toLowercaseUtf8(result);
             }
         }
         return result;
+    }
+
+    /// UTF-8 小写化：UTF-8 → UTF-32（每个码点一个 char32_t），按码点
+    /// 映射大写 → 小写，再转回 UTF-8。未覆盖的码点保持不变。
+    std::string FormatStep::toLowercaseUtf8(const std::string &lyric)
+    {
+        auto u32 = stdc::utf::utf8_to_utf32(lyric, stdc::utf::error_policy::replace);
+        for (auto &cp : u32) {
+            cp = lowercaseCodePoint(cp);
+        }
+        return stdc::utf::utf32_to_utf8(u32, stdc::utf::error_policy::replace);
+    }
+
+    /// 单个码点的小写映射。覆盖:
+    ///   ASCII 大写 (A-Z)
+    ///   拉丁文增补 1 (À-Þ, 0xC0-0xDE, 排除 0xD7 ×)
+    ///   拉丁文扩展-A (每个偶数码点 → +1, 0x0100-0x017E)
+    ///   西里尔文 (А-Я 0x0410-0x042F → +0x20; Ѐ-Џ 0x0400-0x040F → +0x50)
+    char32_t FormatStep::lowercaseCodePoint(char32_t cp)
+    {
+        if (cp >= 0x41 && cp <= 0x5A) {           // A-Z
+            return cp + 0x20;
+        }
+        if (cp >= 0xC0 && cp <= 0xDE && cp != 0xD7) { // À-Þ (Latin-1, × excluded)
+            return cp + 0x20;
+        }
+        if (cp >= 0x0100 && cp <= 0x017E && (cp % 2) == 0) { // Latin Extended-A
+            if (cp != 0x0130) {                   // İ special
+                return cp + 1;
+            }
+        }
+        if (cp >= 0x0410 && cp <= 0x042F) {       // Cyrillic А-Я
+            return cp + 0x20;
+        }
+        if (cp >= 0x0400 && cp <= 0x040F) {       // Cyrillic Ѐ-Џ
+            return cp + 0x50;
+        }
+        return cp;
     }
 
     void FormatStep::handle(G2pContext &context)

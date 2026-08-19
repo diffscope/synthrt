@@ -34,6 +34,8 @@ namespace srt::g2p::plugins::ChainG2p {
         static std::string addSpaceAtAlnumBoundary(const std::string &str);
         static std::string applyCleaner(const std::string &lyric,
                                         const std::vector<std::string> &operations);
+        static std::string toLowercaseUtf8(const std::string &lyric);
+        static char32_t lowercaseCodePoint(char32_t cp);
     };
 
 }
