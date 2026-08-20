@@ -409,15 +409,12 @@ namespace srt::svs {
                                 std::string(param.tag.name()) +
                                 " resample failed", {}, "acoustic");
             }
-            // Create f0 tensor for acoustic model
-            auto expForAcoustic = ds::infer::inferutil::TensorHelper<float>::createFor1DArray(targetLength);
-            if (!expForAcoustic) {
-                Log.srtCritical("%1 start: failed to create f0 tensor: %2",
-                                kLogPrefix, expForAcoustic.error().message());
-                return expForAcoustic.takeError();
-            }
-            auto &acousticHelper = expForAcoustic.value();
-
+            // tone_shift (音区偏移) applies to the f0 that drives the acoustic
+            // model only. The original (un-shifted) f0 is returned through
+            // AcousticResult::f0 so callers can drive the vocoder / variance
+            // stage with a pitch independent from the register-shifted one;
+            // reusing the shifted f0 there double-transposes the output.
+            auto acousticSamples = samples;
             if (pToneShiftParam) {
                 const auto &toneShift = *pToneShiftParam;
                 if (!toneShift.values.empty()) {
@@ -430,35 +427,60 @@ namespace srt::svs {
                     }
                     if (convertToF0) {
                         for (size_t i = 0; i < targetLength; ++i) {
-                            samples[i] += toneShiftSamples[i] / 100.0;
+                            acousticSamples[i] += toneShiftSamples[i] / 100.0;
                         }
                     } else {
                         for (size_t i = 0; i < targetLength; ++i) {
-                            samples[i] *= std::exp2(toneShiftSamples[i] / 1200.0);
+                            acousticSamples[i] *= std::exp2(toneShiftSamples[i] / 1200.0);
                         }
                     }
                 }
             }
-            if (convertToF0) {
-                // Convert midi note to hz
-                for (const auto midi_note : std::as_const(samples)) {
-                    constexpr double a4_freq_hz = 440.0;
-                    constexpr double midi_a4_note = 69.0;
-                    const auto f0Acoustic =
-                        a4_freq_hz * std::exp2((midi_note - midi_a4_note) / 12.0);
-                    // Buffer guaranteed not to overflow,
-                    // given (resampled.size() == targetLength), which has been checked before
-                    acousticHelper.writeUnchecked(static_cast<float>(f0Acoustic));
+
+            // Convert midi note to hz
+            const auto toHz = [](double note) -> float {
+                constexpr double a4_freq_hz = 440.0;
+                constexpr double midi_a4_note = 69.0;
+                return static_cast<float>(a4_freq_hz * std::exp2((note - midi_a4_note) / 12.0));
+            };
+            const auto fillF0 = [&](ds::infer::inferutil::TensorHelper<float> &helper,
+                                    const std::vector<double> &value) {
+                if (convertToF0) {
+                    for (const auto item : std::as_const(value)) {
+                        // Buffer guaranteed not to overflow,
+                        // given samples.size() == targetLength, checked above
+                        helper.writeUnchecked(toHz(item));
+                    }
+                } else {
+                    for (const auto item : std::as_const(value)) {
+                        // Buffer guaranteed not to overflow,
+                        // given samples.size() == targetLength, checked above
+                        helper.writeUnchecked(static_cast<float>(item));
+                    }
                 }
-            } else {
-                for (const auto sample : std::as_const(samples)) {
-                    // Buffer guaranteed not to overflow,
-                    // given (resampled.size() == targetLength), which has been checked before
-                    acousticHelper.writeUnchecked(static_cast<float>(sample));
-                }
+            };
+
+            // f0 tensor for the acoustic model (tone-shifted)
+            auto expForAcoustic = ds::infer::inferutil::TensorHelper<float>::createFor1DArray(targetLength);
+            if (!expForAcoustic) {
+                Log.srtCritical("%1 start: failed to create f0 tensor: %2",
+                                kLogPrefix, expForAcoustic.error().message());
+                return expForAcoustic.takeError();
             }
-            f0TensorForVocoder = acousticHelper.take();
-            sessionInput->inputs["f0"] = f0TensorForVocoder; // ref count +1
+            auto &acousticHelper = expForAcoustic.value();
+            fillF0(acousticHelper, acousticSamples);
+            sessionInput->inputs["f0"] = acousticHelper.take(); // ref count +1
+
+            // f0 tensor for the vocoder (original, un-shifted)
+            auto expForVocoder = ds::infer::inferutil::TensorHelper<float>::createFor1DArray(targetLength);
+            if (!expForVocoder) {
+                Log.srtCritical("%1 start: failed to create vocoder f0 tensor: %2",
+                                kLogPrefix, expForVocoder.error().message());
+                return expForVocoder.takeError();
+            }
+            auto &vocoderHelper = expForVocoder.value();
+            fillF0(vocoderHelper, samples);
+            f0TensorForVocoder = vocoderHelper.take();
             return srt::core::Expected<void>();
         };
 
