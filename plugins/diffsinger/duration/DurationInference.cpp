@@ -71,7 +71,7 @@ namespace srt::svs {
                 const auto &note = word.notes[idx];
                 const auto rest = static_cast<uint8_t>(note.is_rest);
                 isRest.push_back(rest);
-                phMidi.push_back(rest ? 0 : note.key);
+                phMidi.push_back(note.key);
             }
 
             if (!ds::infer::inferutil::fillRestMidiWithNearestInPlace<int64_t>(phMidi, isRest)) {

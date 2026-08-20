@@ -268,9 +268,8 @@ namespace srt::svs {
         for (const auto &word : pitchInput->words) {
             for (const auto &note : word.notes) {
                 noteRest.emplace_back(note.is_rest ? 1 : 0);
-                noteMidi.emplace_back(note.is_rest ? 0
-                                                   : (static_cast<float>(note.key) +
-                                                      static_cast<float>(note.cents) / 100.0f));
+                noteMidi.emplace_back(static_cast<float>(note.key) +
+                                      static_cast<float>(note.cents) / 100.0f);
                 int64_t noteDurPrevFrames = std::llround(noteDurSum / frameWidth);
                 noteDurSum += note.duration;
                 int64_t noteDurCurrFrames = std::llround(noteDurSum / frameWidth);
