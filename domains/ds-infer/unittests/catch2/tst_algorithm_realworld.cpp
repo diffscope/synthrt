@@ -105,8 +105,7 @@ TEST_CASE("resample upsampling from 20ms to 10ms with tail fill", "[algorithm][r
     REQUIRE(approxEqual(result[99], 42.0));
 }
 
-TEST_CASE("resample tone_shift with fillLast=false zeros tail", "[algorithm][realworld]") {
-    // AcousticInference uses fillLast=false for tone_shift
+TEST_CASE("resample with fillLast=false zeros tail", "[algorithm][realworld]") {
     std::vector<double> toneShift(50, 5.0);
     auto result = resampleParam(toneShift, 0.02, 0.01, 100, false);
     REQUIRE(result.size() == 100);

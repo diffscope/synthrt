@@ -283,7 +283,6 @@ namespace srt::svs {
 
         const Co::InputParameterInfo *pPitchParam = nullptr;
         const Co::InputParameterInfo *pF0Param = nullptr;
-        const Co::InputParameterInfo *pToneShiftParam = nullptr;
 
         for (const auto &param : acousticInput->parameters) {
             if (param.tag == Co::Tags::F0) {
@@ -293,11 +292,6 @@ namespace srt::svs {
 
             if (param.tag == Co::Tags::Pitch) {
                 pPitchParam = &param;
-                continue;
-            }
-
-            if (param.tag == Co::Tags::ToneShift) {
-                pToneShiftParam = &param;
                 continue;
             }
 
@@ -409,33 +403,6 @@ namespace srt::svs {
                                 std::string(param.tag.name()) +
                                 " resample failed", {}, "acoustic");
             }
-            // tone_shift (音区偏移) applies to the f0 that drives the acoustic
-            // model only. The original (un-shifted) f0 is returned through
-            // AcousticResult::f0 so callers can drive the vocoder / variance
-            // stage with a pitch independent from the register-shifted one;
-            // reusing the shifted f0 there double-transposes the output.
-            auto acousticSamples = samples;
-            if (pToneShiftParam) {
-                const auto &toneShift = *pToneShiftParam;
-                if (!toneShift.values.empty()) {
-                    auto toneShiftSamples = ds::infer::inferutil::resample(
-                        toneShift.values, toneShift.interval, frameWidth, targetLength, false);
-                    if (toneShiftSamples.size() != targetLength) {
-                        return srt::core::Error::inferenceError(srt::core::ErrorCode::InferenceInputInvalid,
-                                          "[Acoustic] parameter " + std::string(toneShift.tag.name()) +
-                                              " resample failed", {}, "acoustic");
-                    }
-                    if (convertToF0) {
-                        for (size_t i = 0; i < targetLength; ++i) {
-                            acousticSamples[i] += toneShiftSamples[i] / 100.0;
-                        }
-                    } else {
-                        for (size_t i = 0; i < targetLength; ++i) {
-                            acousticSamples[i] *= std::exp2(toneShiftSamples[i] / 1200.0);
-                        }
-                    }
-                }
-            }
 
             // Convert midi note to hz
             const auto toHz = [](double note) -> float {
@@ -460,7 +427,7 @@ namespace srt::svs {
                 }
             };
 
-            // f0 tensor for the acoustic model (tone-shifted)
+            // f0 tensor for the acoustic model (un-shifted, faithful)
             auto expForAcoustic = ds::infer::inferutil::TensorHelper<float>::createFor1DArray(targetLength);
             if (!expForAcoustic) {
                 Log.srtCritical("%1 start: failed to create f0 tensor: %2",
@@ -468,10 +435,10 @@ namespace srt::svs {
                 return expForAcoustic.takeError();
             }
             auto &acousticHelper = expForAcoustic.value();
-            fillF0(acousticHelper, acousticSamples);
+            fillF0(acousticHelper, samples);
             sessionInput->inputs["f0"] = acousticHelper.take(); // ref count +1
 
-            // f0 tensor for the vocoder (original, un-shifted)
+            // f0 tensor for the vocoder (un-shifted, faithful)
             auto expForVocoder = ds::infer::inferutil::TensorHelper<float>::createFor1DArray(targetLength);
             if (!expForVocoder) {
                 Log.srtCritical("%1 start: failed to create vocoder f0 tensor: %2",
