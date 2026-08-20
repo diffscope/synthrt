@@ -1,6 +1,8 @@
 #include "inferutil/Driver.h"
 
 #include <stdcorelib/str.h>
+#include <synthrt/Core/SynthUnit.h>
+
 #include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>

@@ -7,7 +7,8 @@
 #include <stdcorelib/path.h>
 #include <stdcorelib/stlextra/algorithms.h>
 
-#include "Contribute_p.h"
+#include "ContribCategory_p.h"
+#include "ContribHandler.h"
 #include "SynthUnit_p.h"
 
 namespace fs = std::filesystem;
@@ -61,8 +62,8 @@ namespace srt {
 
     Expected<void>
         PackageData::parse(const std::filesystem::path &dir,
-                           const std::map<std::string, std::unique_ptr<ContribCategory>,
-                                          std::less<>> &categories,
+                           const std::map<std::string, std::unique_ptr<ContribHandler>,
+                                          std::less<>> &handlers,
                            stdc::vlarray_base<ContribSpec *> *outContributes) {
         std::string id_;
         stdc::VersionNumber version_;
@@ -244,8 +245,8 @@ namespace srt {
                 // there is no longer any reason to believe the set is the two that SVS defines.
                 for (const auto &pair : contributesObj) {
                     const auto &contributeKey = pair.first;
-                    auto it2 = categories.find(contributeKey);
-                    if (it2 == categories.end()) {
+                    auto it2 = handlers.find(contributeKey);
+                    if (it2 == handlers.end()) {
                         error1 = {
                             Error::FeatureNotSupported,
                             stdc::formatN(R"(unknown contribute "%1")", contributeKey),
@@ -253,7 +254,7 @@ namespace srt {
                         goto out_failed;
                     }
 
-                    const auto &cc = it2->second;
+                    const auto &handler = it2->second;
                     if (!pair.second.isArray()) {
                         error1 = {
                             Error::InvalidFormat,
@@ -328,7 +329,7 @@ namespace srt {
                             goto out_failed;
                         }
 
-                        auto contribute = cc->parseSpec(canonicalDir, pathIt->second);
+                        auto contribute = handler->parseSpec(canonicalDir, item);
                         if (!contribute) {
                             error1 = contribute.error();
                             goto out_failed;

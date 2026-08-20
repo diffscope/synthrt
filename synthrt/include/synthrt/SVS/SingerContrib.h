@@ -68,6 +68,7 @@ namespace srt {
 
         friend class SingerSpec;
         friend class SingerCategory;
+        friend class SingerHandler;
     };
 
     class SYNTHRT_EXPORT SingerSpec : public ContribSpec {
@@ -93,11 +94,14 @@ namespace srt {
         const std::filesystem::path &path() const;
 
     protected:
-        class Handler;
+        class Impl;
         SingerSpec();
 
         friend class SingerCategory;
+        friend class SingerHandler;
     };
+
+    class SingerHandler;
 
     class SYNTHRT_EXPORT SingerCategory : public ContribCategory {
     public:
@@ -108,16 +112,9 @@ namespace srt {
         std::vector<SingerSpec *> singers() const;
 
     protected:
-        Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
-                                          const JsonValue &config) const override;
-        Expected<void> loadSpec(ContribSpec *spec, ContribSpec::State state) override;
+        explicit SingerCategory(ContribHandler *handler);
 
-    protected:
-        class Impl;
-        explicit SingerCategory(SynthUnit *su);
-
-        friend class SynthUnit;
-        friend class ContribCategoryFactory<SingerCategory>;
+        friend class SingerHandler;
     };
 
 }

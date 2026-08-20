@@ -3,7 +3,7 @@
 #include <vector>
 
 #include <synthrt/Core/SynthUnit.h>
-#include <synthrt/Core/Contribute.h>
+#include <synthrt/Core/ContribHandler.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
@@ -69,7 +69,7 @@ BOOST_AUTO_TEST_CASE(test_SynthUnit_RepeatedConstruction) {
 // This test binary is a separate module, so it is the thing that would notice.
 BOOST_AUTO_TEST_CASE(test_SynthUnit_RegistryIsReachableFromOutside) {
     std::vector<std::string_view> names;
-    for (const auto &entry : srt::ContribCategoryRegistry::entries()) {
+    for (const auto &entry : srt::ContribHandlerRegistry::entries()) {
         names.push_back(entry.name());
         BOOST_CHECK(!entry.desc().empty());
     }
@@ -80,7 +80,7 @@ BOOST_AUTO_TEST_CASE(test_SynthUnit_RegistryIsReachableFromOutside) {
 
     // Every entry builds the category the unit ends up holding.
     SynthUnit su;
-    for (const auto &entry : srt::ContribCategoryRegistry::entries()) {
+    for (const auto &entry : srt::ContribHandlerRegistry::entries()) {
         auto category = su.category(entry.name());
         BOOST_REQUIRE(category != nullptr);
         BOOST_CHECK(category->name() == entry.name());

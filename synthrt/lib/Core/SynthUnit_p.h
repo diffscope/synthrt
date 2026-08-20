@@ -13,6 +13,8 @@
 
 namespace srt {
 
+    class ContribHandler;
+
     class ContribSpec;
 
     class PackageData;
@@ -31,7 +33,7 @@ namespace srt {
         void closeAllLoadedPackages();
         void refreshPackageIndexes();
 
-        std::map<std::string, std::unique_ptr<ContribCategory>, std::less<>> categories;
+        std::map<std::string, std::unique_ptr<ContribHandler>, std::less<>> handlers;
 
         stdc::vlarray<std::filesystem::path> packagePaths;
 

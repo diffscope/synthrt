@@ -10,14 +10,21 @@
 #include "Inference.h"
 #include "InferenceInterpreter.h"
 #include "InferenceInterpreterPlugin.h"
-#include "Contribute_p.h"
+#include "SynthUnit.h"
+#include "ContribCategory_p.h"
+#include "ContribHandler.h"
 
 namespace fs = std::filesystem;
 
 namespace srt {
 
-    class InferenceSpec::Handler : public ContribSpecHandler {
+    class InferenceSpec::Impl : public ContribSpec::Impl {
     public:
+        Impl() : ContribSpec::Impl("inference") {
+        }
+
+        stdc::VersionNumber fmtVersion;
+
         Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj);
         Expected<void> readDesc(const std::filesystem::path &basePath, const JsonValue &pathValue);
 
@@ -68,7 +75,7 @@ namespace srt {
         return root.toObject();
     }
 
-    Expected<void> InferenceSpec::Handler::readDesc(const std::filesystem::path &basePath,
+    Expected<void> InferenceSpec::Impl::readDesc(const std::filesystem::path &basePath,
                                                  const JsonValue &pathValue) {
         if (!pathValue.isString()) {
             return Error{
@@ -99,7 +106,7 @@ namespace srt {
         return Expected<void>();
     }
 
-    Expected<void> InferenceSpec::Handler::read(const std::filesystem::path &basePath,
+    Expected<void> InferenceSpec::Impl::read(const std::filesystem::path &basePath,
                                              const JsonObject &obj) {
         (void) basePath;
         stdc::VersionNumber fmtVersion_;
@@ -229,15 +236,19 @@ namespace srt {
         return Expected<void>();
     }
 
-    class InferenceCategory::Impl : public ContribCategory::Impl {
+    /// The inference kind: what synthrt does not itself know about reading one.
+    class InferenceHandler : public ContribHandler {
     public:
-        explicit Impl(InferenceCategory *decl, SynthUnit *su)
-            : ContribCategory::Impl(decl, "inference", su) {
+        ContribCategory *createCategory() override {
+            return new InferenceCategory(this);
         }
 
-        ~Impl() {
-        }
+        Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
+                                          const JsonValue &entry) const override;
+        Expected<void> loadSpec(ContribSpec *spec, ContribSpec::State state) override;
 
+        /// Kept across every specification of this kind, which is what the handler outliving them
+        /// is for.
         std::map<std::string, UNO<InferenceInterpreter>> interpreters;
     };
 
@@ -246,60 +257,60 @@ namespace srt {
     InferenceSpec::~InferenceSpec() = default;
 
     const std::string &InferenceSpec::className() const {
-        srt_handler_t;
-        return handler.className;
+        stdc_impl_t;
+        return impl.className;
     }
 
     DisplayText InferenceSpec::name() const {
-        srt_handler_t;
+        stdc_impl_t;
         // A manifest that names itself nothing is displayed as whatever its package calls it.
-        return handler.name.isEmpty() ? DisplayText(id()) : handler.name;
+        return impl.name.isEmpty() ? DisplayText(id()) : impl.name;
     }
 
     int InferenceSpec::apiLevel() const {
-        srt_handler_t;
-        return handler.apiLevel;
+        stdc_impl_t;
+        return impl.apiLevel;
     }
 
     const JsonObject &InferenceSpec::manifestSchema() const {
-        srt_handler_t;
-        return handler.manifestSchema;
+        stdc_impl_t;
+        return impl.manifestSchema;
     }
 
     InferenceSchema *InferenceSpec::schema() const {
-        srt_handler_t;
-        return handler.schema.get();
+        stdc_impl_t;
+        return impl.schema.get();
     }
 
     const JsonObject &InferenceSpec::manifestConfiguration() const {
-        srt_handler_t;
-        return handler.manifestConfiguration;
+        stdc_impl_t;
+        return impl.manifestConfiguration;
     }
 
     InferenceConfiguration *InferenceSpec::configuration() const {
-        srt_handler_t;
-        return handler.configuration.get();
+        stdc_impl_t;
+        return impl.configuration.get();
     }
 
     const std::filesystem::path &InferenceSpec::path() const {
-        srt_handler_t;
-        return handler.path;
+        stdc_impl_t;
+        return impl.path;
     }
 
     Expected<NO<InferenceImportOptions>>
         InferenceSpec::createImportOptions(const JsonValue &options) const {
-        srt_handler_t;
-        return handler.interp->createImportOptions(this, options);
+        stdc_impl_t;
+        return impl.interp->createImportOptions(this, options);
     }
 
     Expected<NO<Inference>>
         InferenceSpec::createInference(const NO<InferenceImportOptions> &importOptions,
                                        const NO<InferenceRuntimeOptions> &runtimeOptions) const {
-        srt_handler_t;
-        return handler.interp->createInference(this, importOptions, runtimeOptions);
+        stdc_impl_t;
+        return impl.interp->createInference(this, importOptions, runtimeOptions);
     }
 
-    InferenceSpec::InferenceSpec() : ContribSpec("inference", std::make_unique<Handler>()) {
+    InferenceSpec::InferenceSpec() : ContribSpec(*new Impl()) {
     }
 
     InferenceCategory::~InferenceCategory() = default;
@@ -308,7 +319,7 @@ namespace srt {
         InferenceCategory::findInferences(const ContribLocator &locator) const {
         stdc_impl_t;
         std::vector<InferenceSpec *> res;
-        auto temp = impl.findContributes(locator);
+        auto temp = find(locator);
         res.reserve(temp.size());
         for (const auto &item : std::as_const(temp)) {
             res.push_back(static_cast<InferenceSpec *>(item));
@@ -327,7 +338,7 @@ namespace srt {
         return res;
     }
 
-    Expected<ContribSpec *> InferenceCategory::parseSpec(const std::filesystem::path &basePath,
+    Expected<ContribSpec *> InferenceHandler::parseSpec(const std::filesystem::path &basePath,
                                                          const JsonValue &config) const {
         stdc_impl_t;
         if (!config.isString()) {
@@ -337,26 +348,26 @@ namespace srt {
             };
         }
         auto spec = new InferenceSpec();
-        auto spec_handler = static_cast<InferenceSpec::Handler *>(spec->handlerObject());
-        if (auto exp = spec_handler->readDesc(basePath, config); !exp) {
+        auto spec_impl = static_cast<InferenceSpec::Impl *>(spec->_impl.get());
+        if (auto exp = spec_impl->readDesc(basePath, config); !exp) {
             delete spec;
             return exp.error();
         }
         return spec;
     }
 
-    Expected<void> InferenceCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
+    Expected<void> InferenceHandler::loadSpec(ContribSpec *spec, ContribSpec::State state) {
         stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
                 auto infSpec = static_cast<InferenceSpec *>(spec);
-                auto spec_handler = static_cast<InferenceSpec::Handler *>(infSpec->handlerObject());
+                auto spec_impl = static_cast<InferenceSpec::Impl *>(infSpec->_impl.get());
 
                 const auto &key = infSpec->className();
                 InferenceInterpreter *interp = nullptr;
 
                 // Search interpreter cache
-                if (auto it = impl.interpreters.find(key); it != impl.interpreters.end()) {
+                if (auto it = interpreters.find(key); it != interpreters.end()) {
                     interp = it->second.get();
                 } else {
                     // Search interpreter
@@ -370,7 +381,7 @@ namespace srt {
                                 infSpec->className(), infSpec->id()),
                         };
                     }
-                    auto &slot = impl.interpreters[key];
+                    auto &slot = interpreters[key];
                     slot = plugin->create();
                     interp = slot.get();
                 }
@@ -393,7 +404,7 @@ namespace srt {
                 if (!schema) {
                     return schema.error();
                 }
-                spec_handler->schema = schema.take();
+                spec_impl->schema = schema.take();
 
                 auto config = interp->createConfiguration(infSpec).withContext(
                     Error::InvalidFormat,
@@ -402,9 +413,9 @@ namespace srt {
                 if (!config) {
                     return config.error();
                 }
-                spec_handler->configuration = config.take();
-                spec_handler->interp = interp;
-                return ContribCategory::loadSpec(spec, state);
+                spec_impl->configuration = config.take();
+                spec_impl->interp = interp;
+                return ContribHandler::loadSpec(spec, state);
             }
 
             case ContribSpec::Ready:
@@ -413,7 +424,7 @@ namespace srt {
             }
 
             case ContribSpec::Deleted: {
-                return ContribCategory::loadSpec(spec, state);
+                return ContribHandler::loadSpec(spec, state);
             }
             default:
                 break;
@@ -421,10 +432,10 @@ namespace srt {
         return Expected<void>();
     }
 
-    InferenceCategory::InferenceCategory(SynthUnit *su) : ContribCategory(*new Impl(this, su)) {
+    InferenceCategory::InferenceCategory(ContribHandler *handler) : ContribCategory(handler) {
     }
 
-    static ContribCategoryRegistry::Add<ContribCategoryFactory<InferenceCategory>>
+    static ContribHandlerRegistry::Add<InferenceHandler>
         registrar("inference", "Inference contributes");
 
 }

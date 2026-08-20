@@ -89,13 +89,17 @@ namespace srt {
                             const NO<InferenceRuntimeOptions> &runtimeOptions) const;
 
     protected:
-        class Handler;
+        class Impl;
         InferenceSpec();
 
         friend class InferenceCategory;
+        friend class InferenceHandler;
     };
 
+    class InferenceHandler;
+
     class InferenceDriver;
+
 
     class SYNTHRT_EXPORT InferenceCategory : public ContribCategory {
     public:
@@ -106,16 +110,9 @@ namespace srt {
         std::vector<InferenceSpec *> inferences() const;
 
     protected:
-        Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
-                                          const JsonValue &config) const override;
-        Expected<void> loadSpec(ContribSpec *spec, ContribSpec::State state) override;
+        explicit InferenceCategory(ContribHandler *handler);
 
-    protected:
-        class Impl;
-        explicit InferenceCategory(SynthUnit *env);
-
-        friend class SynthUnit;
-        friend class ContribCategoryFactory<InferenceCategory>;
+        friend class InferenceHandler;
     };
 
 }

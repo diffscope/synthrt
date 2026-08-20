@@ -5,7 +5,6 @@
 
 #include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribHandler.h>
-#include <synthrt/Core/Contribute_p.h>
 #include <synthrt/Core/PackageRef.h>
 #include <synthrt/Core/SynthUnit.h>
 
@@ -24,76 +23,64 @@ using srt::SynthUnit;
 //
 // This test binary is a separate module that links synthrt, so it stands in for a library like
 // wolf. Everything here is the pattern such a library follows, and it only compiles because the
-// implementation classes are reachable through Contribute_p.h and the registry is exported.
+// registry is exported. Note what it does NOT need: no private header of synthrt is included.
 namespace {
 
     class SampleCategory;
 
+    // A specification defined outside synthrt keeps its state wherever it likes -- here, plain
+    // members. Nothing has to be inherited, and no private header has to be reachable, to write
+    // one.
     class SampleSpec : public ContribSpec {
     public:
-        class Handler : public srt::ContribSpecHandler {
-        public:
-            Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj) {
-                (void) basePath;
-                (void) obj;
-
-                // No identifier here. What this module is called is the package's business, and
-                // PackageRef fills it in from desc.json once this returns.
-                fmtVersion = stdc::VersionNumber(1, 0);
-                return Expected<void>();
-            }
-
-            // Where the package pointed. A real category would open it; this one only records it,
-            // so a test can check what the framework handed over.
-            std::string pointedAt;
-        };
-
-        SampleSpec() : ContribSpec("sample", std::make_unique<Handler>()) {
-        }
-
-        const std::string &pointedAt() const {
-            srt_handler_t;
-            return handler.pointedAt;
-        }
-
-        void setPointedAt(std::string path) {
-            srt_handler_t;
-            handler.pointedAt = std::move(path);
+        SampleSpec() : ContribSpec("sample") {
         }
 
         Expected<void> readFrom(const JsonObject &obj) {
-            srt_handler_t;
-            return handler.read({}, obj);
+            (void) obj;
+
+            // No identifier here. What this module is called is the package's business, and
+            // PackageRef fills it in from desc.json once this returns.
+            return Expected<void>();
+        }
+
+        // Where the package pointed. A real category would open it; this one only records it, so
+        // a test can check what the framework handed over.
+        std::string pointedAt;
+    };
+
+    // The category is only the face callers hold. Nothing is overridden on it here, because this
+    // kind needs no interface of its own beyond what ContribCategory already offers.
+    class SampleCategory : public srt::ContribCategory {
+    public:
+        explicit SampleCategory(srt::ContribHandler *handler) : srt::ContribCategory(handler) {
         }
     };
 
-    class SampleCategory : public srt::ContribCategory {
-    public:
-        class Impl : public srt::ContribCategory::Impl {
-        public:
-            Impl(SampleCategory *decl, SynthUnit *su)
-                : srt::ContribCategory::Impl(decl, "sample", su) {
-            }
-        };
-
+    // And the handler is the whole extension: it says how an entry is read, and it is what the
+    // registry holds. No private header of synthrt's is reachable from here.
+    class SampleHandler : public srt::ContribHandler {
     protected:
+        srt::ContribCategory *createCategory() override {
+            return new SampleCategory(this);
+        }
+
         Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
-                                          const JsonValue &config) const override {
+                                          const JsonValue &entry) const override {
             (void) basePath;
+
+            // The framework has taken the entry's "id" and will fill it in afterwards. What else
+            // is in there is this kind's business -- it happens to spell it "path", and nothing
+            // outside would mind if it spelled it otherwise.
             auto spec = new SampleSpec();
-            spec->setPointedAt(config.toString());
+            spec->pointedAt = entry["path"].toString();
             return spec;
         }
-
-        explicit SampleCategory(SynthUnit *su) : srt::ContribCategory(*new Impl(this, su)) {
-        }
-
-        friend class srt::ContribCategoryFactory<SampleCategory>;
     };
 
 }
 
-static srt::ContribCategoryRegistry::Add<srt::ContribCategoryFactory<SampleCategory>>
+static srt::ContribHandlerRegistry::Add<SampleHandler>
     registrar("sample", "Sample contributes, defined outside synthrt");
 
 namespace {
@@ -254,7 +241,7 @@ BOOST_AUTO_TEST_CASE(test_ContribLocator_Segments) {
 BOOST_AUTO_TEST_CASE(test_ContribCategoryRegistry_TakesOneFromOutside) {
     bool found = false;
     int count = 0;
-    for (const auto &entry : srt::ContribCategoryRegistry::entries()) {
+    for (const auto &entry : srt::ContribHandlerRegistry::entries()) {
         ++count;
         if (entry.name() == "sample") {
             found = true;
@@ -337,8 +324,8 @@ BOOST_AUTO_TEST_CASE(test_PackageRef_TakesContributeIdsFromDesc) {
     BOOST_CHECK(specs[0]->category() == "sample");
 
     // The path reached the category untouched, for it to resolve as it sees fit.
-    BOOST_CHECK(specs[0]->as<SampleSpec>()->pointedAt() == "./elsewhere/farewell.json");
-    BOOST_CHECK(specs[1]->as<SampleSpec>()->pointedAt() == "./greeting.json");
+    BOOST_CHECK(specs[0]->as<SampleSpec>()->pointedAt == "./elsewhere/farewell.json");
+    BOOST_CHECK(specs[1]->as<SampleSpec>()->pointedAt == "./greeting.json");
 
     // And one can be found by the name the package gave it.
     BOOST_CHECK(ref.contribute("sample", "greeting") == specs[1]);

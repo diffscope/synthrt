@@ -11,7 +11,9 @@
 
 #include "PackageRef.h"
 #include "InferenceContrib.h"
-#include "Contribute_p.h"
+#include "SynthUnit.h"
+#include "ContribCategory_p.h"
+#include "ContribHandler.h"
 #include "SingerProviderPlugin.h"
 
 namespace fs = std::filesystem;
@@ -29,8 +31,13 @@ namespace srt {
         NO<InferenceImportOptions> options;
     };
 
-    class SingerSpec::Handler : public ContribSpecHandler {
+    class SingerSpec::Impl : public ContribSpec::Impl {
     public:
+        Impl() : ContribSpec::Impl("singer") {
+        }
+
+        stdc::VersionNumber fmtVersion;
+
         Expected<void> read(const std::filesystem::path &basePath, const JsonObject &obj);
 
         std::filesystem::path path;
@@ -211,7 +218,7 @@ namespace srt {
         return SingerDemoAudio{name.take(), path.take()};
     }
 
-    Expected<void> SingerSpec::Handler::read(const std::filesystem::path &basePath,
+    Expected<void> SingerSpec::Impl::read(const std::filesystem::path &basePath,
                                           const JsonObject &obj) {
         (void) basePath;
         stdc::VersionNumber fmtVersion_;
@@ -463,66 +470,73 @@ namespace srt {
     SingerSpec::~SingerSpec() = default;
 
     const std::string &SingerSpec::className() const {
-        srt_handler_t;
-        return handler.className;
+        stdc_impl_t;
+        return impl.className;
     }
 
     DisplayText SingerSpec::name() const {
-        srt_handler_t;
+        stdc_impl_t;
         // A manifest that names itself nothing is displayed as whatever its package calls it.
-        return handler.name.isEmpty() ? DisplayText(id()) : handler.name;
+        return impl.name.isEmpty() ? DisplayText(id()) : impl.name;
     }
 
     int SingerSpec::apiLevel() const {
-        srt_handler_t;
-        return handler.apiLevel;
+        stdc_impl_t;
+        return impl.apiLevel;
     }
 
     DisplayPath SingerSpec::avatar() const {
-        srt_handler_t;
-        return handler.avatar;
+        stdc_impl_t;
+        return impl.avatar;
     }
 
     DisplayPath SingerSpec::background() const {
-        srt_handler_t;
-        return handler.background;
+        stdc_impl_t;
+        return impl.background;
     }
 
     stdc::array_view<SingerDemoAudio> SingerSpec::demoAudios() const {
-        srt_handler_t;
-        return handler.demoAudios;
+        stdc_impl_t;
+        return impl.demoAudios;
     }
 
     stdc::array_view<SingerImport> SingerSpec::imports() const {
-        srt_handler_t;
-        return handler.importList;
+        stdc_impl_t;
+        return impl.importList;
     }
 
     const JsonObject &SingerSpec::manifestConfiguration() const {
-        srt_handler_t;
-        return handler.manifestConfiguration;
+        stdc_impl_t;
+        return impl.manifestConfiguration;
     }
 
     SingerConfiguration *SingerSpec::configuration() const {
-        srt_handler_t;
-        return handler.configuration.get();
+        stdc_impl_t;
+        return impl.configuration.get();
     }
 
     const std::filesystem::path &SingerSpec::path() const {
-        srt_handler_t;
-        return handler.path;
+        stdc_impl_t;
+        return impl.path;
     }
 
-    SingerSpec::SingerSpec() : ContribSpec("singer", std::make_unique<Handler>()) {
+    SingerSpec::SingerSpec() : ContribSpec(*new Impl()) {
     }
 
 
-    class SingerCategory::Impl : public ContribCategory::Impl {
+    /// The singer kind: what synthrt does not itself know about reading one.
+    class SingerHandler : public ContribHandler {
     public:
-        explicit Impl(SingerCategory *decl, SynthUnit *su)
-            : ContribCategory::Impl(decl, "singer", su) {
+        ContribCategory *createCategory() override {
+            return new SingerCategory(this);
         }
 
+        Expected<ContribSpec *> parseSpec(const std::filesystem::path &basePath,
+                                          const JsonValue &entry) const override;
+        Expected<void> loadSpec(ContribSpec *spec, ContribSpec::State state) override;
+
+        /// Kept across every specification of this kind, which is what the handler outliving them
+        /// is for.
         std::map<std::string, UNO<SingerProvider>> providers;
     };
 
@@ -531,7 +545,7 @@ namespace srt {
     std::vector<SingerSpec *> SingerCategory::findSingers(const ContribLocator &locator) const {
         stdc_impl_t;
         std::vector<SingerSpec *> res;
-        auto temp = impl.findContributes(locator);
+        auto temp = find(locator);
         res.reserve(temp.size());
         for (const auto &item : std::as_const(temp)) {
             res.push_back(static_cast<SingerSpec *>(item));
@@ -550,7 +564,7 @@ namespace srt {
         return res;
     }
 
-    Expected<ContribSpec *> SingerCategory::parseSpec(const std::filesystem::path &basePath,
+    Expected<ContribSpec *> SingerHandler::parseSpec(const std::filesystem::path &basePath,
                                                       const JsonValue &config) const {
         if (!config.isString()) {
             return Error{
@@ -575,27 +589,27 @@ namespace srt {
         }
 
         auto spec = new SingerSpec();
-        if (auto exp = static_cast<SingerSpec::Handler *>(spec->handlerObject())->read({}, obj.get()); !exp) {
+        if (auto exp = static_cast<SingerSpec::Impl *>(spec->_impl.get())->read({}, obj.get()); !exp) {
             delete spec;
             return exp.error();
         }
-        auto spec_handler = static_cast<SingerSpec::Handler *>(spec->handlerObject());
-        spec_handler->path = fs::canonical(descPath).parent_path();
+        auto spec_impl = static_cast<SingerSpec::Impl *>(spec->_impl.get());
+        spec_impl->path = fs::canonical(descPath).parent_path();
         return spec;
     }
 
-    Expected<void> SingerCategory::loadSpec(ContribSpec *spec, ContribSpec::State state) {
+    Expected<void> SingerHandler::loadSpec(ContribSpec *spec, ContribSpec::State state) {
         stdc_impl_t;
         switch (state) {
             case ContribSpec::Initialized: {
                 auto singerSpec = static_cast<SingerSpec *>(spec);
-                auto spec_handler = static_cast<SingerSpec::Handler *>(singerSpec->handlerObject());
+                auto spec_impl = static_cast<SingerSpec::Impl *>(singerSpec->_impl.get());
 
                 const auto &key = singerSpec->className();
                 SingerProvider *prov = nullptr;
 
                 // Search provider cache
-                if (auto it = impl.providers.find(key); it != impl.providers.end()) {
+                if (auto it = providers.find(key); it != providers.end()) {
                     prov = it->second.get();
                 } else {
                     // Search provider
@@ -608,7 +622,7 @@ namespace srt {
                                           singerSpec->className(), singerSpec->id()),
                         };
                     }
-                    auto &slot = impl.providers[key];
+                    auto &slot = providers[key];
                     slot = plugin->create();
                     prov = slot.get();
                 }
@@ -634,11 +648,11 @@ namespace srt {
                 if (!config) {
                     return config.error();
                 }
-                spec_handler->configuration = config.take();
-                spec_handler->prov = prov;
+                spec_impl->configuration = config.take();
+                spec_impl->prov = prov;
 
                 // Fix imports
-                for (auto &imp : spec_handler->importDataList) {
+                for (auto &imp : spec_impl->importDataList) {
                     auto &loc = imp.inferenceLocator;
                     auto package = loc.package();
                     auto version = loc.version();
@@ -664,15 +678,15 @@ namespace srt {
                     }
                     loc = ContribLocator(std::move(package), version, loc.category(), loc.id());
                 }
-                return ContribCategory::loadSpec(spec, state);
+                return ContribHandler::loadSpec(spec, state);
             }
 
             case ContribSpec::Ready: {
                 // Check inferences
                 auto spec1 = static_cast<SingerSpec *>(spec);
-                auto spec_handler = static_cast<SingerSpec::Handler *>(spec1->handlerObject());
-                auto inferenceReg = impl.su->category("inference")->as<InferenceCategory>();
-                auto &importDataList = spec_handler->importDataList;
+                auto spec_impl = static_cast<SingerSpec::Impl *>(spec1->_impl.get());
+                auto inferenceReg = SU()->category("inference")->as<InferenceCategory>();
+                auto &importDataList = spec_impl->importDataList;
                 for (auto &imp : importDataList) {
                     // Find inference
                     auto inferences = inferenceReg->findInferences(imp.inferenceLocator);
@@ -705,7 +719,7 @@ namespace srt {
                 for (const auto &imp : std::as_const(importDataList)) {
                     imports.push_back(SingerImport(&imp));
                 }
-                spec_handler->importList = std::move(imports);
+                spec_impl->importList = std::move(imports);
                 return Expected<void>();
             }
 
@@ -714,7 +728,7 @@ namespace srt {
             }
 
             case ContribSpec::Deleted: {
-                return ContribCategory::loadSpec(spec, state);
+                return ContribHandler::loadSpec(spec, state);
             }
             default:
                 break;
@@ -723,10 +737,9 @@ namespace srt {
         return Expected<void>();
     }
 
-    SingerCategory::SingerCategory(SynthUnit *su) : ContribCategory(*new Impl(this, su)) {
+    SingerCategory::SingerCategory(ContribHandler *handler) : ContribCategory(handler) {
     }
 
-    static ContribCategoryRegistry::Add<ContribCategoryFactory<SingerCategory>>
-        registrar("singer", "Singer contributes");
+    static ContribHandlerRegistry::Add<SingerHandler> registrar("singer", "Singer contributes");
 
 }

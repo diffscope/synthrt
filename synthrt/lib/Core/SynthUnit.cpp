@@ -10,7 +10,8 @@
 #include <stdcorelib/path.h>
 
 #include "JSON.h"
-#include "Contribute_p.h"
+#include "ContribHandler_p.h"
+#include "ContribCategory_p.h"
 #include "PackageRef_p.h"
 
 namespace fs = std::filesystem;
@@ -23,15 +24,23 @@ namespace srt {
     }
 
     SynthUnit::Impl::Impl(SynthUnit *decl) : PluginFactory::Impl(decl) {
-        for (const auto &entry : ContribCategoryRegistry::entries()) {
-            auto category = entry.instantiate()->create(decl);
-            assert(category->name() == entry.name() &&
-                   "a contribute category is registered under a name other than its own");
+        for (const auto &entry : ContribHandlerRegistry::entries()) {
+            // The name appears in a reference between the ":" and the "/", so anything outside a
+            // segment would produce references that cannot be parsed back. It comes from whoever
+            // registered the handler, which is why this is checked rather than assumed.
+            assert(ContribLocator::isValidSegment(entry.name()) &&
+                   "a contribute kind must be registered under a name matching ^[A-Za-z0-9_-]+$");
 
-            // Two categories answering to one name would leave whichever lost the race
+            auto handler = entry.instantiate();
+            auto handler_impl = static_cast<ContribHandler::Impl *>(handler->_impl.get());
+            handler_impl->name = entry.name();
+            handler_impl->su = decl;
+            handler_impl->category.reset(handler->createCategory());
+
+            // Two handlers answering to one name would leave whichever lost the race
             // unreachable. Drop the newcomer, which goes out of scope still owned.
-            if (!categories.emplace(std::string(entry.name()), std::move(category)).second) {
-                assert(false && "a contribute category name is registered twice");
+            if (!handlers.emplace(std::string(entry.name()), std::move(handler)).second) {
+                assert(false && "a contribute kind is registered twice");
             }
         }
     }
@@ -66,7 +75,7 @@ namespace srt {
         auto pd = new PackageData(&decl);
         stdc::vlarray<ContribSpec *> contributes;
 
-        if (auto exp = pd->parse(canonicalPath, categories, &contributes); !exp) {
+        if (auto exp = pd->parse(canonicalPath, handlers, &contributes); !exp) {
             delete pd;
             stdc::delete_all(contributes); // Maybe redundant
             return exp.error();
@@ -258,8 +267,8 @@ namespace srt {
             for (; i < contributes.size(); ++i) {
                 const auto &contribute = contributes[i];
                 const auto &cateName = contribute->_impl->category;
-                auto it = categories.find(cateName);
-                if (it == categories.end()) {
+                auto it = handlers.find(cateName);
+                if (it == handlers.end()) {
                     error1 = {
                         Error::FeatureNotSupported,
                         stdc::formatN(R"(category "%1" not found)", cateName),
@@ -285,7 +294,7 @@ namespace srt {
                 // Delete
                 for (; i >= 0; --i) {
                     const auto &contribute = contributes[i];
-                    const auto &cc = categories.at(contribute->_impl->category);
+                    const auto &cc = handlers.at(contribute->_impl->category);
                     std::ignore = cc->loadSpec(contribute, ContribSpec::Deleted);
                     contribute->_impl->state = ContribSpec::Deleted;
                 }
@@ -307,7 +316,7 @@ namespace srt {
             int i = 0;
             for (; i < contributes.size(); ++i) {
                 const auto &contribute = contributes[i];
-                const auto &cc = categories.at(contribute->_impl->category);
+                const auto &cc = handlers.at(contribute->_impl->category);
                 if (auto exp = cc->loadSpec(contribute, ContribSpec::Ready); !exp) {
                     error1 = exp.error();
                     i--;
@@ -321,7 +330,7 @@ namespace srt {
                 // Finish
                 for (; i >= 0; --i) {
                     const auto &contribute = contributes[i];
-                    const auto &cc = categories.at(contribute->_impl->category);
+                    const auto &cc = handlers.at(contribute->_impl->category);
                     std::ignore = cc->loadSpec(contribute, ContribSpec::Finished);
                     contribute->_impl->state = ContribSpec::Finished;
                 }
@@ -329,7 +338,7 @@ namespace srt {
                 // Delete
                 for (i = int(contributes.size()) - 1; i >= 0; i--) {
                     const auto &contribute = contributes[i];
-                    const auto &cc = categories.at(contribute->_impl->category);
+                    const auto &cc = handlers.at(contribute->_impl->category);
                     std::ignore = cc->loadSpec(contribute, ContribSpec::Deleted);
                     contribute->_impl->state = ContribSpec::Deleted;
                 }
@@ -414,7 +423,7 @@ namespace srt {
             for (auto it = pkgToClose.contributes.rbegin(); it != pkgToClose.contributes.rend();
                  ++it) {
                 const auto &contribute = *it;
-                const auto &cc = categories.at(contribute->_impl->category);
+                const auto &cc = handlers.at(contribute->_impl->category);
                 std::ignore = cc->loadSpec(contribute, ContribSpec::Finished);
                 contribute->_impl->state = ContribSpec::Finished;
             }
@@ -423,7 +432,7 @@ namespace srt {
             for (auto it = pkgToClose.contributes.rbegin(); it != pkgToClose.contributes.rend();
                  ++it) {
                 const auto &contribute = *it;
-                const auto &cc = categories.at(contribute->_impl->category);
+                const auto &cc = handlers.at(contribute->_impl->category);
                 std::ignore = cc->loadSpec(contribute, ContribSpec::Deleted);
                 contribute->_impl->state = ContribSpec::Deleted;
             }
@@ -508,11 +517,11 @@ namespace srt {
 
     ContribCategory *SynthUnit::category(const std::string_view &name) const {
         stdc_impl_t;
-        auto it = impl.categories.find(name);
-        if (it == impl.categories.end()) {
+        auto it = impl.handlers.find(name);
+        if (it == impl.handlers.end()) {
             return nullptr;
         }
-        return it->second.get();
+        return it->second->category();
     }
 
     void SynthUnit::addPackagePaths(stdc::array_view<std::filesystem::path> paths) {
