@@ -116,7 +116,7 @@ namespace ds::inferutil {
                             ++index;
                             continue;
                         }
-                        const auto paramStr = item.toStringView();
+                        const auto paramStr = item.toString();
 
                         if constexpr (PT == ParameterType::All) {
                             if (!tryFindAndInsertParameters(paramStr, out)) {
@@ -256,7 +256,7 @@ namespace ds::inferutil {
                 collectError("string field \"" + fieldName + "\" type mismatch");
             } else {
                 out = stdc::path::clean_path(spec->path() /
-                                             stdc::path::from_utf8(it->second.toStringView()));
+                                             stdc::path::from_utf8(it->second.toString()));
             }
         } else {
             collectError("string field \"" + fieldName + "\" is missing");
@@ -270,7 +270,7 @@ namespace ds::inferutil {
             if (!it->second.isString()) {
                 collectError(R"(string field "phonemes" type mismatch)");
             } else {
-                auto path = spec->path() / stdc::path::from_utf8(it->second.toStringView());
+                auto path = spec->path() / stdc::path::from_utf8(it->second.toString());
                 loadIdMapping(it->first, path, out);
             }
         } else {
@@ -345,7 +345,7 @@ namespace ds::inferutil {
             if (!it->second.isString()) {
                 collectError(R"(string field "languages" type mismatch)");
             } else {
-                auto path = spec->path() / stdc::path::from_utf8(it->second.toStringView());
+                auto path = spec->path() / stdc::path::from_utf8(it->second.toString());
                 loadIdMapping(it->first, path, out);
             }
         } else {
@@ -401,7 +401,7 @@ namespace ds::inferutil {
                     } else {
                         // Get speaker embedding vector file (.emb) path
                         auto path = stdc::clean_path(spec->path() /
-                                                     stdc::path::from_utf8(value.toStringView()));
+                                                     stdc::path::from_utf8(value.toString()));
                         // Try loading .emb file
                         if (auto exp = loadSpeakerEmbedding(hiddenSize, path); exp) {
                             // Successfully loaded .emb file
@@ -496,7 +496,7 @@ namespace ds::inferutil {
         file.seekg(0);
         file.read(buffer.data(), size);
 
-        stdc::JsonParseError parseError;
+        stdc::json::ParseError parseError;
         auto j = srt::JsonValue::fromJson(buffer, true, &parseError);
         if (parseError) {
             if (ec) {

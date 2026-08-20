@@ -305,7 +305,7 @@ namespace srt {
 
                         auto idIt = entry.find("id");
                         if (idIt == entry.end() || !idIt->second.isString() ||
-                            !ContribLocator::isValidSegment(idIt->second.toStringView())) {
+                            !ContribLocator::isValidSegment(idIt->second.toString())) {
                             error1 = entryError(index, R"(has a missing or invalid "id" field)");
                             goto out_failed;
                         }
@@ -373,7 +373,7 @@ namespace srt {
         std::stringstream ss;
         ss << file.rdbuf();
 
-        stdc::JsonParseError error2;
+        stdc::json::ParseError error2;
         auto root = JsonValue::fromJson(ss.str(), true, &error2);
         if (error2) {
             return Error{
@@ -424,7 +424,7 @@ namespace srt {
                 R"(missing "id" field)",
             };
         }
-        std::string_view id = it->second.toStringView();
+        std::string_view id = it->second.toString();
         if (!isValidPackageIdentifier(id)) {
             return Error{
                 Error::InvalidFormat,
@@ -440,7 +440,7 @@ namespace srt {
             };
         }
 
-        const auto parsed = stdc::VersionNumber::fromString(it->second.toStringView());
+        const auto parsed = stdc::VersionNumber::fromString(it->second.toString());
         if (!parsed || parsed->isEmpty()) {
             return Error{
                 Error::InvalidFormat,

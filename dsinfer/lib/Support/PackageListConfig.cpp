@@ -7,7 +7,7 @@
 #include <stdcorelib/path.h>
 
 #include <synthrt/Support/JSON.h>
-#include <synthrt/Core/Contribute.h>
+#include <synthrt/Core/ContribCategory.h>
 
 using srt::JsonArray;
 using srt::JsonObject;
@@ -35,7 +35,7 @@ namespace ds {
             std::stringstream ss;
             ss << file.rdbuf();
 
-            stdc::JsonParseError error2;
+            stdc::json::ParseError error2;
             auto root = JsonValue::fromJson(ss.str(), true, &error2);
             if (error2) {
                 return Error{

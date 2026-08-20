@@ -49,7 +49,7 @@ namespace ds {
                     collectError(R"(string field "dict" type mismatch)");
                 } else {
                     result->dict = stdc::path::clean_path(
-                        spec->path() / stdc::path::from_utf8(it->second.toStringView()));
+                        spec->path() / stdc::path::from_utf8(it->second.toString()));
                 }
             } else {
                 collectError(R"(string field "dict" is missing)");

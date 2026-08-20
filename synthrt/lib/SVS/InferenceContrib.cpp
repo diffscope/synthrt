@@ -50,7 +50,7 @@ namespace srt {
         std::stringstream ss;
         ss << file.rdbuf();
 
-        stdc::JsonParseError error;
+        stdc::json::ParseError error;
         auto root = JsonValue::fromJson(ss.str(), true, &error);
         if (error) {
             return Error{

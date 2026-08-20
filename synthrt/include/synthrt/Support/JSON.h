@@ -5,12 +5,12 @@
 
 namespace srt {
 
-    using JsonValue = stdc::JsonValue;
+    using JsonValue = stdc::json::Value;
 
-    using JsonArray = stdc::JsonArray;
+    using JsonArray = stdc::json::Array;
 
-    using JsonObject = stdc::JsonObject;
+    using JsonObject = stdc::json::Object;
 
 }
 
-#endif // SYNTHRT_JSON_H
+#endif // SYNTHRT_JSON_H

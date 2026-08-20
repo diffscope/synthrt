@@ -141,7 +141,7 @@ namespace test {
 
         std::string json((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 
-        stdc::JsonParseError error;
+        stdc::json::ParseError error;
         auto root = srt::JsonValue::fromJson(json, true, &error);
         if (error)
             throw TestCaseException("JSON parse error in file '" + jsonPath.string() +
