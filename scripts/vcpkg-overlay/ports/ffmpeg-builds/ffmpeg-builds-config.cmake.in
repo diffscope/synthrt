@@ -1,0 +1,32 @@
+# ffmpeg-buildsConfig.cmake —— 由 ffmpeg-builds 端口在安装时生成。
+#
+#   find_package(ffmpeg-builds CONFIG REQUIRED)
+#   target_link_libraries(app PRIVATE FFmpeg::avcodec FFmpeg::avformat FFmpeg::swresample)
+#
+# 目标名与 vcpkg 官方 ffmpeg 端口的 FindFFMPEG.cmake 一致（FFmpeg::avcodec 等），
+# 每个目标都用 if(NOT TARGET ...) 保护，避免与其重复定义时直接报错。
+
+get_filename_component(_ffmpeg_builds_prefix "${CMAKE_CURRENT_LIST_DIR}" DIRECTORY) # share/
+get_filename_component(_ffmpeg_builds_prefix "${_ffmpeg_builds_prefix}" DIRECTORY)  # 安装前缀
+
+set(FFMPEG_BUILDS_VERSION "@FF_VERSION@")
+set(FFMPEG_BUILDS_LINE "@FF_LINE@")
+set(FFMPEG_BUILDS_VARIANT "@FF_VARIANT@")
+set(FFMPEG_BUILDS_TARGET "@FF_TARGET@")
+set(FFMPEG_BUILDS_COMPONENTS "@FF_COMPONENTS_STR@")
+
+set(FFMPEG_LIBRARIES "")
+
+@FF_TARGET_BLOCKS@
+# 一次性链接全部已安装组件
+if(NOT TARGET FFmpeg::FFmpeg)
+  add_library(FFmpeg::FFmpeg INTERFACE IMPORTED)
+  set_target_properties(FFmpeg::FFmpeg PROPERTIES
+    INTERFACE_LINK_LIBRARIES "${FFMPEG_LIBRARIES}")
+endif()
+
+# 与 FindFFMPEG.cmake 的结果变量保持兼容，便于替换官方 ffmpeg 端口
+set(FFMPEG_FOUND TRUE)
+set(FFMPEG_INCLUDE_DIRS "${_ffmpeg_builds_prefix}/include")
+set(FFMPEG_LIBRARY_DIRS "${_ffmpeg_builds_prefix}/lib" "${_ffmpeg_builds_prefix}/debug/lib")
+set(FFMPEG_LIBRARY ${FFMPEG_LIBRARIES})

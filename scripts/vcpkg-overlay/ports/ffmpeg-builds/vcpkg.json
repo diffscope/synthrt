@@ -1,0 +1,93 @@
+{
+  "name": "ffmpeg-builds",
+  "version": "8.1.2",
+  "description": [
+    "Prebuilt FFmpeg shared libraries (no source build).",
+    "Windows and Linux binaries come from BtbN/FFmpeg-Builds; macOS binaries come from PyAV-Org/pyav-ffmpeg because BtbN does not publish macOS builds. The port only unpacks and repackages the upstream artifacts, so configuring FFmpeg itself is not possible here - pick the closest matching variant instead."
+  ],
+  "homepage": "https://github.com/BtbN/FFmpeg-Builds",
+  "license": null,
+  "supports": "(windows | linux | osx) & (x64 | arm64) & !uwp & !static",
+  "default-features": [
+    "avcodec",
+    "avdevice",
+    "avfilter",
+    "avformat",
+    "swresample",
+    "swscale"
+  ],
+  "features": {
+    "avcodec": {
+      "description": "libavcodec: encoders/decoders (~70 MB on Windows)",
+      "dependencies": [
+        {
+          "name": "ffmpeg-builds",
+          "default-features": false,
+          "features": [
+            "swresample"
+          ]
+        }
+      ]
+    },
+    "avdevice": {
+      "description": "libavdevice: capture/playback device abstraction",
+      "dependencies": [
+        {
+          "name": "ffmpeg-builds",
+          "default-features": false,
+          "features": [
+            "avfilter",
+            "avformat"
+          ]
+        }
+      ]
+    },
+    "avfilter": {
+      "description": "libavfilter: audio/video filter graphs",
+      "dependencies": [
+        {
+          "name": "ffmpeg-builds",
+          "default-features": false,
+          "features": [
+            "avformat",
+            "swresample",
+            "swscale"
+          ]
+        }
+      ]
+    },
+    "avformat": {
+      "description": "libavformat: containers, protocols, I/O",
+      "dependencies": [
+        {
+          "name": "ffmpeg-builds",
+          "default-features": false,
+          "features": [
+            "avcodec"
+          ]
+        }
+      ]
+    },
+    "ffmpeg7": {
+      "description": "Use the FFmpeg 7.1 release branch instead of 8.1. Not available on macOS.",
+      "supports": "!osx"
+    },
+    "gpl": {
+      "description": "Use the GPL build variant (adds x264/x265 etc.; taints the whole program with the GPL). Ignored on macOS, where only a GPL build is available upstream."
+    },
+    "master": {
+      "description": "Use the FFmpeg master snapshot instead of the 8.1 release branch. Not available on macOS.",
+      "supports": "!osx"
+    },
+    "swresample": {
+      "description": "libswresample: audio resampling/format conversion"
+    },
+    "swscale": {
+      "description": "libswscale: image scaling and colorspace conversion"
+    },
+    "tools": {
+      "description": "Also install the ffmpeg/ffprobe/ffplay executables into tools/ffmpeg-builds. Not available on macOS.",
+      "supports": "!osx"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+ffmpeg-builds 提供预编译的 FFmpeg @FF_VERSION@ 动态库（@FF_LINE@ 线 / @FF_VARIANT@ 变体 / @FF_TARGET@），
+已安装组件：@FF_COMPONENTS_STR@
+
+CMake 用法：
+
+    find_package(ffmpeg-builds CONFIG REQUIRED)
+    target_link_libraries(main PRIVATE FFmpeg::avcodec FFmpeg::avformat FFmpeg::swresample)
+
+    # 或者一次性链接全部已安装组件
+    target_link_libraries(main PRIVATE FFmpeg::FFmpeg)
+
+也提供与官方 ffmpeg 端口 FindFFMPEG.cmake 相同的结果变量：
+FFMPEG_INCLUDE_DIRS / FFMPEG_LIBRARY_DIRS / FFMPEG_LIBRARIES。
+
+注意：
+
+* 本端口只搬运上游的预编译产物，不能改 FFmpeg 的 configure 选项。
+* 没有单独的 Debug 二进制，debug/ 下放的是同一份 Release 库。
+* 不要和官方 ffmpeg 端口同时安装，两者的头文件与运行库会撞车。
+* macOS 版来自 pyav-ffmpeg，其 x264/x265 等私有依赖装在 lib/ffmpeg-builds/ 下，
+  由 @loader_path 引用；部署时需连同该子目录一起拷贝。
+* macOS arm64 的上游 dylib 最低要求 macOS 14.0，三元组里建议
+  set(VCPKG_OSX_DEPLOYMENT_TARGET 14.0)，否则链接时会有 minos 警告。
