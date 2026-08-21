@@ -76,6 +76,31 @@ jobs:
           clang++ --version
           brew install nasm yasm pkg-config
 
+      # Normalize the vcpkg triplet per platform+arch. Previously the macOS
+      # job relied on the vcpkg default triplet (x64-osx): on ARM64 runners
+      # (macos-latest is now arm64) that mismatched the ONNX Runtime /
+      # ffmpeg-builds artifacts download selected by host arch detection in
+      # scripts/setup-onnxruntime.cmake and the ffmpeg-builds port, causing
+      # link failures. Explicitly pinning the triplet keeps every platform in
+      # sync with the downloaded prebuilt artifacts.
+      - name: Normalize vcpkg target triplet
+        shell: bash
+        run: |
+          ARCH="$(echo "${{ runner.arch }}" | tr '[:upper:]' '[:lower:]')"
+          case "${{ runner.os }}" in
+            macOS)
+              if [ "$ARCH" = "arm64" ]; then TRIPLET="arm64-osx"; else TRIPLET="x64-osx"; fi
+              ;;
+            Windows)
+              TRIPLET="x64-windows"
+              ;;
+            *)
+              TRIPLET="x64-linux"
+              ;;
+          esac
+          echo "VCPKG_TARGET_TRIPLET=${TRIPLET}" >> "$GITHUB_ENV"
+          echo "Normalized vcpkg triplet: ${TRIPLET} (arch ${ARCH})"
+
       # Pin the vcpkg client to the same revision as builtin-baseline. Runner
       # images ship a moving (and sometimes shallow) vcpkg clone, which cannot
       # reliably resolve a manifest baseline.
@@ -164,7 +189,8 @@ jobs:
             -DSYNTHRT_BUILD_TESTS=ON \
             -DSYNTHRT_ORT_DIR="${{ github.workspace }}/build/onnxruntime" \
             -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
-            -DVCPKG_MANIFEST_DIR="${{ github.workspace }}/scripts/vcpkg-manifest"
+            -DVCPKG_MANIFEST_DIR="${{ github.workspace }}/scripts/vcpkg-manifest" \
+            -DVCPKG_TARGET_TRIPLET="${{ env.VCPKG_TARGET_TRIPLET }}"
 
       - name: Build
         run: cmake --build build --config ${{ env.BUILD_TYPE }} --parallel

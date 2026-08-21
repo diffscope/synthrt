@@ -14,7 +14,7 @@
         "cpp-pinyin",
         "syscmdline",
         {
-            "name": "ffmpeg",
+            "name": "ffmpeg-builds",
             "default-features": false,
             "features": ["avcodec", "avformat", "swresample"]
         },
