@@ -53,11 +53,7 @@ Testing/
 /data
 /*.natvis
 
-# vcpkg overlay (cloned from stdware/vcpkg-overlay, not tracked as a submodule)
-# See scripts/setup-vcpkg-overlay.ps1 / .sh for local setup.
-/scripts/vcpkg/
-
 # Local-only build scripts (hardcoded author-specific MSVC paths, not portable).
 # CI uses .github/workflows/build.yml; cross-platform local setup uses
-# scripts/setup-vcpkg-overlay.{ps1,sh} + cmake + vcvars64.bat.
+# cmake + vcvars64.bat.
 /build-release.bat

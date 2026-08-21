@@ -27,12 +27,6 @@ jobs:
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
 
-      - name: Clone vcpkg overlay (latest main)
-        shell: bash
-        run: |
-          git clone --depth 1 https://github.com/stdware/vcpkg-overlay.git scripts/vcpkg
-          echo "Overlay HEAD: $(git -C scripts/vcpkg log -1 --oneline)"
-
       - name: Install system dependencies
         run: |
           sudo apt-get update

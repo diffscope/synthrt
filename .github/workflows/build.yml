@@ -35,9 +35,10 @@ jobs:
 
     steps:
       # actions/checkout@v5 runs on Node 24 (v4 was Node 20, deprecated).
-      # No submodules: the vcpkg-overlay was removed as a submodule and is
-      # cloned in a dedicated step below. The overlay repo has no nested
-      # submodules, so a plain checkout is sufficient.
+      # No submodules: the vcpkg overlay (custom ports + triplets) is tracked
+      # directly under scripts/vcpkg-overlay in this repository
+      # (mirrors the stdware/vcpkg-overlay content needed by synthrt),
+      # so the plain checkout is sufficient.
       - uses: actions/checkout@v5
 
       # Export the GH Actions cache URL and token so that vcpkg's x-gha
@@ -50,18 +51,6 @@ jobs:
           script: |
             core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
             core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
-
-      # Clone the vcpkg overlay (custom ports + triplets) on every run.
-      # The overlay is no longer a git submodule to avoid CI breakage when
-      # the overlay remote force-pushes or moves on. We always clone the
-      # latest main of stdware/vcpkg-overlay, which is the authoritative
-      # source for synthrt's custom ports (qmsetup, stdcorelib, cpp-pinyin,
-      # syscmdline, synthrt itself, etc.) and per-platform triplets.
-      - name: Clone vcpkg overlay (latest main)
-        shell: bash
-        run: |
-          git clone --depth 1 https://github.com/stdware/vcpkg-overlay.git scripts/vcpkg
-          echo "Overlay HEAD: $(git -C scripts/vcpkg log -1 --oneline)"
 
       - name: Install system dependencies (Linux)
         if: runner.os == 'Linux'
