@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+#include <stdcorelib/adt/array_view.h>
+
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 
@@ -28,8 +30,6 @@ namespace srt {
 
         ~DisplayPath();
 
-        DisplayPath &operator=(std::filesystem::path path);
-
         static Expected<DisplayPath> fromJsonValue(const JsonValue &value);
 
         inline void swap(DisplayPath &RHS) noexcept {
@@ -39,6 +39,11 @@ namespace srt {
     public:
         const std::filesystem::path &path() const;
         const std::filesystem::path &path(std::string_view locale) const;
+
+        /// The locales this path has a translation for, not counting the default.
+        ///
+        /// \note Borrowed. The view lasts as long as this object does.
+        stdc::array_view<std::string> locales() const;
 
         bool isEmpty() const;
 

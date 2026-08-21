@@ -1,8 +1,8 @@
 #include "DisplayPath.h"
 
-#include <optional>
 #include <utility>
 
+#include <stdcorelib/adt/vlarray.h>
 #include <stdcorelib/path.h>
 #include <stdcorelib/pimpl.h>
 
@@ -11,11 +11,22 @@ namespace srt {
     class DisplayPath::Impl {
     public:
         std::filesystem::path defaultPath;
-        std::optional<std::map<std::string, std::filesystem::path, std::less<>>> paths;
+
+        /// The locale codes, owned here so that \c locales() has something to hand out and the
+        /// map below has something to key into.
+        ///
+        /// \note Nothing may be added once \c paths refers into this. A locale code is short
+        ///       enough to live in the string's own small buffer, so relocating one during a
+        ///       regrow carries its characters along and leaves every key dangling.
+        stdc::vlarray<std::string, 4> locales;
+
+        /// Keyed by a view into \c locales rather than by a second copy of the same code.
+        std::map<std::string_view, std::filesystem::path, std::less<>> paths;
 
         void clear() {
             defaultPath.clear();
-            paths.reset();
+            paths.clear();
+            locales.clear();
         }
     };
 
@@ -31,16 +42,17 @@ namespace srt {
                              const std::map<std::string, std::filesystem::path> &paths)
         : DisplayPath(std::move(defaultPath)) {
         stdc_impl_t;
-        impl.paths = {paths.begin(), paths.end()};
+
+        // Sized to its final length before a single view into it is taken, so that no push below
+        // can relocate what an earlier key already points at.
+        impl.locales.reserve(paths.size());
+        for (const auto &item : paths) {
+            impl.locales.push_back(item.first);
+            impl.paths.emplace(impl.locales.back(), item.second);
+        }
     }
 
     DisplayPath::~DisplayPath() = default;
-
-    DisplayPath &DisplayPath::operator=(std::filesystem::path path) {
-        stdc_impl_t;
-        impl.defaultPath = std::move(path);
-        return *this;
-    }
 
     Expected<DisplayPath> DisplayPath::fromJsonValue(const JsonValue &value) {
         if (value.isString()) {
@@ -92,14 +104,16 @@ namespace srt {
 
     const std::filesystem::path &DisplayPath::path(std::string_view locale) const {
         stdc_impl_t;
-        if (!impl.paths) {
-            return impl.defaultPath;
-        }
-        auto it = impl.paths->find(locale);
-        if (it == impl.paths->end()) {
+        auto it = impl.paths.find(locale);
+        if (it == impl.paths.end()) {
             return impl.defaultPath;
         }
         return it->second;
+    }
+
+    stdc::array_view<std::string> DisplayPath::locales() const {
+        stdc_impl_t;
+        return {impl.locales.data(), impl.locales.size()};
     }
 
     bool DisplayPath::isEmpty() const {

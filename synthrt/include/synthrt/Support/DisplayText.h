@@ -5,6 +5,8 @@
 #include <map>
 #include <memory>
 
+#include <stdcorelib/adt/array_view.h>
+
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 
@@ -25,8 +27,6 @@ namespace srt {
 
         ~DisplayText();
 
-        DisplayText &operator=(std::string text);
-
         static Expected<DisplayText> fromJsonValue(const JsonValue &value);
 
         inline void swap(DisplayText &RHS) noexcept {
@@ -36,6 +36,11 @@ namespace srt {
     public:
         const std::string &text() const;
         const std::string &text(std::string_view locale) const;
+
+        /// The locales this text has been translated into, not counting the default.
+        ///
+        /// \note Borrowed. The view lasts as long as this object does.
+        stdc::array_view<std::string> locales() const;
 
         bool isEmpty() const;
 
