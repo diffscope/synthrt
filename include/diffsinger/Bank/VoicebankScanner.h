@@ -42,6 +42,11 @@ namespace ds::bank {
         /// Set search paths. Multiple calls append; call clear() first to reset.
         void setSearchPaths(const std::vector<std::filesystem::path> &paths);
 
+        /// Apply a display locale (e.g. "zh_CN") to the next refresh(), threading
+        /// it into PackageParser so singer/language/speaker `name` objects are
+        /// resolved for that UI language. Empty (default) keeps legacy behavior.
+        void setDisplayLocale(std::string locale);
+
         /// Clear all search paths and cached results.
         void clear();
 

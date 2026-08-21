@@ -23,11 +23,20 @@ namespace ds::bank {
         };
 
     public:
+        /// Applies a display locale (e.g. "zh_CN"/"zh-Hans") used by sub-parse
+        /// of singer/language/speaker `name` objects. Empty means legacy
+        /// behavior (prefer "default"/"en", else first key). Backward compatible:
+        /// caller sets it before parsePackage(); parsePackage() signature is unchanged.
+        void setDisplayLocale(std::string locale);
+
         /// Parses the package manifest (\c desc.json) located in \p packageDir.
         /// Returns the parsed \c PackageManifest on success, or an \c Error on failure.
         srt::core::Expected<PackageManifest>
             parsePackage(const std::filesystem::path &packageDir,
                          ParseMode mode = ParseMode::Strict) const;
+
+    private:
+        std::string m_displayLocale;
     };
 
 }

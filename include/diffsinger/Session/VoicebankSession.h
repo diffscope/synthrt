@@ -234,6 +234,9 @@ namespace ds::session {
 
         void setRoots(std::vector<std::filesystem::path> roots);
         std::vector<std::filesystem::path> roots() const;
+        /// Apply a UI-language hint (e.g. "zh_CN") used by the next refresh()
+        /// to localize singer/language/speaker display names. Empty = legacy.
+        void setDisplayLocale(std::string locale);
         void setReservedPhonemes(std::vector<std::string> phonemes);
         std::vector<std::string> reservedPhonemes() const;
 
