@@ -131,34 +131,6 @@ TEST_CASE("interpolate single reference point broadcasts", "[algorithm][interpol
     REQUIRE(approxEqual(result[2], -2.0));
 }
 
-TEST_CASE("interpolate sample at NaN is UB (lower_bound strict-weak-order violation)",
-          "[algorithm][interpolate][extreme]") {
-    // NaN samplePoint：比较 NaN < front() 为 false，NaN > back() 也为 false，
-    // 落入 lower_bound 路径。但 std::lower_bound 要求比较器满足 strict weak
-    // ordering，NaN 与任何值比较均为 false，违反该约定，行为未定义。
-    // 实测在 MSVC Debug 下触发 array_view::operator[] 的越界断言
-    // (index < _size)，因为 lower_bound 返回的迭代器可能为 begin()，
-    // 导致 referencePoints[index-1] 越界（index=0 时下溢为 SIZE_MAX）。
-    // 与 AUD-010/011/012 同一 UB 类别（assert-guarded / 标准库算法前置条件
-    // 违反），不能用安全方式触发，标记 SKIP 以文档化此 UB。
-    SKIP("UB: NaN violates std::lower_bound strict weak ordering requirement. "
-         "MSVC Debug aborts via array_view operator[] assert (index < _size) "
-         "when lower_bound returns begin() and the code accesses [-1]. "
-         "Same UB category as AUD-010/011/012 (assert-guarded); cannot be "
-         "safely exercised without aborting the test process.");
-
-    // 保留原测试代码作为 UB 触发路径文档（不会执行）：
-    std::vector<double> samplePoints{std::numeric_limits<double>::quiet_NaN()};
-    std::vector<double> refPoints{0.0, 1.0};
-    std::vector<double> refValues{10.0, 20.0};
-    auto sp = stdc::array_view<double>(samplePoints);
-    auto rp = stdc::array_view<double>(refPoints);
-    auto rv = stdc::array_view<double>(refValues);
-    auto result = interpolate(sp, rp, rv);
-    REQUIRE(result.size() == 1);
-    (void)result[0];
-}
-
 TEST_CASE("interpolate very large sample array", "[algorithm][interpolate][extreme]") {
     // 大规模采样：10000 个点在 [0, 1] 内插值
     std::vector<double> samplePoints;

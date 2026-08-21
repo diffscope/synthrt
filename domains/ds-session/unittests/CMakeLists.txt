@@ -37,15 +37,13 @@ target_link_libraries(tst-ds-session-language    PRIVATE srt-ds::session)
 # previous snapshot, Discovery multi-package partial success, ensureLanguageReady
 # state machine, subscribeRefresh edge cases (multi-subscriber / exception
 # isolation / external reset / move semantics), fingerprint order-independence,
-# sync/refreshAsync concurrency, Stale retry L2 placeholder. Reuses shared
-# fixtures from test_vbs_common.h.
+# sync/refreshAsync concurrency. Reuses shared fixtures from test_vbs_common.h.
 synthrt_add_unittest(tst-ds-session-snapshot-ensure tst_voicebank_session_snapshot_ensure.cpp)
 target_link_libraries(tst-ds-session-snapshot-ensure PRIVATE srt-ds::session)
 
 # Edge-case matrix (test-matrix-expansion.md §1.10): SES-001 ~ SES-012.
 # Reuses test_vbs_common.h fixtures (makeRoot/makePackage/makeSecondPackage).
-# Cases requiring real ONNX models or non-default ResolutionState use SKIP()
-# (SES-005).
+# UB cases (SES-018) are documented with SKIP().
 synthrt_add_unittest(tst-ds-session-edge tst_session_edge.cpp)
 target_link_libraries(tst-ds-session-edge PRIVATE srt-ds::session)
 

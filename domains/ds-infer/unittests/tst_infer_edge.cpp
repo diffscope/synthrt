@@ -179,60 +179,6 @@ TEST_CASE("INF-006: ModelSet reset without start returns success",
 }
 
 // ===========================================================================
-// INF-007: ModelSet::unload reverse release order (P1)
-//
-// Requires all 5 stages to be loaded (real ONNX Inference objects); L1 cannot construct them.
-// unloadAll on empty stages only returns success, cannot verify vocoder->acoustic->...
-// ->pitch->duration release order.
-// ===========================================================================
-TEST_CASE("INF-007: ModelSet unloadAll releases in reverse order",
-          "[infer][edge]") {
-    SKIP("L2: requires 5 stages loaded with real ONNX Inference objects to "
-         "verify vocoder->acoustic->variance->pitch->duration release order. "
-         "L1 null-spec fixtures cannot construct loaded Inference objects; "
-         "unloadAll on empty stages only returns success (no order to verify).");
-}
-
-// ===========================================================================
-// INF-008: ModelSet concurrent load of different stages (P1)
-//
-// ModelBusy contention requires real load to hold the lock long enough; null spec immediately returns
-// InferenceInputInvalid, cannot trigger ModelBusy.
-// ===========================================================================
-TEST_CASE("INF-008: ModelSet concurrent load different stages", "[infer][edge]") {
-    SKIP("L2: requires real ONNX models so load() holds the internal lock long "
-         "enough for a concurrent load on another stage to observe ModelBusy. "
-         "With null specs both threads fail fast with InferenceInputInvalid "
-         "before any contention; the ModelBusy path is unreachable at L1.");
-}
-
-// ===========================================================================
-// INF-009: ModelSet::clearStale then load without unload (P2)
-//
-// P2 case, and requires already-loaded real model to verify "returns existing Inference or needs to be documented".
-// ===========================================================================
-TEST_CASE("INF-009: ModelSet clearStale then load without unload", "[infer][edge]") {
-    SKIP("P2: requires a loaded Inference (real ONNX model) to verify whether "
-         "load after clearStale returns the existing Inference or requires "
-         "unload first. L1 null-spec load returns InferenceInputInvalid. "
-         "clearStale() itself is exercised in INF-005's markStale path.");
-}
-
-// ===========================================================================
-// INF-010: InferenceService::run partial stage failure (P0)
-//
-// Requires setStages to succeed (non-null InferenceSpec) so the acoustic stage can execute and fail.
-// L1 cannot construct real InferenceSpec -> SKIP L2.
-// ===========================================================================
-TEST_CASE("INF-010: InferenceService run with acoustic stage failure stops pipeline",
-          "[infer][edge]") {
-    SKIP("L2: requires setStages to succeed with real InferenceSpec objects so "
-         "the acoustic stage can execute and fail, verifying the pipeline stops "
-         "(No Hidden Fallback) and does not continue to vocoder. L1 fixtures "
-         "cannot build non-null InferenceSpec without ONNX plugin DLLs.");
-}
-
-// ===========================================================================
 // INF-011: ModelSet::result called without start
 //
 // Matrix says "call result when already loaded"; L1 cannot load. result() also returns empty NO when

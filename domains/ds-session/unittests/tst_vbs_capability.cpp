@@ -95,13 +95,3 @@ TEST_CASE("validatePhonemes blocks reserved phonemes when singer has no capabili
 
     std::filesystem::remove_all(root);
 }
-
-TEST_CASE("validatePhonemes rejects unsupported phonemes",
-          "[ds-session][hardening]") {
-    // Requires a singer with a populated capabilityReport (effective phonemes)
-    // so that validatePhonemes reaches the unsupported-phoneme branch. The L1
-    // fixture only has a stub duration config with no ONNX model, so no report
-    // is produced and the rejection path cannot be exercised. Verified at L2
-    // with a real model fixture.
-    SKIP("L2: needs a singer with a populated capabilityReport (real ONNX)");
-}

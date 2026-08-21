@@ -180,22 +180,6 @@ TEST_CASE("SES-004: createModelSet without Runtime returns InferenceNotInitializ
 }
 
 // ===========================================================================
-// SES-005: createModelSet with non-Resolved singer (P0)
-//
-// VoicebankScanner sets ResolutionState::Resolved for all successfully-parsed singers;
-// L1 fixture cannot construct non-Resolved singer. createModelSet's resolutionState
-// guard (returns SvsSingerNotLoaded) is a defensive check, unreachable through normal scanning path.
-// ===========================================================================
-TEST_CASE("SES-005: createModelSet with unresolved singer", "[session][edge]") {
-    SKIP("L1 unreachable: VoicebankScanner sets ResolutionState::Resolved for all "
-         "successfully-parsed singers (VoicebankScanner.cpp:154). There is no "
-         "L1 fixture path that produces a non-Resolved singer in the snapshot; "
-         "the resolutionState guard in createModelSet (returns SvsSingerNotLoaded) "
-         "is a defensive check unreachable through normal scanning. Would require "
-         "L3 injection of a custom snapshot with a Pending/Missing singer.");
-}
-
-// ===========================================================================
 // SES-006: refreshAsync concurrent calls
 //
 // Contract: concurrent calls share the same in-flight scan, returning the same future (snapshot pointers are identical).
@@ -556,21 +540,6 @@ TEST_CASE("SES-017: repeated refresh with unchanged roots returns same snapshot 
     REQUIRE(session.snapshot()->generation == gen1); // generation does not increment
 
     std::filesystem::remove_all(root);
-}
-
-// ===========================================================================
-// SES-018: VoicebankSession post-destruction state
-//
-// In C++, accessing a destroyed object is undefined behavior (UB). RAII guarantees destruction releases resources (Impl's
-// shared_ptr refcount drops to zero, background scan is joined). Cannot meaningfully query post-destruction state
-// without triggering UB.
-// ===========================================================================
-TEST_CASE("SES-018: VoicebankSession post-destruction state", "[session][edge]") {
-    SKIP("Undefined behavior: accessing a destroyed VoicebankSession is UB in "
-         "C++. RAII guarantees the session releases resources on destruction "
-         "(Impl shared_ptr refcount drops to zero, background scan joined). "
-         "There is no safe way to query post-destruction state without "
-         "invoking UB, so this case cannot be meaningfully tested at L1.");
 }
 
 // ===========================================================================

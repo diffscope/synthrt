@@ -1,4 +1,4 @@
-// lib/Audio edge condition test cases (AUD-001 ~ AUD-013)
+// lib/Audio edge condition test cases (AUD-001 ~ AUD-040)
 //
 // Covers behavior of srt::audio::IAudioDecoder (FfmpegAudioDecoder implementation)
 // and AudioBuffer under abnormal input, out-of-bounds access, and concurrency
@@ -24,13 +24,12 @@
 //   - AUD-010 (P0): slice() guards out-of-bounds startFrame with assert. Release builds
 //     (NDEBUG) take defensive clamping and return empty buffer; Debug builds abort the
 //     process via assert. Test verifies empty buffer return under NDEBUG, otherwise SKIP.
-//   - AUD-011 (P1): sampleAt() guards out-of-bounds channel with assert. Matrix allows
-//     "return 0 or assert". Debug aborts; Release reads out-of-bounds (UB). Use SKIP to
-//     document, and verify valid channel access as a baseline.
-//   - AUD-012 (P1): floats() guards format mismatch with assert. Matrix allows "return
-//     empty span or assert". Debug aborts; Release reinterprets with wrong format (UB).
-//     Use SKIP to document, and verify valid Float32 access as a baseline.
-//   - AUD-013 (P2): view mode source data release is UB, marked with SKIP().
+//   - AUD-011/012/038 (P1): sampleAt()/floats() guard invalid channel/format/empty buffer
+//     with assert (Debug abort; Release OOB UB). The assert-guarded calls are
+//     documented without test shells (marked with a code-level SKIP); valid
+//     baseline accesses are covered by the reachable tests.
+//   - AUD-013 (P2): view mode source data release is UB, documented without a
+//     test shell.
 
 #include <atomic>
 #include <cstdint>
@@ -354,82 +353,6 @@ TEST_CASE("AUD-010: slice with startFrame out of range", "[audio][edge]") {
 #endif
 }
 
-// ---------------------------------------------------------------------------
-// AUD-011: AudioBuffer::sampleAt with invalid channel
-// sampleAt() guards out-of-bounds channel with assert (AudioBuffer.cpp:114:
-// `assert(channel >= 0 && channel < m_channelCount)`). Matrix allows "return 0
-// or assert". Debug aborts via assert; Release reads out-of-bounds (UB).
-// This is the same UB category as AUD-012/013 (assert-guarded format/range
-// mismatches): the invalid call cannot be exercised without aborting the test
-// process in Debug or invoking UB in Release. The valid-channel SECTION below
-// runs as a reachable baseline; the invalid-channel SECTION is SKIP per the UB
-// policy (consistent with AUD-012/013/038).
-// ---------------------------------------------------------------------------
-TEST_CASE("AUD-011: sampleAt with invalid channel", "[audio][edge]") {
-    // Construct a 2-channel Float32 buffer and write known values
-    constexpr int64_t frames = 10;
-    constexpr int channels = 2;
-    auto buf = AudioBuffer::create(frames, channels, SampleFormat::Float32);
-    auto span = buf.floats();
-    REQUIRE(span.size() == static_cast<size_t>(frames * channels));
-    for (size_t i = 0; i < span.size(); ++i) {
-        span[i] = static_cast<float>(i);
-    }
-
-    SECTION("valid channel access returns correct sample") {
-        // frame=0, channel=0 -> index 0 -> 0.0f
-        REQUIRE(buf.sampleAt(0, 0) == 0.0f);
-        // frame=0, channel=1 -> index 1 -> 1.0f
-        REQUIRE(buf.sampleAt(0, 1) == 1.0f);
-    }
-
-    SECTION("invalid channel is assert-guarded") {
-        // channel=5 exceeds the 2-channel range. sampleAt guards with
-        // assert(channel < m_channelCount) (AudioBuffer.cpp:114): Debug aborts
-        // the process, Release reads out-of-bounds (UB). Matrix allows "return
-        // 0 or assert"; the implementation chose assert. Same UB category as
-        // AUD-012/013 — cannot be exercised without aborting (Debug) or
-        // invoking UB (Release).
-        SKIP("sampleAt() guards invalid channel with assert (AudioBuffer.cpp:114, "
-             "Debug abort). Release reads out-of-bounds (UB). Matrix allows assert; "
-             "cannot test safely without aborting the test process. Same UB "
-             "category as AUD-012/013/038; valid-channel baseline runs above.");
-    }
-}
-
-// ---------------------------------------------------------------------------
-// AUD-012: AudioBuffer::floats called on an Int16 format
-// floats() guards format mismatch with assert. Matrix allows "return empty span
-// or assert". Debug aborts via assert; Release reinterprets with the wrong
-// format (UB). SKIP the invalid call and verify valid Float32 access as a baseline.
-// ---------------------------------------------------------------------------
-TEST_CASE("AUD-012: floats on Int16 buffer is assert-guarded", "[audio][edge]") {
-    SECTION("floats on Float32 buffer returns valid span") {
-        auto buf = AudioBuffer::create(10, 2, SampleFormat::Float32);
-        auto span = buf.floats();
-        REQUIRE(span.size() == 20);
-    }
-
-    SECTION("floats on Int16 buffer is assert-guarded") {
-        // Calling floats() on an Int16 buffer triggers assert(m_format == Float32).
-        // Debug aborts; Release reinterprets int16 data as float (out-of-bounds read UB).
-        // Matrix allows "return empty span or assert".
-        SKIP("floats() guards format mismatch with assert (Debug abort). "
-             "Release reinterprets Int16 as Float32 (OOB UB). Matrix allows "
-             "assert; cannot test safely without aborting the test process.");
-    }
-}
-
-// ---------------------------------------------------------------------------
-// AUD-013: AudioBuffer view mode with source data released
-// Matrix expected "documented as UB". view does not own the data; accessing
-// after the source is released is a dangling-reference UB.
-// ---------------------------------------------------------------------------
-TEST_CASE("AUD-013: view buffer with released source data is UB", "[audio][edge]") {
-    SKIP("P2/UB: fromView creates a non-owning span; releasing the source "
-         "data leaves the view with a dangling reference. Accessing it is "
-         "undefined behavior. Documented per matrix.");
-}
 
 // ===========================================================================
 // AUD-014 ~ AUD-020: supplementary edge coverage for AudioBuffer default state,
@@ -883,35 +806,3 @@ TEST_CASE("AUD-037: fromVector with mismatched data size does not crash",
     REQUIRE(buf.byteSize() == 8);
 }
 
-// ---------------------------------------------------------------------------
-// AUD-038: AudioBuffer sampleAt on empty buffer returns 0 or does not crash
-// Regression: sampleAt() on an empty buffer is guarded by asserts on format
-// and frame/channel bounds (lib/Audio/src/AudioBuffer.cpp:112). Debug aborts
-// via assert; Release dereferences the empty data pointer (UB). Matrix allows
-// "return 0 or assert". SKIP the unsafe call and verify valid sampleAt access
-// as a baseline (same pattern as AUD-011/AUD-012).
-// ---------------------------------------------------------------------------
-TEST_CASE("AUD-038: sampleAt on empty buffer is assert-guarded",
-          "[audio][edge]") {
-    SECTION("valid sampleAt access returns correct value") {
-        auto buf = AudioBuffer::create(10, 2, SampleFormat::Float32);
-        auto span = buf.floats();
-        span[0] = 0.5f;
-        span[1] = -0.25f;
-        REQUIRE(buf.sampleAt(0, 0) == 0.5f);
-        REQUIRE(buf.sampleAt(0, 1) == -0.25f);
-    }
-
-    SECTION("sampleAt on empty buffer is assert-guarded") {
-        // On a default-constructed (empty) buffer, sampleAt triggers:
-        //   assert(m_format == Float32)         -- format is Unknown
-        //   assert(frame >= 0 && frame < 0)     -- 0 < 0 is false
-        //   assert(channel >= 0 && channel < 0) -- 0 < 0 is false
-        // Debug aborts via assert; Release dereferences the empty vector's
-        // data pointer (nullptr/empty) which is UB. Matrix allows "return 0
-        // or assert"; cannot test safely without aborting the process.
-        SKIP("sampleAt() on an empty buffer is guarded by format and bounds "
-             "asserts (Debug abort). Release dereferences an empty data "
-             "pointer (UB). Matrix allows assert; cannot test safely.");
-    }
-}

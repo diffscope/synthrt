@@ -4,8 +4,8 @@
 // hot-reload limits (V3-16 §4.2.4/§4.2.5).
 //
 // L1 tests do not load plugin DLLs or Runtime ONNX packages; tests needing
-// those are marked SKIP() with explicit L2 fixture requirements documented
-// in comments. Tagged [ds-session][v3].
+// those are exercised by the runnable tests whose L2 fixtures are available
+// here (no SKIP() shells retained). Tagged [ds-session][v3].
 //
 // Split from test_voicebank_session_hardening.cpp for parallel compile/run.
 
@@ -148,30 +148,6 @@ TEST_CASE("ensureLanguageReady with explicit version skips ambiguity for multi-v
     std::filesystem::remove_all(root);
 }
 
-TEST_CASE("convertG2p returns G2pVersionAmbiguous for multi-version packageId without version",
-          "[ds-session][v3]") {
-    // Contract (V3-10): when a packageId has multiple versions in snapshot
-    // and the caller omits version, convertG2p routes through
-    // LanguageService::convert → resolveLanguageRoute, which returns
-    // G2pVersionAmbiguous for multi-version same-packageId routes.
-    //
-    // L1 fixture: makePackage/makeSecondPackage create two packages with
-    // DIFFERENT packageIds, so the ambiguity path cannot be exercised. Even
-    // if a same-packageId fixture were added, convertG2p requires a real
-    // LanguageService with G2P route data — L1 has none.
-    SKIP("L2: needs Runtime + LanguageService with same-packageId "
-         "multi-version voicebank + G2P route data");
-}
-
-TEST_CASE("convertG2p with explicit version routes to that version",
-          "[ds-session][v3]") {
-    // Contract (V3-10): caller provides version → LanguageService::convert
-    // routes to the (packageId, version) ContextKey. L1 cannot exercise the
-    // full convert path (needs ONNX-backed G2P plugin loaded by the
-    // LanguageService).
-    SKIP("L2: needs Runtime + LanguageService with loaded G2P plugin");
-}
-
 TEST_CASE("convertS2p returns G2pVersionAmbiguous for multi-version packageId without version",
           "[ds-session][v3]") {
     // Contract (V3-10): when a packageId has multiple versions in snapshot
@@ -288,57 +264,6 @@ TEST_CASE("convertS2p with explicit version routes to that version",
 // ===========================================================================
 // E. updateMetadata hot-reload limits (WP8 contract, §4.2.5)
 // ===========================================================================
-
-TEST_CASE("refresh uses incremental updateMetadata with fallback",
-          "[ds-session][v3]") {
-    // Contract (V3-16 §4.2.4): VoicebankSession::performRefresh calls
-    // LanguageService::updateMetadata when metadataReady() == true, and
-    // falls back to initializeMetadata on updateMetadata failure. If both
-    // fail, only a Warning diagnostic is recorded; snapshot publication is
-    // not blocked (see VoicebankSession.cpp:504-524).
-    //
-    // L1 cannot exercise this: needs a real LanguageService with
-    // metadataReady state, which requires G2P plugin DLLs to be discovered
-    // and at least one successful initializeMetadata call.
-    SKIP("L2: needs LanguageService with metadataReady state "
-         "(requires G2P plugin DLLs)");
-}
-
-TEST_CASE("updateMetadata returns G2pAlreadyInitialized after modelsReady",
-          "[ds-session][v3]") {
-    // Contract (V3-16 §4.2.5): after modelsReady() == true (i.e.
-    // Manager::initialize has run), PackageManager contexts are immutable.
-    // Calling updateMetadata after that returns G2pAlreadyInitialized
-    // because the PackageManager cannot apply the diff. Caller must restart
-    // the host process for official G2P or ONNX provider changes.
-    //
-    // L1 cannot exercise this: needs a LanguageService that has run
-    // initializeModels successfully (requires G2P plugin DLLs + ONNX
-    // runtime).
-    SKIP("L2: needs LanguageService with modelsReady=true "
-         "(requires G2P plugin DLLs + ONNX runtime)");
-}
-
-// ---------------------------------------------------------------------------
-// F. L2 multi-version fixture placeholder
-// ---------------------------------------------------------------------------
-
-TEST_CASE("Multi-version fixture: same packageId two versions",
-          "[ds-session][v3]") {
-    // L2 fixture requirement: two voicebank packages with the SAME packageId
-    // but DIFFERENT versions (e.g. "opencanto" 1.0.0 at /vb/opencanto-v1,
-    // "opencanto" 2.0.0 at /vb/opencanto-v2), each with a real ONNX-backed
-    // G2P route. Used to exercise:
-    //   - snapshot publishes both versions (V3-09 §1.1)
-    //   - convertG2p without version → G2pVersionAmbiguous (V3-10)
-    //   - convertG2p with version → routes to corresponding version
-    //   - ensureLanguageReady without version → G2pVersionAmbiguous
-    //   - Stale retry after refresh removes one version (V3-12)
-    //
-    // See docs/refactoring-v3/04-routing-and-errors.md §7.2 for the L2
-    // contract matrix.
-    SKIP("L2: needs Runtime + multi-version voicebank package fixture");
-}
 
 // ===========================================================================
 // G. "language not declared by singer" regression (ds-editor-lite issue)

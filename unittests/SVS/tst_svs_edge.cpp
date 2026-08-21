@@ -10,9 +10,11 @@
 // constraints (adjusted per the actual API):
 //   - SVS-002 (P1): Matrix expected "documented as UB". After construction,
 //     freeing the spec and then calling spec() returns a dangling pointer;
-//     dereferencing it is UB. Cannot safely test UB; use SKIP() to document.
+//     dereferencing it is UB. Cannot safely test UB, documented without a
+//     test shell.
 //   - SVS-007 (P2): Matrix expected "documented as UB". Destroying while
-//     another thread is accessing is a data race UB; use SKIP() to mark.
+//     another thread is accessing is a data race UB, documented without a
+//     test shell.
 //   - SVS-008 (P1): The InferenceSpec constructor is protected; only
 //     InferenceCategory (friend) can construct it directly. This test accesses
 //     the protected default constructor via the derived class TestInferenceSpec
@@ -84,17 +86,6 @@ TEST_CASE("SVS-001: Inference accepts nullptr spec without crashing", "[svs][edg
 }
 
 // ---------------------------------------------------------------------------
-// SVS-002: Inference constructed with a dangling spec pointer
-// Matrix expected "documented as UB". After freeing the spec, spec() returns a
-// dangling pointer; dereferencing it is UB and cannot be safely tested.
-// Use SKIP() to document.
-// ---------------------------------------------------------------------------
-TEST_CASE("SVS-002: Inference with dangling spec pointer is UB", "[svs][edge]") {
-    SKIP("P1/UB: accessing spec() after the spec is freed returns a dangling "
-         "pointer; dereferencing it is undefined behavior. Documented per matrix.");
-}
-
-// ---------------------------------------------------------------------------
 // SVS-003: spec() called before initialization
 // After construction, calling spec() should return the spec pointer passed
 // at construction.
@@ -158,17 +149,6 @@ TEST_CASE("SVS-006: concurrent spec() calls return correct pointer",
     REQUIRE(done.load() == 2);
     REQUIRE(results[0] == &spec);
     REQUIRE(results[1] == &spec);
-}
-
-// ---------------------------------------------------------------------------
-// SVS-007: Destroying Inference while another thread is accessing it
-// Matrix expected "documented as UB". Destruction concurrent with access is a
-// data race; marked with SKIP().
-// ---------------------------------------------------------------------------
-TEST_CASE("SVS-007: destroying Inference while another thread accesses is UB",
-          "[svs][edge]") {
-    SKIP("P2/UB: destroying an Inference while another thread is accessing it "
-         "is a data race (undefined behavior). Documented per matrix.");
 }
 
 // ---------------------------------------------------------------------------

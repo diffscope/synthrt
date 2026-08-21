@@ -162,7 +162,8 @@ TEST_CASE("EX-003: getInferenceDriver without dsdriver returns DriverNotFound",
 }
 
 // ---------------------------------------------------------------------------
-// EX-004: non-InferenceDriver object registered as "dsdriver" -> SKIP
+
+// EX-004: non-InferenceDriver object registered as "dsdriver" -> unreachable
 //
 // NO<T>::as<U>() (include/synthrt/Core/Core/NamedObject.h:100-102) is
 // implemented as std::static_pointer_cast<U>, which does NOT perform a
@@ -173,31 +174,12 @@ TEST_CASE("EX-003: getInferenceDriver without dsdriver returns DriverNotFound",
 // The `if (!driver)` check in ExtractorDriver.cpp:48-53 is therefore only
 // reachable when obj itself is null — which is already handled by EX-003's
 // `if (!obj)` guard above. The EX-004 branch is dead code under the current
-// NO<T>::as<U>() semantics.
-//
-// Directly exercising it (by registering a plain NamedObject under
-// "dsdriver") would cause the next line `driver->backend()` to call a
-// virtual method through a mistyped pointer — undefined behavior (the
-// vtable slot for backend() does not exist on a plain NamedObject). SKIP
-// per the project's UB policy (see tst_audio_edge.cpp AUD-011/012/013 for
-// the same assert/UB-driven SKIP pattern).
-//
-// This is documented as a design observation; fixing it would require
-// changing NO<T>::as<U>() to use dynamic_pointer_cast (ARCH-02: public API
-// change, requires Level bump) — out of scope for T-13.
+// NO<T>::as<U>() semantics: directly exercising it would call a virtual
+// method through a mistyped pointer (UB). Fixing it would require changing
+// NO<T>::as<U>() to use dynamic_pointer_cast (ARCH-02: public API change,
+// requires Level bump) — out of scope for T-13. Documented as a design
+// observation without a test shell.
 // ---------------------------------------------------------------------------
-TEST_CASE("EX-004: non-InferenceDriver registered as dsdriver is unreachable",
-          "[extract][edge]") {
-    SKIP("NO<T>::as<U>() uses std::static_pointer_cast (NamedObject.h:100-102) "
-         "and does not perform a runtime type check. The `if (!driver)` "
-         "branch in ExtractorDriver.cpp:48-53 is only reachable when obj is "
-         "null (already handled by EX-003). Registering a non-InferenceDriver "
-         "NamedObject under 'dsdriver' would make the subsequent "
-         "driver->backend() call UB (vtable slot does not exist on a plain "
-         "NamedObject). Direct test would crash/UB; fixing requires "
-         "dynamic_pointer_cast in NO<T>::as<U>() (ARCH-02 Level bump, out of "
-         "scope). Documented as a design observation.");
-}
 
 // ---------------------------------------------------------------------------
 // EX-005: InferenceDriver with backend != "onnx" -> DriverUnsupportedProvider

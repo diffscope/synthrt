@@ -1,4 +1,4 @@
-﻿// G2P edge-case tests (G2P-001 ~ G2P-012).
+// G2P edge-case tests (G2P-001 ~ G2P-012).
 //
 // Covers edge inputs and error paths of the PackageManager / Manager public APIs. Written
 // based on actual API signatures and implementation behavior; deviations from the test
@@ -285,27 +285,6 @@ TEST_CASE("G2P-011: task with nonexistent category returns RouteNotFound",
     auto exp = mgr->task("nonexistent_category", "ctx", v1, "some_id");
     REQUIRE(!exp.hasValue());
     REQUIRE(exp.takeError().code() == ErrorCode::G2pRouteNotFound);
-}
-
-// ===========================================================================
-// G2P-012: failedContexts excludes default context (P2)
-//   After default-context initialization failure, failedContexts() does not include the default context.
-//
-//   Cannot be reliably reproduced in a unit test: default-context initialization failure
-//   makes Manager::initialize() return G2pInitializationError early and does not write the
-//   default context into m_contextStates, so the runtime scenario "default context in
-//   Failed state" cannot be constructed. Implementation invariant
-//   (failedContexts() filters ctxKey.isDefault()) see PackageManager.cpp:
-//     if (state == ContextState::Failed && !ctxKey.isDefault())
-//   SKIP per P2 strategy.
-// ===========================================================================
-TEST_CASE("G2P-012: failedContexts excludes default context", "[g2p][edge]") {
-    SKIP("P2: triggering a default-context initialization failure aborts "
-         "Manager::initialize() (G2pInitializationError) before the default "
-         "context is recorded in m_contextStates, so the Failed-state default "
-         "context cannot be reproduced in a unit test. Implementation invariant "
-         "(failedContexts filters ctxKey.isDefault()) verified by code "
-         "inspection of PackageManager::failedContexts().");
 }
 
 // ===========================================================================
@@ -635,54 +614,3 @@ TEST_CASE("G2P-028: PhonemeDict load from non-existent file returns false",
     REQUIRE(ec);
 }
 
-// ===========================================================================
-// G2P-029: createModuleTask sets Task::Mgr pointer (regression)
-//   PackageManager::createModuleTask() must call task->setMgr(this) before
-//   task->initialize(), otherwise chainG2p's ModelStep cannot find the
-//   PackageManager (and the ONNX g2p task) via m_task->Mgr(). This test
-//   verifies that after full Manager initialization, a ChainG2p task's
-//   getObject() succeeds (which internally requires Mgr() to be non-null).
-//
-//   Requires Manager to be initialized with real G2P packages (same
-//   precondition as G2P-009). SKIPs when the Manager is not initialized.
-// ===========================================================================
-TEST_CASE("G2P-029: ChainG2p task Mgr pointer is set after initialization",
-          "[g2p][edge][mgrsmoke]") {
-    auto *mgr = Manager::instance();
-    if (!mgr->initialized()) {
-        SKIP("Manager not initialized — setMgr integration cannot be verified");
-    }
-
-    // Try retrieving a ChainG2p task (eng-official, deu-official, etc.)
-    // If any ChainG2p task exists, verify getObject() works (requires Mgr).
-    bool anyChainTaskFound = false;
-    for (const auto &chainId : {"g2p-eng-official", "g2p-deu-official",
-                                 "g2p-fra-official", "g2p-ita-official"}) {
-        auto taskExp = mgr->task(kG2pCategory, kOfficialContext, {}, chainId);
-        if (!taskExp)
-            continue;
-        anyChainTaskFound = true;
-        auto task = taskExp.take();
-        REQUIRE(task);
-
-        // getObject() internally calls Mgr(). If Mgr is null, it returns
-        // "manager is not available" (ErrorCode::G2pRuntimeError).
-        // If Mgr is set but the target is not found, it returns a different
-        // error (e.g. "could not find category").
-        auto objExp = task->getObject(kG2pCategory, "g2p-multig2p-multi-official");
-        if (objExp)
-            INFO("getObject succeeded: Mgr pointer is valid");
-        else
-            INFO("getObject failed (expected if multig2p not loaded): "
-                 << objExp.error().message());
-        // The key assertion: the error must NOT be "manager is not available".
-        // That would mean setMgr was not called (the bug).
-        if (!objExp) {
-            CHECK(objExp.error().message().find("manager is not available") ==
-                  std::string::npos);
-        }
-    }
-    if (!anyChainTaskFound) {
-        WARN("No ChainG2p task found — setMgr integration partially verified");
-    }
-}

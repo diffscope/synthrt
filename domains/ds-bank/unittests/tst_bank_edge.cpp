@@ -29,8 +29,8 @@
 //             JSON parse failures are classified as PackageManifestInvalid).
 //   BANK-009: Matrix expects InvalidArg; actual empty SingerRef matches no snapshot,
 //             singerSnapshot returns ErrorCode::FileNotFound ("singer not found").
-//   BANK-012: P2 case, marked with SKIP() (constructing >10MB desc.json requires
-//             large disk writes, and no size limit implementation exists to verify).
+//   BANK-012: P2 case, documented without a test shell (no manifest size limit
+//             to verify; a >10MB fixture would only exercise memory/IO).
 //
 // Error code system see include/synthrt/Core/Support/Diagnostic.h:
 //   General segment: InvalidFormat=1, FileNotFound=2, FileNotOpen=3, InvalidArgument=7...
@@ -351,25 +351,18 @@ TEST_CASE("BANK-011: VoicebankScanner setSearchPaths with empty vector refreshes
     REQUIRE(scanner.packageDirectories("any.pkg").empty());
 }
 
+
 // ===========================================================================
-// BANK-012: parsePackage desc.json oversized file (P2)
+// BANK-012: parsePackage desc.json oversized file (P2, documented, no shell)
 //
 // PackageParser::readAll (PackageParser.cpp:20-33) reads the entire manifest
 // into a stringstream with no size limit, and parsePackage does not impose a
 // manifest-size guard. There is therefore no rejection behavior to verify: a
 // large desc.json would simply be read and then fail JSON parsing (already
 // covered by BANK-005 malformed-JSON). Constructing a >10MB fixture would only
-// exercise memory/IO, not a size-limit contract. SKIP retained per matrix P2
-// guidance; remove only after a size-limit guard is added to PackageParser.
+// exercise memory/IO, not a size-limit contract. Consider adding a test after
+// a size-limit guard is added to PackageParser.
 // ===========================================================================
-TEST_CASE("BANK-012: parsePackage handles oversized desc.json (>10MB)",
-          "[bank][edge]") {
-    SKIP("P2: PackageParser::readAll (PackageParser.cpp:20-33) has no manifest "
-         "size limit; parsePackage does not impose a size guard, so there is no "
-         "rejection behavior to verify. A >10MB fixture would only test memory/"
-         "IO (the malformed-JSON path is already covered by BANK-005). Retained "
-         "per matrix P2 guidance; remove after a size-limit guard is added.");
-}
 
 // ===========================================================================
 // BANK-013 ~ BANK-020: pure value semantics and empty state edge tests.

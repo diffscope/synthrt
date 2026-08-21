@@ -377,31 +377,3 @@ TEST_CASE("PLF-014: empty target string returns nullptr", "[plugin][load][failur
 // - "Runtime 卸载后插件句柄失效": Plugin* 是裸指针，PluginFactory 析构时插件随之销毁，
 //   不存在"卸载后句柄失效"的运行时场景。
 
-// PLF-015: symbol 'srt_plugin_instance' not found → SKIP（需 fixture DLL）。
-// 对应 scanPlugins L185-190: so.resolve("srt_plugin_instance") 返回 null 分支。
-TEST_CASE("PLF-015: symbol srt_plugin_instance not found", "[plugin][load][failure][t11][L2]") {
-    SKIP("Requires a fixture DLL that loads successfully but exports no srt_plugin_instance symbol. "
-         "Creating such a fixture DLL is out of scope for T-11 (avoids over-engineering). "
-         "Path: lib/Core/Plugin/PluginFactory.cpp scanPlugins L185-190.");
-}
-
-// PLF-016: srt_plugin_instance 返回 null → SKIP（需 fixture DLL）。
-// 对应 scanPlugins L192-197: getter() == null 分支。
-TEST_CASE("PLF-016: srt_plugin_instance returns null", "[plugin][load][failure][t11][L2]") {
-    SKIP("Requires a fixture DLL that exports srt_plugin_instance returning nullptr. "
-         "Path: lib/Core/Plugin/PluginFactory.cpp scanPlugins L192-197.");
-}
-
-// PLF-017: plugin iid mismatch → SKIP（需 fixture DLL）。
-// 对应 scanPlugins L198-209: strcmp(iid, plugin->iid()) != 0 分支（Trace 级别，非 Warning）。
-TEST_CASE("PLF-017: plugin iid mismatch", "[plugin][load][failure][t11][L2]") {
-    SKIP("Requires a fixture DLL that exports a plugin with mismatched iid. "
-         "Path: lib/Core/Plugin/PluginFactory.cpp scanPlugins L198-209 (srtTrace, not srtWarning).");
-}
-
-// PLF-018: duplicate plugin key → SKIP（需 fixture DLL）。
-// 对应 scanPlugins L210-214: plugins.insert 失败分支。
-TEST_CASE("PLF-018: duplicate plugin key", "[plugin][load][failure][t11][L2]") {
-    SKIP("Requires two fixture DLLs that export plugins with the same key. "
-         "Path: lib/Core/Plugin/PluginFactory.cpp scanPlugins L210-214.");
-}

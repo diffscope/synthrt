@@ -346,37 +346,6 @@ TEST_CASE("DF-004 control: valid Float mel tensor passes dtype and byteSize chec
 }
 
 // ---------------------------------------------------------------------------
-// DF-005: start() 失败后 state==Failed
-// ---------------------------------------------------------------------------
-// SKIP 原因：state()==Failed 是 ITask 状态机属性，只能通过实例化插件类
-// （AcousticInference 等）并调用其 start() 失败后观测。插件类由
-// dsinfer_add_plugin 构建为运行时 SHARED 库，且 initialize() 依赖完整
-// Runtime + InferenceSpec + 真实 ONNX 模型，无法在无 fixture 的单元测试
-// 中实例化。ITask::setState() 为 protected，外部测试无法驱动状态机。
-// 该路径需在加载真实 singer 包的端到端集成环境中覆盖。
-
-TEST_CASE("DF-005 start() failure leaves plugin state==Failed",
-          "[diffsinger][integration][df-005]") {
-    SKIP("requires plugin instance: plugins are runtime-loaded SHARED libs, "
-         "initialize() needs full Runtime + InferenceSpec + ONNX model; "
-         "ITask::setState is protected (cannot drive state machine externally). "
-         "Cover via end-to-end integration with a real singer package.");
-}
-
-// ---------------------------------------------------------------------------
-// DF-006: start() 成功后 state==Idle
-// ---------------------------------------------------------------------------
-// SKIP 原因：同 DF-005，且 additionally 需要可成功 open 的 ONNX 模型
-// fixture 才能让 session->start() 返回合法 mel tensor 走完 start() 全流程。
-
-TEST_CASE("DF-006 start() success leaves plugin state==Idle",
-          "[diffsinger][integration][df-006]") {
-    SKIP("requires plugin instance + ONNX model fixture to complete the "
-         "full start() pipeline (preprocess inputs → session->start → mel "
-         "validation → setState(Idle)). No test model fixture available.");
-}
-
-// ---------------------------------------------------------------------------
 // DF-007: 错误含 stage 上下文 → diagnostic().moduleId 非空（BF-61 回归）
 // ---------------------------------------------------------------------------
 // BF-61：5 个 DiffSinger 插件 start()/initialize() 创建错误时改用

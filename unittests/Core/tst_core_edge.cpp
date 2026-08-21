@@ -21,7 +21,7 @@
 //     see lib/Core/Core/Runtime.cpp:533-537.
 //   - CORE-007: Complete load→unload→load requires a real voicebank package
 //     (desc.json + inference/singer configs), beyond unit test fixture scope,
-//     marked with SKIP().
+//     documented without a test shell.
 //   - CORE-013: Overly long path (>260 chars) is safely rejected by scanPackages
 //     (PackageRootInvalid/FileNotOpen); verified directly with a non-existent
 //     long path (no real long-path fixture required).
@@ -162,15 +162,6 @@ TEST_CASE("CORE-005/006: loadPackage/unloadPackage error paths", "[core][edge]")
         REQUIRE_FALSE(result.hasValue());
         REQUIRE(result.error().code() == ErrorCode::RuntimePackageNotLoaded);
     }
-}
-
-// ---------------------------------------------------------------------------
-// CORE-007: loadPackage then unloadPackage then loadPackage
-// Requires complete voicebank package fixture, marked with SKIP
-// ---------------------------------------------------------------------------
-TEST_CASE("CORE-007: load -> unload -> reload same package", "[core][edge]") {
-    SKIP("requires a real voicebank package fixture (desc.json + inference/"
-         "singer configs); covered by integration tests with sample packages.");
 }
 
 // ---------------------------------------------------------------------------
@@ -743,21 +734,6 @@ TEST_CASE("CORE-037: ModuleLocator special chars toString round-trip",
         REQUIRE(parsed.id() == "id-dash.2");
         REQUIRE_FALSE(parsed.version().isEmpty());
     }
-}
-
-// ---------------------------------------------------------------------------
-// CORE-038: Runtime loadPackage rollback on Ready failure does not double-free.
-// P2/UB: requires a real package whose spec fails at the Ready stage (e.g.
-// ONNX model load failure). The rollback path calls loadSpec(Deleted) to undo
-// Initialized specs; a regression would delete the spec twice. Covered by
-// integration tests with sample packages that fail at Ready.
-// ---------------------------------------------------------------------------
-TEST_CASE("CORE-038: Runtime loadPackage rollback on Ready failure no double-free",
-          "[core][edge]") {
-    SKIP("P2/UB: requires a real package with a Ready-failing spec (e.g. ONNX "
-         "model load failure). The rollback path calls loadSpec(Deleted) on "
-         "Initialized specs; a regression double-frees the spec. Covered by "
-         "integration tests with sample packages failing at Ready stage.");
 }
 
 // ---------------------------------------------------------------------------

@@ -252,32 +252,6 @@ TEST_CASE("A1-T04: setupG2pOnnxDriver tolerates non-existent g2pPluginPaths",
 }
 
 // ===========================================================================
-// A1-T05: ONNX driver throws std::exception → SKIP
-//
-// setupG2pOnnxDriver wraps its entire body in try/catch (CODING-02) so
-// exceptions are converted to Error(ErrorCode::Unknown, ...) and never
-// cross the public API boundary. Directly exercising this path requires
-// forcing one of the internal calls (Manager::instance, moduleCategory,
-// addObject) to throw, which is not possible without modifying the source
-// or using a dependency-injection seam that does not currently exist.
-//
-// The try/catch boundary is verified by code inspection of
-// lib/G2P/G2pOnnxSetup.cpp:156-223. Skipping per the project's UB policy
-// (see unittests/Extract/tst_extractor_driver.cpp EX-004 for the same
-// "cannot inject without source changes" SKIP pattern).
-// ===========================================================================
-
-TEST_CASE("A1-T05: setupG2pOnnxDriver converts exceptions to Error",
-          "[g2p][setup][a1]") {
-    SKIP("Cannot force an internal exception without source modification or "
-         "dependency injection. The try/catch boundary in "
-         "lib/G2P/G2pOnnxSetup.cpp:156-223 converts std::exception to "
-         "Error(ErrorCode::Unknown). Verified by code inspection; runtime "
-         "test would require mocking Manager::instance() or moduleCategory() "
-         "to throw, which is not supported by the current API.");
-}
-
-// ===========================================================================
 // A1-T06: G2P plugin path with non-ASCII chars registers correctly
 //
 // CODING-03 requires all cross-boundary paths use stdc::path::to_utf8()

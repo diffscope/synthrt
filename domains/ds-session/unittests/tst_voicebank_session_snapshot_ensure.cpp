@@ -17,7 +17,6 @@
 //   7. 指纹顺序无关性（V3-07 D-33）—— catalogFingerprint 与扫描顺序无关；
 //      languageFingerprint 排除非语言字段（如 singer.name）。
 //   8. sync/refreshAsync 并发一致性 —— refresh() 内部调用 refreshAsync().get()。
-//   9. Stale retry L2 占位 —— 需要真实 ONNX 包，SKIP。
 //
 // 约束：
 //   - L1 测试不加载插件 DLL / ONNX 包；需要 L2 fixture 的用例标记 SKIP。
@@ -688,30 +687,3 @@ TEST_CASE("Concurrent sync refresh() and refreshAsync() do not corrupt session s
     std::filesystem::remove_all(root);
 }
 
-// ===========================================================================
-// 9. Stale retry L2 占位（V3-12 D-30）
-//
-// ModelSetHandle 的 staleness 生命周期需要真实 ONNX 包构造 ModelSet：
-//   - createModelSet 成功 → handle 绑定当前 generation
-//   - refresh 发布新 snapshot → generation 递增
-//   - handle.isStale() 返回 true（isCurrentGenerationFn 回调返回 false）
-//   - handle.start() 返回 StaleModelSet；load/stop/unload 仍可调用
-//   - session 销毁 → weak_ptr 失效 → isStale() 返回 true
-//
-// L1 fixture 仅有 stub 配置（无 ONNX 模型），无法构造 ModelSetHandle。
-// 已在 test_vbs_modelset.cpp 中以 SKIP 占位。本用例补充"session 销毁使
-// handle 失效"场景的 L2 需求说明。
-// ===========================================================================
-
-TEST_CASE("ModelSetHandle staleness after session destruction requires L2 fixture",
-          "[ds-session][stale-l2]") {
-    // V3-12 D-30 补充场景：session 销毁后，ModelSetHandle 的
-    // isCurrentGenerationFn 中 weak_ptr<Impl> 失效 → isStale() 返回 true
-    // （见 ModelSetHandle.cpp:84-90 与 VoicebankSession.cpp:903-909 注释）。
-    // 这保证 handle 不会在 session 销毁后启动新任务。
-    //
-    // L1 无法构造：createModelSet 需要 Runtime 加载了 singer 的 ONNX 包
-    // 才能解析 5 个 stage 并构造 ModelSet。已在 test_vbs_modelset.cpp 中
-    // 以 SKIP 占位。
-    SKIP("L2: needs Runtime + loaded ONNX package to build a ModelSetHandle");
-}

@@ -14,7 +14,7 @@
 //     error type (lib/Driver/DriverRegistry.cpp:16-20).
 //   - DRV-007 (P2): The matrix expects "documented as UB". DriverRegistry does
 //     not take ownership of driver pointers; using a dangling pointer after
-//     unregister is UB, marked with SKIP().
+//     unregister is UB, documented without a test shell.
 //   - DRV-008 (P1): The matrix expects "Error(InvalidArg) or allowed". The
 //     actual registerDriver does not validate empty names; an empty name is
 //     accepted as a valid key (returns success).
@@ -186,18 +186,6 @@ TEST_CASE("DRV-006: concurrent driver() lookups return correct pointer",
         t.join();
 
     REQUIRE(matchCount.load() == N * ITERS);
-}
-
-// ---------------------------------------------------------------------------
-// DRV-007: dangling driver pointer after unregisterDriver
-// The matrix expects "documented as UB". Registry does not take ownership;
-// after unregister the pointer is dangling, marked with SKIP().
-// ---------------------------------------------------------------------------
-TEST_CASE("DRV-007: using driver pointer after unregister is UB",
-          "[driver][edge]") {
-    SKIP("P2/UB: DriverRegistry does not take ownership of driver pointers. "
-         "After unregisterDriver, previously obtained pointers are dangling. "
-         "Using them is undefined behavior. Documented per matrix.");
 }
 
 // ---------------------------------------------------------------------------
