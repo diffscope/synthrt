@@ -26,18 +26,19 @@
 #include <diffsinger/Bank/PackageParser.h>
 #include <diffsinger/Bank/SingerManifest.h>
 
+#include "BankVersion.h"
 #include "SingerCapabilityAnalyzer.h"
 
 namespace ds::bank {
 
     static srt::LogCategory Log("ds.bank");
 
-    // Semantic version match: treats "1.0" == "1.0.0" == "1.0.0.0".
-    // VersionNumber::toString() normalizes away trailing zeros (e.g. "1.0.0"
-    // stored as VersionNumber(1,0,0,0) serializes back to "1.0"), so a plain
-    // string comparison would wrongly reject "1.0.0" when the stored value is
-    // "1.0". Falls back to string comparison when either side cannot be parsed
-    // as a VersionNumber (e.g. pre-release suffixes).
+    // Semantic version match: treats "1.0" == "1.0.0" == "1.0.0.0" and, with
+    // parseBankVersion(), also "1.2.3.4" == "1.2.3.4.0" (5 segments trimmed to
+    // the first 4). This does not rely on stdcorelib trimming >4 segments,
+    // because VersionNumber::fromString now rejects them. Falls back to string
+    // comparison when either side cannot be parsed as a VersionNumber (e.g.
+    // 'v' prefixes, pre-release suffixes).
     static bool versionsMatch(const std::string &stored, const std::string &query) {
         if (query.empty()) {
             return true;
@@ -45,8 +46,8 @@ namespace ds::bank {
         if (stored == query) {
             return true;
         }
-        const auto storedVN = stdc::VersionNumber::fromString(stored).value_or(stdc::VersionNumber());
-        const auto queryVN = stdc::VersionNumber::fromString(query).value_or(stdc::VersionNumber());
+        const auto storedVN = parseBankVersion(stored).value_or(stdc::VersionNumber());
+        const auto queryVN = parseBankVersion(query).value_or(stdc::VersionNumber());
         return storedVN == queryVN;
     }
 
