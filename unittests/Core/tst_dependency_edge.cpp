@@ -17,9 +17,10 @@
 //     This case asserts findCycles() is non-empty.
 //   - DEP-004/005/006/010: stdc::VersionNumber has no string constructor,
 //     must use VersionNumber::fromString(...).value_or(stdc::VersionNumber()). VersionNumber("...")
-//     syntax in matrix is uniformly mapped to fromString. fromString uses std::from_chars,
-//     stops after parsing digits at segment start for non-digit chars
-//     (does not throw, does not return Error).
+//     syntax in matrix is uniformly mapped to fromString. fromString accepts only
+//     1..4 dot-separated pure-digit components and returns nullopt otherwise
+//     (5+ segments, empty string, non-digit chars, leading dot), so malformed
+//     input must be handled with has_value()/value_or() — never .value() directly.
 
 #include <string>
 #include <vector>
@@ -150,47 +151,36 @@ TEST_CASE("DEP-003: empty graph topological sort", "[dep][edge]") {
 // ---------------------------------------------------------------------------
 TEST_CASE("DEP-004/005/006: VersionNumber::fromString edge cases",
           "[dep][edge]") {
-    SECTION("DEP-004: 6-segment version truncates to 4") {
-        // API difference: VersionNumber has no string constructor, use
-        // fromString; truncates beyond 4 segments.
-        auto v = VersionNumber::fromString("1.2.3.4.5.6").value();
-        REQUIRE(v.major() == 1);
-        REQUIRE(v.minor() == 2);
-        REQUIRE(v.patch() == 3);
-        REQUIRE(v.tweak() == 4);
+    SECTION("DEP-004: 6-segment version is rejected") {
+        // stdcorelib accepts only 1..4 dot-separated pure-digit components and
+        // returns nullopt for 5+ segments (the old trim-to-4 behavior was
+        // removed; see stdcorelib/support/versionnumber.h fromString() docs).
+        // Callers that need 4-segment trimming do it explicitly via ds::bank::
+        // parseBankVersion() before fromString (BankVersion.h).
+        auto v = VersionNumber::fromString("1.2.3.4.5.6");
+        REQUIRE_FALSE(v.has_value());
     }
 
-    SECTION("DEP-005: empty string -> isEmpty()") {
-        auto v = VersionNumber::fromString("").value();
-        REQUIRE(v.isEmpty());
-        REQUIRE(v.major() == 0);
-        REQUIRE(v.minor() == 0);
-        REQUIRE(v.patch() == 0);
-        REQUIRE(v.tweak() == 0);
+    SECTION("DEP-005: empty string is rejected (nullopt, not empty version)") {
+        // A missing parse (nullopt) is distinct from a default-constructed
+        // empty version; callers must use value_or(stdc::VersionNumber()).
+        auto v = VersionNumber::fromString("");
+        REQUIRE_FALSE(v.has_value());
 
-        // Default-constructed VersionNumber is also empty
         VersionNumber defaultV;
         REQUIRE(defaultV.isEmpty());
-        REQUIRE(defaultV == v);
     }
 
-    SECTION("DEP-006: non-numeric chars -> numeric prefix only") {
-        // from_chars stops when encountering non-digit within segment,
-        // "2abc" parsed as 2.
-        auto v = VersionNumber::fromString("1.2abc.3").value();
-        REQUIRE(v.major() == 1);
-        REQUIRE(v.minor() == 2);
-        REQUIRE(v.patch() == 3);
-        REQUIRE(v.tweak() == 0);
-        REQUIRE_FALSE(v.isEmpty());
+    SECTION("DEP-006: non-numeric chars are rejected") {
+        // Every component must be pure digits; "2abc" does not spell a version.
+        auto v = VersionNumber::fromString("1.2abc.3");
+        REQUIRE_FALSE(v.has_value());
     }
 
-    SECTION("DEP-006b: leading dot -> first segment 0") {
-        // Boundary: a leading dot yields an empty first segment, parsed as 0.
-        auto v = VersionNumber::fromString(".1.2").value();
-        REQUIRE(v.major() == 0);
-        REQUIRE(v.minor() == 1);
-        REQUIRE(v.patch() == 2);
+    SECTION("DEP-006b: leading dot is rejected") {
+        // A leading dot yields an empty first component, which is not digits.
+        auto v = VersionNumber::fromString(".1.2");
+        REQUIRE_FALSE(v.has_value());
     }
 }
 
