@@ -15,7 +15,9 @@
 |---|---|---|
 | `contributes` 的属性名 | `inferences` / `singers`（复数，固定两种） | 贡献类别名，**集合开放**；第三方类别使用反向域名 |
 | `contributes` 的条目 | 对象，含 `id` `class` `configuration` | 对象，包含`id`与该类别自定的字段；贡献不一定是模块 |
-| 运行时要求 | 无 | `desc.json`用`runtimeVersion`声明最低运行时版本 |
+| 运行时要求 | 无 | `desc.json`用`runtimeLevel`声明本规范统一分配的最低运行时能力等级 |
+| JSON profile | 未规定 | UTF-8，允许注释，拒绝重复 key 与尾随逗号 |
+| 声明路径分隔符 | 未规定 | `/`与反斜杠均作为分隔符，由 Loader 统一规范化 |
 | 模块 ID | 写在模块自己的声明文件里 | **写在 `desc.json` 里，由 Package 赋予** |
 | `class` | 推理类型 + 解释器选择，一词两义 | 改名 `interface`，只表示「这份声明遵循哪套契约」 |
 | 实现变体 | 无，只能另起一个 `class` | 新增 `variant`，表示同一契约的不同实现；不同变体不保证可互换 |
@@ -28,14 +30,19 @@
 | 多语言路径 | 未明确落到具体字段 | `readme`、`avatar`、`background`与`demoAudio`均为多语言路径 |
 | `imports` 条目 | `id` + `inferenceId` + `version` 三个字段，或一个裸字符串简写 | 一个 `ref` 引用串，**类别是其中一格**，不设简写 |
 | `imports`集合语义 | 未规定 | 有序数组，重复引用是独立导入实例，不自动去重 |
-| 引用中的版本 | `lib[version]/id`，版本语义未区分 | `=version` 精确匹配，`~=version` 兼容匹配 |
-| 引用类型 | Package 与模块引用未分型，模块类别可以省略 | 分为 PackageReference 与基于它的 ModuleReference；持久化模块引用必须写类别 |
+| 模块引用 | `lib[version]/id`，Package、版本与模块混在一起 | ModuleReference 只定位已解析依赖中的模块，版本要求只写在`dependencies`中 |
 | 可选依赖 | `dependencies[].required`，默认 `true` | **不支持**，所有依赖均为强制依赖 |
 | 依赖求解 | 候选选择与依赖图约束未规定 | 路径优先，同一路径选择最高兼容版本；允许多版本共存，禁止重复依赖、自依赖与环 |
+| Package 身份 | ID 与版本的实例共享语义未规定 | `(id, normalized-version)`唯一标识 Package，靠前搜索路径的来源遮蔽后续同身份来源 |
+| 清单解析模式 | 未规定 | `noLoad`只读取和验证清单，`load`在其结果上启动解释器；依赖求解不回溯 |
+| 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Acquire / Ready / Commit，失败只撤销本事务引用，归零递归卸载 |
 | Package 兼容承诺 | `compatVersion`只参与版本区间判断 | 明确兼容区间内必须保持的公开表面，由 Package 作者负责 |
 | DSPK 安全边界 | 未规定 | 解包严格封闭在安装目录内；运行时资源引用允许越过 Package root |
-| 解释器发现 | 由解释器对象提供匹配信息 | 三元组写入插件元数据，无需加载插件即可选择；重复匹配取插件搜索顺序中的第一个 |
+| 模块 provider 发现 | 只规定 Inference 解释器 | 每个模块类别有专用插件搜索目录与 factory，按元数据三元组选择首个 provider |
 | interface 契约 | 只有名称与 API Level | 每个 (`interface`, `level`) 必须有稳定可定位的规范及 JSON Schema |
+| 契约发现 | 未规定 | 契约材料面向开发者发布，Runtime 不按 interface 自动发现或下载 Schema |
+| category 注册 | 只有开放类别概念 | 解析前完成进程内注册，重复名称报错，Package 不能定义 category 语义 |
+| Inference Task API | 单独规定执行方法 | 移出本规范，由运行时 API 规范定义 |
 | 命令行工具 | 单独一章 | 移出本规范 |
 
 ---
@@ -53,7 +60,19 @@
   - ...
 ```
 
-Package 内多使用`json`作为声明文件，我们规定，声明文件中使用的相对路径的基路径是这个声明文件所在的目录。
+Package 内多使用`json`作为声明文件。声明文件中使用的相对路径以该声明文件所在目录为基路径。
+
+#### JSON profile
+
+本规范中的所有 JSON 声明文件必须使用 UTF-8。允许 UTF-8 BOM，并在解析前忽略。声明文件允许`//`行注释与`/* */`块注释，不允许尾随逗号。同一个 object 的同一层中不得出现重复 key，违反时整份声明无效。
+
+除上述注释扩展外，JSON 语法遵循 RFC 8259。`null`只在对应 schema 明确允许时合法。框架定义的 object 遇到未知字段时拒绝，贡献类别、interface 与 variant 定义的 object 按各自 schema 处理。实现可以设置 JSON 字节数、嵌套深度、节点数与字符串长度等资源限制，超过限制时拒绝声明。
+
+#### 声明路径
+
+声明中的路径字符串使用 UTF-8，`/`与 U+005C REVERSE SOLIDUS（反斜杠）均视为路径分隔符。加载器必须先按此规则拆分并规范化路径，再交给宿主文件系统处理，因此路径分隔语义不随操作系统改变。
+
+定义为相对路径的字段不得使用绝对路径、盘符、UNC、device 前缀或 NUL。`.`与`..`路径段允许出现，并按声明文件所在目录进行词法解析；规范化后的路径可以位于 Package root 之外。
 
 #### 描述文件
 
@@ -64,8 +83,8 @@ Package 内多使用`json`作为声明文件，我们规定，声明文件中使
     "$version": "1.0",
     "id": "foo",
     "version": "1.0.0.0",
-    "runtimeVersion": "1.0",
     "compatVersion": "0.0.0.0",
+    "runtimeLevel": 1,
     "vendor": "someone",
     "copyright": "Copyright (C) someone",
     "description": "Some package",
@@ -90,9 +109,9 @@ Package 内多使用`json`作为声明文件，我们规定，声明文件中使
     + `$version`：**清单格式版本**，当前固定为`1.0`。它描述的是本规范所定义的文件格式，与下面的`version`无关。整个 Package 内的所有声明文件共用这一个版本号，模块的声明文件不再各自携带
     + `id`：唯一标识符，由 `segment` 以 `/` 连接而成（见下文引用文法）
     + `version`：版本号，格式见下文《版本》
-    + `runtimeVersion`：加载该 Package 所需的最低运行时版本，格式见下文《版本》
 + 可选字段
     + `compatVersion`：兼容到的最低版本，如果为`0.0.0.0`表示向下兼容所有，如果与`version`相同则表示不向下兼容，缺省为`version`
+    + `runtimeLevel`：加载该 Package 所需的最低运行时能力等级，见下文《Runtime Level》
     + `vendor`：提供者，可为多语言，见下文《多语言文本》
     + `copyright`：版权信息，可为多语言
     + `description`：介绍文字，可为多语言
@@ -105,7 +124,7 @@ Package 内多使用`json`作为声明文件，我们规定，声明文件中使
 
 `dependencies[].version`表示依赖方要求依赖 Package 兼容到的版本，不表示必须加载该精确版本。
 
-加载器应在解析`contributes`之前先检查`$version`与`runtimeVersion`。遇到不认识的清单格式版本，或当前运行时版本低于`runtimeVersion`时，应当整包拒绝，而不是继续解析后面的字段。这也正是它们必须写在`desc.json`而非各模块声明文件里的原因——`desc.json`是最先被读到的文件。写在模块声明文件里的版本号，要等到整个 Package 已被接受、依赖已被解析之后才轮得到检查，那时拒绝已经太晚。
+加载器应在解析`contributes`之前先检查`$version`与`runtimeLevel`。遇到不认识的清单格式版本，或当前运行时支持的 Level 低于`runtimeLevel`时，应当整包拒绝，而不是继续解析后面的字段。这也正是它们必须写在`desc.json`而非各模块声明文件里的原因——`desc.json`是最先被读到的文件。写在模块声明文件里的版本号，要等到整个 Package 已被接受、依赖已被解析之后才轮得到检查，那时拒绝已经太晚。
 
 `dependencies`中的每个 Package 各自携带自己的`$version`，在其被加载时独立检查，不要求与本 Package 一致。
 
@@ -120,7 +139,7 @@ component = 1*DIGIT
 
 比较前在右侧补`0`至四段，各段按整数比较。`1`、`1.0`、`1.0.0`与`1.0.0.0`因此表示同一版本。
 
-`runtimeVersion`也按此规则规范化与比较。当前运行时版本大于或等于该值时满足运行时版本要求。
+Package 的身份由`id`与规范化后的`version`共同确定。发布者必须保证使用同一身份发布的 Package 内容相同，至少包括`desc.json`及 Package root 内的全部文件。Package root 外部的资源不属于此内容一致承诺。相同身份却包含不同内容属于 Package 发布错误，加载器不负责读取多个来源并比较或证明其内容一致。
 
 Package 的`compatVersion`不得大于`version`，否则清单无效。一个版本为`version`、最低兼容版本为`compatVersion`的 Package 兼容目标版本`target`，当且仅当：
 
@@ -128,7 +147,7 @@ Package 的`compatVersion`不得大于`version`，否则清单无效。一个版
 compatVersion <= target <= version
 ```
 
-声明兼容某个目标版本，表示当前 Package 可以直接替换该目标版本，而不要求依赖方修改声明。对兼容区间内已经发布的同 ID Package，当前 Package 必须保持以下公开表面：
+声明兼容某个目标版本，表示在宿主满足当前 Package 所有运行时要求的前提下，当前 Package 可以在数据格式与 API 契约层面替换该目标版本，而不要求依赖方修改声明。对兼容区间内已经发布的同 ID Package，当前 Package 必须保持以下公开表面：
 
 - 已有贡献的类别、模块 ID 及其含义
 - 已有模块的`interface`与`level`
@@ -139,7 +158,15 @@ compatVersion <= target <= version
 
 当前 Package 可以增加贡献和可选能力，也可以修改不影响上述公开表面的实现细节、私有`configuration`、模型与算法。`variant`可以改变，但改变后仍须履行原有公开能力与运行时契约。任何破坏上述承诺的版本都必须将`compatVersion`提高到不再覆盖受影响的旧版本。
 
-兼容性是 Package 作者作出的承诺。加载器只按版本区间判断候选，不负责读取或比较历史版本来证明该承诺。承诺不实属于 Package 缺陷，加载器或执行器在缺陷实际导致失败时应报告诊断。
+兼容性是 Package 作者作出的承诺。加载器只按版本区间判断候选，不负责读取或比较历史版本来证明该承诺。该承诺不保证当前宿主满足新版本要求的`runtimeLevel`、贡献类别、解释器、外部资源或其他运行环境条件。承诺不实属于 Package 缺陷，加载器或执行器在缺陷实际导致失败时应报告诊断。
+
+#### Runtime Level
+
+Runtime Level 是由本规范维护者统一分配的正整数，表示 Package 可以依赖的核心运行时能力，不是 SynthRT 或其他产品的软件版本。每个兼容运行时声明自己支持的最高 Level，Package 的`runtimeLevel`不得高于该值。
+
+当前规范定义 Runtime Level 1，保证 Package 与 dependency、ModuleReference、`inference`与`singer`内置类别，以及模块 provider 发现机制。新增 Package 可以依赖的核心能力或内置类别时递增 Level；修复实现缺陷、增加 provider 或注册第三方类别时不递增。
+
+`$version`负责声明文件格式，`runtimeLevel`负责运行时核心能力。第三方类别不由 Runtime Level 保证，仍然必须在宿主中实际注册。
 
 #### 功能贡献
 
@@ -159,7 +186,7 @@ compatVersion <= target <= version
     + `id`：贡献 ID，由 Package 赋予，同一类别下不得重复。对于模块贡献，它是别处引用该模块时使用的模块 ID，不是模块自身的属性，因此模块声明文件中不出现它。
 + 其余字段由该类别自行规定。
 
-贡献不一定是模块。类别注册时必须声明其条目是否指向模块声明。模块类别的条目必须使用`path`指向包含公共模块字段的声明文件；`inference`与`singer`都是模块类别。非模块类别的条目不使用公共模块字段，其内容完全由类别规定，可以内联，也可以按该类别自己的规则引用其他文件。
+贡献不一定是模块。类别注册时必须声明其条目是否指向模块声明。模块类别的条目必须使用`path`指向包含公共模块字段的声明文件，并注册该类别专用的 provider factory 与插件搜索目录；`inference`与`singer`都是模块类别。非模块类别的条目不使用公共模块字段和模块 provider，其内容完全由类别规定，可以内联，也可以按该类别自己的规则引用其他文件。
 
 > **为什么 `id` 在这里而不在模块里**
 >
@@ -175,7 +202,11 @@ compatVersion <= target <= version
 
 内置类别可以使用裸名称。第三方类别必须使用由其所有者控制的反向域名名称，例如`com.vendor.language`。同一个类别名称的条目 schema 与语义发布后必须保持兼容，不兼容的类别定义必须使用新名称。
 
-加载器遇到不认识的类别时必须拒绝整个 Package。`runtimeVersion`可以防止旧运行时尝试加载依赖较新内置类别的 Package，但不能代替第三方类别的注册；声明了第三方类别的 Package 仍要求当前宿主已经注册该类别。
+所有 category 必须在解析任何 Package 前完成进程内注册。一次注册至少包含 category 名称、条目是模块还是非模块，以及该类别的条目解析器或 schema。模块类别还必须注册专用 provider factory 和有序插件搜索路径，非模块类别则注册自己的条目解析器，不使用模块 provider。
+
+同一个 category 名称在一个进程中只能注册一次，重复注册必须报错，不得按注册顺序覆盖或合并。Package 只能使用已经注册的 category，不能自行定义、替换或扩展 category 的语义。category 注册来自宿主及其链接或安装的扩展，不从 Package 获取。
+
+加载器遇到不认识的类别时必须拒绝整个 Package。`runtimeLevel`可以防止旧运行时尝试加载依赖较新内置类别的 Package，但不能代替第三方类别的注册；声明了第三方类别的 Package 仍要求当前宿主已经注册该类别。
 
 因此，贡献类别在框架层面是可以注册扩展的开放集合，但一次加载使用的类别必须全部已注册。增加新类别不保证未注册该类别的加载器仍能加载该 Package。
 
@@ -233,16 +264,13 @@ compatVersion <= target <= version
 
 某个多语言字段的值是文件路径时，**每一个本地化的值各自解析**，基路径都是该声明文件所在的目录。
 
-### 引用文法
+### ModuleReference 文法
 
-PackageReference 指向一个 Package。ModuleReference 以 PackageReference 为基础，在其后追加`:category/contrib-id`以指向该 Package 中的模块；引用当前 Package 的模块时省略 PackageReference，但必须保留开头的`:`。
+ModuleReference 指向一个模块。外部 ModuleReference 以 Package ID 绑定当前 Package 已经解析出的直接依赖，再用`:category/contrib-id`定位其中的模块；引用当前 Package 的模块时省略 Package ID，但必须保留开头的`:`。
 
 ```
-reference         = package-reference / module-reference
-package-reference = package-id [ version-constraint ]
-module-reference  = package-reference ":" category "/" contrib-id
+module-reference  = package-id ":" category "/" contrib-id
                   / ":" category "/" contrib-id
-version-constraint = "=" version / "~=" version
 
 package-id    = segment *( "/" segment )
 category      = segment *( "." segment )
@@ -251,19 +279,15 @@ segment       = 1*( ALPHA / DIGIT / "_" / "-" )
 ```
 
 ```
-vendor/sample=1.0.0.0:inference/pitch    // 完整形式
-vendor/sample~=1.0:inference/pitch       // 要求兼容 1.0.0.0
-vendor/sample=1.0.0.0:singer/main
-vendor/sample:singer/main                // 使用依赖求解选定的版本
-:singer/main                             // 当前 Package
-vendor/sample=1.0.0.0                    // 指向 Package 本身
+vendor/sample:inference/pitch    // 已解析的外部直接依赖
+vendor/sample:singer/main
+:singer/main                     // 当前 Package
 ```
 
-+ ModuleReference 中没有 PackageReference 时，前导的`:`**不可省略**——`singer/main`指的是名为`singer/main`的 Package，不是`singer`类别下名为`main`的模块。
++ ModuleReference 中没有 Package ID 时，前导的`:`不可省略。
 + ModuleReference 必须包含 category。声明文件中不得使用省略 category 的持久化引用。
 + **类别是文法中的一格数据，而不是标点。** 新增一种贡献类别不需要改动这条文法。
-+ 外部 ModuleReference 未写版本约束时，引用使用依赖求解已经选定的 Package 实例。
-+ `=version`要求 Package 的实际`version`与给定版本相等。`~=version`要求 Package 兼容给定版本，按上文的兼容条件判断。
++ ModuleReference 不携带 Package 版本。外部 ModuleReference 始终绑定`dependencies`求解选定的 Package 实例，不得触发新的 Package 搜索或加载另一个版本。
 + 引用当前 Package 的模块必须使用以`:`开头的形式。显式写出的 Package ID 始终表示外部 Package，并且必须在`dependencies`中声明。
 
 ### 安装与加载
@@ -276,7 +300,7 @@ vendor/sample=1.0.0.0                    // 指向 Package 本身
 
 ZIP 中的 entry 路径必须使用`/`作为分隔符，并满足以下要求：
 
-- 不得包含`\\`
+- 不得包含 U+005C REVERSE SOLIDUS（反斜杠）
 - 不得是绝对路径、带盘符的路径或 UNC 路径
 - 除目录 entry 末尾用于标识目录的空段外，不得包含值为`.`、`..`或空字符串的路径段
 - 不得包含 NUL 字符
@@ -304,29 +328,75 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 由于`dspk`引入了依赖机制，因此一个`dspk`的加载流程中包含依赖查找。
 
-- 对于一个`dspk`，当且仅当它的所有依赖项都能被加载，它才能被加载。
-- 一个`dspk`的依赖项给定了所需依赖项的`id`与`version`，只有满足以下条件才能被视为合法依赖。
-    - `id`与给定`id`一致
-    - `version`大于等于给定`version`
-    - `compatVersion`小于等于给定`version`
-- 一个`dspk`将在其依赖项全部加载后进入初始化，初始化每一步都成功后即为成功加载。
+清单解析器提供两种模式：
+
+- `noLoad`：读取依赖图中的`desc.json`和模块声明文件，验证框架公共 envelope 与 category 条目基础结构，确认 category 已注册，解析 ModuleReference，并从插件元数据中选择 provider。此模式不得加载插件、实例化解释器或取得模型、设备等运行时资源。
+- `load`：在成功的`noLoad`结果上加载插件、实例化解释器并取得运行时资源。
+
+`noLoad`不根据 interface 名称发现或下载契约 Schema，也不验证 provider 是否真正遵守契约。`exports`与`options`在此阶段只读取为 JSON，具体契约语义由参与该契约的实现负责；`configuration`的格式与版本由选中的 variant provider 在`load`阶段验证。
+
+依赖求解始终先使用`noLoad`读取候选的`desc.json`。一个 Package 只有同时满足以下条件才是某个 dependency edge 的候选：
+
+- DSPK 或安装目录能够按本规范的安全规则读取
+- `desc.json`是有效清单
+- `$version`受当前加载器支持
+- `id`与 dependency 要求一致
+- `version`与`compatVersion`合法，并且兼容 dependency 要求的目标版本
+- `runtimeLevel`不高于当前运行时支持的 Level
+- `contributes`中列出的所有贡献类别均已注册
+
+加载器对上述候选按搜索路径优先、同一路径选择最高版本的规则作出一次选择。选中后，不论后续递归依赖解析、其余清单的`noLoad`验证、provider 发现、`configuration`检查、解释器启动或模块初始化在哪一步失败，整条加载都必须失败，不得回退到其他候选版本，也不得重新搜索其他路径。
+
+对于一个`dspk`，当且仅当它的所有依赖项都能被加载，它才能被加载。dependency 要求的目标版本必须位于候选 Package 的闭区间`[compatVersion, version]`内。
 
 `dependencies`中不得出现两个`id`相同的条目，也不得出现与当前 Package 的`id`相同的条目。引用当前 Package 中的模块不声明自依赖，使用以`:`开头的引用。
 
-每个依赖项独立求解，不与依赖图中其他位置对相同 Package ID 的要求合并。不同依赖边可以选中同一 Package 的不同版本，因此多个版本可以同时加载。多条依赖边选中相同 ID 与相同规范化版本时，共享同一个 Package 实例。
+每个依赖项独立求解，不与依赖图中其他位置对相同 Package ID 的要求合并。不同依赖边可以选中同一 Package 的不同版本，因此多个版本可以同时加载。多条依赖边选中相同 ID 与相同规范化版本时，必须共享同一个 Package 实例。
 
-加载器按用户给定的搜索路径顺序查找。对每个搜索路径，加载器收集该路径中所有 ID 相同且兼容依赖项所要求版本的候选。如果当前路径没有候选，则继续下一个路径；如果存在候选，则选择其中版本最高的 Package，不再搜索后续路径。同一路径中存在多个 ID 与规范化版本均相同的最高版本候选时，结果有歧义，加载失败。
+加载器按用户给定的搜索路径顺序发现 Package。一个搜索路径中存在多个 ID 与规范化版本均相同的 Package 时，结果有歧义，加载失败。某个 Package 身份第一次出现时，其所在来源成为该身份在本次解析中的唯一来源；后续搜索路径中出现的同身份 Package 被遮蔽，不再参与任何 dependency edge 的候选选择。
+
+对每个 dependency edge，加载器在上述唯一来源集合中按静态条件收集候选，并继续遵守搜索路径优先规则。如果当前路径没有候选，则继续下一个路径；如果存在候选，则选择其中版本最高的 Package，不再搜索后续路径。所有选中同一 Package 身份的 dependency edge 绑定由首次出现来源提供的同一个实例。相对路径均以该实际来源为基础解析。
 
 依赖图必须是有向无环图。加载器在解析期间遇到自依赖或依赖环时必须拒绝加载，并报告形成环的完整依赖链。
 
-模块的初始化分两个阶段，所有模块先各自完成第一阶段，再统一进入第二阶段：
+##### Package 实例与强引用
 
-1. **Initialized**：模块读取自己的声明文件，取得它所需的解释器或提供者。此阶段不得引用别的模块。
-2. **Ready**：模块解析它对别的模块的引用。此时所有模块都已完成第一阶段，因此引用有对象可指。
+加载器维护按 Package 身份索引的实例表。每个实例具有强引用计数，强引用来自：
 
-任一阶段失败时，已完成的模块按**相反顺序**回滚。
+- 调用方持有的根 Package load handle
+- 已 Commit Package 的 dependency edge
+- 尚未 Commit 的加载事务临时引用
 
-> 这两个阶段只支持一层跨模块引用：第二阶段能读到别的模块第一阶段的产物，读不到别的模块第二阶段的产物。
+同一个 Package 实例被再次作为根 Package 加载时，不重复初始化，只增加一个外部 handle 引用。一个已 Commit Package 对每个直接 dependency 持有一个强引用；ModuleReference 本身不另行计数，因为其目标已由当前 Package 或直接 dependency edge 保活。
+
+##### 加载事务
+
+同一个 Loader 上改变 Package 实例状态的 load 与 release 事务必须串行执行。一次 load 事务覆盖请求的根 Package，以及本次依赖闭包中尚未 Commit 的 Package 实例。事务依次执行：
+
+1. **noLoad**：无副作用地完成依赖求解、清单解析、ModuleReference 绑定与 provider 元数据选择。
+2. **Acquire**：为根 handle 和每条 dependency edge 取得临时强引用，加载插件，创建本次所需的新 Package 与模块实例，并取得运行时资源。已经 Commit 的实例只增加临时引用，不重复 Acquire。
+3. **Ready**：所有新模块 Acquire 成功后，根据`noLoad`阶段解析的 ModuleReference 建立运行时连接。Ready 可以读取已 Commit 实例和其他模块的 Acquire 产物，不得依赖其他新模块的 Ready 产物。
+4. **Commit**：全部 Ready 成功后，原子发布本次新建的 Package 实例。根 Package 的临时引用转交给返回的 load handle，各 dependency 临时引用转交给已 Commit 的 dependency edge。
+
+Commit 前，本次新建的实例不得对其他 load 调用可见。Commit 后，调用方得到一个持有根 Package 强引用的 handle。
+
+non-module contribution 在`noLoad`中由 category parser 完成解析，且不得产生运行时副作用。需要 Acquire、Ready 或运行时资源的 contribution 必须注册为 module category。
+
+##### 失败与 rollback
+
+Acquire 或 Ready 的每个成功步骤都必须记录在事务完成日志中。当前失败对象负责清理自己的半初始化资源，随后加载器按实际完成日志的反序撤销本事务成功的步骤，并释放本事务取得的全部临时强引用。
+
+释放临时引用后，引用计数仍大于零的已有实例保持加载；引用计数降为零的实例按其成功加载步骤的反序释放模块与运行时资源，并继续释放其 dependency 引用。rollback 只撤销本事务增加的引用和创建的资源，不得撤销其他 handle、其他已 Commit Package 或其他 dependency edge 持有的引用。
+
+每个成功步骤只能清理一次。已经按事务日志清理完成的未 Commit 实例在引用归零时只移除实例记录，不得再次释放同一资源。
+
+最初导致事务失败的错误是 primary error。rollback 或资源清理错误作为附加诊断报告，不得覆盖 primary error。清理操作必须幂等。
+
+##### release 与卸载
+
+释放 load handle 时，根 Package 的外部强引用减一。实例总强引用计数降为零时，加载器将其从可见实例表中移除，按成功加载步骤的反序释放其模块和运行时资源，再释放它持有的 dependency 强引用；由此可以递归卸载不再被任何 handle 或 Package 使用的依赖。
+
+清理失败不恢复引用计数，也不重新发布已经移除的实例，其错误作为卸载诊断报告。依赖图无环保证递归卸载能够终止。
 
 #### 简单方案
 
@@ -394,17 +464,25 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 `interface`是一个反向域名形式的标识符，例如`org.openvpi.svs.AcousticInference`。它回答的是**「这份声明该按谁的语法读」**，也是导入方唯一应当据以分辨模块种类的东西。
 
-> 2.3 中这个字段叫`class`，并被描述为「推理类型」。改名的原因是它命名的不是一个类，而是一份契约：`org.openvpi.*`是本规范定义的公共契约，第三方实现使用自己的命名空间（如`com.vendor.*`）。
+> 2.3 中这个字段叫`class`，并被描述为「推理类型」。改名的原因是它命名的不是一个类，而是一份契约：`org.openvpi.*`是本规范定义的公共契约，第三方定义的新契约使用自己的命名空间（如`com.vendor.*`）。
 
-`variant`区分同一契约下的不同实现变体。变体之间可以差在任何地方——模型的格式、所用的算法、乃至用不用模型（文本到音素的转换可以基于规则，也可以基于模型）。同一 (`interface`, `level`) 下的变体遵循同一套声明语法与运行时契约，但可以公开不同的能力集合，不保证彼此可互换。
+`variant`区分同一契约下的不同实现变体。变体之间可以差在任何地方——模型的格式、所用的算法、乃至用不用模型（文本到音素的转换可以基于规则，也可以基于模型）。同一 (`interface`, `level`) 下的变体共享公共模块 envelope、`exports`与`options`语法及运行时契约，`configuration`可以不同，也可以公开不同的能力集合，不保证彼此可互换。
 
 某个`variant`仍然是该契约的一种实现。共享`interface`表示它们使用相同的契约词汇和调用规则，不表示每种实现必须提供契约允许的全部能力。
 
-`variant`由`interface`定域，故本规范定义的变体用裸词即可（当前只有`onnx`一种），第三方为他人的契约提供变体时应使用反向域名（如`com.vendor.tensorrt`）。
+`variant`由`interface`定域，故本规范定义的变体用裸词即可。本规范当前使用的裸 variant 包括 Inference 契约的`onnx`与 Singer 契约的`diffsinger`。第三方为他人的契约提供变体时应使用反向域名（如`com.vendor.tensorrt`）。
 
 该字段必填，**没有「默认变体」一说**。每个模块都由某个具体的实现来读取和执行，把那个实现的名字写出来，加载器才能在找不到解释器时说清楚缺的是哪一个。
 
-加载器据`interface`、`variant`、`level`三者共同选择解释器。
+加载器先根据模块所属 category 取得该类别的 provider factory，再据`interface`、`variant`、`level`三者共同选择 provider。
+
+#### 模块 provider 发现
+
+每个模块类别拥有各自专用的 provider factory 和有序插件搜索路径。一个类别的 factory 只发现和创建该类别的 provider，不同类别的 provider 不在同一个搜索目录或候选集合中并列比较。category 因此是选择 factory 与搜索路径的外部上下文，不属于 provider 的匹配键。
+
+模块 provider 必须在无需加载插件即可读取的插件元数据中声明它支持的`interface`、`variant`和`level`。`noLoad`阶段先根据模块 category 取得对应 factory，再按该类别的插件搜索顺序扫描元数据，选择第一个三元组全部匹配的 provider。后续出现的相同三元组不参与选择。
+
+`configuration`及其中由 variant 自行定义的格式版本不参与静态 provider 选择。选中的 provider 在`load`阶段发现不支持该`configuration`时，必须报告错误并使加载失败，不得尝试同类别搜索路径中的后续 provider。
 
 #### interface 契约规范
 
@@ -419,6 +497,8 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 - 错误条件及其可观察语义
 
 `configuration`不属于 interface 契约，其全部语法与格式版本均由`variant`规定。
+
+契约文档与 JSON Schema 是面向 Package、provider 和消费者实现开发者的规范材料。“可定位”不表示 Runtime 必须从 interface 名称推导 URI、访问中央 registry、下载 Schema 或校验摘要。本规范不定义运行时 contract discovery 协议，Package 与插件元数据也不携带契约 URI 或 digest。
 
 #### 三个语法块的归属
 
@@ -441,7 +521,7 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 每个条目：
 
 + 必选字段
-    + `ref`：被引用模块的 ModuleReference，见上文引用文法。不得使用只指向 Package 的 PackageReference
+    + `ref`：被引用模块的 ModuleReference，见上文文法
 + 可选字段
     + `options`：提供给被引用模块的选项，其语法由**被引用模块**的`interface`与`level`规定
 
@@ -455,7 +535,7 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 ModuleReference 中显式出现的每个 Package ID 都必须在`desc.json`的`dependencies`中声明。引用当前 Package 时不得显式写出其 ID，而应使用以`:`开头的形式。
 
-`ref`必须是一条完整的 ModuleReference，不设简写。2.3 中`imports`可以直接写裸字符串（如`"acoustic-1"`）表示「本 Package 的 inference 中名为 acoustic-1 的那个」，这种写法与上文的引用文法冲突——裸字符串在文法中只能归约为 PackageReference，即一个名叫`acoustic-1`的 Package。旧写法对应的完整形式是`":inference/acoustic-1"`。
+`ref`必须是一条完整的 ModuleReference，不设简写。2.3 中`imports`可以直接写裸字符串（如`"acoustic-1"`）表示「本 Package 的 inference 中名为 acoustic-1 的那个」，2.4 不再接受这种写法，其完整形式是`":inference/acoustic-1"`。
 
 ### Inference 模块
 
@@ -471,7 +551,7 @@ Inference 模块负责执行某一项参数的推理任务，承担了最底层�
     "name": "Zhibin - Variance",
     "exports": {
         "predictions": [
-            "breathness", "duration"
+            "breathiness", "duration"
         ]
     },
     "configuration": {
@@ -500,7 +580,7 @@ Singer 模块负责定义一个歌手的信息，以及它需要使用的其他�
     "imports": [
         { "ref": ":inference/acoustic-1" },
         {
-            "ref": "bar/pitch=1.0.0.0:inference/pitch",
+            "ref": "bar:inference/pitch",
             "options": { "roles": ["pitch"] }
         },
         {
@@ -563,7 +643,7 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 
 - 非 DiffSinger 甚至非 AI 的开发者，如 UTAU、Vocaloid，亦可通过扩展`interface`来支持其他引擎，可以使用混合 Package 将歌手信息与歌声采样放在同一个 Package 中。
 
-- 需要一种全新的模块（而不只是一种新的推理）时，扩展**贡献类别**：链接进宿主的库注册一个新类别，此后`desc.json`就可以在`contributes`下列出它，引用文法也自动支持它。本规范不限制类别的集合。
+- 需要一种全新的模块（而不只是一种新的推理）时，扩展**贡献类别**：链接进宿主的库注册一个新类别，此后`desc.json`就可以在`contributes`下列出它，ModuleReference 文法也自动支持它。本规范不限制类别的集合。
 
 ### 推荐目录结构
 
@@ -596,23 +676,16 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 
 ### 推理解释器
 
+Inference provider 使用`inference`类别专用的插件搜索目录和 factory，是上文模块 provider 发现机制在该类别下的具体实现。
+
 插件必须在插件元数据中列出它提供的推理解释器。每个解释器条目包含：
 
 - `interface`：负责的契约，如`org.openvpi.svs.PitchInference`
 - `variant`：负责的变体
 - `apiLevel`：负责的那一个 API Level
 
-插件元数据必须能在不加载插件的情况下读取。加载器按插件框架定义的插件搜索顺序扫描元数据，选择第一个与模块的`interface`、`variant`和`level`全部匹配的解释器条目。后续出现的相同三元组不参与选择。
+插件元数据必须能在不加载插件的情况下读取。Inference factory 按`inference`类别的插件搜索顺序扫描元数据，选择第一个与模块的`interface`、`variant`和`level`全部匹配的解释器条目。后续出现的相同三元组不参与选择。
 
-选中条目后，加载器才加载对应插件并创建派生于`InferenceInterpreter`的解释器。解释器的`create`创建对应的推理任务类。
+选中条目后，加载器才加载对应插件并创建派生于`InferenceInterpreter`的解释器。
 
-### 推理任务
-
-创建派生于`Inference`的推理任务类。
-
-- `initialize`：初始化推理任务，应当加载需要用到的模型
-- `start`：开始推理任务，应当对输入的参数进行预处理，并构建推理图
-- `startAsync`：`start`的异步版本
-- `stop`：立即停止推理任务（同步）
-- `state`：推理任务状态
-- `result`：推理结果
+具体推理任务的创建、初始化、执行、取消、状态、错误与结果生命周期不属于本规范，由单独的运行时 API 规范定义。
