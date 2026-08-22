@@ -4,6 +4,7 @@
         "qmsetup",
         "stduuid",
         "stdcorelib",
+        "stdcorelib-plugin",
         "blake3",
         "sparsepp",
         "bit7z"

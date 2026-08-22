@@ -4,8 +4,8 @@
 #include <filesystem>
 
 #include <stdcorelib/support/versionnumber.h>
+#include <stdcorelib/plugin/pluginfactory.h>
 
-#include <synthrt/Plugin/PluginFactory.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
@@ -15,7 +15,7 @@ namespace srt {
     class ContribCategory;
 
     /// SynthUnit is the main class for loading and managing SynthRT packages.
-    class SYNTHRT_EXPORT SynthUnit : public PluginFactory {
+    class SYNTHRT_EXPORT SynthUnit : public stdc::plugin::PluginFactory {
     public:
         SynthUnit();
         ~SynthUnit();
@@ -53,6 +53,7 @@ namespace srt {
 
     protected:
         class Impl;
+        std::unique_ptr<Impl> _impl;
 
         friend class PackageRef;
         friend class ContribCategory;
