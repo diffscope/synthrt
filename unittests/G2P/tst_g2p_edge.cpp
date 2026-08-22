@@ -614,3 +614,197 @@ TEST_CASE("G2P-028: PhonemeDict load from non-existent file returns false",
     REQUIRE(ec);
 }
 
+// ===========================================================================
+// G2P-047: CMU-style "(n)" variant rows merge under the base word (multipron)
+//   "record" / "record(1)" / "record(2)" must merge into ONE variant group in
+//   file order (base first). Base-key queries return the first variant;
+//   suffixed-key queries (D4) return exactly the matching variant, or miss
+//   when the suffix number does not exist.
+// ===========================================================================
+TEST_CASE("G2P-047: PhonemeDict merges (n) variant rows under base word",
+          "[g2p][edge]") {
+    const auto dir = makeTempDir("g2p047-variants");
+    const auto file = dir / "dict.txt";
+    writeFile(file,
+              "record\tr ax k ao r d\n"
+              "record(1)\tr eh k er d\n"
+              "record(2)\tr ih k ao r d\n"
+              "hello\thh ax l ow\n");
+
+    PhonemeDict dict;
+    std::error_code ec;
+    REQUIRE(dict.load(file, &ec));
+    REQUIRE(!ec);
+
+    // Variant rows merged: only 2 visible keys remain.
+    REQUIRE(dict.size() == 2);
+
+    // Base key: first variant is the bare base row (backward compatible).
+    const auto basePron = dict["record"].vec<std::string_view>();
+    REQUIRE(basePron == std::vector<std::string_view>{"r", "ax", "k", "ao", "r", "d"});
+
+    // lookupAll returns every pronunciation in file order.
+    const auto all = dict.lookupAll("record");
+    REQUIRE(all.size() == 3);
+    REQUIRE(all[0].vec<std::string_view>() ==
+            std::vector<std::string_view>{"r", "ax", "k", "ao", "r", "d"});
+    REQUIRE(all[1].vec<std::string_view>() ==
+            std::vector<std::string_view>{"r", "eh", "k", "er", "d"});
+    REQUIRE(all[2].vec<std::string_view>() ==
+            std::vector<std::string_view>{"r", "ih", "k", "ao", "r", "d"});
+
+    // D4: suffixed precise lookup returns exactly that variant, no candidates.
+    REQUIRE(dict.contains("record(1)"));
+    REQUIRE(dict.contains("record(2)"));
+    REQUIRE(dict["record(1)"].vec<std::string_view>() ==
+            std::vector<std::string_view>{"r", "eh", "k", "er", "d"});
+    REQUIRE(dict["record(2)"].vec<std::string_view>() ==
+            std::vector<std::string_view>{"r", "ih", "k", "ao", "r", "d"});
+    const auto one = dict.lookupAll("record(2)");
+    REQUIRE(one.size() == 1);
+    REQUIRE(one[0].vec<std::string_view>() ==
+            std::vector<std::string_view>{"r", "ih", "k", "ao", "r", "d"});
+
+    // Nonexistent suffix number misses, even though the base word exists.
+    REQUIRE(!dict.contains("record(3)"));
+    REQUIRE(dict.find("record(3)") == dict.end());
+    REQUIRE(dict["record(3)"].vec<std::string_view>().empty());
+    REQUIRE(dict.lookupAll("record(3)").empty());
+
+    // Single-pronunciation words behave exactly as before.
+    const auto helloAll = dict.lookupAll("hello");
+    REQUIRE(helloAll.size() == 1);
+    REQUIRE(helloAll[0].vec<std::string_view>() ==
+            std::vector<std::string_view>{"hh", "ax", "l", "ow"});
+    REQUIRE(!dict.contains("hello(1)"));
+
+    std::filesystem::remove_all(dir);
+}
+
+// ===========================================================================
+// G2P-048: variant numbering may start above (1) (ita_dict has "e(2)")
+//   A group containing only base + (2) must still merge and resolve; asking
+//   for the missing (1) must miss, not silently return the base.
+// ===========================================================================
+TEST_CASE("G2P-048: PhonemeDict tolerates variant numbering gaps",
+          "[g2p][edge]") {
+    const auto dir = makeTempDir("g2p048-gaps");
+    const auto file = dir / "dict.txt";
+    writeFile(file,
+              "x\ta\n"
+              "x(2)\tb\n");
+
+    PhonemeDict dict;
+    std::error_code ec;
+    REQUIRE(dict.load(file, &ec));
+    REQUIRE(!ec);
+
+    const auto all = dict.lookupAll("x");
+    REQUIRE(all.size() == 2);
+    REQUIRE(all[0].vec<std::string_view>() == std::vector<std::string_view>{"a"});
+    REQUIRE(all[1].vec<std::string_view>() == std::vector<std::string_view>{"b"});
+
+    REQUIRE(dict["x(2)"].vec<std::string_view>() == std::vector<std::string_view>{"b"});
+    REQUIRE(!dict.contains("x(1)"));
+
+    std::filesystem::remove_all(dir);
+}
+
+// ===========================================================================
+// G2P-049: non-digit parentheses in keys are NOT stripped
+//   Only a strict tail "(digits)" pattern marks a variant. Keys like
+//   "foo(bar)" keep their full literal form so non-CMU dictionaries are
+//   unaffected.
+// ===========================================================================
+TEST_CASE("G2P-049: PhonemeDict keeps non-digit parenthesized keys intact",
+          "[g2p][edge]") {
+    const auto dir = makeTempDir("g2p049-parens");
+    const auto file = dir / "dict.txt";
+    writeFile(file,
+              "foo(bar)\tf oo\n"
+              "trailing(2)x\tt x\n");
+
+    PhonemeDict dict;
+    std::error_code ec;
+    REQUIRE(dict.load(file, &ec));
+    REQUIRE(!ec);
+
+    REQUIRE(dict.size() == 2);
+    REQUIRE(dict.contains("foo(bar)"));
+    REQUIRE(dict["foo(bar)"].vec<std::string_view>() ==
+            std::vector<std::string_view>{"f", "oo"});
+    REQUIRE(dict.contains("trailing(2)x"));
+    // The stripped bases must NOT exist.
+    REQUIRE(!dict.contains("foo"));
+    REQUIRE(!dict.contains("trailing"));
+
+    std::filesystem::remove_all(dir);
+}
+
+// ===========================================================================
+// G2P-050: identical duplicate rows are deduplicated on merge
+//   A repeated identical row (same suffix AND same phoneme sequence) must not
+//   multiply candidates. A same-suffix row with a DIFFERENT pronunciation is
+//   kept as a separate variant.
+// ===========================================================================
+TEST_CASE("G2P-050: PhonemeDict deduplicates identical variant rows",
+          "[g2p][edge]") {
+    const auto dir = makeTempDir("g2p050-dedup");
+    const auto file = dir / "dict.txt";
+    writeFile(file,
+              "dup\ta b\n"
+              "dup\ta b\n"   // identical duplicate -> dropped
+              "dup(1)\tc d\n"
+              "dup(1)\tc d\n" // identical duplicate -> dropped
+              "dup(1)\te f\n" // same suffix, different content -> kept
+    );
+
+    PhonemeDict dict;
+    std::error_code ec;
+    REQUIRE(dict.load(file, &ec));
+    REQUIRE(!ec);
+
+    const auto all = dict.lookupAll("dup");
+    REQUIRE(all.size() == 3);
+    REQUIRE(all[0].vec<std::string_view>() == std::vector<std::string_view>{"a", "b"});
+    REQUIRE(all[1].vec<std::string_view>() == std::vector<std::string_view>{"c", "d"});
+    REQUIRE(all[2].vec<std::string_view>() == std::vector<std::string_view>{"e", "f"});
+
+    std::filesystem::remove_all(dir);
+}
+
+// ===========================================================================
+// G2P-052: UTF-8 BOM at file start is stripped
+//   Several bundled dicts (deu/fra/ita/por/rus/spa) start with EF BB BF. Without
+//   stripping, the first key would carry the BOM bytes and never match or merge
+//   with its "(n)" variants. Regression for the BOM handling added with the
+//   variant-merge feature.
+// ===========================================================================
+TEST_CASE("G2P-052: PhonemeDict strips leading UTF-8 BOM on load",
+          "[g2p][edge]") {
+    const auto dir = makeTempDir("g2p052-bom");
+    const auto file = dir / "dict.txt";
+    {
+        std::ofstream out(file, std::ios::binary);
+        out << "\xEF\xBB\xBF"
+            << "x\ta\n"
+            << "x(1)\tb\n"
+            << "x(2)\tc\n";
+    }
+
+    PhonemeDict dict;
+    std::error_code ec;
+    REQUIRE(dict.load(file, &ec));
+    REQUIRE(!ec);
+
+    // First key must not carry BOM bytes; all 3 rows merge under "x".
+    const auto all = dict.lookupAll("x");
+    REQUIRE(all.size() == 3);
+    REQUIRE(all[0].vec<std::string_view>() == std::vector<std::string_view>{"a"});
+    REQUIRE(all[1].vec<std::string_view>() == std::vector<std::string_view>{"b"});
+    REQUIRE(all[2].vec<std::string_view>() == std::vector<std::string_view>{"c"});
+    REQUIRE(!dict.contains("x(3)"));
+
+    std::filesystem::remove_all(dir);
+}
+

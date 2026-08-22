@@ -115,7 +115,7 @@ namespace srt::g2p
             using pointer = const value_type *;
             using reference = const value_type &;
 
-            iterator() : _buf(nullptr), _row(nullptr), _col(nullptr) {}
+            iterator() : _buf(nullptr), _row(nullptr), _col(nullptr), _var(0) {}
 
             reference operator*() const {
                 fetch();
@@ -147,7 +147,8 @@ namespace srt::g2p
             bool operator!=(const iterator &RHS) const { return !(*this == RHS); }
 
         private:
-            iterator(const char *buf, const void *row, const void *col) : _buf(buf), _row(row), _col(col) {}
+            iterator(const char *buf, const void *row, const void *col, int var = 0)
+                : _buf(buf), _row(row), _col(col), _var(var) {}
 
             SRT_G2P_EXPORT void fetch() const;
             SRT_G2P_EXPORT void next();
@@ -156,6 +157,10 @@ namespace srt::g2p
 
             const char *_buf;
             const void *_row, *_col;
+            // Variant index within the merged entry group. 0 for plain keys and
+            // range iterators; set by find() when a suffixed key ("word(2)")
+            // resolves to a specific variant. Reset to 0 by next()/prev().
+            int _var;
             mutable std::optional<std::pair<const char *, PhonemeList>> _copy;
 
             friend class PhonemeDict;
@@ -164,9 +169,22 @@ namespace srt::g2p
         using reverse_iterator = stdc::reverse_iterator<iterator>;
 
         /// \note The key must be a null-terminated string.
+        ///
+        /// Dictionaries may carry CMU-style variant keys like "word(1)"/"word(2)":
+        /// the "(n)" suffix is stripped at load time and all rows sharing the same
+        /// base word are merged into one variant group (bare base row first, then
+        /// variants in file order). find/contains/operator[] on a base key return
+        /// the first variant; on a suffixed key they fall back to the variant group
+        /// and return exactly the variant whose suffix number matches (D4 decision:
+        /// precise suffixed lookup returns that single pronunciation, no candidates).
         iterator find(const char *key) const;
         bool contains(const char *key) const;
         PhonemeList operator[](const char *key) const;
+
+        /// Returns every pronunciation of a (base) key in file order, as
+        /// lightweight views into the dictionary buffer (zero-copy).
+        /// For a suffixed key like "word(2)", returns only the matching variant.
+        std::vector<PhonemeList> lookupAll(const char *key) const;
 
         bool empty() const;
         size_t size() const;

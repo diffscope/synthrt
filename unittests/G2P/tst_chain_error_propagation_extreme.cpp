@@ -623,6 +623,60 @@ TEST_CASE("G2P-046: mixed-case words resolve through two-pass dict chain",
     }
 }
 // ===========================================================================
+// G2P-051: multi-pronunciation dict words expose all variants as candidates
+//
+// CMU-style "record"/"record(1)"/"record(2)" rows merge in PhonemeDict;
+// DictStep must set pronunciation to the FIRST variant (the bare base row,
+// unchanged from before) and candidates to one WHOLE pronunciation string per
+// variant (file order) — matching the ModelStep/G2pRes candidate convention,
+// not the historical per-phoneme list.
+// ===========================================================================
+TEST_CASE("G2P-051: dict step exposes pronunciation variants as candidates",
+          "[g2p][extreme][multipron]") {
+    const auto dir = makeTempDir("g2p051-multipron");
+    const auto dictFile = dir / "dict.txt";
+    writeFile(dictFile,
+              "record\tr ax k ao r d\n"
+              "record(1)\tr eh k er d\n"
+              "record(2)\tr ih k ao r d\n"
+              "hello\thh ax l ow\n");
+
+    TestModuleSpec spec;
+    G2pPipeline pipeline(&spec, /*task=*/nullptr);
+
+    const std::string tagger =
+        R"t({"type":"regex","value":["([A-Za-z'\\-]+)"],"tag":"word","action":"convert"})t";
+    const auto cfg = chainConfig(
+        R"({"step":"tagAndValidate","params":{"tagger":[)" + tagger + R"(]}},)"
+        R"({"step":"dict","params":{"file":")" +
+        dictFile.generic_string() + R"("}},)"
+        R"({"step":"fallback"})");
+    REQUIRE(pipeline.configure(cfg).hasValue());
+
+    G2pContext context({"record", "hello"}, &spec);
+    pipeline.process(context);
+
+    REQUIRE(context.words().size() == 2);
+
+    // Multi-pronunciation word: base pronunciation + all variant candidates.
+    const auto &record = context.words()[0];
+    REQUIRE(record.fromDict);
+    REQUIRE(record.errorType == srt::g2p::NoError);
+    REQUIRE(record.pronunciation == "r ax k ao r d");
+    REQUIRE(record.candidates ==
+            std::vector<std::string>{"r ax k ao r d", "r eh k er d", "r ih k ao r d"});
+
+    // Single-pronunciation word: candidates = single whole pronunciation
+    // string (NOT the historical per-phoneme list).
+    const auto &hello = context.words()[1];
+    REQUIRE(hello.fromDict);
+    REQUIRE(hello.pronunciation == "hh ax l ow");
+    REQUIRE(hello.candidates == std::vector<std::string>{"hh ax l ow"});
+
+    std::filesystem::remove_all(dir);
+}
+
+// ===========================================================================
 // G2P-033: Normal conversion via DictStep does not regress.
 //
 // A working chain (tagAndValidate -> dict -> fallback) must still resolve

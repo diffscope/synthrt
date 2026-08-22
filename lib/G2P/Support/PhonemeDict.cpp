@@ -3,10 +3,36 @@
 #include <stdcorelib/str.h>
 #include <synthrt/G2P/Support/PhonemeDict.h>
 
+#include <cctype>
 #include <cstring>
 #include <fstream>
+#include <string>
 
 namespace srt::g2p {
+
+    /// Matches a CMU-style trailing "(digits)" variant suffix in \p key.
+    /// On match returns true and sets \p pos to the index of '(' and \p no to
+    /// the parsed variant number. Requires at least one base character before
+    /// '(' and at least one digit; keys like "word(x)" or "(1)" never match.
+    static bool parse_variant_suffix(const char *key, size_t len, size_t &pos, uint32_t &no) {
+        if (len < 4 || key[len - 1] != ')') // minimum form: "a(1)"
+            return false;
+        size_t i = len - 2;
+        if (!std::isdigit(static_cast<unsigned char>(key[i])))
+            return false;
+        while (i > 0 && std::isdigit(static_cast<unsigned char>(key[i])))
+            --i;
+        if (i == 0 || key[i] != '(')
+            return false;
+        if (len - 2 - i > 9) // digit run too long, avoid uint32 overflow
+            return false;
+        uint32_t n = 0;
+        for (size_t j = i + 1; j <= len - 2; ++j)
+            n = n * 10 + static_cast<uint32_t>(key[j] - '0');
+        pos = i;
+        no  = n;
+        return true;
+    }
 
     static std::error_code make_last_error() {
 #ifdef _WIN32
@@ -33,8 +59,12 @@ namespace srt::g2p {
         struct Entry {
             uint32_t offset;
             uint32_t count;
+            uint32_t suffix; // 0 = bare base row, n = "(n)" variant number
         };
-        using MapType     = spp::sparse_hash_map<char *, Entry, const_char_hash, const_char_equal>;
+        // Rows sharing a base word (after "(n)" suffix stripping) merge into one
+        // variant group; per-group variants keep file order (base row first).
+        using MapType =
+            spp::sparse_hash_map<char *, std::vector<Entry>, const_char_hash, const_char_equal>;
         using SppIterator = MapType::const_iterator;
 
         std::vector<char> filebuf;
@@ -56,6 +86,15 @@ namespace srt::g2p {
             std::memcpy(buf, &it, sizeof(it));
             row = buf[0];
             col = buf[1];
+        }
+
+        /// Index of the variant with the given suffix number within a group, or -1.
+        static int findSuffixIndex(const std::vector<Entry> &variants, uint32_t suffix) {
+            for (size_t i = 0; i < variants.size(); ++i) {
+                if (variants[i].suffix == suffix)
+                    return static_cast<int>(i);
+            }
+            return -1;
         }
     };
 
@@ -102,7 +141,21 @@ namespace srt::g2p {
             filebuf.clear();
             return false;
         }
-        filebuf[file_size] = '\n'; // add terminating line break
+
+        // Strip a UTF-8 BOM if the dict file starts with EF BB BF. Without
+        // this, the first key would carry the BOM bytes and never match or
+        // merge with its "(n)" variants (several bundled dicts carry a BOM:
+        // deu/fra/ita/por/rus/spa). Physically shifting the buffer keeps all
+        // offsets consistent with impl.filebuf.data().
+        size_t parsed_size = static_cast<size_t>(file_size);
+        if (parsed_size >= 3 && static_cast<unsigned char>(filebuf[0]) == 0xEF &&
+            static_cast<unsigned char>(filebuf[1]) == 0xBB &&
+            static_cast<unsigned char>(filebuf[2]) == 0xBF) {
+            std::memmove(filebuf.data(), filebuf.data() + 3, parsed_size - 3);
+            parsed_size -= 3;
+        }
+        filebuf.resize(parsed_size + 1); // shrink to content + terminator slot
+        filebuf[parsed_size] = '\n';     // add terminating line break
         map.clear();
 
         // Parse the buffer
@@ -111,7 +164,7 @@ namespace srt::g2p {
 
         // Estimate line numbers if the file is too large
         static constexpr size_t large_file_size = 1 * 1024 * 1024;
-        if (file_size > large_file_size) {
+        if (parsed_size > large_file_size) {
             const size_t line_cnt = std::count(buffer_begin, buffer_end, '\n') + 1;
             map.reserve(line_cnt);
         }
@@ -192,8 +245,50 @@ namespace srt::g2p {
                     value_cnt = compacted_count;
                 }
 
-                map[start] = Impl::Entry{static_cast<uint32_t>(value_start - buffer_begin), value_cnt};
-                start      = p + 1;
+                // Strip a CMU-style "(n)" variant suffix from the key in place
+                // (filebuf is mutable memory), so all rows of a multi-pronunciation
+                // word merge under the bare base key. Keys without a strict
+                // tail "(digits)" pattern are left untouched, keeping other
+                // languages' dictionaries byte-for-byte compatible.
+                uint32_t suffix = 0;
+                {
+                    const size_t key_len = std::strlen(start);
+                    size_t       spos    = 0;
+                    uint32_t     sno     = 0;
+                    if (parse_variant_suffix(start, key_len, spos, sno)) {
+                        start[spos] = '\0';
+                        suffix      = sno;
+                    }
+                }
+
+                // Merge into the base key's variant group (file order). Skip
+                // exact duplicates (same suffix number AND identical phoneme
+                // sequence) so repeated lines don't multiply candidates.
+                auto &variants = map[start];
+                Impl::Entry newEntry{static_cast<uint32_t>(value_start - buffer_begin), value_cnt,
+                                     suffix};
+                bool        dup = false;
+                for (const auto &e : variants) {
+                    if (e.suffix != suffix || e.count != value_cnt)
+                        continue;
+                    const char *a = buffer_begin + e.offset;
+                    const char *b = value_start;
+                    uint32_t    k = 0;
+                    for (; k < value_cnt; ++k) {
+                        if (std::strcmp(a, b) != 0)
+                            break;
+                        a += std::strlen(a) + 1;
+                        b += std::strlen(b) + 1;
+                    }
+                    if (k == value_cnt) {
+                        dup = true;
+                        break;
+                    }
+                }
+                if (!dup) {
+                    variants.push_back(newEntry);
+                }
+                start = p + 1;
             }
         }
         return true;
@@ -207,9 +302,12 @@ namespace srt::g2p {
         if (_copy) {
             return;
         }
-        auto        it  = Impl::loadIter(_row, _col);
-        const char *key = it->first;
-        PhonemeList value(_buf + it->second.offset, it->second.count);
+        auto              it       = Impl::loadIter(_row, _col);
+        const char       *key      = it->first;
+        const auto       &variants = it->second;
+        const size_t      idx =
+            (_var >= 0 && static_cast<size_t>(_var) < variants.size()) ? static_cast<size_t>(_var) : 0;
+        PhonemeList value(_buf + variants[idx].offset, variants[idx].count);
         _copy = std::make_pair(key, value);
     }
 
@@ -217,6 +315,7 @@ namespace srt::g2p {
         auto it = Impl::loadIter(_row, _col);
         ++it;
         Impl::storeIter(it, _row, _col);
+        _var = 0;
         _copy.reset();
     }
 
@@ -224,6 +323,7 @@ namespace srt::g2p {
         auto it = Impl::loadIter(_row, _col);
         --it;
         Impl::storeIter(it, _row, _col);
+        _var = 0;
         _copy.reset();
     }
 
@@ -240,38 +340,87 @@ namespace srt::g2p {
             return end();
         }
         // const_cast is safe: sparsepp::sparse_hash_map::find() takes non-const key but does not modify it
-        const auto it = map.find(const_cast<char *>(key));
+        auto it = map.find(const_cast<char *>(key));
+
+        int variantIndex = 0;
         if (it == map.end()) {
-            return end();
+            // Suffix-aware fallback (D4): a suffixed key like "word(2)"
+            // resolves against the merged base group and selects exactly the
+            // variant with that suffix number. No candidates are involved.
+            size_t   pos = 0;
+            uint32_t no  = 0;
+            if (!parse_variant_suffix(key, std::strlen(key), pos, no)) {
+                return end();
+            }
+            const std::string base(key, pos);
+            it = map.find(const_cast<char *>(base.c_str()));
+            if (it == map.end()) {
+                return end();
+            }
+            variantIndex = Impl::findSuffixIndex(it->second, no);
+            if (variantIndex < 0) {
+                return end();
+            }
         }
+
         const void *row = nullptr;
         const void *col = nullptr;
         Impl::storeIter(it, row, col);
-        return iterator(impl.filebuf.data(), row, col);
+        return iterator(impl.filebuf.data(), row, col, variantIndex);
     }
 
     bool PhonemeDict::contains(const char *key) const {
-        stdc_impl_t;
-        auto &map = impl.map;
-        if (!key) {
-            return false;
-        }
-        // const_cast is safe: sparsepp::sparse_hash_map::find() only reads, never modifies
-        return map.find(const_cast<char *>(key)) != map.end();
+        return find(key) != end();
     }
 
     PhonemeList PhonemeDict::operator[](const char *key) const {
+        const auto it = find(key);
+        if (it == end()) {
+            return PhonemeList();
+        }
+        return it->second;
+    }
+
+    std::vector<PhonemeList> PhonemeDict::lookupAll(const char *key) const {
         stdc_impl_t;
-        auto &map = impl.map;
+        std::vector<PhonemeList> out;
         if (!key) {
-            return PhonemeList();
+            return out;
         }
+        auto &map = impl.map;
         // const_cast is safe: sparsepp::sparse_hash_map::find() only reads, never modifies
-        const auto it = map.find(const_cast<char *>(key));
+        auto it = map.find(const_cast<char *>(key));
+
         if (it == map.end()) {
-            return PhonemeList();
+            // Suffix-aware fallback (D4): return only the matching variant,
+            // never the whole group, so no candidate choice is implied.
+            size_t   pos = 0;
+            uint32_t no  = 0;
+            if (!parse_variant_suffix(key, std::strlen(key), pos, no)) {
+                return out;
+            }
+            const std::string base(key, pos);
+            it = map.find(const_cast<char *>(base.c_str()));
+            if (it == map.end()) {
+                return out;
+            }
+            const int idx = Impl::findSuffixIndex(it->second, no);
+            if (idx < 0) {
+                return out;
+            }
+            const auto &e = it->second[static_cast<size_t>(idx)];
+            // NOTE: construct the PhonemeList here and push a copy —
+            // vector::emplace_back would invoke the protected constructor from
+            // inside allocator_traits (not a friend) and fails on MSVC (C2672).
+            out.push_back(PhonemeList(impl.filebuf.data() + e.offset, e.count));
+            return out;
         }
-        return PhonemeList(impl.filebuf.data() + it->second.offset, it->second.count);
+
+        out.reserve(it->second.size());
+        for (const auto &e : it->second) {
+            out.push_back(PhonemeList(impl.filebuf.data() + e.offset, e.count));
+        }
+        return out;
     }
 
     bool PhonemeDict::empty() const {

@@ -53,6 +53,21 @@ namespace srt::g2p::plugins::ChainG2p {
             return;
         }
 
+        // 把一条发音（音素序列视图）拼成空格分隔的整串，不含尾随空格，避免
+        // 下游 S2P DirectS2P::convert 切分出空 token 导致查表失败。
+        static const auto joinPronunciation = [](const srt::g2p::PhonemeList &phonemes) {
+            std::string pronStr;
+            bool        first = true;
+            for (const char *phone : phonemes) {
+                if (!first) {
+                    pronStr += ' ';
+                }
+                pronStr += phone;
+                first = false;
+            }
+            return pronStr;
+        };
+
         for (auto &word : context.words()) {
             // 只处理需要转换、未丢弃且尚未获得发音的词
             if (word.mode != srt::g2p::kG2pModeConvert || word.discard ||
@@ -65,21 +80,21 @@ namespace srt::g2p::plugins::ChainG2p {
             // 的 cleaner 统一负责），也不修改歌词。
             std::string lookupKey = word.cleanedLyric.empty() ? word.lyric : word.cleanedLyric;
 
-            // 查找字典
-            auto phonemes = lookup(lookupKey);
-            if (!phonemes.empty()) {
-                // 构建发音字符串（音素间用空格分隔，不含尾随空格，避免
-                // 下游 S2P DirectS2P::convert 切分出空 token 导致查表失败）
-                std::string pronStr;
-                for (size_t i = 0; i < phonemes.size(); ++i) {
-                    if (i > 0) {
-                        pronStr += ' ';
-                    }
-                    pronStr += phonemes[i];
+            // 查找字典：多变体词（CMU 式 "(n)" 后缀已在 PhonemeDict 加载时
+            // 归并）返回全部发音，按文件序排列，裸 base 发音在首位。
+            const auto variants = m_phonemeDict.lookupAll(lookupKey.c_str());
+            if (!variants.empty()) {
+                // pronunciation 取第一个变体（= base，与历史行为一致）；
+                // candidates 每项是一个完整发音整串（与 ModelStep/G2pRes 的
+                // 候选语义一致），多音词的全部读法均提供给编辑器。
+                word.pronunciation = joinPronunciation(variants.front());
+
+                word.candidates.clear();
+                word.candidates.reserve(variants.size());
+                for (const auto &variant : variants) {
+                    word.candidates.push_back(joinPronunciation(variant));
                 }
 
-                word.pronunciation = pronStr;
-                word.candidates = phonemes;
                 word.fromDict = true;
             }
         }
@@ -92,12 +107,15 @@ namespace srt::g2p::plugins::ChainG2p {
 
     std::vector<std::string> DictStep::lookup(const std::string &key) const
     {
+        // 向后兼容的单查接口：返回第一个变体的音素序列（多变体归并后与
+        // 历史 find() 行为一致，均命中 base 行）。全部发音请用
+        // PhonemeDict::lookupAll。
         std::vector<std::string> result;
 
-        if (const auto it = m_phonemeDict.find(key.c_str()); it != m_phonemeDict.end()) {
-            const auto &phonemes = it->second;
+        const auto variants = m_phonemeDict.lookupAll(key.c_str());
+        if (!variants.empty()) {
             // PhonemeList does not have size(), but we can use vec() to convert to vector
-            auto phonemeVec = phonemes.vec();
+            auto phonemeVec = variants.front().vec();
             result.reserve(phonemeVec.size());
             for (const auto &phone : phonemeVec) {
                 result.emplace_back(phone);
