@@ -9,6 +9,7 @@
 #include <stdcorelib/support/versionnumber.h>
 
 #include <synthrt/Core/Support/Diagnostic.h>
+#include <synthrt/Core/Support/DisplayText.h>
 
 #include <diffsinger/Bank/dsbank_global.h>
 #include <diffsinger/Bank/LanguageInfo.h>
@@ -68,17 +69,23 @@ namespace ds::bank {
         const std::optional<stdc::VersionNumber> &compatVersion() const;
         void setCompatVersion(std::optional<stdc::VersionNumber> compatVersion);
 
-        const std::string &name() const;
-        void setName(std::string name);
+        /// 以下人读字段为多语言文本（ds-spec 2.4 §多语言文本），全部翻译随
+        /// 对象保留；用 text(locale) 按 BCP 47 偏好取词，text() 为默认（"_"）
+        /// 文本。切换 UI 语言无需重新解析 desc.json。
+        const srt::core::DisplayText &name() const;
+        void setName(srt::core::DisplayText name);
 
-        const std::string &description() const;
-        void setDescription(std::string description);
+        const srt::core::DisplayText &description() const;
+        void setDescription(srt::core::DisplayText description);
 
-        const std::string &author() const;
-        void setAuthor(std::string author);
+        /// 来自 desc.json 的 "vendor" 字段（ds-spec 2.4）。
+        const srt::core::DisplayText &author() const;
+        void setAuthor(srt::core::DisplayText author);
 
-        const std::string &license() const;
-        void setLicense(std::string license);
+        /// 来自 desc.json 的 "copyright" 字段（ds-spec 2.4 标准字段名；
+        /// 历史写法 "license" 不再读取）。
+        const srt::core::DisplayText &license() const;
+        void setLicense(srt::core::DisplayText license);
 
         const std::vector<std::string> &dependencies() const;
         void setDependencies(std::vector<std::string> dependencies);
@@ -106,10 +113,10 @@ namespace ds::bank {
         std::vector<std::filesystem::path> m_inferenceRefs;
         stdc::VersionNumber m_version;
         std::optional<stdc::VersionNumber> m_compatVersion;
-        std::string m_name;
-        std::string m_description;
-        std::string m_author;
-        std::string m_license;
+        srt::core::DisplayText m_name;
+        srt::core::DisplayText m_description;
+        srt::core::DisplayText m_author;
+        srt::core::DisplayText m_license;
         std::vector<std::string> m_dependencies;
         std::vector<SingerManifest> m_singers;
         std::vector<SpeakerInfo> m_speakers;

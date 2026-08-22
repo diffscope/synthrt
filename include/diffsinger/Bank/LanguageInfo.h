@@ -7,6 +7,8 @@
 
 #include <stdcorelib/support/versionnumber.h>
 
+#include <synthrt/Core/Support/DisplayText.h>
+
 #include <diffsinger/Bank/dsbank_global.h>
 
 namespace ds::bank {
@@ -15,14 +17,18 @@ namespace ds::bank {
     class DSBANK_EXPORT LanguageInfo {
     public:
         LanguageInfo() = default;
-        LanguageInfo(std::string languageId, std::string name, std::string g2pVersion);
+        LanguageInfo(std::string languageId, srt::core::DisplayText name,
+                     std::string g2pVersion);
 
     public:
         const std::string &languageId() const;
         void setLanguageId(std::string languageId);
 
-        const std::string &name() const;
-        void setName(std::string name);
+        /// Display name, all translations retained (ds-spec 2.4 多语言文本).
+        /// Resolve with text(locale) using a BCP 47 preference tag; text()
+        /// yields the default ("_") text.
+        const srt::core::DisplayText &name() const;
+        void setName(srt::core::DisplayText name);
 
         const std::string &g2pVersion() const;
         void setG2pVersion(std::string g2pVersion);
@@ -55,7 +61,7 @@ namespace ds::bank {
 
     protected:
         std::string m_languageId;
-        std::string m_name;
+        srt::core::DisplayText m_name;
         std::string m_g2pVersion;
         std::string m_g2pId;
         std::filesystem::path m_dict;

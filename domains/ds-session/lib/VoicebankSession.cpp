@@ -82,10 +82,21 @@ std::string coordinateKey(const PackageCoordinate &coordinate) {
     return coordinate.packageId + "\n" + coordinate.version.toString();
 }
 
+// 多语言显示名整体进指纹：默认文本 + 全部 (tag, text) 对。翻译的任何变更
+// 都算包内容变更；而 UI 语言的切换不再参与指纹（解析结果与 locale 无关）。
+std::string fingerprintDisplayText(const srt::core::DisplayText &text) {
+    std::ostringstream stream;
+    stream << text.text();
+    for (const auto &tag : text.locales()) {
+        stream << '\x1f' << tag << '=' << text.text(tag);
+    }
+    return stream.str();
+}
+
 std::string fingerprintSinger(const ds::bank::SingerSnapshot &singer) {
     std::ostringstream stream;
     stream << singer.ref.packageId << '\n' << singer.ref.singerId << '\n'
-           << singer.ref.version << '\n' << singer.name << '\n'
+           << singer.ref.version << '\n' << fingerprintDisplayText(singer.name) << '\n'
            << static_cast<int>(singer.resolutionState) << '\n'
            << singer.phonemeLength << '\n' << singer.defaultLanguage << '\n';
     for (const auto &item : singer.languages) stream << item << '\n';
@@ -399,7 +410,6 @@ class VoicebankSession::Impl {
 public:
     mutable std::mutex mutex;
     std::vector<std::filesystem::path> roots;
-    std::string displayLocale;  // UI-language hint used by refresh() to localize names
     std::vector<std::string> reservedPhonemes;
     std::shared_ptr<srt::g2p::LanguageService> languageService;
     srt::core::Runtime *runtime = nullptr;
@@ -455,14 +465,12 @@ public:
 
     RefreshResult performRefresh() {
         std::vector<std::filesystem::path> refreshRoots;
-        std::string refreshDisplayLocale;
         std::vector<std::string> refreshReserved;
         unsigned long long nextGeneration;
         std::shared_ptr<const VoicebankSnapshot> previous;
         {
             std::lock_guard lock(mutex);
             refreshRoots = roots;
-            refreshDisplayLocale = displayLocale;
             refreshReserved = reservedPhonemes;
             nextGeneration = generation + 1;
             previous = current;
@@ -475,7 +483,6 @@ public:
         try {
             ds::bank::VoicebankScanner scanner;
             scanner.setSearchPaths(refreshRoots);
-            scanner.setDisplayLocale(refreshDisplayLocale);
             auto packages = scanner.refresh();
             if (!packages.hasValue()) {
                 RefreshResult r;
@@ -699,11 +706,6 @@ VoicebankSession &VoicebankSession::operator=(VoicebankSession &&) noexcept = de
 void VoicebankSession::setRoots(std::vector<std::filesystem::path> roots) {
     std::lock_guard lock(_impl->mutex);
     _impl->roots = std::move(roots);
-}
-
-void VoicebankSession::setDisplayLocale(std::string locale) {
-    std::lock_guard lock(_impl->mutex);
-    _impl->displayLocale = std::move(locale);
 }
 
 std::vector<std::filesystem::path> VoicebankSession::roots() const {

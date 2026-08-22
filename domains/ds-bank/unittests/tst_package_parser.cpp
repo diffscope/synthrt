@@ -262,7 +262,7 @@ TEST_CASE("PackageParser reads standard desc contributes", "[ds-bank][package-pa
     const auto &info = result.value();
     CHECK(info.packageId() == "std.pkg");
     CHECK(info.version().toString() == "1.2.3");
-    CHECK(info.name() == "Standard Package");
+    CHECK(info.name().text() == "Standard Package");
     REQUIRE(info.singerRefs().size() == 1);
     REQUIRE(info.inferenceRefs().size() == 1);
     CHECK(samePath(info.singerRefs().front(), dir / "characters/std/config.json"));

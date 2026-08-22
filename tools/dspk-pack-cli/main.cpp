@@ -75,7 +75,7 @@ static int doInfo(const std::string &dir) {
     std::printf("{\n");
     std::printf("  \"id\": \"%s\",\n", escapeJson(info.packageId()).c_str());
     std::printf("  \"version\": \"%s\",\n", escapeJson(info.version().toString()).c_str());
-    std::printf("  \"name\": \"%s\",\n", escapeJson(info.name()).c_str());
+    std::printf("  \"name\": \"%s\",\n", escapeJson(info.name().text()).c_str());
     std::printf("  \"root\": \"%s\",\n", escapeJson(info.rootPath().generic_string()).c_str());
     std::printf("  \"singerRefs\": [");
     for (size_t i = 0; i < info.singerRefs().size(); ++i) {
@@ -116,7 +116,7 @@ static int doInfo(const std::string &dir) {
         const auto &singer = info.singers()[i];
         std::printf("%s{\"id\": \"%s\", \"name\": \"%s\", \"defaultLanguage\": \"%s\"}",
                     i == 0 ? "" : ", ", escapeJson(singer.singerId()).c_str(),
-                    escapeJson(singer.name()).c_str(), escapeJson(singer.defaultLanguage()).c_str());
+                    escapeJson(singer.name().text()).c_str(), escapeJson(singer.defaultLanguage()).c_str());
     }
     std::printf("]\n");
     std::printf("}\n");

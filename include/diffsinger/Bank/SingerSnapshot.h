@@ -5,6 +5,7 @@
 #include <vector>
 
 #include <synthrt/Core/Support/Diagnostic.h>
+#include <synthrt/Core/Support/DisplayText.h>
 #include <diffsinger/Bank/SingerRef.h>
 #include <diffsinger/Bank/ResolutionState.h>
 #include <diffsinger/Bank/LanguageInfo.h>
@@ -21,7 +22,9 @@ namespace ds::bank {
     /// \see 02-module-contracts.md section 5.2
     struct DSBANK_EXPORT SingerSnapshot {
         SingerRef ref;
-        std::string name;
+        /// 多语言显示名（ds-spec 2.4）：全部翻译随快照保留，宿主持久化后按
+        /// UI 语言 name.text(locale) 取词，切换语言无需重新扫描。
+        srt::core::DisplayText name;
         ResolutionState resolutionState = ResolutionState::Pending;
         srt::core::Diagnostic resolutionError;  ///< Reason for Missing/Pending
         double phonemeLength = 48.0;

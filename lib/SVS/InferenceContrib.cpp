@@ -229,12 +229,12 @@ namespace srt::svs {
             }
         }
         // name (string or object) -> displayName (optional)
+        // 宽松解析（ds-spec 2.4 宽松路径）：缺 "_" 的包不丢弃名称，按历史
+        // 行为回退默认文本；全部翻译保留，语言匹配在 name().text(locale)。
         {
             auto it = obj.find("name");
             if (it != obj.end()) {
-                if (auto exp = core::DisplayText::fromJsonValue(it->second)) {
-                    impl.displayName = std::move(*exp);
-                }
+                impl.displayName = core::DisplayText::fromJsonValueTolerant(it->second);
             }
         }
 

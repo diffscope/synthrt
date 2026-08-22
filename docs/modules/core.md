@@ -14,6 +14,7 @@ Core 是 synthrt 的基础设施层，提供：
 - `ITask` — 任务基类（推理任务的抽象）
 - `Expected<T>` / `Error` / `Diagnostic` — 错误处理
 - `DependencyGraph` / `VersionUtils` — 依赖解析与版本管理
+- `DisplayText` / `DisplayPath` — 多语言文本/路径（BCP 47 + RFC 4647 Lookup）
 
 ---
 
@@ -147,7 +148,7 @@ public:
     const std::string &id() const;
     const std::string &category() const;
     const std::string &className() const;
-    std::string name() const;
+    DisplayText name() const;   // 多语言名称（BCP 47 键），不再返回 std::string
     int apiLevel() const;
     const JsonObject &manifestConfiguration() const;
     NO<TaskConfiguration> configuration() const;
@@ -162,6 +163,40 @@ public:
 `ModuleLocator` 由 `(package, version, id)` 三元组定位 ModuleSpec，任意子集可省略（匹配所有满足条件的 spec）。
 
 `InferenceCategory` 和 `SingerCategory` 继承 `ModuleCategory`，`InferenceSpec`/`SingerSpec` 继承 `ModuleSpec`。`InferenceCategory::findInferences()` 和 `SingerCategory::findSingers()` 是类型安全的便捷封装，内部调用 `findSpec()`。
+
+`configurationDisplayName(const std::string &configKey)` 同样返回 `DisplayText`（配置声明文件中的多语言名；无声明时兜底为 `DisplayText(configKey)`）。
+
+### DisplayText / DisplayPath（多语言文本）
+
+```cpp
+// include/synthrt/Core/Support/DisplayText.h
+class DisplayText {
+public:
+    // 构造：纯字符串 → 仅默认文本
+    DisplayText(std::string defaultText = {});
+
+    // 严格解析多语言对象（ds-spec 2.4）：缺少 "_" 键或非对象 → Expected 报错
+    static Expected<DisplayText> fromJsonValue(const JsonValue &value);
+
+    // 容错解析：永不失败。缺 "_" 时按 "default" → "en" →
+    // 首个字符串条目（按旧无 locale 键顺序）选定默认文本；非字符串条目跳过
+    static DisplayText fromJsonValueTolerant(const JsonValue &value);
+
+    std::string text() const;                        // 默认文本（"_" 键）
+    std::string text(const std::string &locale) const; // 按 locale 取词
+    std::vector<std::string> locales() const;        // 全部 locale 键（有序）
+    bool isEmpty() const;
+};
+
+// include/synthrt/Core/Support/DisplayPath.h
+class DisplayPath { /* 同语义的文件路径版本，每个本地化值各自相对声明文件解析 */ };
+```
+
+**匹配语义（本地实现，docs/ds-spec-2.4.md §多语言文本 + RFC 4647 Lookup）**：
+
+- 语言键一律为 **BCP 47 标签**，分隔符严格为 `-`（POSIX 的 `zh_CN` 不进 lookup 链，只能由 `_` 兜底）；
+- `text(locale)` 对请求标签做 RFC 4647 Lookup：大小写不敏感、逐段右截（`zh-Hans-CN` → `zh-Hans` → `zh`），全部未命中返回 `_`；**不做脚本推断**（`zh-TW` 不会命中 `zh-Hant` 键）；
+- 全库唯一实现为 `srt::core::DisplayText`（原 `srt::g2p::DisplayText` 副本已删除）；`ModuleSpec::name()/configurationDisplayName()`、ds-bank 的所有人读字段均改用它（详见 ds-bank.md / ds-session.md）。
 
 ---
 

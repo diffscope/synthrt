@@ -335,10 +335,10 @@ TEST_CASE("PackageParser missing optional fields still parses", "[ds-bank][parse
     auto result = parser.parsePackage(dir, PackageParser::ParseMode::Relaxed);
     REQUIRE(result.hasValue());
     REQUIRE(result->packageId() == "pkg.minimal");
-    REQUIRE(result->name().empty());
-    REQUIRE(result->description().empty());
-    REQUIRE(result->author().empty());
-    REQUIRE(result->license().empty());
+    REQUIRE(result->name().isEmpty());
+    REQUIRE(result->description().isEmpty());
+    REQUIRE(result->author().isEmpty());
+    REQUIRE(result->license().isEmpty());
     REQUIRE(result->dependencies().empty());
     REQUIRE(result->inferences().empty());
 
@@ -780,6 +780,108 @@ TEST_CASE("PackageValidator invalid version type (number instead of string)", "[
 }
 
 // ===========================================================================
+// Display text compliance (ds-spec 2.4 §多语言文本)
+// ===========================================================================
+
+// The scanner tolerates these violations (legacy packages keep loading via
+// DisplayText::fromJsonValueTolerant); the validator must surface them.
+TEST_CASE("PackageValidator reports display text missing '_' default", "[ds-bank][validator][complex][displaytext]") {
+    const auto dir = makeTempDir("validator-no-default");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.no-default",
+        "version": "1.0.0",
+        "name": {"zh-CN": "名称", "en": "Name"},
+        "contributes": {"singers": ["characters/s/config.json"]}
+    })json");
+    writeFile(dir / "characters/s/config.json", R"json({
+        "$version": "1.0", "id": "s", "level": 1,
+        "configuration": {"defaultLanguage": "cmn", "languages": [{"id": "cmn", "g2p": "g2p-cmn-official", "s2pMode": "dict"}]}
+    })json");
+
+    PackageValidator validator;
+    auto report = validator.validatePackage(dir, PackageValidator::SchemaVersion::V10);
+
+    bool found = false;
+    for (const auto &item : report.items()) {
+        if (item.severity == ValidationReport::Severity::Error &&
+            item.path.find("desc.json#/name") != std::string::npos &&
+            item.message.find("\"_\"") != std::string::npos) {
+            found = true;
+        }
+    }
+    REQUIRE(found);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("PackageValidator reports POSIX-style language tags", "[ds-bank][validator][complex][displaytext]") {
+    const auto dir = makeTempDir("validator-posix-tags");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.posix-tags",
+        "version": "1.0.0",
+        "name": {"_": "Pkg", "zh_CN": "名称"},
+        "contributes": {"singers": ["characters/s/config.json"]}
+    })json");
+    // The same check applies to nested display texts (speaker name here).
+    writeFile(dir / "characters/s/config.json", R"json({
+        "$version": "1.0", "id": "s", "level": 1,
+        "configuration": {
+            "defaultLanguage": "cmn",
+            "languages": [{"id": "cmn", "g2p": "g2p-cmn-official", "s2pMode": "dict"}],
+            "speakers": [{"id": "main", "name": {"_": "Main", "zh_TW": "主音色"}}]
+        }
+    })json");
+
+    PackageValidator validator;
+    auto report = validator.validatePackage(dir, PackageValidator::SchemaVersion::V10);
+
+    bool foundDescTag = false;
+    bool foundSpeakerTag = false;
+    for (const auto &item : report.items()) {
+        if (item.severity != ValidationReport::Severity::Error ||
+            item.message.find("BCP 47") == std::string::npos) {
+            continue;
+        }
+        if (item.path.find("desc.json#/name/zh_CN") != std::string::npos &&
+            item.recommendation.find("zh-CN") != std::string::npos) {
+            foundDescTag = true;
+        }
+        if (item.path.find("configuration/speakers/0/name/zh_TW") != std::string::npos) {
+            foundSpeakerTag = true;
+        }
+    }
+    REQUIRE(foundDescTag);
+    REQUIRE(foundSpeakerTag);
+
+    std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("PackageValidator accepts BCP 47 display text", "[ds-bank][validator][complex][displaytext]") {
+    const auto dir = makeTempDir("validator-bcp47-ok");
+
+    writeFile(dir / "desc.json", R"json({
+        "id": "pkg.bcp47-ok",
+        "version": "1.0.0",
+        "name": {"_": "Pkg", "zh-CN": "名称", "zh-Hant-TW": "名稱", "ja-JP": "名前"},
+        "contributes": {"singers": ["characters/s/config.json"]}
+    })json");
+    writeFile(dir / "characters/s/config.json", R"json({
+        "$version": "1.0", "id": "s", "level": 1,
+        "name": {"_": "Singer", "zh-Hans": "歌手", "zh-Hant": "歌手"},
+        "configuration": {"defaultLanguage": "cmn", "languages": [{"id": "cmn", "g2p": "g2p-cmn-official"}]}
+    })json");
+
+    PackageValidator validator;
+    auto report = validator.validatePackage(dir, PackageValidator::SchemaVersion::V10);
+
+    REQUIRE(!report.hasErrors());
+
+    std::filesystem::remove_all(dir);
+}
+
+// ===========================================================================
 // Strict vs Relaxed mode
 // ===========================================================================
 
@@ -1088,7 +1190,7 @@ TEST_CASE("PackageParser realistic voicebank with custom G2P and full pipeline",
         "name": {"_": "OpenCPOP Voice Bank"},
         "description": "Mandarin singing voice synthesis",
         "vendor": "OpenCPOP Team",
-        "license": "MIT",
+        "copyright": "MIT",
         "dependencies": [
             {"id": "base.phonemes", "version": "1.0.0"},
             {"id": "base.pitch", "version": "*"}
@@ -1170,9 +1272,9 @@ TEST_CASE("PackageParser realistic voicebank with custom G2P and full pipeline",
 
     // Verify package-level fields.
     REQUIRE(result->packageId() == "org.diffinger.opencpop");
-    REQUIRE(result->name() == "OpenCPOP Voice Bank");
-    REQUIRE(result->author() == "OpenCPOP Team");
-    REQUIRE(result->license() == "MIT");
+    REQUIRE(result->name().text() == "OpenCPOP Voice Bank");
+    REQUIRE(result->author().text() == "OpenCPOP Team");
+    REQUIRE(result->license().text() == "MIT");
     REQUIRE(result->dependencies().size() == 2);
 
     // Verify singer.

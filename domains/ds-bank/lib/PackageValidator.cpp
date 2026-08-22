@@ -75,7 +75,9 @@ namespace ds::bank {
         }
 
         std::string displayTextHint() {
-            return R"(Use a string or localized object such as {"_":"Name","zh_CN":"名称"}.)";
+            // ds-spec 2.4 §多语言文本：对象形态必须带 "_" 默认项，其余键为
+            // BCP 47 标签（连字符分隔），POSIX 写法的 zh_CN 永不匹配。
+            return R"(Use a string or localized object such as {"_":"Name","zh-CN":"名称"}.)";
         }
 
         void addMissing(ValidationReport &report, const std::filesystem::path &file,
@@ -184,9 +186,41 @@ namespace ds::bank {
                                  const JsonObject &obj, const std::string &key,
                                  const std::string &ptr) {
             const auto *value = findKey(obj, key);
-            if (value && !isDisplayText(*value)) {
-                report.add(Error, "invalid display text", jsonPath(file, ptr.empty() ? key : ptr + "/" + key),
+            if (!value) {
+                return;
+            }
+            const auto ptrHere = ptr.empty() ? key : ptr + "/" + key;
+            if (!isDisplayText(*value)) {
+                report.add(Error, "invalid display text", jsonPath(file, ptrHere),
                            actualValue(*value), displayTextHint());
+                return;
+            }
+            // Shape checks above only verified that every value is a string.
+            // ds-spec 2.4 §多语言文本 additionally requires the "_" default
+            // entry, and every non-"_" key must be a BCP 47 tag. The scanner
+            // tolerates both violations (legacy packages keep loading), but
+            // they must surface here so authors can fix non-compliant data.
+            if (!value->isObject()) {
+                return; // plain string short form: nothing more to check
+            }
+            const auto &textObj = value->toObject();
+            if (textObj.find("_") == textObj.end()) {
+                report.add(Error, "display text missing required \"_\" default entry",
+                           jsonPath(file, ptrHere), actualValue(*value),
+                           R"(Add a "_" entry with the fallback text (ds-spec 2.4).)");
+            }
+            for (const auto &[tag, v] : textObj) {
+                if (tag == "_") {
+                    continue;
+                }
+                if (tag.find('_') != std::string::npos) {
+                    auto bcp47 = tag;
+                    std::replace(bcp47.begin(), bcp47.end(), '_', '-');
+                    report.add(Error, "language tag is not BCP 47 (POSIX-style separator)",
+                               jsonPath(file, ptrHere + "/" + tag), actualValue(*value),
+                               stdc::formatN(R"(Rename "%1" to "%2"; '_' keys never match a BCP 47 lookup (ds-spec 2.4).)",
+                                             tag, bcp47));
+                }
             }
         }
 
@@ -481,7 +515,7 @@ namespace ds::bank {
         if (info.packageId().empty()) {
             report.add(Error, "missing required field: packageId", "packageId");
         }
-        if (info.name().empty()) {
+        if (info.name().isEmpty()) {
             report.add(Error, "missing required field: name", "name");
         }
         if (info.version().isEmpty()) {

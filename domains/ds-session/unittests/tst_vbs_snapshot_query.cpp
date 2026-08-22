@@ -149,7 +149,7 @@ TEST_CASE("A2-T01: findSinger with exact version match returns SingerSnapshot",
     REQUIRE(s->ref.packageId == "pkg.alpha");
     REQUIRE(s->ref.singerId == "singerA");
     REQUIRE(s->ref.version == "1.0.0");
-    REQUIRE(s->name == "Singer A v1");
+    REQUIRE(s->name.text() == "Singer A v1");
 }
 
 // ===========================================================================

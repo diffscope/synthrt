@@ -384,10 +384,10 @@ TEST_CASE("BANK-013: PackageManifest default construction has empty fields",
     PackageManifest manifest;
     // String fields default to empty
     REQUIRE(manifest.packageId().empty());
-    REQUIRE(manifest.name().empty());
-    REQUIRE(manifest.description().empty());
-    REQUIRE(manifest.author().empty());
-    REQUIRE(manifest.license().empty());
+    REQUIRE(manifest.name().isEmpty());
+    REQUIRE(manifest.description().isEmpty());
+    REQUIRE(manifest.author().isEmpty());
+    REQUIRE(manifest.license().isEmpty());
     // Container fields default to empty
     REQUIRE(manifest.dependencies().empty());
     REQUIRE(manifest.singerRefs().empty());
@@ -488,16 +488,16 @@ TEST_CASE("BANK-018: PackageManifest setters and getters round-trip",
     REQUIRE(manifest.packageId() == "round.trip");
 
     manifest.setName("Round Trip");
-    REQUIRE(manifest.name() == "Round Trip");
+    REQUIRE(manifest.name().text() == "Round Trip");
 
     manifest.setDescription("desc");
-    REQUIRE(manifest.description() == "desc");
+    REQUIRE(manifest.description().text() == "desc");
 
     manifest.setAuthor("author");
-    REQUIRE(manifest.author() == "author");
+    REQUIRE(manifest.author().text() == "author");
 
     manifest.setLicense("MIT");
-    REQUIRE(manifest.license() == "MIT");
+    REQUIRE(manifest.license().text() == "MIT");
 
     manifest.setDependencies({"dep1", "dep2", "dep3"});
     REQUIRE(manifest.dependencies().size() == 3);

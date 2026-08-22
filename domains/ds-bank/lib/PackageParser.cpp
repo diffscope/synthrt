@@ -1,13 +1,12 @@
 #include "BankVersion.h"
 
-#include <algorithm>
-#include <cctype>
 #include <fstream>
 #include <sstream>
 
 #include <stdcorelib/path.h>
 #include <stdcorelib/str.h>
 
+#include <synthrt/Core/Support/DisplayText.h>
 #include <synthrt/Core/Support/JSON.h>
 
 #include <diffsinger/Bank/PackageParser.h>
@@ -44,113 +43,21 @@ namespace ds::bank {
         return {};
     }
 
-    // 解析配置中的 name 字段（可为字符串或本地化对象）。
-    // locale 非空时按传入的 UI 语言从本地化对象选取显示名；locale 为空时
-    // 保持旧行为（优先 default/en，否则取第一个字符串键），保证既有无 locale
-    // 调用方（dsinfer-cli、C ABI、单测）行为完全不变。
+    // 解析多语言字段（字符串或本地化对象）为 DisplayText，**保留全部翻译**，
+    // 解析期不做任何语言裁决（ds-spec 2.4 §多语言文本）。语言键为 BCP 47
+    // 标签，匹配（RFC 4647 Lookup，大小写不敏感）由 DisplayText::text(locale)
+    // 在调用方取词时进行——因此切换 UI 语言无需重新解析。
     //
-    // 匹配器收口在此一处，供歌手名/语言名/音色名复用：
-    //   1. 规范化（小写、_ -> -）后精确匹配；
-    //   2. 语言主码匹配（如 "zh" 命中 zh-Hans/zh-Hant/zh_CN）：唯一候选直接用，
-    //      多候选按简体/繁体脚本偏好选择；
-    //   3. "_" 回退键；
-    //   4. 名称对象第一个字符串键。
-    static std::string nameField(const JsonObject &obj, const std::string &locale = {}) {
-        const auto it = obj.find("name");
+    // 宽松解析（fromJsonValueTolerant）：缺 "_" 时按历史行为选默认文本
+    // （"default" → "en" → 第一个字符串键），非字符串条目跳过而非报错，
+    // 保证存量声库包在扫描阶段不被整包拒绝。供歌手名/语言名/音色名以及
+    // desc.json 的 name/vendor/description/license 复用。
+    static srt::core::DisplayText displayTextField(const JsonObject &obj, const char *key) {
+        const auto it = obj.find(key);
         if (it == obj.end()) {
             return {};
         }
-        if (it->second.isString()) {
-            return it->second.toString();
-        }
-        if (!it->second.isObject()) {
-            return {};
-        }
-
-        const auto &nameObj = it->second.toObject();
-
-        auto normalizeLocaleKey = [](const std::string &key) {
-            std::string result = key;
-            std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) {
-                return static_cast<char>(std::tolower(c));
-            });
-            std::replace(result.begin(), result.end(), '_', '-');
-            return result;
-        };
-        auto languagePart = [&normalizeLocaleKey](const std::string &key) {
-            const auto normalized = normalizeLocaleKey(key);
-            const auto dash = normalized.find('-');
-            return dash == std::string::npos ? normalized : normalized.substr(0, dash);
-        };
-
-        // 无 locale：旧行为。
-        if (locale.empty()) {
-            for (const auto &key : {std::string("default"), std::string("en")}) {
-                auto nameIt = nameObj.find(key);
-                if (nameIt != nameObj.end() && nameIt->second.isString()) {
-                    return nameIt->second.toString();
-                }
-            }
-            for (const auto &[_, value] : nameObj) {
-                if (value.isString()) {
-                    return value.toString();
-                }
-            }
-            return {};
-        }
-
-        // 1. 精确匹配（规范化后）。
-        const std::string localeNorm = normalizeLocaleKey(locale);
-        for (const auto &[key, value] : nameObj) {
-            if (value.isString() && normalizeLocaleKey(key) == localeNorm) {
-                return value.toString();
-            }
-        }
-
-        // 2. 语言主码匹配。
-        const std::string langPart = languagePart(locale);
-        std::vector<std::pair<std::string, std::string>> candidates;  // (规范化键, 文本)
-        for (const auto &[key, value] : nameObj) {
-            if (value.isString() && languagePart(key) == langPart) {
-                candidates.emplace_back(normalizeLocaleKey(key), value.toString());
-            }
-        }
-        if (candidates.size() == 1) {
-            return candidates.front().second;
-        }
-        if (!candidates.empty()) {
-            // 同语言多候选（常见于 zh-Hans/zh-Hant）：按脚本偏好选择。
-            const bool wantsSimplified =
-                localeNorm.find("-hans") != std::string::npos ||
-                localeNorm == "zh-cn" || localeNorm.find("-cn") != std::string::npos ||
-                localeNorm.find("-sg") != std::string::npos;
-            const bool wantsTraditional =
-                localeNorm.find("-hant") != std::string::npos ||
-                localeNorm.find("-tw") != std::string::npos ||
-                localeNorm.find("-hk") != std::string::npos ||
-                localeNorm.find("-mo") != std::string::npos;
-            for (const auto &candidate : candidates) {
-                if (wantsSimplified && candidate.first.find("-hans") != std::string::npos)
-                    return candidate.second;
-                if (wantsTraditional && candidate.first.find("-hant") != std::string::npos)
-                    return candidate.second;
-            }
-            return candidates.front().second;
-        }
-
-        // 3. "_" 回退键。
-        auto fallbackIt = nameObj.find("_");
-        if (fallbackIt != nameObj.end() && fallbackIt->second.isString()) {
-            return fallbackIt->second.toString();
-        }
-
-        // 4. 名称对象第一个字符串键。
-        for (const auto &[_, value] : nameObj) {
-            if (value.isString()) {
-                return value.toString();
-            }
-        }
-        return {};
+        return srt::core::DisplayText::fromJsonValueTolerant(it->second);
     }
 
     static std::filesystem::path resolvePath(const std::filesystem::path &packageRoot,
@@ -188,7 +95,7 @@ namespace ds::bank {
     static LanguageInfo parseLanguageObject(const JsonObject &obj,
                                              const std::filesystem::path &packageRoot,
                                              const std::filesystem::path &basePath,
-                                             const std::string &locale, Error &err,
+                                             Error &err,
                                              std::string &errorPointer) {
         LanguageInfo lang;
 
@@ -197,7 +104,7 @@ namespace ds::bank {
             languageId = stringField(obj, "id");
         }
         lang.setLanguageId(std::move(languageId));
-        lang.setName(nameField(obj, locale));
+        lang.setName(displayTextField(obj, "name"));
 
         auto g2pId = stringField(obj, "g2pId");
         if (g2pId.empty()) {
@@ -249,7 +156,7 @@ namespace ds::bank {
     // Relaxed mode or report the error in Strict mode).
     static void parseSingerConfig(const std::filesystem::path &packageRoot,
                                   const std::filesystem::path &filePath,
-                                  const std::string &locale, SingerManifest &singer,
+                                  SingerManifest &singer,
                                   std::vector<LanguageInfo> &languages, Error &err,
                                   std::string &errorPointer) {
         Error readErr;
@@ -277,7 +184,7 @@ namespace ds::bank {
         if (!singerId.empty()) {
             singer.setSingerId(std::move(singerId));
         }
-        singer.setName(nameField(obj, locale));
+        singer.setName(displayTextField(obj, "name"));
         if (const auto it = obj.find("imports"); it != obj.end() && it->second.isArray()) {
             std::vector<SingerImportInfo> imports;
             for (const auto &item : it->second.toArray()) {
@@ -322,7 +229,7 @@ namespace ds::bank {
                         continue;
                     }
                     auto lang = parseLanguageObject(item.toObject(), packageRoot,
-                                                    filePath.parent_path(), locale, err,
+                                                    filePath.parent_path(), err,
                                                     errorPointer);
                     if (err.type() != Error::NoError) {
                         return;
@@ -340,7 +247,7 @@ namespace ds::bank {
                     if (item.isObject()) {
                         const auto &spkObj = item.toObject();
                         auto id = stringField(spkObj, "id");
-                        auto name = nameField(spkObj, locale);
+                        auto name = displayTextField(spkObj, "name");
                         if (!id.empty()) {
                             SpeakerInfo spk(std::move(id), std::move(name),
                                             singer.singerId());
@@ -473,10 +380,6 @@ namespace ds::bank {
         return info;
     }
 
-    void PackageParser::setDisplayLocale(std::string locale) {
-        m_displayLocale = std::move(locale);
-    }
-
     Expected<PackageManifest> PackageParser::parsePackage(const std::filesystem::path &packageDir,
                                                           ParseMode mode) const {
         std::error_code rootError;
@@ -551,33 +454,15 @@ namespace ds::bank {
             }
         }
 
-        // name
+        // name / description / vendor / copyright：多语言文本（ds-spec 2.4），
+        // 全部翻译随 manifest 保留，调用方按 UI 语言 text(locale) 取词。
+        // 许可字段只认 spec 的 "copyright" 键（2.4 §desc.json）；历史写法
+        // "license" 不再读取，由 PackageValidator 以 extra key 提示作者迁移。
         {
-            info.setName(nameField(obj));
-        }
-
-        // description
-        {
-            auto it = obj.find("description");
-            if (it != obj.end() && it->second.isString()) {
-                info.setDescription(it->second.toString());
-            }
-        }
-
-        // author
-        {
-            auto it = obj.find("vendor");
-            if (it != obj.end() && it->second.isString()) {
-                info.setAuthor(it->second.toString());
-            }
-        }
-
-        // license
-        {
-            auto it = obj.find("license");
-            if (it != obj.end() && it->second.isString()) {
-                info.setLicense(it->second.toString());
-            }
+            info.setName(displayTextField(obj, "name"));
+            info.setDescription(displayTextField(obj, "description"));
+            info.setAuthor(displayTextField(obj, "vendor"));
+            info.setLicense(displayTextField(obj, "copyright"));
         }
 
         {
@@ -670,7 +555,7 @@ namespace ds::bank {
                 SingerManifest singer;
                 Error cfgErr;
                 std::string errorPointer;
-                parseSingerConfig(packageRoot, ref, m_displayLocale, singer, standardLanguages,
+                parseSingerConfig(packageRoot, ref, singer, standardLanguages,
                                   cfgErr, errorPointer);
                 if (cfgErr.type() != Error::NoError) {
                     // BF-33: Strict mode must report corrupted/missing singer

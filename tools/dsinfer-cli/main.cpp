@@ -423,7 +423,7 @@ namespace dsinfer_cli {
         }
         for (const auto &snap : scanner.singers()) {
             cliLog.srtInfo(stdc::formatN("  singer: packageId=%1, singerId=%2, name=%3",
-                                         snap.ref.packageId, snap.ref.singerId, snap.name));
+                                         snap.ref.packageId, snap.ref.singerId, snap.name.text()));
         }
 
         // 2. Build the packageDirs map (packageId -> directory) that

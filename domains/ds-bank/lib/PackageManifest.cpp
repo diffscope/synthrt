@@ -9,7 +9,8 @@ namespace ds::bank {
     // LanguageInfo
     // ---------------------------------------------------------------------------
 
-    LanguageInfo::LanguageInfo(std::string languageId, std::string name, std::string g2pVersion)
+    LanguageInfo::LanguageInfo(std::string languageId, srt::core::DisplayText name,
+                               std::string g2pVersion)
         : m_languageId(std::move(languageId)), m_name(std::move(name)),
           m_g2pVersion(std::move(g2pVersion)) {
     }
@@ -22,11 +23,11 @@ namespace ds::bank {
         m_languageId = std::move(languageId);
     }
 
-    const std::string &LanguageInfo::name() const {
+    const srt::core::DisplayText &LanguageInfo::name() const {
         return m_name;
     }
 
-    void LanguageInfo::setName(std::string name) {
+    void LanguageInfo::setName(srt::core::DisplayText name) {
         m_name = std::move(name);
     }
 
@@ -114,7 +115,8 @@ namespace ds::bank {
     // SpeakerInfo
     // ---------------------------------------------------------------------------
 
-    SpeakerInfo::SpeakerInfo(std::string speakerId, std::string name, std::string singerId)
+    SpeakerInfo::SpeakerInfo(std::string speakerId, srt::core::DisplayText name,
+                             std::string singerId)
         : m_speakerId(std::move(speakerId)), m_name(std::move(name)), m_singerId(std::move(singerId)) {
     }
 
@@ -126,11 +128,11 @@ namespace ds::bank {
         m_speakerId = std::move(speakerId);
     }
 
-    const std::string &SpeakerInfo::name() const {
+    const srt::core::DisplayText &SpeakerInfo::name() const {
         return m_name;
     }
 
-    void SpeakerInfo::setName(std::string name) {
+    void SpeakerInfo::setName(srt::core::DisplayText name) {
         m_name = std::move(name);
     }
 
@@ -157,7 +159,7 @@ namespace ds::bank {
     SingerManifest::SingerManifest() : m_phonemeLength(48.0) {
     }
 
-    SingerManifest::SingerManifest(std::string singerId, std::string name)
+    SingerManifest::SingerManifest(std::string singerId, srt::core::DisplayText name)
         : m_singerId(std::move(singerId)), m_name(std::move(name)), m_phonemeLength(48.0) {
     }
 
@@ -185,11 +187,11 @@ namespace ds::bank {
         m_packageVersion = std::move(packageVersion);
     }
 
-    const std::string &SingerManifest::name() const {
+    const srt::core::DisplayText &SingerManifest::name() const {
         return m_name;
     }
 
-    void SingerManifest::setName(std::string name) {
+    void SingerManifest::setName(srt::core::DisplayText name) {
         m_name = std::move(name);
     }
 
@@ -285,35 +287,35 @@ namespace ds::bank {
         m_compatVersion = std::move(compatVersion);
     }
 
-    const std::string &PackageManifest::name() const {
+    const srt::core::DisplayText &PackageManifest::name() const {
         return m_name;
     }
 
-    void PackageManifest::setName(std::string name) {
+    void PackageManifest::setName(srt::core::DisplayText name) {
         m_name = std::move(name);
     }
 
-    const std::string &PackageManifest::description() const {
+    const srt::core::DisplayText &PackageManifest::description() const {
         return m_description;
     }
 
-    void PackageManifest::setDescription(std::string description) {
+    void PackageManifest::setDescription(srt::core::DisplayText description) {
         m_description = std::move(description);
     }
 
-    const std::string &PackageManifest::author() const {
+    const srt::core::DisplayText &PackageManifest::author() const {
         return m_author;
     }
 
-    void PackageManifest::setAuthor(std::string author) {
+    void PackageManifest::setAuthor(srt::core::DisplayText author) {
         m_author = std::move(author);
     }
 
-    const std::string &PackageManifest::license() const {
+    const srt::core::DisplayText &PackageManifest::license() const {
         return m_license;
     }
 
-    void PackageManifest::setLicense(std::string license) {
+    void PackageManifest::setLicense(srt::core::DisplayText license) {
         m_license = std::move(license);
     }
 

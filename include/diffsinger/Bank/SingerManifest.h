@@ -6,6 +6,8 @@
 
 #include <stdcorelib/support/versionnumber.h>
 
+#include <synthrt/Core/Support/DisplayText.h>
+
 #include <diffsinger/Bank/dsbank_global.h>
 #include <diffsinger/Bank/LanguageInfo.h>
 #include <diffsinger/Bank/SpeakerInfo.h>
@@ -25,7 +27,7 @@ namespace ds::bank {
     class DSBANK_EXPORT SingerManifest {
     public:
         SingerManifest();
-        SingerManifest(std::string singerId, std::string name);
+        SingerManifest(std::string singerId, srt::core::DisplayText name);
 
     public:
         const std::string &singerId() const;
@@ -37,8 +39,10 @@ namespace ds::bank {
         stdc::VersionNumber packageVersion() const;
         void setPackageVersion(stdc::VersionNumber packageVersion);
 
-        const std::string &name() const;
-        void setName(std::string name);
+        /// Display name, all translations retained (ds-spec 2.4 多语言文本).
+        /// Resolve with text(locale) using a BCP 47 preference tag.
+        const srt::core::DisplayText &name() const;
+        void setName(srt::core::DisplayText name);
 
         double phonemeLength() const;
         void setPhonemeLength(double length);
@@ -59,7 +63,7 @@ namespace ds::bank {
         std::string m_singerId;
         std::string m_packageId;
         stdc::VersionNumber m_packageVersion;
-        std::string m_name;
+        srt::core::DisplayText m_name;
         double m_phonemeLength;
         std::vector<LanguageInfo> m_languages;
         std::vector<SpeakerInfo> m_speakers;

@@ -54,9 +54,6 @@ namespace ds::bank {
     class VoicebankScanner::Impl {
     public:
         std::vector<std::filesystem::path> searchPaths;
-        // Display locale applied to PackageParser during refresh (name
-        // localization). Empty = legacy behavior.
-        std::string displayLocale;
         std::vector<SingerSnapshot> snapshots;
         // TD-01 (D-39 #2): full manifests for valid packages. Ordered by
         // discovery, matching the order of valid entries in the statuses
@@ -91,13 +88,8 @@ namespace ds::bank {
         _impl->searchPaths = paths;
     }
 
-    void VoicebankScanner::setDisplayLocale(std::string locale) {
-        _impl->displayLocale = std::move(locale);
-    }
-
     void VoicebankScanner::clear() {
         _impl->searchPaths.clear();
-        _impl->displayLocale.clear();
         _impl->snapshots.clear();
         _impl->manifests.clear();
         _impl->packageDirs.clear();
@@ -113,7 +105,6 @@ namespace ds::bank {
         // Helper: parse a single package directory and populate statuses/snapshots.
         auto parsePackageDir = [this, &statuses](const std::filesystem::path &pkgPath) {
             PackageParser parser;
-            parser.setDisplayLocale(_impl->displayLocale);
             auto packageResult = parser.parsePackage(pkgPath);
             if (!packageResult) {
                 PackageStatus status;
@@ -196,14 +187,14 @@ namespace ds::bank {
                             missing += r.phonemeWarnings[i];
                         }
                         Log.srtInfo("singer '%1' phoneme degraded: %2",
-                                    snapshot.name, missing);
+                                    snapshot.name.text(), missing);
                     }
                     if (r.speakerConsistency == ConsistencyLevel::Inconsistent) {
                         Log.srtInfo("singer '%1' speakers inconsistent: no mixable speakers",
-                                    snapshot.name);
+                                    snapshot.name.text());
                     } else if (r.speakerConsistency == ConsistencyLevel::Degraded) {
                         Log.srtInfo("singer '%1' speakers degraded: %2 mixable",
-                                    snapshot.name, r.mixableSpeakers.size());
+                                    snapshot.name.text(), r.mixableSpeakers.size());
                     }
                 }
 
