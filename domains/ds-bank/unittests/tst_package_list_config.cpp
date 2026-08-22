@@ -328,8 +328,13 @@ TEST_CASE("PackageListConfig handles unicode id and relativeLocation",
     REQUIRE(cfg.packages().size() == 2);
     REQUIRE(cfg.packages()[0].id() == "歌手.中文");
     REQUIRE(cfg.packages()[1].id() == "voicebank.日本語");
-    REQUIRE(cfg.packages()[0].relativeLocation() == std::filesystem::path("中文/歌手/"));
-    REQUIRE(cfg.packages()[1].relativeLocation() == std::filesystem::path("日本語/声庫/"));
+    // Implementation stores relativeLocation via stdc::path::from_utf8 (UTF-8,
+    // code page independent). The test must build the expected path the same
+    // way: std::filesystem::path("中文/歌手/") from a char* literal decodes via
+    // the ANSI code page on Windows and differs when the host ACP is not UTF-8
+    // (e.g. GitHub Actions en-US runners, CP1252), which broke the test there.
+    REQUIRE(cfg.packages()[0].relativeLocation() == stdc::path::from_utf8("中文/歌手/"));
+    REQUIRE(cfg.packages()[1].relativeLocation() == stdc::path::from_utf8("日本語/声庫/"));
 }
 
 // ===========================================================================

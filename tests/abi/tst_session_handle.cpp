@@ -235,7 +235,7 @@ TEST_CASE("model handle: ModelBusy cooperation", "[abi][vnext]") {
 // --------------------------------------------------------------------------
 // 6. ErrorCode::ModelBusy maps to SRT_ERR_MODEL_BUSY
 // --------------------------------------------------------------------------
-TEST_CASE("error mapping: ModelBusy → SRT_ERR_MODEL_BUSY", "[abi][vnext]") {
+TEST_CASE("error mapping: ModelBusy -> SRT_ERR_MODEL_BUSY", "[abi][vnext]") {
     srt::core::Error error(srt::core::ErrorCode::ModelBusy, "model is busy");
     srt_clear_last_error();
     srt_error code = srt::c::detail::mapError(error);

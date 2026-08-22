@@ -337,7 +337,7 @@ TEST_CASE("G2P-AS-03: as<>() on type-mismatched non-null NO<> returns non-null",
 //   (G2pConfigError for chain), not crash. The post-as<>() `if (!typed)` check
 //   is defense-in-depth and also catches the null case.
 // ===========================================================================
-TEST_CASE("G2P-AS-04: G2P chain/multig2p BF-50 pattern — null input returns error",
+TEST_CASE("G2P-AS-04: G2P chain/multig2p BF-50 pattern - null input returns error",
           "[g2p][extreme][bf-50]") {
     SECTION("null TaskInput -> G2pConfigError (chain pattern)") {
         NO<TaskInput> nullInput;
@@ -365,7 +365,7 @@ TEST_CASE("G2P-AS-04: G2P chain/multig2p BF-50 pattern — null input returns er
 //   A correctly-typed G2pInputV1 input passes both the null check and the
 //   as<G2pInputV1>() null check, and is safely dereferenceable.
 // ===========================================================================
-TEST_CASE("G2P-AS-05: G2P chain/multig2p BF-50 pattern — correct type succeeds",
+TEST_CASE("G2P-AS-05: G2P chain/multig2p BF-50 pattern - correct type succeeds",
           "[g2p][extreme][bf-50]") {
     SECTION("G2pInputV1 input -> success, valid G2pResultV1") {
         auto g2pInput = NO<G2pInputV1>::create();
@@ -392,7 +392,7 @@ TEST_CASE("G2P-AS-05: G2P chain/multig2p BF-50 pattern — correct type succeeds
 //   G2pNullPointerError (ds-dict uses NullPointerError, unlike chain's
 //   ConfigError). Verifies the existing null check does not regress.
 // ===========================================================================
-TEST_CASE("G2P-AS-06: G2P ds-dict BF-50 pattern — null input returns NullPointerError",
+TEST_CASE("G2P-AS-06: G2P ds-dict BF-50 pattern - null input returns NullPointerError",
           "[g2p][extreme][bf-50]") {
     SECTION("null TaskInput -> G2pNullPointerError (ds-dict pattern)") {
         NO<TaskInput> nullInput;
@@ -417,7 +417,7 @@ TEST_CASE("G2P-AS-06: G2P ds-dict BF-50 pattern — null input returns NullPoint
 //   Verifies ds-dict accepts a correctly-typed DictInputV1 and returns a
 //   result without crashing.
 // ===========================================================================
-TEST_CASE("G2P-AS-07: G2P ds-dict BF-50 pattern — correct DictInputV1 succeeds",
+TEST_CASE("G2P-AS-07: G2P ds-dict BF-50 pattern - correct DictInputV1 succeeds",
           "[g2p][extreme][bf-50]") {
     auto dictInput = NO<DictInputV1>::create();
     dictInput->dictId = "test";
@@ -433,7 +433,7 @@ TEST_CASE("G2P-AS-07: G2P ds-dict BF-50 pattern — correct DictInputV1 succeeds
 //   included here. Covers acoustic/vocoder/duration/pitch/variance start()
 //   entry: null input -> InvalidArgument, no crash.
 // ===========================================================================
-TEST_CASE("G2P-AS-08: Inference BF-50 pattern — null input returns InvalidArgument",
+TEST_CASE("G2P-AS-08: Inference BF-50 pattern - null input returns InvalidArgument",
           "[g2p][extreme][bf-50]") {
     SECTION("null TaskStartInput -> InvalidArgument (acoustic proxy)") {
         NO<TaskStartInput> nullInput;
@@ -472,7 +472,7 @@ TEST_CASE("G2P-AS-08: Inference BF-50 pattern — null input returns InvalidArgu
 //   with InvalidArgument, preventing the miscast as<>() dereference.
 //   This is the safe pattern that the 5 inference plugins follow.
 // ===========================================================================
-TEST_CASE("G2P-AS-09: Inference BF-50 pattern — type-mismatch via objectName gate",
+TEST_CASE("G2P-AS-09: Inference BF-50 pattern - type-mismatch via objectName gate",
           "[g2p][extreme][bf-50]") {
     SECTION("FakeStartInputA with apiName 'acoustic' -> InvalidArgument") {
         auto fake = NO<FakeStartInputA>::create(); // objectName == "fakeA"
@@ -520,7 +520,7 @@ TEST_CASE("G2P-AS-09: Inference BF-50 pattern — type-mismatch via objectName g
 //   validateStartInput/validateInitArgs gate. Uses fake types as proxies for
 //   the 5 inference plugins' StartInput/InitArgs (not linkable from srt::g2p).
 // ===========================================================================
-TEST_CASE("G2P-AS-10: Inference BF-50 pattern — correct type passes validation",
+TEST_CASE("G2P-AS-10: Inference BF-50 pattern - correct type passes validation",
           "[g2p][extreme][bf-50]") {
     SECTION("FakeStartInputA with apiName 'fakeA' -> success") {
         auto fake = NO<FakeStartInputA>::create();
