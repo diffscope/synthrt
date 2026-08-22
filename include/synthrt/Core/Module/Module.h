@@ -11,6 +11,7 @@
 #include <synthrt/Core/Core/Runtime.h>
 #include <synthrt/Core/Core/NamedObject.h>
 #include <synthrt/Core/Support/ContextKey.h>
+#include <synthrt/Core/Support/DisplayText.h>
 #include <synthrt/Core/Support/Expected.h>
 #include <synthrt/Core/Support/JSON.h>
 #include <synthrt/Core/Task/ITask.h>
@@ -84,8 +85,9 @@ namespace srt::core {
     /// ModuleSpec - describes a single loaded module instance.
     ///
     /// Migrated from LangCore::ModuleSpec. Methods that depend on types not
-    /// yet migrated (Package, PackageManager, DisplayText) are stubbed with
-    /// TODO comments; see the .cpp for details.
+    /// yet migrated (Package, PackageManager) are stubbed with TODO comments;
+    /// see the .cpp for details. Localized texts use DisplayText per
+    /// ds-spec 2.4 (BCP 47 tags, RFC 4647 Lookup on resolution).
     class SRT_CORE_EXPORT ModuleSpec {
     public:
         enum State {
@@ -102,9 +104,9 @@ namespace srt::core {
         const std::string &category() const;
         const std::string &className() const;
 
-        /// 获取名称（自动返回当前语言的本地化文本，无感调用）
-        // TODO: returns localized text via DisplayText (not yet migrated)
-        std::string name() const;
+        /// 模块名称（多语言文本，全部翻译随对象携带）。
+        /// 用 text(locale) 按 BCP 47 偏好取词，如 name().text("zh-Hans-CN")。
+        DisplayText name() const;
 
         int apiLevel() const;
 
@@ -115,9 +117,8 @@ namespace srt::core {
         const std::string &packageId() const;
         const stdc::VersionNumber &packageVersion() const;
 
-        /// 获取配置键的显示名称（自动返回当前语言的本地化文本，无感调用）
-        // TODO: returns localized text via DisplayText (not yet migrated)
-        std::string configurationDisplayName(const std::string &configKey) const;
+        /// 配置键的显示名称（多语言文本）；无翻译时退化为配置键本身。
+        DisplayText configurationDisplayName(const std::string &configKey) const;
 
         State state() const;
         Runtime *runtime() const;

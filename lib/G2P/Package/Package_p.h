@@ -2,10 +2,10 @@
 
 #include <stdcorelib/support/versionnumber.h>
 #include <synthrt/Core/Module/Module.h>
+#include <synthrt/Core/Support/DisplayText.h>
 #include <synthrt/Core/Support/Expected.h>
 #include <synthrt/Core/Support/JSON.h>
 #include <synthrt/G2P/Package/Package.h>
-#include <synthrt/G2P/Support/DisplayText.h>
 #include <synthrt/G2P/Support/Error.h>
 
 #include <filesystem>
@@ -47,9 +47,9 @@ namespace srt::g2p {
         stdc::VersionNumber m_version;
         stdc::VersionNumber m_compatVersion;
 
-        DisplayText           m_description;
-        DisplayText           m_vendor;
-        DisplayText           m_copyright;
+        srt::core::DisplayText m_description;
+        srt::core::DisplayText m_vendor;
+        srt::core::DisplayText m_copyright;
         std::filesystem::path m_readme;
         std::string           m_url;
 

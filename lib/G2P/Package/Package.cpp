@@ -77,11 +77,13 @@ namespace srt::g2p {
         }
 
         // Optional: vendor / copyright / description / url
-        auto readDisplayText = [&](const std::string &key) -> DisplayText {
+        // ds-spec 2.4 多语言文本：BCP 47 键。宽松解析以兼容存量缺 "_" 的包；
+        // 全部翻译随 srt::core::DisplayText 保留，调用方按需 text(locale) 取词。
+        auto readDisplayText = [&](const std::string &key) -> srt::core::DisplayText {
             auto it = root.find(key);
             if (it == root.end())
-                return DisplayText{};
-            return DisplayText{it->second}; // 走 JsonValue 构造，正确处理 defaultText
+                return srt::core::DisplayText{};
+            return srt::core::DisplayText::fromJsonValueTolerant(it->second);
         };
         m_description = readDisplayText("description");
         m_vendor      = readDisplayText("vendor");
@@ -224,15 +226,15 @@ namespace srt::g2p {
         return _data->m_compatVersion;
     }
 
-    DisplayText Package::description() const {
+    srt::core::DisplayText Package::description() const {
         return _data->m_description;
     }
 
-    DisplayText Package::vendor() const {
+    srt::core::DisplayText Package::vendor() const {
         return _data->m_vendor;
     }
 
-    DisplayText Package::copyright() const {
+    srt::core::DisplayText Package::copyright() const {
         return _data->m_copyright;
     }
 

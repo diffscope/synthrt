@@ -7,8 +7,8 @@
 #include <stdcorelib/support/versionnumber.h>
 
 #include <synthrt/Core/Module/Module.h>
+#include <synthrt/Core/Support/DisplayText.h>
 #include <synthrt/Core/Support/Expected.h>
-#include <synthrt/G2P/Support/DisplayText.h>
 #include <synthrt/G2P/Support/Error.h>
 #include <synthrt/G2P/srt_g2p_global.h>
 
@@ -41,9 +41,9 @@ namespace srt::g2p {
         stdc::VersionNumber version() const;
         stdc::VersionNumber compatVersion() const;
 
-        DisplayText description() const;
-        DisplayText vendor() const;
-        DisplayText copyright() const;
+        srt::core::DisplayText description() const;
+        srt::core::DisplayText vendor() const;
+        srt::core::DisplayText copyright() const;
         const std::filesystem::path &readme() const;
         const std::string &url() const;
 

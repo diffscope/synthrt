@@ -113,8 +113,7 @@ namespace srt::core {
         return _impl->m_className;
     }
 
-    std::string ModuleSpec::name() const {
-        // TODO: DisplayText not yet migrated; return raw string.
+    DisplayText ModuleSpec::name() const {
         return _impl->m_name;
     }
 
@@ -142,13 +141,12 @@ namespace srt::core {
         return _impl->m_packageVersion;
     }
 
-    std::string ModuleSpec::configurationDisplayName(const std::string &configKey) const {
-        // TODO: DisplayText not yet migrated; return raw string.
+    DisplayText ModuleSpec::configurationDisplayName(const std::string &configKey) const {
         auto it = _impl->m_configurationDisplayNames.find(configKey);
         if (it != _impl->m_configurationDisplayNames.end()) {
             return it->second;
         }
-        return configKey;
+        return DisplayText(configKey);
     }
 
     ModuleSpec::State ModuleSpec::state() const {

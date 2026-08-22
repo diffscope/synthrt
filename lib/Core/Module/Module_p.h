@@ -23,7 +23,8 @@ namespace srt::core {
     // 故 Impl 无 m_q 反向指针，与继承式 Impl（如 PackageManager::Impl）风格不同。
     //
     // 与 LangCore 版本的差异（部分迁移）：
-    //   - DisplayText 未迁移：name / configurationDisplayNames 改用 std::string
+    //   - name / configurationDisplayNames 使用 DisplayText（ds-spec 2.4：BCP 47 键 +
+    //     RFC 4647 Lookup；解析处用 fromJsonValueTolerant 以兼容缺 "_" 的存量包）
     //   - Package 未迁移：移除 PackageData *package，改用 packageId + packageVersion
     //   - ContextKey 已迁入 srt::core::ContextKey（见 Support/ContextKey.h）
     class ModuleSpec::Impl {
@@ -64,15 +65,15 @@ namespace srt::core {
 
         std::string m_className;
 
-        // TODO: DisplayText not yet migrated; using std::string as placeholder.
-        std::string m_name;
+        // ds-spec 2.4 多语言文本：BCP 47 键，调用方按 RFC 4647 Lookup 取词。
+        DisplayText m_name;
         int m_apiLevel = 0;
 
         JsonObject m_manifestConfiguration;
         NO<TaskConfiguration> m_configuration;
 
-        // TODO: DisplayText not yet migrated; using std::string values.
-        std::map<std::string, std::string> m_configurationDisplayNames;
+        // 配置键 -> 多语言显示名称。
+        std::map<std::string, DisplayText> m_configurationDisplayNames;
 
         stdc::VersionNumber m_fmtVersion;
 
