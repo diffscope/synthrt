@@ -28,6 +28,7 @@
 
 ## 改代码
 
+- 修改 C++ 代码前先阅读并遵守 [`docs/Development.md`](docs/Development.md)，其中规定目录、命名、格式、注释和头文件引用原则。
 - **`sed -i` 会把 CRLF 拍平成 LF**，而仓库里行尾是混的。动手前 `grep -qU $'\r'` 判断，CRLF 文件改用编辑工具。
 - **`sed` 的替换表达式必须带行号地址**，否则是全局替换，且后续表达式会匹配前面已改过的文本、层层嵌套。
 - 改完跑 `clang-format`（仓库有 `.clang-format`，ColumnLimit 100），只对自己动过的文件跑。
