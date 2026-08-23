@@ -8,7 +8,6 @@
 #include <stdcorelib/adt/array_view.h>
 
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
 
 namespace srt {
 
@@ -26,8 +25,6 @@ namespace srt {
         DisplayText(std::string defaultText, const std::map<std::string, std::string> &texts);
 
         ~DisplayText();
-
-        static Expected<DisplayText> fromJsonValue(const JsonValue &value);
 
         inline void swap(DisplayText &RHS) noexcept {
             _impl.swap(RHS._impl);
