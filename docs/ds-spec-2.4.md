@@ -38,7 +38,7 @@
 | 依赖求解 | 候选选择与依赖图约束未规定 | 路径优先，同一路径选择最高兼容版本；允许多版本共存，禁止重复依赖、自依赖与环 |
 | Package 身份 | ID 与版本的实例共享语义未规定 | `(id, normalized-version)`唯一标识 Package，靠前搜索路径的来源遮蔽后续同身份来源 |
 | 清单解析模式 | 未规定 | `noLoad`只读取和验证清单，`load`在成功完成`noLoad`后启动解释器；依赖求解不回溯 |
-| 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Commit 前禁止执行且 Commit 不可失败；卸载执行 quit / wait，失败时终止 provider 执行域 |
+| 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Commit 前只允许同步管理调用并禁止业务执行，Commit 不可失败；卸载执行 quit / wait，失败时终止 provider 执行域 |
 | Package 兼容承诺 | `compatVersion`只参与版本区间判断 | 明确兼容区间内必须保持的公开表面，由 Package 作者负责 |
 | DSPK 安全边界 | 未规定 | ZIP entry 文件名使用 UTF-8，解包严格封闭在安装目录内；运行时资源引用允许越过 Package root |
 | 模块 provider 发现 | 只规定 Inference 解释器 | 每个模块类别有专用插件搜索目录与 factory，无效元数据跳过，目录内按文件名确定排序，首次创建时选择并永久绑定首个 provider |
@@ -54,7 +54,7 @@
 
 ### 文件结构
 
-本规范内，可分发的数据包的最小单位是 Package（包），是一个以`dspk`为扩展名的 ZIP 格式的压缩包。
+本规范内，可分发的数据包的最小单位是 Package（包），是一个以`dspk`为扩展名的 ZIP 格式的单文件压缩包。一个 DSPK 不得依赖辅助卷或其他分卷文件才能读取。
 
 压缩包内基本结构为：
 ```
@@ -79,9 +79,13 @@ Package 内多使用`json`作为声明文件。声明文件中使用的相对路
 
 ##### 字符串变量
 
-`desc.json`和每个模块声明文件都可以在根 object 中使用可选的`vars`字段定义字符串变量。`vars`必须是 array，每项必须是只包含字符串字段`name`和`value`的 object。变量值只能是普通字符串，不得是多语言对象。变量可以在声明文件中的 JSON 字符串值内使用；多语言对象的每个本地化字符串值分别使用同一组非多语言变量展开，语言选择仍遵守《多语言文本与路径》的规则。
+`desc.json`和每个模块声明文件都可以在根 object 中使用可选的`vars`字段定义字符串变量。`vars`必须是 array，每项必须是只包含字符串字段`name`和`value`的 object。变量值只能是普通字符串，不得是多语言对象。除各层级的`$version`和`vars[].name`外，变量可以在声明文件中的 JSON 字符串值内使用；多语言对象的每个本地化字符串值分别使用同一组非多语言变量展开，语言选择仍遵守《多语言文本与路径》的规则。`$version`和`vars[].name`必须按未经展开的原始值验证，二者不得包含变量引用。
 
-变量引用写作`${name}`，可以单独作为整个字符串，也可以与其他文本组合，例如`${assets}/singer1/avatar.png`。变量引用允许嵌套并从最内层开始展开，例如`${${selector}}`先展开`${selector}`，再将其结果作为外层引用的变量名。字符串中的`$$`表示一个字面的`$`；除此之外出现的`${`必须构成合法的变量引用。查找不到的变量展开为空字符串。用于路径字段时，变量展开在路径分隔符处理、`.`与`..`解析及规范化之前完成。`${root}`和`${dir}`是逻辑路径锚点，在声明中使用它们不视为书写绝对路径。
+变量引用写作`${name}`，可以单独作为整个字符串，也可以与其他文本组合，例如`${assets}/singer1/avatar.png`。变量引用允许嵌套并从最内层开始展开，例如`${${selector}}`先展开`${selector}`，再将其结果作为外层引用的变量名。字符串中的`$$`表示一个字面的`$`；除此之外，原始字符串中出现的`${`必须构成合法的变量引用。查找不到的变量展开为空字符串。
+
+每个原始 JSON 字符串只进行一次 tokenization 和求值。变量替换得到的字符串不得再次作为模板扫描，只有原始字符串中显式写出的嵌套引用参与由内到外的求值。例如变量`d`的值为`$`时，`${d}{target}`和`$${target}`都展开为字面字符串`${target}`，不得继续展开`target`。整个变量展开必须由 Loader 在把声明交付给后续阶段之前统一完成，framework、category、interface 或 variant 不得对已展开的字符串再次应用本节规则。
+
+字符串变量只携带字符串内容，不携带其定义位置或路径基准。用于路径字段时，应先完成整个字段的变量展开，再以该字段所在声明文件的目录为基准统一解析最终字符串，并依次处理路径分隔符、`.`与`..`及规范化。`${root}`和`${dir}`是逻辑路径锚点，在声明中使用它们不视为书写绝对路径。
 
 Runtime 提供两个保留变量：
 
@@ -90,13 +94,13 @@ Runtime 提供两个保留变量：
 
 `root`与`dir`不得在`vars`中重定义。自定义变量名必须匹配`var-name = (ALPHA / "_") *(ALPHA / DIGIT / "_")`，只允许 ASCII 并区分大小写。
 
-`desc.json.vars`定义 Package 变量，对该 Package 的`desc.json`及全部模块声明可见。每个 Package 变量在`desc.json`作用域中解析，因此其中用于路径的相对字符串以 Package root 为基准。模块声明中的`vars`定义 Module 变量，只对当前模块声明可见；其中用于路径的相对字符串以该模块声明文件所在目录为基准。Module 变量查找时先查当前模块，再查 Package，可以覆盖同名 Package 变量，但不会影响其他模块。Package 变量自身始终在 Package 作用域解析，不因 Module 的同名覆盖而重新绑定。
+`desc.json.vars`定义 Package 变量，对该 Package 的`desc.json`及全部模块声明可见。模块声明中的`vars`定义 Module 变量，只对当前模块声明可见。Module 变量查找时先查当前模块，再查 Package，可以覆盖同名 Package 变量，但不会影响其他模块。Package 变量自身始终在 Package 作用域解析，不因 Module 的同名覆盖而重新绑定。这里的作用域只决定变量查找，不赋予变量值路径基准。
 
-`vars`按数组顺序求值。每一项只能引用外层作用域变量和本数组中位于它之前的变量，查找不到的变量按空字符串处理，因此不会形成变量循环。同一`vars`数组内不得出现重复变量名。变量用于路径时，解析结果以其声明作用域为基准，不是把相对字符串插入使用位置后再按使用文件重新定基。
+`vars`按数组顺序求值。每一项只能找到外层作用域变量和本数组中位于它之前的变量，其他引用按找不到变量处理并展开为空字符串，因此不会形成变量循环。同一`vars`数组内不得出现重复变量名。
 
 本规范不规定解析完成后的内存对象是否保留`vars`及其求值过程，但所有交付给后续阶段的字符串都必须已经完成变量展开，可以直接使用，不得要求使用者再次解析变量。推荐实现在构造最终内存对象后移除`vars`，只保留展开后的字符串。
 
-框架、category、interface 或 variant 负责在解释声明中的字符串值前应用本节变量规则。模型格式或其他资源文件内部的二级引用不会自动继承 Package 或 Module 变量，除非相应格式另有规定。
+模型格式或其他资源文件内部的二级引用不会自动继承 Package 或 Module 变量，除非相应格式另有规定。
 
 #### 描述文件
 
@@ -194,6 +198,8 @@ compatVersion <= target <= version
 #### Runtime Level
 
 Runtime Level 是由本规范维护者统一分配的正整数，表示 Package 可以依赖的核心运行时能力，不是 SynthRT 或其他产品的软件版本。每个兼容运行时声明自己支持的最高 Level，Package 的`runtimeLevel`不得高于该值。
+
+Level 是对某一作用域内能力版本的统称。`runtimeLevel`序列化 Package 要求的 Runtime Level，模块及 provider metadata 中的`level`序列化对应 (`interface`, `level`) 契约的 API Level；二者分别编号，不属于同一数值空间。
 
 当前规范定义 Runtime Level 1，保证 Package 与 dependency、ModuleReference、`inference`与`singer`内置类别，以及模块 provider 发现机制。新增 Package 可以依赖的核心能力或内置类别时递增 Level；修复实现缺陷、增加 provider 或注册第三方类别时不递增。
 
@@ -356,7 +362,7 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 安装器必须同时在解压前和流式解压过程中执行实现定义的资源限制，至少包括 entry 数量、单文件与总解压大小、路径长度和压缩比。资源限制必须依据 ZIP 实现最终产生的实际 entry 与数据量执行，不得仅依据归档元数据中的声明值。
 
-除 UTF-8 文件名和上述安全后置条件外，本规范不定义 DSPK 专用 ZIP feature profile，也不解释 ZIP 内部元数据。实现可以自行决定支持的 compression method、ZIP64、data descriptor、Unicode extra field、加密、多卷、CRC 及其他 ZIP 特性，并完全负责 header、central directory、extra field 与 descriptor 的解析、一致性和权威值选择；不支持或判定无效时可以拒绝整个 Package，不要求不同安装器接受完全相同的 ZIP 功能集合。无论使用哪些 ZIP 特性，成功安装的结果都必须满足本节全部 UTF-8 文件名、路径、entry 类型、资源限制和原子安装规则。
+除 UTF-8 文件名、单文件分发和上述安全后置条件外，本规范不定义 DSPK 专用 ZIP feature profile，也不解释 ZIP 内部元数据。实现可以自行决定支持的 compression method、ZIP64、data descriptor、Unicode extra field、加密、CRC 及其他不依赖辅助卷的 ZIP 特性，并完全负责 header、central directory、extra field 与 descriptor 的解析、一致性和权威值选择；不支持或判定无效时可以拒绝整个 Package，不要求不同安装器接受完全相同的 ZIP 功能集合。无论使用哪些 ZIP 特性，成功安装的结果都必须满足本节全部 UTF-8 文件名、路径、entry 类型、资源限制和原子安装规则。
 
 上述路径封闭规则只适用于 ZIP 解包。声明文件中的相对资源路径仍以声明文件所在目录为基路径，允许包含`..`，规范化后可以位于 Package root 之外。模型格式内部的二级引用同样允许访问 Package root 之外的路径。定义为相对路径的字段仍不得使用绝对路径，所有访问均受宿主进程的操作系统权限约束。
 
@@ -424,7 +430,12 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 Commit 前，本次新建的实例及其 ImportBinding 不得对其他 load 调用或运行时读取者可见。Commit 后，调用方得到一个持有根 Package 强引用的 handle。
 
-Commit 是新建 Package 实例从不可执行状态进入可执行状态的唯一边界。Commit 前，新实例、模块、运行时资源与 ImportBinding 均不得接收运行时调用，不得启动线程或异步任务，不得注册可从事务外触发的 callback，也不得向已 Commit 实例发送调用。provider 的验证和准备操作必须在调用返回前完成，不得遗留任何自主执行活动。违反本段要求属于 provider 缺陷。
+加载期间的调用分为两类：
+
+- **管理调用**：由 Loader 为当前事务发起的声明、契约、`exports`、`configuration`、`options`或 imports 集合验证，以及建立连接所需的 prepare / commit / abort 生命周期调用。管理调用可以在 Acquire、Ready、Commit 或 rollback 的相应阶段进入本事务的新实例或已 Commit 的目标实例，但必须同步完成并返回，不得启动线程、异步任务或其他自主执行活动。除本节明确规定为不可失败的操作外，管理调用失败按所在阶段的加载失败或 rollback 规则处理；其状态变化必须满足相应的事务私有性与完成日志要求。
+- **运行时调用**：由 Package、模块、ImportBinding、外部运行时使用者或 callback 发起的合成、推理、音频处理及其他业务执行调用。
+
+Commit 是新建 Package 实例从不可执行状态进入可执行状态的唯一边界。Commit 前，新实例、模块、运行时资源与 ImportBinding 均不得接收运行时调用，不得启动线程或异步任务，不得注册可从事务外触发的 callback，也不得通过已 Commit 实例执行任何运行时调用。Loader 可以按本节规则对已 Commit 实例执行同步管理调用。provider 的验证和准备操作必须在调用返回前完成，不得遗留任何自主执行活动。违反本段要求属于 provider 缺陷。
 
 ImportBinding 的激活状态与 owning Package 一致：Ready 创建的 binding 保持关闭，Commit 时随 Package 原子打开，允许 importer 与 target 通过它双向调用；owning Package 进入`Stopping`时，必须先原子关闭 binding 双方发起新调用和 callback 的入口。未 Commit 且从未激活的 binding 可以在 rollback 中直接销毁。
 
@@ -432,7 +443,7 @@ Package 中每个模块都必须完成上述 provider 验证，不论它是否�
 
 所有可能失败、分配资源、执行 I/O 或产生需要撤销的状态变化的工作都必须在 Acquire 或 Ready 完成。验证操作不得留下未记录的持久副作用；Acquire 或 Ready 创建的每项资源和状态变化都必须保持事务私有且立即写入完成日志，以便 rollback 完整撤销。
 
-Ready 不得通过修改已 Commit 目标模块的公开全局状态来建立连接。如果 provider 必须修改共享目标，其接口必须提供等价于 prepare / commit / abort 的事务机制，或使用覆盖运行时读取者的同步机制。prepare 在 Ready 中完成全部可能失败的工作，其产物保持事务私有并写入完成日志；abort 必须能在 rollback 中撤销。commit hook 必须不可失败且不得分配资源或执行 I/O，只能在与 Package 实例表发布相同的可见性屏障中公开已经准备完成的状态。
+Ready 不得通过修改已 Commit 目标模块的公开全局状态来建立连接。如果 provider 必须修改共享目标，其接口必须提供等价于 prepare / commit / abort 的事务机制，或使用覆盖运行时读取者的同步机制。prepare 在 Ready 中完成全部可能失败的工作，其产物保持事务私有并写入完成日志。abort 的逻辑撤销必须不可失败，必须先从共享目标中移除本事务产生的 binding、registration、指针及其他可访问或可遍历状态，保证共享目标不再引用将被销毁的事务对象。随后进行的文件、设备或其他物理资源回收可以失败并作为附加诊断报告，但不得恢复已经解除的逻辑关联。commit hook 必须不可失败且不得分配资源或执行 I/O，只能在与 Package 实例表发布相同的可见性屏障中公开已经准备完成的状态。
 
 Commit 一旦开始就必须完整结束，不得返回错误或转入 rollback。Commit 只能执行状态切换、指针交换或等价的内存发布操作；任何无法满足该要求的 provider 都必须把相应工作移到 Acquire 或 Ready。
 
@@ -448,7 +459,7 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 每个成功步骤只能清理一次。已经按事务日志清理完成的未 Commit 实例在引用归零时只移除实例记录，不得再次释放同一资源。
 
-最初导致事务失败的错误是 primary error。rollback 或资源销毁错误作为附加诊断报告，不得覆盖 primary error。销毁操作必须幂等。
+最初导致事务失败的错误是 primary error。允许失败的 rollback 物理资源回收或资源销毁错误作为附加诊断报告，不得覆盖 primary error。销毁操作必须幂等。provider 若违反不可失败的逻辑 abort 要求，使已 Commit 的共享目标可能保留本事务状态或引用，则属于 provider fatal error；同进程 provider 必须 fail-fast，跨进程 provider 必须按下文执行域规则隔离或恢复受影响实例，不得让损坏的目标继续作为正常 Running 实例使用。
 
 ##### release 与卸载
 
@@ -463,11 +474,13 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 只有 wait 成功，或下述执行域终止流程确认相关代码不可能继续执行后，加载器才能按成功加载步骤的反序销毁该实例的模块和运行时资源，再释放它持有的 dependency 强引用；由此可以递归卸载不再被任何 handle 或 Package 使用的依赖。资源销毁发生在已经停止之后，其失败作为卸载诊断报告，不阻止释放其他已经确认安全的资源与引用。
 
-wait 后的销毁是唯一仍可进入 provider 或 dependency 代码的 teardown 路径，只能执行同步清理。销毁过程不得重新打开任何运行时入口，不得启动线程、异步任务或 callback；对应销毁步骤返回后，不得再访问已经销毁的对象。执行域被强制终止时，只能清理宿主侧仍可安全销毁且不需要重新进入已终止执行域的资源。
+对于已经 Commit 的实例，wait 后的销毁是正常卸载中唯一仍可进入 provider 或 dependency 代码的 teardown 路径，只能执行同步清理。未 Commit 且从未激活的 Acquire / Ready 产物则按 rollback 完成日志直接执行同步 provider teardown，无需调用 quit 或 wait。两种销毁过程均不得重新打开任何运行时入口，不得启动线程、异步任务或 callback；对应销毁步骤返回后，不得再访问已经销毁的对象。执行域被强制终止时，只能清理宿主侧仍可安全销毁且不需要重新进入已终止执行域的资源。
 
-每个 provider 的执行活动都属于一个由 Runtime 决定的执行域。执行域可以是当前宿主进程，也可以是由宿主管理的独立 worker 进程。quit 或 wait 无法正常证明实例已经停止时，Runtime 必须终止包含该 provider 全部代码与活动的最小执行域，并等待底层系统确认该执行域已经终止；在确认前不得销毁实例、释放 dependency 引用或报告卸载成功。
+每个 provider 的执行活动都属于一个由 Runtime 决定的执行域。执行域可以是当前宿主进程，也可以是由宿主管理的跨进程 provider。quit 返回错误只作为卸载诊断，Runtime 仍必须执行最终 wait barrier；只要 wait 成功证明实例已经静止，加载器就按正常路径 teardown。只有 wait 失败、超时、不可用或根本无法执行，因而最终 barrier 无法证明实例已经停止时，Runtime 才必须终止包含该实例全部代码与活动的最小故障隔离单元，并等待底层系统确认该单元已经终止；在确认前不得销毁实例、释放 dependency 引用或报告卸载成功。
 
-如果执行域是独立 worker，Runtime 可以只终止该 worker，在确认其退出后销毁宿主侧资源、释放依赖并向调用方报告 provider fatal error。如果 provider 与 Runtime 同处宿主进程，或 Runtime 无法单独终止并确认其执行域，则必须 fail-fast 终止宿主进程，不得尝试在同一进程中恢复、继续加载 Package 或假装卸载成功。本规范不定义可恢复的隔离状态。依赖图无环保证正常递归卸载能够终止。
+跨进程 provider 可以在一个 worker 或一组节点中承载多个生命周期相互独立的实例，但必须提供实例级故障隔离或等价的恢复能力。一个实例的停止、卸载、超时或内部失败不得导致其他仍有有效引用的实例永久失效。Runtime 不得为了清理一个实例而终止仍承载其他存活实例的唯一可用 worker。provider 可以使用独立 worker、多 worker、多节点、心跳、重新握手、请求重发、状态恢复、实例重建或其他机制满足该结果，本规范不规定具体机制。worker 或节点整体退出后，provider 必须恢复其中仍有有效引用的其他实例；恢复期间如何报告暂时不可用由 Runtime API 规定，不得把这些实例视为已经卸载。
+
+不能满足上述隔离或恢复保证的跨进程 provider，不得在同一故障域内承载生命周期相互独立的多个实例。若 provider 与 Runtime 同处宿主进程，或实例的最小故障隔离单元就是宿主进程，则无法证明实例停止时必须 fail-fast 终止宿主进程，不得尝试在同一进程中恢复、继续加载 Package 或假装卸载成功。依赖图无环保证正常递归卸载能够终止。
 
 #### 简单方案
 
@@ -562,7 +575,7 @@ wait 后的销毁是唯一仍可进入 provider 或 dependency 代码的 teardow
 
 本规范不要求插件元数据声明宿主 API 或 ABI compatibility，也不在 provider 选择阶段检查二进制兼容性。插件部署者必须保证插件二进制与当前 Runtime 兼容；选中的插件无法加载或存在二进制不兼容时，必须报告严重加载错误并使整次加载失败，不得尝试后续 provider。
 
-上述宽松跳过规则只适用于 provider 被选中之前。一个具有合法元数据的 provider 一旦被选中，其后元数据或二进制无法读取、消失、加载失败或不再与选择结果一致时，属于部署错误，整次 Package 加载必须失败且不得回退到后续 provider。
+上述宽松跳过规则只适用于 provider 被选中之前。一个具有合法元数据的 provider 一旦被选中，Runtime 在后续正常读取或加载过程中实际观测到其元数据或二进制无法读取、消失、加载失败或不再与选择结果一致时，属于部署错误，整次 Package 加载必须失败且不得回退到后续 provider。
 
 provider plugin 被选中后，其元数据与二进制工件直到当前 Runtime 整体销毁前不得被修改、替换或删除。违反该稳定性要求属于部署错误，其行为未定义；Runtime 不负责监视或检测变化，也不保存工件快照、执行 stale 检查或切换到其他 provider。
 
@@ -776,9 +789,9 @@ Inference provider 使用`inference`类别专用的插件搜索目录和 factory
 
 - `interface`：负责的契约，如`org.openvpi.svs.PitchInference`
 - `variant`：负责的变体
-- `apiLevel`：负责的那一个 API Level
+- `level`：负责的那一个 API Level
 
-插件元数据必须能在不加载插件的情况下读取。同一插件的解释器条目数组不得重复声明相同的 (`interface`, `variant`, `apiLevel`) 三元组。Inference factory 按上文规定的目录顺序与目录内文件名顺序扫描元数据，选择第一个与模块的`interface`、`variant`和`level`全部匹配的解释器条目。后续出现的相同三元组不参与选择。
+插件元数据必须能在不加载插件的情况下读取。同一插件的解释器条目数组不得重复声明相同的 (`interface`, `variant`, `level`) 三元组。Inference factory 按上文规定的目录顺序与目录内文件名顺序扫描元数据，选择第一个与模块的`interface`、`variant`和`level`全部匹配的解释器条目。后续出现的相同三元组不参与选择。
 
 选中条目后，加载器才加载对应插件并创建派生于`InferenceInterpreter`的解释器。
 
