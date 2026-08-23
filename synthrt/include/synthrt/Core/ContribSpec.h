@@ -37,7 +37,7 @@ namespace srt {
 
             /// Returns options interpreted by the target interpreter during load.
             ///
-            /// Returns \c nullptr for a declaration produced in \c NoLoad mode.
+            /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
             const ContribImportItem *options() const;
 
         private:
@@ -85,7 +85,7 @@ namespace srt {
 
         /// Returns exports interpreted by the selected interpreter during load.
         ///
-        /// Returns \c nullptr for a declaration produced in \c NoLoad mode.
+        /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
         const ContribExportItem *exports() const;
 
         /// Returns the configuration value read from the manifest.
@@ -93,7 +93,7 @@ namespace srt {
 
         /// Returns configuration interpreted by the selected interpreter during load.
         ///
-        /// Returns \c nullptr for a declaration produced in \c NoLoad mode.
+        /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
         const ContribConfiguration *configuration() const;
 
         /// Returns imports in declaration order, including repeated references.

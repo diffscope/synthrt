@@ -32,8 +32,8 @@ namespace srt {
     public:
         /// Selects how far Package opening may progress.
         enum OpenMode {
-            /// Parses manifests without loading providers or committing runtime resources.
-            NoLoad,
+            /// Parses manifests as data without discovering or loading providers.
+            DataOnly,
             /// Validates, loads, and commits the Package and its dependencies.
             Load,
         };
@@ -58,9 +58,10 @@ namespace srt {
 
         /// Opens a Package using \a mode.
         ///
-        /// NoLoad reads manifests without loading providers or changing committed state. Load
-        /// resolves dependencies, validates contributions, and returns only after an infallible
-        /// commit. A failure is returned as an Error and never as a partially valid PackageHandle.
+        /// \c DataOnly reads manifests without discovering providers or changing committed state.
+        /// \c Load begins with an internal Probe, resolves dependencies, validates contributions,
+        /// and returns only after an infallible commit. A failure is returned as an Error and
+        /// never as a partially valid PackageHandle.
         Expected<PackageHandle> openPackage(const std::filesystem::path &path, OpenMode mode);
 
         /// Finds a committed Package with the exact identifier and version.

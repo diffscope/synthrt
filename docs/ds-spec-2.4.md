@@ -38,7 +38,7 @@
 | 依赖求解 | 候选选择与依赖图约束未规定 | 路径优先，同一路径选择最高兼容版本；允许多版本共存，禁止重复依赖、自依赖与环 |
 | Package 身份 | ID 与版本的实例共享语义未规定 | `(id, normalized-version)`唯一标识 Package，靠前搜索路径的来源遮蔽后续同身份来源 |
 | Package 加载来源 | DSPK 与安装目录的职责未分 | `.dspk`只由 Installer 安装，Loader 只读取已安装 Package 目录 |
-| 清单解析模式 | 未规定 | `NoLoad`只读取和验证清单，`load`在成功完成`NoLoad`后启动解释器；依赖求解不回溯 |
+| 清单解析模式 | 未规定 | `Probe`只读取和验证清单并选择 provider，`load`在成功完成`Probe`后启动解释器；依赖求解不回溯 |
 | 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Commit 前只允许同步管理调用并禁止业务执行，Commit 不可失败；卸载执行 quit / wait，Runtime 销毁前静止 provider domain |
 | Package 兼容承诺 | `compatVersion`只参与版本区间判断 | 明确兼容区间内必须保持的公开表面，由 Package 作者负责 |
 | DSPK 安全边界 | 未规定 | ZIP entry 文件名使用 UTF-8，解包严格封闭在安装目录内；运行时资源引用允许越过 Package root |
@@ -335,7 +335,7 @@ vendor/sample:singer/main
 
 #### 安装
 
-对于`dspk`文件，安装就是在某个目录中解压它。本规范对这个目录没有任何要求。`.dspk`只作为 Installer 的输入；Loader 只从已经完成安装的 Package 目录执行`NoLoad`与`load`，不得直接把 raw DSPK 作为候选或临时物化后加载。
+对于`dspk`文件，安装就是在某个目录中解压它。本规范对这个目录没有任何要求。`.dspk`只作为 Installer 的输入；Loader 只从已经完成安装的 Package 目录执行`Probe`与`load`，不得直接把 raw DSPK 作为候选或临时物化后加载。
 
 ##### 安全解包
 
@@ -375,14 +375,14 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 清单解析器提供两种模式：
 
-- `NoLoad`：读取依赖图中的`desc.json`和模块声明文件，验证框架公共 envelope 与 category 条目基础结构，确认 category 已注册，解析 ModuleReference，并从插件元数据中选择 provider。此模式不得加载插件、实例化解释器或取得模型、设备等运行时资源。
-- `load`：在成功完成`NoLoad`后加载插件、实例化解释器并取得运行时资源。
+- `Probe`：读取依赖图中的`desc.json`和模块声明文件，验证框架公共 envelope 与 category 条目基础结构，确认 category 已注册，解析 ModuleReference，并从插件元数据中选择 provider。此模式不得加载插件、实例化解释器或取得模型、设备等运行时资源。
+- `load`：在成功完成`Probe`后加载插件、实例化解释器并取得运行时资源。
 
-本规范不定义可持久化或不可变的 LoadPlan，也不要求`load`复用`NoLoad`读取的文件快照。实现可以缓存解析结果，也可以重新读取或解析 Package 及其 root 外部引用；只要 Package 作者履行同身份内容与使用期间稳定的承诺，两种实现的输入就应等价。实现不必检测变化或报告`StalePlan`。
+本规范不定义可持久化或不可变的 LoadPlan，也不要求`load`复用`Probe`读取的文件快照。实现可以缓存解析结果，也可以重新读取或解析 Package 及其 root 外部引用；只要 Package 作者履行同身份内容与使用期间稳定的承诺，两种实现的输入就应等价。实现不必检测变化或报告`StalePlan`。
 
-`NoLoad`不根据 interface 名称发现或下载契约 Schema，也不验证具体契约。`exports`、`options`与`configuration`在此阶段只读取为 JSON，具体契约语义只能由选中的 provider 在`load`阶段验证。
+`Probe`不根据 interface 名称发现或下载契约 Schema，也不验证具体契约。`exports`、`options`与`configuration`在此阶段只读取为 JSON，具体契约语义只能由选中的 provider 在`load`阶段验证。
 
-依赖求解始终先使用`NoLoad`读取候选的`desc.json`。一个 Package 只有同时满足以下条件才是某个 dependency edge 的候选：
+依赖求解始终先使用`Probe`读取候选的`desc.json`。一个 Package 只有同时满足以下条件才是某个 dependency edge 的候选：
 
 - 安装目录能够按本规范读取
 - `desc.json`是有效清单
@@ -392,7 +392,7 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 - `runtimeLevel`不高于当前运行时支持的 Level
 - `contributes`中列出的所有贡献类别均已注册
 
-加载器对上述候选按搜索路径优先、同一路径选择最高版本的规则作出一次选择。选中后，不论后续递归依赖解析、其余清单的`NoLoad`验证、provider 发现、`configuration`检查、解释器启动或模块初始化在哪一步失败，整条加载都必须失败，不得回退到其他候选版本，也不得重新搜索其他路径。
+加载器对上述候选按搜索路径优先、同一路径选择最高版本的规则作出一次选择。选中后，不论后续递归依赖解析、其余清单的`Probe`验证、provider 发现、`configuration`检查、解释器启动或模块初始化在哪一步失败，整条加载都必须失败，不得回退到其他候选版本，也不得重新搜索其他路径。
 
 对于一个已安装 Package，当且仅当它的所有依赖项都能被加载，它才能被加载。dependency 要求的目标版本必须位于候选 Package 的闭区间`[compatVersion, version]`内。
 
@@ -420,9 +420,9 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 同一个 Loader 上改变 Package 实例状态的 load 与 release 事务必须串行执行。一次 load 事务覆盖请求的根 Package，以及本次依赖闭包中尚未 Commit 的 Package 实例。事务依次执行：
 
-1. **NoLoad**：无副作用地完成依赖求解、清单解析与 ModuleReference 绑定。对于本事务将要创建的新 module instance，执行 provider 元数据选择；对于已经 Commit 的现存实例，直接使用实例记录的 provider 绑定，不重新发现或选择。
+1. **Probe**：无副作用地完成依赖求解、清单解析与 ModuleReference 绑定。对于本事务将要创建的新 module instance，执行 provider 元数据选择；对于已经 Commit 的现存实例，直接使用实例记录的 provider 绑定，不重新发现或选择。
 2. **Acquire**：为根 handle 和每条 dependency edge 取得临时强引用，将尚未加载的 provider plugin 加入 Runtime 常驻插件集合，并创建本次所需的新 Package 与模块实例。每个模块的 provider 必须同步验证该模块自身的声明、`exports`与`configuration`，验证成功后才完成该模块的 Acquire 并取得尚未激活的运行时资源。已经 Commit 的实例只增加临时引用，不重复 Acquire。
-3. **Ready**：所有新模块 Acquire 成功后，被引用目标的 provider 必须同步验证每个 import 条目的`options`，importing module 的 provider 必须验证有序 imports 集合是否满足自身对数量、顺序、目标 interface 与 level、能力及组合关系的要求；随后根据`NoLoad`阶段解析的 ModuleReference 为每个条目创建事务私有且尚未激活的 ImportBinding。Ready 可以读取已 Commit 实例和其他模块的 Acquire 产物，不得依赖其他新模块的 Ready 产物，也不得使未 Commit 的 binding 或连接状态对任何运行时读取者可见。
+3. **Ready**：所有新模块 Acquire 成功后，被引用目标的 provider 必须同步验证每个 import 条目的`options`，importing module 的 provider 必须验证有序 imports 集合是否满足自身对数量、顺序、目标 interface 与 level、能力及组合关系的要求；随后根据`Probe`阶段解析的 ModuleReference 为每个条目创建事务私有且尚未激活的 ImportBinding。Ready 可以读取已 Commit 实例和其他模块的 Acquire 产物，不得依赖其他新模块的 Ready 产物，也不得使未 Commit 的 binding 或连接状态对任何运行时读取者可见。
 4. **Commit**：全部 Ready 成功后，以不可失败的操作原子发布本次新建的 Package 实例及其 ImportBinding，并将其运行时外部入口从关闭状态切换为`Running`。根 Package 的临时引用转交给返回的 load handle，各 dependency 临时引用转交给已 Commit 的 dependency edge。
 
 Commit 前，本次新建的实例及其 ImportBinding 不得对其他 load 调用或运行时读取者可见。Commit 后，调用方得到一个持有根 Package 强引用的 handle。
@@ -448,7 +448,7 @@ Ready 不得通过修改已 Commit 目标模块的公开全局状态来建立连
 
 Commit 一旦开始就必须完整结束，不得返回错误或转入 rollback。Commit 只能执行状态切换、指针交换或等价的内存发布操作；任何无法满足该要求的 provider 都必须把相应工作移到 Acquire 或 Ready。
 
-non-module contribution 在`NoLoad`中由 category parser 完成解析，且不得产生运行时副作用。需要 Acquire、Ready 或运行时资源的 contribution 必须注册为 module category。
+non-module contribution 在`Probe`中由 category parser 完成解析，且不得产生运行时副作用。需要 Acquire、Ready 或运行时资源的 contribution 必须注册为 module category。
 
 ##### 失败与 rollback
 
@@ -572,7 +572,7 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 一个目录项只有在其元数据能够读取、是合法 JSON、包含全部必选字段及正确类型，并通过包括三元组不得重复在内的全部结构验证后，才被视为 provider plugin。无法读取、解析或通过验证的目录项，以及扫描期间消失的目录项，均视为不是插件并直接跳过，不得进入候选集合，也不使 discovery 失败。普通文件按相同规则自然忽略。
 
-`NoLoad`阶段先根据模块 category 取得对应 factory，并按用户给出的顺序扫描该类别的插件搜索目录。同一目录中的插件按 basename 的 Unicode 码点升序进行区分大小写的比较，插件发现顺序不得采用文件系统枚举顺序或 locale 排序。加载器按由目录顺序和目录内文件名顺序形成的全序扫描元数据，选择第一个三元组全部匹配的 provider；后续出现的相同三元组不参与选择。
+`Probe`阶段先根据模块 category 取得对应 factory，并按用户给出的顺序扫描该类别的插件搜索目录。同一目录中的插件按 basename 的 Unicode 码点升序进行区分大小写的比较，插件发现顺序不得采用文件系统枚举顺序或 locale 排序。加载器按由目录顺序和目录内文件名顺序形成的全序扫描元数据，选择第一个三元组全部匹配的 provider；后续出现的相同三元组不参与选择。
 
 上述 discovery 只用于首次创建新的 module instance。Acquire 成功后，实例必须记录实际 provider 与 provider plugin；Commit 后该绑定在实例的整个生命周期中不可改变。已 Commit Package 作为根 Package 或 dependency 被复用时，其全部 module instance 必须继续使用各自记录的 provider，不得因新增插件、修改插件搜索路径或目录内容变化而重新 discovery、改选或热切换。新增搜索目录和插件只影响之后首次创建的新实例。
 
