@@ -19,6 +19,7 @@
 namespace srt {
 
     class PackageData;
+    class PackageLoader;
 
     class SynthUnit;
 
@@ -86,6 +87,7 @@ namespace srt {
         std::shared_ptr<PackageData> m_data;
 
         friend class ContribSpec;
+        friend class PackageLoader;
         friend class SynthUnit;
     };
 

@@ -17,6 +17,7 @@
 namespace srt {
 
     class ContribCategory;
+    class PackageLoader;
 
     /// Owns Package resolution, interpreter discovery, and committed runtime state.
     class SYNTHRT_EXPORT SynthUnit {
@@ -80,6 +81,7 @@ namespace srt {
         std::unique_ptr<Impl> _impl;
 
         friend class PackageHandle;
+        friend class PackageLoader;
     };
 
 }

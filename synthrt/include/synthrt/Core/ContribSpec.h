@@ -18,6 +18,7 @@ namespace srt {
     class ContribCreateContext;
     class PackageData;
     class PackageHandle;
+    class PackageLoader;
     class SynthUnit;
 
     /// The immutable declaration of one contribution in a Package.
@@ -116,6 +117,7 @@ namespace srt {
 
         friend class ContribCategory;
         friend class PackageData;
+        friend class PackageLoader;
         friend class SynthUnit;
     };
 

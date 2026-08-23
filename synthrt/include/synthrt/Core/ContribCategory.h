@@ -13,6 +13,7 @@ namespace srt {
 
     class ContribCreateContext;
     class PackageData;
+    class PackageLoader;
     class SynthUnit;
 
     /// The index and interpreter discovery context for one contribution category.
@@ -71,6 +72,7 @@ namespace srt {
         std::unique_ptr<Impl> _impl;
 
         friend class PackageData;
+        friend class PackageLoader;
         friend class SynthUnit;
     };
 

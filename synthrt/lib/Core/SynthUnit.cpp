@@ -5,6 +5,7 @@
 
 #include "ContribCategory_p.h"
 #include "ContribReference.h"
+#include "PackageLoader_p.h"
 
 namespace srt {
 
@@ -133,10 +134,10 @@ namespace srt {
         return it == _impl->pluginPaths.end() ? std::vector<std::filesystem::path>() : it->second;
     }
 
-    Expected<PackageHandle> SynthUnit::openPackage(const std::filesystem::path &, OpenMode) {
-        _impl->packageLoadingBegun = true;
-        return Error(Error::NotImplemented,
-                     "Package loading is not implemented by the current Core migration layer");
+    Expected<PackageHandle> SynthUnit::openPackage(const std::filesystem::path &path,
+                                                   OpenMode mode) {
+        PackageLoader loader(*this);
+        return loader.open(path, mode);
     }
 
     std::optional<PackageHandle>

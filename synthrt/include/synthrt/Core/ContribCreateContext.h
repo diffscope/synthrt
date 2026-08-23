@@ -16,6 +16,7 @@ namespace srt {
 
     class ContribCategory;
     class PackageData;
+    class PackageLoader;
     class SynthUnit;
 
     /// A non owning view of the data used to create one ContribSpec.
@@ -67,6 +68,7 @@ namespace srt {
 
         friend class ContribSpec;
         friend class PackageData;
+        friend class PackageLoader;
         friend class SynthUnit;
     };
 
