@@ -20,7 +20,7 @@
 | 结构标识符 | Package ID 仅列出禁用字符，其他标识符未统一 | 仅限 ASCII，区分大小写并逐字节精确比较 |
 | Package 版本 | `x.y[.z.w]` | 一至四个无前导零的十进制分量，按任意精度整数比较并在右侧补零 |
 | 字符串变量 | 未规定 | `desc.json`和模块声明可定义非多语言字符串变量，并按声明顺序展开；`${root}`与`${dir}`可用于锚定路径 |
-| 声明路径分隔符 | 未规定 | `/`与反斜杠均作为分隔符，由 Loader 统一规范化 |
+| 声明路径 | 未规定 | `/`与反斜杠均作为分隔符；允许绝对路径，相对路径按字段所在声明文件定基 |
 | 模块 ID | 写在模块自己的声明文件里 | **写在 `desc.json` 里，由 Package 赋予** |
 | `class` | 推理类型 + 解释器选择，一词两义 | 改名 `interface`，只表示「这份声明遵循哪套契约」 |
 | 实现变体 | 无，只能另起一个 `class` | 新增 `variant`，表示同一契约的不同实现；不同变体不保证可互换 |
@@ -29,7 +29,7 @@
 | 模块声明文件的公共字段 | 各类别各自定义、各自解析 | 提取为《公共字段》，由框架统一解析 |
 | `schema` | 名为 schema，装的却是功能清单 | 改名 `exports`，与 `imports` 成对 |
 | `configuration`的语法 | 未区分契约与实现 | 完全由`variant`规定，契约不规定其中的公共字段 |
-| 多语言的语言代码 | `zh_CN`，POSIX locale 写法 | **BCP 47**（`zh-CN`），并单列一节定义匹配规则 |
+| 多语言值 | Runtime 按语言代码选择文字 | Runtime 忠实保存并向前端提供完整字符串 map，不解释语言代码或执行语言匹配 |
 | 多语言路径 | 未明确落到具体字段 | `readme`、`avatar`、`background`与`demoAudio`均为多语言路径 |
 | `imports` 条目 | `id` + `inferenceId` + `version` 三个字段，或一个裸字符串简写 | 一个 `ref` 引用串，**类别是其中一格**，不设简写 |
 | `imports`集合语义 | 未规定 | 有序数组，重复引用是独立导入实例，不自动去重 |
@@ -75,17 +75,17 @@ Package 内多使用`json`作为声明文件。声明文件中使用的相对路
 
 声明中的路径字符串使用 UTF-8，`/`与 U+005C REVERSE SOLIDUS（反斜杠）均视为路径分隔符。加载器必须先按此规则拆分并规范化路径，再交给宿主文件系统处理，因此路径分隔语义不随操作系统改变。
 
-定义为相对路径的字段不得使用绝对路径、盘符、UNC、device 前缀或 NUL。`.`与`..`路径段允许出现，并按声明文件所在目录进行词法解析；规范化后的路径可以位于 Package root 之外。
+声明中的资源路径不得包含 NUL，但可以是绝对路径，也可以是相对路径。完成字符串变量展开后，绝对路径直接使用；相对路径以该字段所在声明文件的目录为基准解析。`.`与`..`路径段允许出现，规范化后的路径可以位于 Package root 之外。盘符、UNC、device 前缀及其他宿主路径形式由宿主文件系统解释。
 
 ##### 字符串变量
 
-`desc.json`和每个模块声明文件都可以在根 object 中使用可选的`vars`字段定义字符串变量。`vars`必须是 array，每项必须是只包含字符串字段`name`和`value`的 object。变量值只能是普通字符串，不得是多语言对象。除各层级的`$version`和`vars[].name`外，变量可以在声明文件中的 JSON 字符串值内使用；多语言对象的每个本地化字符串值分别使用同一组非多语言变量展开，语言选择仍遵守《多语言文本与路径》的规则。`$version`和`vars[].name`必须按未经展开的原始值验证，二者不得包含变量引用。
+`desc.json`和每个模块声明文件都可以在根 object 中使用可选的`vars`字段定义字符串变量。`vars`必须是 array，每项必须是只包含字符串字段`name`和`value`的 object。变量值只能是普通字符串，不得是多语言对象。除各层级的`$version`和`vars[].name`外，变量可以在声明文件中的 JSON 字符串值内使用；多语言对象的每个 value 分别使用同一组非多语言变量展开，Runtime 保存完整 map，不从中选择语言。`$version`和`vars[].name`必须按未经展开的原始值验证，二者不得包含变量引用。
 
-变量引用写作`${name}`，可以单独作为整个字符串，也可以与其他文本组合，例如`${assets}/singer1/avatar.png`。变量引用允许嵌套并从最内层开始展开，例如`${${selector}}`先展开`${selector}`，再将其结果作为外层引用的变量名。字符串中的`$$`表示一个字面的`$`；除此之外，原始字符串中出现的`${`必须构成合法的变量引用。查找不到的变量展开为空字符串。
+变量引用写作`${name}`，可以单独作为整个字符串，也可以与其他文本组合，例如`${assets}/singer1/avatar.png`。变量引用允许嵌套并从最内层开始展开，例如`${${selector}}`先展开`${selector}`，再将其结果作为外层引用的变量名。字符串中的`$$`表示一个字面的`$`；除此之外，原始字符串中出现的`${`必须具有配对的`}`。引用 payload 在完成其中显式嵌套引用的求值后作为变量名查找；结果为空、不匹配`var-name`或找不到同名变量时均展开为空字符串。因此`${}`直接展开为空，`${${var}}`在`${var}`得到`bad-name`时也展开为空。
 
 每个原始 JSON 字符串只进行一次 tokenization 和求值。变量替换得到的字符串不得再次作为模板扫描，只有原始字符串中显式写出的嵌套引用参与由内到外的求值。例如变量`d`的值为`$`时，`${d}{target}`和`$${target}`都展开为字面字符串`${target}`，不得继续展开`target`。整个变量展开必须由 Loader 在把声明交付给后续阶段之前统一完成，framework、category、interface 或 variant 不得对已展开的字符串再次应用本节规则。
 
-字符串变量只携带字符串内容，不携带其定义位置或路径基准。用于路径字段时，应先完成整个字段的变量展开，再以该字段所在声明文件的目录为基准统一解析最终字符串，并依次处理路径分隔符、`.`与`..`及规范化。`${root}`和`${dir}`是逻辑路径锚点，在声明中使用它们不视为书写绝对路径。
+字符串变量只携带字符串内容，不携带其定义位置或路径基准。用于路径字段时，应先完成整个字段的变量展开；展开结果为绝对路径时直接使用，为相对路径时再以该字段所在声明文件的目录为基准解析，随后处理路径分隔符、`.`与`..`及规范化。`${root}`和`${dir}`是 Runtime 提供的普通字符串变量，其值可以像其他字符串一样经由自定义变量继续传播。
 
 Runtime 提供两个保留变量：
 
@@ -123,7 +123,7 @@ Runtime 提供两个保留变量：
     "url": "https://www.example.com",
     "contributes": {
         "inference": [
-            { "id": "pitch", "path": "./inferences/pitch/inference.json" },
+            { "id": "acoustic", "path": "./inferences/acoustic/inference.json" },
             { "id": "variance", "path": "./inferences/variance/inference.json" }
         ],
         "singer": [
@@ -271,22 +271,14 @@ Level 是对某一作用域内能力版本的统称。`runtimeLevel`序列化 Pa
 }
 ```
 
-+ `_`**必选**，它是任何语言都没匹配上时的取值
-+ 其余每个属性名是一个 **BCP 47** 语言标签，如`en`、`zh-CN`、`zh-Hant-TW`、`ja-JP`
++ `_`**必选**，表示由内容作者提供的默认值
++ 其余属性名是由内容作者和前端约定的语言代码，例如`en`、`zh-CN`、`zh-Hant-TW`、`ja-JP`
 
 只写一个字符串，等价于只有`_`一项的对象。
 
-#### 匹配
+Runtime 不解释这些属性名，不验证 BCP 47、POSIX locale 或其他语言代码语法，不执行大小写折叠、canonicalization、fallback 或 Lookup，也不接收语言偏好来代替前端选择。除 JSON 本身禁止重复 key 外，语言代码在 Runtime 中是不透明且区分大小写的 map key；例如`zh-CN`与`ZH-cn`是两个不同的 key。Runtime API 必须允许前端取得完整 map，并忠实返回原样的 key 和完成变量展开后的 value。
 
-前端每次向运行时传入一个 BCP 47 语言标签。运行时使用该标签按 **RFC 4647 §3.4 Lookup** 的截断规则查找，找不到就从右端逐段去掉子标签再找，直到只剩语言那一段，仍然找不到则取`_`。输入不是语言优先列表，不处理多个语言标签或`*`；无效的 BCP 47 标签属于调用方错误。
-
-偏好`zh-Hant-TW`时依次尝试`zh-Hant-TW`、`zh-Hant`、`zh`，最后`_`。
-
-截断后如果末尾留下 singleton，应将该 singleton 一并移除。例如`de-DE-x-goethe`依次尝试`de-DE-x-goethe`、`de-DE`、`de`，不会尝试`de-DE-x`。
-
-标签匹配**不区分大小写**。多语言对象中除`_`外的属性名必须是按 RFC 5646 语法良构的 BCP 47 标签，并且不得出现大小写折叠后相同的两个标签，例如`zh-CN`与`ZH-cn`不能同时出现，否则声明无效。本规范不要求根据某一版本的 IANA Language Subtag Registry 验证标签，不替换 deprecated subtag 或 Preferred-Value，也不执行除此处大小写无关比较之外的 canonicalization。书写建议遵循 BCP 47 的惯例：语言小写，文字子标签首字母大写，地区全大写，如`zh-Hans-CN`。
-
-> 2.3 中这里写的是`zh_CN`、`ja_JP`，那是 POSIX 的 locale 写法。改用 BCP 47 有两个原因：分隔符本应是连字符，而且 POSIX 那套表达不了文字子标签，区分不了`zh-Hans`与`zh-Hant`。
+推荐使用 BCP 47 语言标签，但不作强制要求；内容作者只需与消费该 map 的前端约定一致。采用哪套语言代码、如何匹配用户偏好、何时使用`_`以及是否合并大小写不同的 key，均由前端决定。
 
 #### 用在哪些字段
 
@@ -305,7 +297,7 @@ Level 是对某一作用域内能力版本的统称。`runtimeLevel`序列化 Pa
 
 ### 结构标识符与 ModuleReference 文法
 
-Package ID、category、contribution ID、`interface`与`variant`统称结构标识符。结构标识符只允许下述文法中的 ASCII 字符，区分大小写，并按 UTF-8 中等同的 ASCII 字节序列精确比较；不得执行 Unicode normalization、locale 相关转换或大小写折叠。BCP 47 语言标签不适用本规则，仍按上文规定进行大小写无关匹配。
+Package ID、category、contribution ID、`interface`与`variant`统称结构标识符。结构标识符只允许下述文法中的 ASCII 字符，区分大小写，并按 UTF-8 中等同的 ASCII 字节序列精确比较；不得执行 Unicode normalization、locale 相关转换或大小写折叠。多语言 map 的 key 不是结构标识符，按上文规定作为不透明字符串保存。
 
 ModuleReference 指向一个模块。外部 ModuleReference 以 Package ID 绑定当前 Package 已经解析出的直接依赖，再用`:category/contrib-id`定位其中的模块；引用当前 Package 的模块时省略 Package ID，但必须保留开头的`:`。
 
@@ -364,7 +356,7 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 除 UTF-8 文件名、单文件分发和上述安全后置条件外，本规范不定义 DSPK 专用 ZIP feature profile，也不解释 ZIP 内部元数据。实现可以自行决定支持的 compression method、ZIP64、data descriptor、Unicode extra field、加密、CRC 及其他不依赖辅助卷的 ZIP 特性，并完全负责 header、central directory、extra field 与 descriptor 的解析、一致性和权威值选择；不支持或判定无效时可以拒绝整个 Package，不要求不同安装器接受完全相同的 ZIP 功能集合。无论使用哪些 ZIP 特性，成功安装的结果都必须满足本节全部 UTF-8 文件名、路径、entry 类型、资源限制和原子安装规则。
 
-上述路径封闭规则只适用于 ZIP 解包。声明文件中的相对资源路径仍以声明文件所在目录为基路径，允许包含`..`，规范化后可以位于 Package root 之外。模型格式内部的二级引用同样允许访问 Package root 之外的路径。定义为相对路径的字段仍不得使用绝对路径，所有访问均受宿主进程的操作系统权限约束。
+上述路径封闭规则只适用于 ZIP 解包。声明文件中的资源路径可以是绝对路径；相对路径以声明文件所在目录为基路径，允许包含`..`，规范化后可以位于 Package root 之外。模型格式内部的二级引用同样允许访问 Package root 之外的路径。所有访问均受宿主进程的操作系统权限约束。
 
 > **安全边界**
 >
@@ -439,6 +431,8 @@ Commit 是新建 Package 实例从不可执行状态进入可执行状态的唯�
 
 ImportBinding 的激活状态与 owning Package 一致：Ready 创建的 binding 保持关闭，Commit 时随 Package 原子打开，允许 importer 与 target 通过它双向调用；owning Package 进入`Stopping`时，必须先原子关闭 binding 双方发起新调用和 callback 的入口。未 Commit 且从未激活的 binding 可以在 rollback 中直接销毁。
 
+provider 必须保证每项运行时活动归属于具体的 Package 实例，其中通过 ImportBinding 产生的活动还必须归属于具体 binding，并提供 ImportBinding 及其调用级的停止隔离。关闭一条 binding 后，provider 必须能够停止、取消或隔离归属于该 binding 的全部既有活动，使 owning Package 的 wait 可以在不永久破坏共享 target 上其他仍有效 binding 与活动的前提下完成。在确认这些活动不可能再访问 owning Package 或该 binding 前，不得销毁二者。provider 可以通过取消、迁移、重建、恢复或其他机制满足该结果，本规范不规定具体机制。不能满足该要求的 provider 不得让生命周期相互独立的 ImportBinding 共享同一个不可分割的故障单元；违反本要求的 provider 不合法，后续行为未定义。
+
 Package 中每个模块都必须完成上述 provider 验证，不论它是否被其他模块 import。任何声明、`exports`、`configuration`、`options`或 imports 集合验证失败，都必须使整次加载失败并 rollback；加载器不得 Commit 含有未验证模块或契约错误的 Package，也不得回退到其他 provider。本规范不增加独立的 Validate 阶段。
 
 所有可能失败、分配资源、执行 I/O 或产生需要撤销的状态变化的工作都必须在 Acquire 或 Ready 完成。验证操作不得留下未记录的持久副作用；Acquire 或 Ready 创建的每项资源和状态变化都必须保持事务私有且立即写入完成日志，以便 rollback 完整撤销。
@@ -459,7 +453,7 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 每个成功步骤只能清理一次。已经按事务日志清理完成的未 Commit 实例在引用归零时只移除实例记录，不得再次释放同一资源。
 
-最初导致事务失败的错误是 primary error。允许失败的 rollback 物理资源回收或资源销毁错误作为附加诊断报告，不得覆盖 primary error。销毁操作必须幂等。provider 若违反不可失败的逻辑 abort 要求，使已 Commit 的共享目标可能保留本事务状态或引用，则属于 provider fatal error；同进程 provider 必须 fail-fast，跨进程 provider 必须按下文执行域规则隔离或恢复受影响实例，不得让损坏的目标继续作为正常 Running 实例使用。
+最初导致事务失败的错误是 primary error。允许失败的 rollback 物理资源回收或资源销毁错误作为附加诊断报告，不得覆盖 primary error。销毁操作必须幂等。provider 未完成规范要求不可失败的逻辑 abort 属于违反本规范，此后的行为未定义；Runtime 不负责为这种不合法 provider 建立额外的 rollback 屏障、隔离或恢复流程。
 
 ##### release 与卸载
 
@@ -474,11 +468,11 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 只有 wait 成功，或下述执行域终止流程确认相关代码不可能继续执行后，加载器才能按成功加载步骤的反序销毁该实例的模块和运行时资源，再释放它持有的 dependency 强引用；由此可以递归卸载不再被任何 handle 或 Package 使用的依赖。资源销毁发生在已经停止之后，其失败作为卸载诊断报告，不阻止释放其他已经确认安全的资源与引用。
 
-对于已经 Commit 的实例，wait 后的销毁是正常卸载中唯一仍可进入 provider 或 dependency 代码的 teardown 路径，只能执行同步清理。未 Commit 且从未激活的 Acquire / Ready 产物则按 rollback 完成日志直接执行同步 provider teardown，无需调用 quit 或 wait。两种销毁过程均不得重新打开任何运行时入口，不得启动线程、异步任务或 callback；对应销毁步骤返回后，不得再访问已经销毁的对象。执行域被强制终止时，只能清理宿主侧仍可安全销毁且不需要重新进入已终止执行域的资源。
+对于已经 Commit 的实例，wait 后的销毁是正常卸载中唯一仍可进入 provider 或 dependency 代码的 teardown 路径，只能执行同步清理。未 Commit 且从未激活的 Acquire / Ready 产物则按 rollback 完成日志直接执行同步 provider teardown，无需调用 quit 或 wait。两种销毁过程都必须完成并返回，不得重新打开任何运行时入口，不得启动线程、异步任务或 callback；对应销毁步骤返回后，不得再访问已经销毁的对象。本规范不定义 teardown 超时、失联检测或补救协议；无法完成并返回的 provider 不合法，后续行为未定义。执行域被强制终止时，只能清理宿主侧仍可安全销毁且不需要重新进入已终止执行域的资源。
 
 每个 provider 的执行活动都属于一个由 Runtime 决定的执行域。执行域可以是当前宿主进程，也可以是由宿主管理的跨进程 provider。quit 返回错误只作为卸载诊断，Runtime 仍必须执行最终 wait barrier；只要 wait 成功证明实例已经静止，加载器就按正常路径 teardown。只有 wait 失败、超时、不可用或根本无法执行，因而最终 barrier 无法证明实例已经停止时，Runtime 才必须终止包含该实例全部代码与活动的最小故障隔离单元，并等待底层系统确认该单元已经终止；在确认前不得销毁实例、释放 dependency 引用或报告卸载成功。
 
-跨进程 provider 可以在一个 worker 或一组节点中承载多个生命周期相互独立的实例，但必须提供实例级故障隔离或等价的恢复能力。一个实例的停止、卸载、超时或内部失败不得导致其他仍有有效引用的实例永久失效。Runtime 不得为了清理一个实例而终止仍承载其他存活实例的唯一可用 worker。provider 可以使用独立 worker、多 worker、多节点、心跳、重新握手、请求重发、状态恢复、实例重建或其他机制满足该结果，本规范不规定具体机制。worker 或节点整体退出后，provider 必须恢复其中仍有有效引用的其他实例；恢复期间如何报告暂时不可用由 Runtime API 规定，不得把这些实例视为已经卸载。
+跨进程 provider 可以在一个 worker 或一组节点中承载多个生命周期相互独立的实例，但必须提供实例级以及上述 ImportBinding 和调用级故障隔离，或提供等价的恢复能力。一个实例、binding 或调用的停止、卸载、超时或内部失败不得导致其他仍有有效引用的实例或 binding 永久失效。Runtime 不得为了清理其中一个而终止仍承载其他存活实例或 binding 的唯一可用 worker。provider 可以使用独立 worker、多 worker、多节点、心跳、重新握手、请求重发、状态恢复、实例重建或其他机制满足该结果，本规范不规定具体机制。worker 或节点整体退出后，provider 必须恢复其中仍有有效引用的其他实例与 binding；恢复期间如何报告暂时不可用由 Runtime API 规定，不得把这些实例或 binding 视为已经卸载。
 
 不能满足上述隔离或恢复保证的跨进程 provider，不得在同一故障域内承载生命周期相互独立的多个实例。若 provider 与 Runtime 同处宿主进程，或实例的最小故障隔离单元就是宿主进程，则无法证明实例停止时必须 fail-fast 终止宿主进程，不得尝试在同一进程中恢复、继续加载 Package 或假装卸载成功。依赖图无环保证正常递归卸载能够终止。
 
@@ -636,7 +630,7 @@ provider plugin 成功加载后必须加入当前 Runtime 的常驻插件集合�
 
 ModuleReference 中显式出现的每个 Package ID 都必须在`desc.json`的`dependencies`中声明。引用当前 Package 时不得显式写出其 ID，而应使用以`:`开头的形式。
 
-`ref`必须是一条完整的 ModuleReference，不设简写。2.3 中`imports`可以直接写裸字符串（如`"acoustic-1"`）表示「本 Package 的 inference 中名为 acoustic-1 的那个」，2.4 不再接受这种写法，其完整形式是`":inference/acoustic-1"`。
+`ref`必须是一条完整的 ModuleReference，不设简写。2.3 中`imports`可以直接写裸字符串（如`"acoustic"`）表示「本 Package 的 inference 中名为 acoustic 的那个」，2.4 不再接受这种写法，其完整形式是`":inference/acoustic"`。
 
 ### Inference 模块
 
@@ -669,6 +663,8 @@ Singer 模块负责定义一个歌手的信息，以及它需要使用的其他�
 
 #### 声明文件
 
+以下 Singer 声明是本章`desc.json`中`singer/zhibin`所指向的`./singers/singer1/singer.json`，并使用同一 Package 定义的变量、inference 模块与 dependency。
+
 ```json
 {
     "interface": "org.openvpi.synthrt",
@@ -682,13 +678,13 @@ Singer 模块负责定义一个歌手的信息，以及它需要使用的其他�
     "background": "${singerAssets}/sprite.png",
     "demoAudio": "${singerAssets}/demo.wav",
     "imports": [
-        { "ref": ":inference/acoustic-1" },
+        { "ref": ":inference/acoustic" },
         {
             "ref": "bar:inference/pitch",
             "options": { "roles": ["pitch"] }
         },
         {
-            "ref": ":inference/variance-A",
+            "ref": ":inference/variance",
             "options": { "roles": ["tension", "energy"] }
         }
     ],
@@ -754,6 +750,7 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 ```
 + somedspk
   + assets
+    - readme.txt
     + singer1
       - avatar.png
       - sprite.png
@@ -763,9 +760,9 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
     + acoustic
       - inference.json
       - acoustic.onnx
-    + duration
+    + variance
       - inference.json
-      - duration.onnx
+      - variance.onnx
     - ...
   + singers
     + singer1
@@ -777,9 +774,36 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 - 推理模块放置在`inferences`的子目录中，每个子目录一个声明文件，歌手模块同理
 - 根目录固定放置`desc.json`
 
-## 3. 推理插件开发
+## 3. 插件开发
 
-在`plugins`中添加插件。
+每个 module category 都注册自己的 provider factory 与有序插件搜索路径序列。不同 category 的搜索路径彼此独立，某个 category 的 factory 只扫描该 category 的路径，不得从其他 category 的目录发现或选择插件。搜索路径由宿主配置，本规范不要求所有 category 共用某个固定的`plugins`根目录。
+
+例如，某个宿主可以配置：
+
+```text
+inference:
+  1. ./plugins/inference
+  2. /opt/synthrt/plugins/inference
+singer:
+  1. ./plugins/singer
+com.vendor.language:
+  1. ./plugins/com.vendor.language
+```
+
+其中项目内的简单目录结构可以是：
+
+```text
++ plugins
+  + inference
+    - onnx.plugin
+    - tensorrt.plugin
+  + singer
+    - diffsinger.plugin
+  + com.vendor.language
+    - dictionary.plugin
+```
+
+上述文件名与扩展名只用于说明目录归属，不规定插件的二进制格式、元数据载体或命名规则。即使两个 category 的搜索路径在文件系统中发生重叠，各自 factory 仍只能识别本 category 的插件。
 
 ### 推理解释器
 
