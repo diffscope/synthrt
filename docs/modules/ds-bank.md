@@ -186,8 +186,8 @@ enum class ResolutionState {
   （POSIX 写法如 `zh_CN`）均报 Error 并给出修正建议；扫描端仍宽松载入（
   `fromJsonValueTolerant`），但校验端不对不合规数据保持沉默。
 - `name()` 返回值用于拼接字符串/比较时，用 `.text()`（默认）或 `.text(locale)`；空判定用
-  `.isEmpty()`；构造/赋值接受 `std::string`（作为默认文本隐式转换），旧测试断言大多可从
-  `== "..."` 改为 `== 字面量`（operator== 支持字符串）或 `.text() == "..."`。
+  `.isEmpty()`；构造/赋值接受 `std::string`（作为默认文本隐式转换）；`DisplayText` 没有
+  字符串比较重载，旧断言 `name == "..."` 需改为 `name().text() == "..."`。
 
 ## 版本匹配
 
