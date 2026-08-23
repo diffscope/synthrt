@@ -15,8 +15,10 @@
 |---|---|---|
 | `contributes` 的属性名 | `inferences` / `singers`（复数，固定两种） | 贡献类别名，**集合开放**；第三方类别使用反向域名 |
 | `contributes` 的条目 | 对象，含 `id` `class` `configuration` | 对象，包含`id`与该类别自定的字段；贡献不一定是模块 |
-| 运行时要求 | 无 | `desc.json`用`runtimeLevel`声明本规范统一分配的最低运行时能力等级 |
+| 运行时要求 | 无 | `desc.json`必须用`runtimeLevel`声明本规范统一分配的最低运行时能力等级，当前为 1 |
 | JSON profile | 未规定 | UTF-8，允许注释，拒绝重复 key 与尾随逗号 |
+| 结构标识符 | Package ID 仅列出禁用字符，其他标识符未统一 | 仅限 ASCII，区分大小写并逐字节精确比较 |
+| Package 版本 | `x.y[.z.w]` | 一至四个无前导零的十进制分量，按任意精度整数比较并在右侧补零 |
 | 声明路径分隔符 | 未规定 | `/`与反斜杠均作为分隔符，由 Loader 统一规范化 |
 | 模块 ID | 写在模块自己的声明文件里 | **写在 `desc.json` 里，由 Package 赋予** |
 | `class` | 推理类型 + 解释器选择，一词两义 | 改名 `interface`，只表示「这份声明遵循哪套契约」 |
@@ -34,11 +36,11 @@
 | 可选依赖 | `dependencies[].required`，默认 `true` | **不支持**，所有依赖均为强制依赖 |
 | 依赖求解 | 候选选择与依赖图约束未规定 | 路径优先，同一路径选择最高兼容版本；允许多版本共存，禁止重复依赖、自依赖与环 |
 | Package 身份 | ID 与版本的实例共享语义未规定 | `(id, normalized-version)`唯一标识 Package，靠前搜索路径的来源遮蔽后续同身份来源 |
-| 清单解析模式 | 未规定 | `noLoad`只读取和验证清单，`load`在其结果上启动解释器；依赖求解不回溯 |
-| 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Acquire / Ready / Commit，失败只撤销本事务引用，归零递归卸载 |
+| 清单解析模式 | 未规定 | `noLoad`只读取和验证清单，`load`在成功完成`noLoad`后启动解释器；依赖求解不回溯 |
+| 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Acquire / Ready / Commit；卸载执行 quit / wait，确认停止后才释放依赖 |
 | Package 兼容承诺 | `compatVersion`只参与版本区间判断 | 明确兼容区间内必须保持的公开表面，由 Package 作者负责 |
-| DSPK 安全边界 | 未规定 | 解包严格封闭在安装目录内；运行时资源引用允许越过 Package root |
-| 模块 provider 发现 | 只规定 Inference 解释器 | 每个模块类别有专用插件搜索目录与 factory，按元数据三元组选择首个 provider |
+| DSPK 安全边界 | 未规定 | ZIP entry 文件名使用 UTF-8，解包严格封闭在安装目录内；运行时资源引用允许越过 Package root |
+| 模块 provider 发现 | 只规定 Inference 解释器 | 每个模块类别有专用插件搜索目录与 factory，目录内按文件名确定排序，再按元数据三元组选择首个 provider |
 | interface 契约 | 只有名称与 API Level | 每个 (`interface`, `level`) 必须有稳定可定位的规范及 JSON Schema |
 | 契约发现 | 未规定 | 契约材料面向开发者发布，Runtime 不按 interface 自动发现或下载 Schema |
 | category 注册 | 只有开放类别概念 | 解析前完成进程内注册，重复名称报错，Package 不能定义 category 语义 |
@@ -64,9 +66,9 @@ Package 内多使用`json`作为声明文件。声明文件中使用的相对路
 
 #### JSON profile
 
-本规范中的所有 JSON 声明文件必须使用 UTF-8。允许 UTF-8 BOM，并在解析前忽略。声明文件允许`//`行注释与`/* */`块注释，不允许尾随逗号。同一个 object 的同一层中不得出现重复 key，违反时整份声明无效。
+本规范中的所有 JSON 声明文件必须使用 UTF-8。允许 UTF-8 BOM，并在解析前忽略。声明文件允许`//`行注释与`/* */`块注释，不允许尾随逗号。同一个 object 的同一层中不得出现重复 key，违反时整份声明无效。注释标记只在 JSON 字符串之外识别，字符串内的相同字符仍是字符串内容。
 
-除上述注释扩展外，JSON 语法遵循 RFC 8259。`null`只在对应 schema 明确允许时合法。框架定义的 object 遇到未知字段时拒绝，贡献类别、interface 与 variant 定义的 object 按各自 schema 处理。实现可以设置 JSON 字节数、嵌套深度、节点数与字符串长度等资源限制，超过限制时拒绝声明。
+除上述注释扩展外，JSON 语法遵循 RFC 8259。块注释是否嵌套、行注释采用哪些行终止符及其他注释词法边界由实现使用的 JSON 解析器决定，本规范不指定固定 JSONC grammar；依赖这些边界差异的声明不保证跨实现兼容。`null`只在对应 schema 明确允许时合法。框架定义的 object 遇到未知字段时拒绝，贡献类别、interface 与 variant 定义的 object 按各自 schema 处理。实现可以设置 JSON 字节数、嵌套深度、节点数与字符串长度等资源限制，超过限制时拒绝声明。
 
 #### 声明路径
 
@@ -109,9 +111,9 @@ Package 内多使用`json`作为声明文件。声明文件中使用的相对路
     + `$version`：**清单格式版本**，当前固定为`1.0`。它描述的是本规范所定义的文件格式，与下面的`version`无关。整个 Package 内的所有声明文件共用这一个版本号，模块的声明文件不再各自携带
     + `id`：唯一标识符，由 `segment` 以 `/` 连接而成（见下文引用文法）
     + `version`：版本号，格式见下文《版本》
+    + `runtimeLevel`：加载该 Package 所需的最低运行时能力等级，必须是正整数，见下文《Runtime Level》
 + 可选字段
     + `compatVersion`：兼容到的最低版本，如果为`0.0.0.0`表示向下兼容所有，如果与`version`相同则表示不向下兼容，缺省为`version`
-    + `runtimeLevel`：加载该 Package 所需的最低运行时能力等级，见下文《Runtime Level》
     + `vendor`：提供者，可为多语言，见下文《多语言文本》
     + `copyright`：版权信息，可为多语言
     + `description`：介绍文字，可为多语言
@@ -130,16 +132,19 @@ Package 内多使用`json`作为声明文件。声明文件中使用的相对路
 
 #### 版本
 
-版本号由一至四个以`.`分隔的十进制非负整数组成：
+版本号由一至四个以`.`分隔的十进制非负整数组成。数字分量采用 Semantic Versioning 的数值标识符原则：单独的`0`合法，其他分量必须以`1`至`9`开头，不允许前导零。
 
 ```
 version   = component *3("." component)
-component = 1*DIGIT
+component = "0" / nonzero-digit *DIGIT
+nonzero-digit = %x31-39
 ```
 
-比较前在右侧补`0`至四段，各段按整数比较。`1`、`1.0`、`1.0.0`与`1.0.0.0`因此表示同一版本。
+每个分量没有固定数值上限，实现必须按任意精度非负整数比较，不得因超出机器整数范围而改变比较结果。JSON profile 的整体字符串长度等资源限制仍然适用。
 
-Package 的身份由`id`与规范化后的`version`共同确定。发布者必须保证使用同一身份发布的 Package 内容相同，至少包括`desc.json`及 Package root 内的全部文件。Package root 外部的资源不属于此内容一致承诺。相同身份却包含不同内容属于 Package 发布错误，加载器不负责读取多个来源并比较或证明其内容一致。
+比较前在右侧补`0`至四段，各段按整数比较。`1`、`1.0`、`1.0.0`与`1.0.0.0`因此表示同一版本。需要序列化规范化版本时必须输出补齐后的四个分量，且每个分量不含前导零。
+
+Package 的身份由`id`与规范化后的`version`共同确定。发布者必须保证使用同一身份发布的 Package 内容相同，包括`desc.json`、Package root 内的全部文件，以及声明直接或间接引用的 Package root 外部文件及其相对布局。发布者还必须保证这些文件在 Package 的解析、加载和使用期间不发生影响其布局、内容或语义的变化。违反上述要求属于 Package 缺陷，其运行时行为未定义；加载器不负责读取多个来源并比较或证明其内容一致，也不负责监视或诊断文件变化。
 
 Package 的`compatVersion`不得大于`version`，否则清单无效。一个版本为`version`、最低兼容版本为`compatVersion`的 Package 兼容目标版本`target`，当且仅当：
 
@@ -165,6 +170,8 @@ compatVersion <= target <= version
 Runtime Level 是由本规范维护者统一分配的正整数，表示 Package 可以依赖的核心运行时能力，不是 SynthRT 或其他产品的软件版本。每个兼容运行时声明自己支持的最高 Level，Package 的`runtimeLevel`不得高于该值。
 
 当前规范定义 Runtime Level 1，保证 Package 与 dependency、ModuleReference、`inference`与`singer`内置类别，以及模块 provider 发现机制。新增 Package 可以依赖的核心能力或内置类别时递增 Level；修复实现缺陷、增加 provider 或注册第三方类别时不递增。
+
+`runtimeLevel`是`desc.json`的必选字段，没有缺省值。当前版本的本规范只分配了 Level 1，因此当前的 conforming Package 必须写`"runtimeLevel": 1`。字段缺失、不是正整数或高于当前运行时支持的最高 Level 时，加载器必须拒绝整个 Package。
 
 `$version`负责声明文件格式，`runtimeLevel`负责运行时核心能力。第三方类别不由 Runtime Level 保证，仍然必须在宿主中实际注册。
 
@@ -245,7 +252,7 @@ Runtime Level 是由本规范维护者统一分配的正整数，表示 Package 
 
 截断后如果末尾留下 singleton，应将该 singleton 一并移除。例如`de-DE-x-goethe`依次尝试`de-DE-x-goethe`、`de-DE`、`de`，不会尝试`de-DE-x`。
 
-标签匹配**不区分大小写**。多语言对象中除`_`外的属性名必须是有效 BCP 47 标签，并且不得出现大小写折叠后相同的两个标签，例如`zh-CN`与`ZH-cn`不能同时出现，否则声明无效。书写建议遵循 BCP 47 的惯例：语言小写，文字子标签首字母大写，地区全大写，如`zh-Hans-CN`。
+标签匹配**不区分大小写**。多语言对象中除`_`外的属性名必须是按 RFC 5646 语法良构的 BCP 47 标签，并且不得出现大小写折叠后相同的两个标签，例如`zh-CN`与`ZH-cn`不能同时出现，否则声明无效。本规范不要求根据某一版本的 IANA Language Subtag Registry 验证标签，不替换 deprecated subtag 或 Preferred-Value，也不执行除此处大小写无关比较之外的 canonicalization。书写建议遵循 BCP 47 的惯例：语言小写，文字子标签首字母大写，地区全大写，如`zh-Hans-CN`。
 
 > 2.3 中这里写的是`zh_CN`、`ja_JP`，那是 POSIX 的 locale 写法。改用 BCP 47 有两个原因：分隔符本应是连字符，而且 POSIX 那套表达不了文字子标签，区分不了`zh-Hans`与`zh-Hant`。
 
@@ -264,7 +271,9 @@ Runtime Level 是由本规范维护者统一分配的正整数，表示 Package 
 
 某个多语言字段的值是文件路径时，**每一个本地化的值各自解析**，基路径都是该声明文件所在的目录。
 
-### ModuleReference 文法
+### 结构标识符与 ModuleReference 文法
+
+Package ID、category、contribution ID、`interface`与`variant`统称结构标识符。结构标识符只允许下述文法中的 ASCII 字符，区分大小写，并按 UTF-8 中等同的 ASCII 字节序列精确比较；不得执行 Unicode normalization、locale 相关转换或大小写折叠。BCP 47 语言标签不适用本规则，仍按上文规定进行大小写无关匹配。
 
 ModuleReference 指向一个模块。外部 ModuleReference 以 Package ID 绑定当前 Package 已经解析出的直接依赖，再用`:category/contrib-id`定位其中的模块；引用当前 Package 的模块时省略 Package ID，但必须保留开头的`:`。
 
@@ -273,8 +282,11 @@ module-reference  = package-id ":" category "/" contrib-id
                   / ":" category "/" contrib-id
 
 package-id    = segment *( "/" segment )
-category      = segment *( "." segment )
+category      = dotted-id
 contrib-id    = segment
+interface     = dotted-id
+variant       = dotted-id
+dotted-id     = segment *( "." segment )
 segment       = 1*( ALPHA / DIGIT / "_" / "-" )
 ```
 
@@ -298,6 +310,8 @@ vendor/sample:singer/main
 
 ##### 安全解包
 
+ZIP entry 文件名必须使用 UTF-8，安装器不得按 CP437、系统代码页或 locale 解码文件名。无法得到有效 UTF-8 文件名的 entry 使整个 Package 无效。
+
 ZIP 中的 entry 路径必须使用`/`作为分隔符，并满足以下要求：
 
 - 不得包含 U+005C REVERSE SOLIDUS（反斜杠）
@@ -316,6 +330,8 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 安装器必须同时在解压前和流式解压过程中执行实现定义的资源限制，至少包括 entry 数量、单文件与总解压大小、路径长度和压缩比。不能只信任 ZIP header 中声明的大小。加密 ZIP、多卷 ZIP、CRC 校验失败、数据截断或实际大小与 header 不符时，安装器必须拒绝整个 Package。
 
+除 UTF-8 文件名和上述安全后置条件外，本规范不定义 DSPK 专用 ZIP feature profile。实现可以自行决定支持的 compression method、ZIP64、data descriptor、Unicode extra field 及其他 ZIP 特性；不支持某项特性时可以拒绝整个 Package，不要求不同安装器接受完全相同的 ZIP 功能集合。ZIP 实现判定归档损坏或不同元数据互相矛盾时，安装器必须拒绝整个 Package。无论使用哪些 ZIP 特性，成功安装的结果都必须满足本节全部路径、entry 类型、资源限制和原子安装规则。
+
 上述路径封闭规则只适用于 ZIP 解包。声明文件中的相对资源路径仍以声明文件所在目录为基路径，允许包含`..`，规范化后可以位于 Package root 之外。模型格式内部的二级引用同样允许访问 Package root 之外的路径。定义为相对路径的字段仍不得使用绝对路径，所有访问均受宿主进程的操作系统权限约束。
 
 > **安全边界**
@@ -331,9 +347,11 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 清单解析器提供两种模式：
 
 - `noLoad`：读取依赖图中的`desc.json`和模块声明文件，验证框架公共 envelope 与 category 条目基础结构，确认 category 已注册，解析 ModuleReference，并从插件元数据中选择 provider。此模式不得加载插件、实例化解释器或取得模型、设备等运行时资源。
-- `load`：在成功的`noLoad`结果上加载插件、实例化解释器并取得运行时资源。
+- `load`：在成功完成`noLoad`后加载插件、实例化解释器并取得运行时资源。
 
-`noLoad`不根据 interface 名称发现或下载契约 Schema，也不验证 provider 是否真正遵守契约。`exports`与`options`在此阶段只读取为 JSON，具体契约语义由参与该契约的实现负责；`configuration`的格式与版本由选中的 variant provider 在`load`阶段验证。
+本规范不定义可持久化或不可变的 LoadPlan，也不要求`load`复用`noLoad`读取的文件快照。实现可以缓存解析结果，也可以重新读取或解析 Package 及其 root 外部引用；只要 Package 作者履行同身份内容与使用期间稳定的承诺，两种实现的输入就应等价。实现不必检测变化或报告`StalePlan`。
+
+`noLoad`不根据 interface 名称发现或下载契约 Schema，也不验证具体契约。`exports`、`options`与`configuration`在此阶段只读取为 JSON，具体契约语义只能由选中的 provider 在`load`阶段验证。
 
 依赖求解始终先使用`noLoad`读取候选的`desc.json`。一个 Package 只有同时满足以下条件才是某个 dependency edge 的候选：
 
@@ -374,29 +392,42 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 同一个 Loader 上改变 Package 实例状态的 load 与 release 事务必须串行执行。一次 load 事务覆盖请求的根 Package，以及本次依赖闭包中尚未 Commit 的 Package 实例。事务依次执行：
 
 1. **noLoad**：无副作用地完成依赖求解、清单解析、ModuleReference 绑定与 provider 元数据选择。
-2. **Acquire**：为根 handle 和每条 dependency edge 取得临时强引用，加载插件，创建本次所需的新 Package 与模块实例，并取得运行时资源。已经 Commit 的实例只增加临时引用，不重复 Acquire。
-3. **Ready**：所有新模块 Acquire 成功后，根据`noLoad`阶段解析的 ModuleReference 建立运行时连接。Ready 可以读取已 Commit 实例和其他模块的 Acquire 产物，不得依赖其他新模块的 Ready 产物。
-4. **Commit**：全部 Ready 成功后，原子发布本次新建的 Package 实例。根 Package 的临时引用转交给返回的 load handle，各 dependency 临时引用转交给已 Commit 的 dependency edge。
+2. **Acquire**：为根 handle 和每条 dependency edge 取得临时强引用，加载插件，并创建本次所需的新 Package 与模块实例。每个模块的 provider 必须验证该模块自身的声明、`exports`与`configuration`，验证成功后才完成该模块的 Acquire 并取得其运行时资源。已经 Commit 的实例只增加临时引用，不重复 Acquire。
+3. **Ready**：所有新模块 Acquire 成功后，被引用目标的 provider 必须验证每个 import 条目的`options`，importing module 的 provider 必须验证有序 imports 集合是否满足自身对数量、顺序、目标 interface 与 level、能力及组合关系的要求；随后根据`noLoad`阶段解析的 ModuleReference 为每个条目创建事务私有的 ImportBinding。Ready 可以读取已 Commit 实例和其他模块的 Acquire 产物，不得依赖其他新模块的 Ready 产物，也不得使未 Commit 的 binding 或连接状态对任何运行时读取者可见。
+4. **Commit**：全部 Ready 成功后，原子发布本次新建的 Package 实例及其 ImportBinding。根 Package 的临时引用转交给返回的 load handle，各 dependency 临时引用转交给已 Commit 的 dependency edge。
 
-Commit 前，本次新建的实例不得对其他 load 调用可见。Commit 后，调用方得到一个持有根 Package 强引用的 handle。
+Commit 前，本次新建的实例及其 ImportBinding 不得对其他 load 调用或运行时读取者可见。Commit 后，调用方得到一个持有根 Package 强引用的 handle。
+
+Package 中每个模块都必须完成上述 provider 验证，不论它是否被其他模块 import。任何声明、`exports`、`configuration`、`options`或 imports 集合验证失败，都必须使整次加载失败并 rollback；加载器不得 Commit 含有未验证模块或契约错误的 Package，也不得回退到其他 provider。本规范不增加独立的 Validate 阶段。
+
+Ready 不得通过修改已 Commit 目标模块的公开全局状态来建立连接。如果 provider 必须修改共享目标，其接口必须提供等价于 prepare / commit / abort 的事务机制，或使用覆盖运行时读取者的同步机制，保证修改在 Commit 前不可见且 rollback 后不留残余状态。
 
 non-module contribution 在`noLoad`中由 category parser 完成解析，且不得产生运行时副作用。需要 Acquire、Ready 或运行时资源的 contribution 必须注册为 module category。
 
 ##### 失败与 rollback
 
-Acquire 或 Ready 的每个成功步骤都必须记录在事务完成日志中。当前失败对象负责清理自己的半初始化资源，随后加载器按实际完成日志的反序撤销本事务成功的步骤，并释放本事务取得的全部临时强引用。
+Acquire 或 Ready 的每个成功步骤都必须记录在事务完成日志中。当前失败对象及完成日志中的运行时实例必须按下述 quit / wait 规则停止。加载器只对已经成功 wait 的实例按实际完成日志的反序撤销本事务成功的步骤，并释放对应的临时强引用。
 
-释放临时引用后，引用计数仍大于零的已有实例保持加载；引用计数降为零的实例按其成功加载步骤的反序释放模块与运行时资源，并继续释放其 dependency 引用。rollback 只撤销本事务增加的引用和创建的资源，不得撤销其他 handle、其他已 Commit Package 或其他 dependency edge 持有的引用。
+ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先销毁 importing module 拥有的全部 ImportBinding，再销毁 importing module，并在最后释放相应的 dependency edge。
+
+释放临时引用后，引用计数仍大于零的已有实例保持加载；引用计数降为零的实例按下述卸载规则停止，成功后按其成功加载步骤的反序释放模块与运行时资源，并继续释放其 dependency 引用。rollback 只撤销本事务增加的引用和创建的资源，不得撤销其他 handle、其他已 Commit Package 或其他 dependency edge 持有的引用。
 
 每个成功步骤只能清理一次。已经按事务日志清理完成的未 Commit 实例在引用归零时只移除实例记录，不得再次释放同一资源。
 
-最初导致事务失败的错误是 primary error。rollback 或资源清理错误作为附加诊断报告，不得覆盖 primary error。清理操作必须幂等。
+最初导致事务失败的错误是 primary error。rollback、quit、wait 或资源销毁错误作为附加诊断报告，不得覆盖 primary error。停止与销毁操作必须幂等。
 
 ##### release 与卸载
 
-释放 load handle 时，根 Package 的外部强引用减一。实例总强引用计数降为零时，加载器将其从可见实例表中移除，按成功加载步骤的反序释放其模块和运行时资源，再释放它持有的 dependency 强引用；由此可以递归卸载不再被任何 handle 或 Package 使用的依赖。
+释放 load handle 时，根 Package 的外部强引用减一。实例总强引用计数降为零时，加载器先将其从可见实例表中移除，再依次执行以下两个停止原语：
 
-清理失败不恢复引用计数，也不重新发布已经移除的实例，其错误作为卸载诊断报告。依赖图无环保证递归卸载能够终止。
+1. **quit**：请求实例停止接收新工作，取消其注册的 callback，并通知其拥有的线程、任务及其他异步活动退出。quit 可以在活动尚未完全退出时返回，不构成已经停止的证明。
+2. **wait**：等待上述活动及所有 in-flight 调用结束。wait 成功返回必须保证由该 Package 实例产生的所有执行活动均已停止，其运行时资源均已释放或与实例安全脱离，此后不再通过线程、任务、session、import binding、callback、导出对象或调用访问该实例、provider plugin 与 dependency。调用方仍持有的运行时 handle 必须已经失效，后续操作只能返回错误，不得再次进入相关 Package 或 plugin 代码。Runtime API 负责实现该保证，本规范不规定各类运行时对象内部使用的引用计数或保活机制。
+
+只有 wait 成功后，加载器才能按成功加载步骤的反序销毁该实例的模块和运行时资源，再释放它持有的 dependency 与 provider plugin 强引用；由此可以递归卸载不再被任何 handle 或 Package 使用的依赖。资源销毁发生在已经停止之后，其失败作为卸载诊断报告，不阻止释放其他已经确认安全的资源与引用。
+
+如果 quit 报错，加载器仍可调用 wait，以 wait 的后置条件判断实例是否已经安全停止。如果 wait 失败或超时，实例进入不可见的`Quarantined`状态：它不重新发布，但仍占据原 Package 身份，并保留自身资源、dependency 强引用与 provider plugin 强引用。Loader 必须拒绝重新加载相同身份的 Package，以免隔离的旧实例与新实例并存。实现可以重试 quit / wait；若直到进程退出仍无法成功，则允许将这些资源与引用保留至进程退出，不能继续递归卸载其依赖。
+
+rollback 中未 Commit 的实例无法成功 wait 时适用相同的`Quarantined`规则。加载事务仍以原 primary error 失败，隔离状态作为附加诊断报告。依赖图无环保证正常递归卸载能够终止。
 
 #### 简单方案
 
@@ -480,7 +511,11 @@ Acquire 或 Ready 的每个成功步骤都必须记录在事务完成日志中�
 
 每个模块类别拥有各自专用的 provider factory 和有序插件搜索路径。一个类别的 factory 只发现和创建该类别的 provider，不同类别的 provider 不在同一个搜索目录或候选集合中并列比较。category 因此是选择 factory 与搜索路径的外部上下文，不属于 provider 的匹配键。
 
-模块 provider 必须在无需加载插件即可读取的插件元数据中声明它支持的`interface`、`variant`和`level`。`noLoad`阶段先根据模块 category 取得对应 factory，再按该类别的插件搜索顺序扫描元数据，选择第一个三元组全部匹配的 provider。后续出现的相同三元组不参与选择。
+模块 provider 必须在无需加载插件即可读取的插件元数据数组中声明它支持的`interface`、`variant`和`level`。同一插件的数组中不得重复声明相同的 (`interface`, `variant`, `level`) 三元组，重复时整个插件元数据无效。
+
+`noLoad`阶段先根据模块 category 取得对应 factory，并按用户给出的顺序扫描该类别的插件搜索目录。同一目录中的插件按 basename 的 Unicode 码点升序进行区分大小写的比较，插件发现顺序不得采用文件系统枚举顺序或 locale 排序。加载器按由目录顺序和目录内文件名顺序形成的全序扫描元数据，选择第一个三元组全部匹配的 provider；后续出现的相同三元组不参与选择。
+
+本规范不要求插件元数据声明宿主 API 或 ABI compatibility，也不在 provider 选择阶段检查二进制兼容性。插件部署者必须保证插件二进制与当前 Runtime 兼容；选中的插件无法加载或存在二进制不兼容时，必须报告严重加载错误并使整次加载失败，不得尝试后续 provider。
 
 `configuration`及其中由 variant 自行定义的格式版本不参与静态 provider 选择。选中的 provider 在`load`阶段发现不支持该`configuration`时，必须报告错误并使加载失败，不得尝试同类别搜索路径中的后续 provider。
 
@@ -526,6 +561,8 @@ Acquire 或 Ready 的每个成功步骤都必须记录在事务完成日志中�
     + `options`：提供给被引用模块的选项，其语法由**被引用模块**的`interface`与`level`规定
 
 `imports`是由零至多个条目组成的有序数组。加载器必须保持声明顺序，不得排序或重排。每个条目都是独立的导入实例，相同`ref`可以重复出现，加载器不得自动合并或去重。
+
+每个`imports`数组项必须恰好产生一个独立的 ImportBinding，由 importing module 拥有。ImportBinding 保存该条目的`ref`、`options`及其到目标模块的运行时连接；多个条目即使引用同一个目标模块，也不得共享或覆盖彼此的 binding 状态。目标模块实例可以共享，但不得将某一 import 的`options`作为目标模块的全局配置写入。
 
 公共格式不提供本地 slot。导入项的用途通过被引用模块契约规定的`options`表达。导入模块需要多少项、某类导入是否必选，以及某种重复是否符合具体实现要求，由导入模块的`variant`验证。
 
@@ -684,7 +721,7 @@ Inference provider 使用`inference`类别专用的插件搜索目录和 factory
 - `variant`：负责的变体
 - `apiLevel`：负责的那一个 API Level
 
-插件元数据必须能在不加载插件的情况下读取。Inference factory 按`inference`类别的插件搜索顺序扫描元数据，选择第一个与模块的`interface`、`variant`和`level`全部匹配的解释器条目。后续出现的相同三元组不参与选择。
+插件元数据必须能在不加载插件的情况下读取。同一插件的解释器条目数组不得重复声明相同的 (`interface`, `variant`, `apiLevel`) 三元组。Inference factory 按上文规定的目录顺序与目录内文件名顺序扫描元数据，选择第一个与模块的`interface`、`variant`和`level`全部匹配的解释器条目。后续出现的相同三元组不参与选择。
 
 选中条目后，加载器才加载对应插件并创建派生于`InferenceInterpreter`的解释器。
 
