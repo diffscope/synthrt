@@ -92,6 +92,8 @@ Runtime 提供两个保留变量：
 - `${root}`：Package root，即`desc.json`所在目录
 - `${dir}`：当前声明文件所在目录；在`desc.json`中与`${root}`相同
 
+Runtime 为`${root}`和`${dir}`生成的值必须是 fully-qualified、词法规范化且能由本规范路径字符串无损表示的路径。Package root 或声明文件目录无法满足该要求时，Loader 必须拒绝该 Package 来源。
+
 `root`与`dir`不得在`vars`中重定义。自定义变量名必须匹配`var-name = (ALPHA / "_") *(ALPHA / DIGIT / "_")`，只允许 ASCII 并区分大小写。
 
 `desc.json.vars`定义 Package 变量，对该 Package 的`desc.json`及全部模块声明可见。模块声明中的`vars`定义 Module 变量，只对当前模块声明可见。Module 变量查找时先查当前模块，再查 Package，可以覆盖同名 Package 变量，但不会影响其他模块。Package 变量自身始终在 Package 作用域解析，不因 Module 的同名覆盖而重新绑定。这里的作用域只决定变量查找，不赋予变量值路径基准。
@@ -431,7 +433,9 @@ Commit 是新建 Package 实例从不可执行状态进入可执行状态的唯�
 
 ImportBinding 的激活状态与 owning Package 一致：Ready 创建的 binding 保持关闭，Commit 时随 Package 原子打开，允许 importer 与 target 通过它双向调用；owning Package 进入`Stopping`时，必须先原子关闭 binding 双方发起新调用和 callback 的入口。未 Commit 且从未激活的 binding 可以在 rollback 中直接销毁。
 
-provider 必须保证每项运行时活动归属于具体的 Package 实例，其中通过 ImportBinding 产生的活动还必须归属于具体 binding，并提供 ImportBinding 及其调用级的停止隔离。关闭一条 binding 后，provider 必须能够停止、取消或隔离归属于该 binding 的全部既有活动，使 owning Package 的 wait 可以在不永久破坏共享 target 上其他仍有效 binding 与活动的前提下完成。在确认这些活动不可能再访问 owning Package 或该 binding 前，不得销毁二者。provider 可以通过取消、迁移、重建、恢复或其他机制满足该结果，本规范不规定具体机制。不能满足该要求的 provider 不得让生命周期相互独立的 ImportBinding 共享同一个不可分割的故障单元；违反本要求的 provider 不合法，后续行为未定义。
+provider 必须保证每项运行时活动归属于具体的 Package 实例，其中通过 ImportBinding 产生的活动还必须归属于具体 binding，并提供 ImportBinding 及其调用级的停止隔离。关闭一条 binding 后，provider 必须能够停止、取消或隔离归属于该 binding 的全部既有活动，使 owning Package 的 wait 可以在不永久破坏共享 target 上其他仍有效 binding 与活动的前提下完成。在确认这些活动不可能再访问 owning Package 或该 binding 前，不得销毁二者。
+
+隔离允许底层计算继续运行，但必须原子结束它对原 Package 与 binding 的归属，并将 continuation 重新归属于 target 或 provider 执行域。continuation 必须独立持有继续运行所需的资源，不得再访问原 Package、binding 或原 Package 即将释放的 dependency edge；完成重新归属后，它不再属于原 Package 的 wait 集合。provider 级 scheduler、heartbeat 及其他执行域基础设施不归属于任一 Package，但不得在 Package 或 binding 归属结束后继续保存其指针或借用资源。provider 可以通过取消、迁移、重建、恢复或其他机制满足该结果，本规范不规定具体机制。不能满足该要求的 provider 不得让生命周期相互独立的 ImportBinding 共享同一个不可分割的故障单元；违反本要求的 provider 不合法，后续行为未定义。
 
 Package 中每个模块都必须完成上述 provider 验证，不论它是否被其他模块 import。任何声明、`exports`、`configuration`、`options`或 imports 集合验证失败，都必须使整次加载失败并 rollback；加载器不得 Commit 含有未验证模块或契约错误的 Package，也不得回退到其他 provider。本规范不增加独立的 Validate 阶段。
 
@@ -464,7 +468,7 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 关闭 ImportBinding 不得立即销毁它。关闭前已经通过 binding 进入 importer 或 target 的双向调用可以继续退出，Package 的 wait 必须等待 owning Package 全部 binding 上的这些调用结束。只有 wait 成功，或下述执行域终止流程确认相关代码不可能继续执行后，加载器才能销毁 binding，再销毁 importing module，最后释放相应的 dependency edge。
 
 1. **quit**：请求实例停止接收新工作，取消其注册的 callback，并通知其拥有的线程、任务及其他异步活动退出。quit 可以在活动尚未完全退出时返回，不构成已经停止的证明。
-2. **wait**：等待上述活动、全部 ImportBinding 上已经进入的双向调用及其他所有 in-flight 调用结束。wait 成功返回只证明实例已经静止：由该 Package 实例产生的所有执行活动均已停止，此后不再通过线程、任务、session、import binding、callback、导出对象或调用访问该实例、provider plugin 与 dependency。wait 不负责销毁仍归实例所有的模块或运行时资源。调用方仍持有的运行时 handle 必须已经失效，后续操作只能返回错误，不得再次进入相关 Package 或 plugin 代码。Runtime API 负责实现该保证，本规范不规定各类运行时对象内部使用的引用计数或保活机制。
+2. **wait**：等待上述活动、全部 ImportBinding 上已经进入的双向调用及其他所有仍归属于该 Package 或其 binding 的 in-flight 调用结束。wait 成功返回只证明实例已经静止：当前仍归属于该 Package 实例的所有执行活动均已停止，允许继续运行的隔离 continuation 已按上文完成重新归属；此后任何活动都不得再代表该 Package，通过线程、任务、session、import binding、callback、导出对象或调用访问该 Package 实例、其 binding、handle 或 dependency。隔离 continuation 只能访问由新 owner 独立持有的 target、provider 与其他资源。wait 不负责销毁仍归实例所有的模块或运行时资源。调用方仍持有的运行时 handle 必须已经失效，后续操作只能返回错误，不得再次进入相关 Package 代码。Runtime API 负责实现该保证，本规范不规定各类运行时对象内部使用的引用计数或保活机制。
 
 只有 wait 成功，或下述执行域终止流程确认相关代码不可能继续执行后，加载器才能按成功加载步骤的反序销毁该实例的模块和运行时资源，再释放它持有的 dependency 强引用；由此可以递归卸载不再被任何 handle 或 Package 使用的依赖。资源销毁发生在已经停止之后，其失败作为卸载诊断报告，不阻止释放其他已经确认安全的资源与引用。
 
@@ -472,7 +476,7 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 每个 provider 的执行活动都属于一个由 Runtime 决定的执行域。执行域可以是当前宿主进程，也可以是由宿主管理的跨进程 provider。quit 返回错误只作为卸载诊断，Runtime 仍必须执行最终 wait barrier；只要 wait 成功证明实例已经静止，加载器就按正常路径 teardown。只有 wait 失败、超时、不可用或根本无法执行，因而最终 barrier 无法证明实例已经停止时，Runtime 才必须终止包含该实例全部代码与活动的最小故障隔离单元，并等待底层系统确认该单元已经终止；在确认前不得销毁实例、释放 dependency 引用或报告卸载成功。
 
-跨进程 provider 可以在一个 worker 或一组节点中承载多个生命周期相互独立的实例，但必须提供实例级以及上述 ImportBinding 和调用级故障隔离，或提供等价的恢复能力。一个实例、binding 或调用的停止、卸载、超时或内部失败不得导致其他仍有有效引用的实例或 binding 永久失效。Runtime 不得为了清理其中一个而终止仍承载其他存活实例或 binding 的唯一可用 worker。provider 可以使用独立 worker、多 worker、多节点、心跳、重新握手、请求重发、状态恢复、实例重建或其他机制满足该结果，本规范不规定具体机制。worker 或节点整体退出后，provider 必须恢复其中仍有有效引用的其他实例与 binding；恢复期间如何报告暂时不可用由 Runtime API 规定，不得把这些实例或 binding 视为已经卸载。
+跨进程 provider 可以在一个 worker 或一组节点中承载多个生命周期相互独立的实例，但必须提供实例级以及上述 ImportBinding 和调用级故障隔离，或提供等价的恢复能力。一个实例、binding 或调用的停止、卸载、超时或内部失败不得导致其他仍有有效引用的实例，或 owning Package 仍为`Running`的 active binding 永久失效。Runtime 不得为了清理其中一个而终止仍承载其他存活实例或 active binding 的唯一可用 worker。provider 可以使用独立 worker、多 worker、多节点、心跳、重新握手、请求重发、状态恢复、实例重建或其他机制满足该结果，本规范不规定具体机制。worker 或节点整体退出后，provider 必须恢复其中仍有有效引用的其他实例，以及 owning Package 仍为`Running`且故障前为 active 的 binding；`Stopping`、never-active 或已经关闭待 drain 的 binding 不得重新打开。恢复期间如何报告暂时不可用由 Runtime API 规定，不得把应恢复的实例或 binding 视为已经卸载。
 
 不能满足上述隔离或恢复保证的跨进程 provider，不得在同一故障域内承载生命周期相互独立的多个实例。若 provider 与 Runtime 同处宿主进程，或实例的最小故障隔离单元就是宿主进程，则无法证明实例停止时必须 fail-fast 终止宿主进程，不得尝试在同一进程中恢复、继续加载 Package 或假装卸载成功。依赖图无环保证正常递归卸载能够终止。
 
@@ -509,10 +513,12 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
     + `variant`：该契约下的哪一种实现变体
 + 可选字段
     + `vars`：当前模块私有的字符串变量，见上文《字符串变量》
-    + `name`：模块名称，可为多语言，如为空则与 Package 赋予它的`id`一致
+    + `name`：模块名称，可为多语言；字段缺失时等价于`{"_": id}`
     + `exports`：公开自己支持的功能集合
     + `configuration`：本模块自身的参数
     + `imports`：本模块引用的其他模块
+
+`name`字段显式存在时必须按《多语言文本》原样保留，包括空字符串和 value 为空的 map；Runtime 不根据任何语言项是否为空执行回退。因而`"name": ""`等价于`"name": {"_": ""}`，不会替换为模块`id`。
 
 模块声明文件的内容分三层：
 
@@ -646,7 +652,7 @@ Inference 模块负责执行某一项参数的推理任务，承担了最底层�
     "name": "Zhibin - Variance",
     "exports": {
         "predictions": [
-            "breathiness", "duration"
+            "tension", "energy"
         ]
     },
     "configuration": {
