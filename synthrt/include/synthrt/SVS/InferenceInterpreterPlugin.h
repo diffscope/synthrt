@@ -1,31 +1,19 @@
 #ifndef SYNTHRT_INFERENCEINTERPRETERPLUGIN_H
 #define SYNTHRT_INFERENCEINTERPRETERPLUGIN_H
 
-#include <synthrt/Plugin/Plugin.h>
-#include <synthrt/SVS/InferenceInterpreter.h>
+#include <synthrt/Core/ContribInterpreterPlugin.h>
 
 namespace srt {
 
-    class InferenceInterpreterPlugin : public Plugin {
+    /// The plugin extension point used by the \c inference category.
+    class InferenceInterpreterPlugin : public ContribInterpreterPlugin {
     public:
-        InferenceInterpreterPlugin() = default;
-        ~InferenceInterpreterPlugin() = default;
-
         static constexpr const char *IID = "org.openvpi.InferenceInterpreter";
 
-        const char *iid() const override {
-            return IID;
-        }
+        ~InferenceInterpreterPlugin() override = default;
 
-    public:
-        /// Builds an interpreter and hands over the only reference to it.
-        ///
-        /// \note Unique rather than shared, so the caller decides whether it ends up with one
-        ///       owner or several. A factory has no business making that call for it.
-        virtual UNO<InferenceInterpreter> create() = 0;
-
-    public:
-        STDC_DISABLE_COPY(InferenceInterpreterPlugin)
+    protected:
+        InferenceInterpreterPlugin() = default;
     };
 
 }

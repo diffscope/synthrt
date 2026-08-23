@@ -51,6 +51,7 @@ namespace srt {
             Import &operator=(const Import &) = delete;
 
             friend class PackageData;
+            friend class PackageLoader;
             friend class ContribSpec;
         };
 

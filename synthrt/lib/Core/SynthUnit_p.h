@@ -5,6 +5,7 @@
 
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -17,12 +18,13 @@ namespace srt {
     class SynthUnit::Impl {
     public:
         bool packageLoadingBegun = false;
+        mutable std::recursive_mutex loadMutex;
         ContribPluginFactory pluginFactory;
         std::vector<std::filesystem::path> packagePaths;
         std::map<std::string, std::vector<std::filesystem::path>, std::less<>> pluginPaths;
         std::map<std::string, std::unique_ptr<ContribCategory>, std::less<>> categories;
         std::map<std::string,
-                 std::map<stdc::VersionNumber, std::shared_ptr<PackageData>, std::less<>>,
+                 std::map<stdc::VersionNumber, std::weak_ptr<PackageData>, std::less<>>,
                  std::less<>>
             packages;
     };

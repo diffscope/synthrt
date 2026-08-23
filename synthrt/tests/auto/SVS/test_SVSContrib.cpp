@@ -1,0 +1,115 @@
+#include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <memory>
+#include <string>
+
+#include <synthrt/Core/PackageHandle.h>
+#include <synthrt/Core/SynthUnit.h>
+#include <synthrt/SVS/InferenceContrib.h>
+#include <synthrt/SVS/InferenceInterpreterPlugin.h>
+#include <synthrt/SVS/SingerContrib.h>
+#include <synthrt/SVS/SingerProviderPlugin.h>
+
+#define BOOST_TEST_MAIN
+#include <boost/test/unit_test.hpp>
+
+namespace fs = std::filesystem;
+
+namespace {
+
+    class TemporaryDirectory {
+    public:
+        TemporaryDirectory() {
+            const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+            m_path = fs::temp_directory_path() / ("synthrt-svs-auto-" + std::to_string(stamp));
+            fs::create_directories(m_path);
+        }
+
+        ~TemporaryDirectory() {
+            std::error_code error;
+            fs::remove_all(m_path, error);
+        }
+
+        const fs::path &path() const {
+            return m_path;
+        }
+
+    private:
+        fs::path m_path;
+    };
+
+    void writeText(const fs::path &path, const std::string &text) {
+        fs::create_directories(path.parent_path());
+        std::ofstream stream(path, std::ios::binary);
+        BOOST_REQUIRE(stream.is_open());
+        stream << text;
+        BOOST_REQUIRE(stream.good());
+    }
+
+}
+
+BOOST_AUTO_TEST_SUITE(test_SVSContrib)
+
+BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
+    TemporaryDirectory temporary;
+    const auto root = temporary.path();
+    writeText(root / "desc.json",
+              R"({
+                  "$version":"1.0",
+                  "id":"voice",
+                  "version":"1",
+                  "runtimeLevel":1,
+                  "contributes":{
+                    "inference":[{"id":"acoustic","path":"modules/inference.json"}],
+                    "singer":[{"id":"singer1","path":"modules/singer.json"}]
+                  }
+              })");
+    writeText(root / "modules" / "inference.json",
+              R"({
+                  "interface":"org.openvpi.Acoustic",
+                  "variant":"default",
+                  "level":1,
+                  "exports":{},
+                  "configuration":{}
+              })");
+    writeText(root / "modules" / "singer.json",
+              R"({
+                  "interface":"org.openvpi.Singer",
+                  "variant":"diffsinger",
+                  "level":1,
+                  "avatar":{"_":"../assets/singer1/avatar.png","zh-CN":"../assets/singer1/avatar-zh.png"},
+                  "background":"../assets/singer1/background.png",
+                  "demoAudio":"../assets/singer1/demo.wav",
+                  "exports":{},
+                  "configuration":{}
+              })");
+
+    srt::SynthUnit unit;
+    BOOST_REQUIRE(unit.addCategory(std::make_unique<srt::InferenceCategory>()));
+    BOOST_REQUIRE(unit.addCategory(std::make_unique<srt::SingerCategory>()));
+    auto opened = unit.openPackage(root, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(opened);
+    auto package = opened.take();
+
+    auto *inferenceContribution = package.contribution("inference", "acoustic");
+    BOOST_REQUIRE(inferenceContribution);
+    auto *inference = inferenceContribution->as<srt::InferenceSpec>();
+    BOOST_REQUIRE(inference);
+    BOOST_CHECK(inference->declarationPath() == root / "modules" / "inference.json");
+    BOOST_CHECK_EQUAL(inference->interface(), "org.openvpi.Acoustic");
+
+    auto *singerContribution = package.contribution("singer", "singer1");
+    BOOST_REQUIRE(singerContribution);
+    auto *singer = singerContribution->as<srt::SingerSpec>();
+    BOOST_REQUIRE(singer);
+    BOOST_CHECK_EQUAL(singer->avatar().text(),
+                      (root / "assets" / "singer1" / "avatar.png").string());
+    BOOST_CHECK_EQUAL(singer->avatar().text("zh-CN"),
+                      (root / "assets" / "singer1" / "avatar-zh.png").string());
+    BOOST_CHECK_EQUAL(unit.category("inference")->interpreterIid(),
+                      srt::InferenceInterpreterPlugin::IID);
+    BOOST_CHECK_EQUAL(unit.category("singer")->interpreterIid(), srt::SingerProviderPlugin::IID);
+}
+
+BOOST_AUTO_TEST_SUITE_END()

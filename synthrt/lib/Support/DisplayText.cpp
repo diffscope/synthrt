@@ -45,49 +45,6 @@ namespace srt {
 
     DisplayText::~DisplayText() = default;
 
-    Expected<DisplayText> DisplayText::fromJsonValue(const JsonValue &value) {
-        if (value.isString()) {
-            return DisplayText(value.toString());
-        }
-
-        if (!value.isObject()) {
-            return Error{
-                Error::InvalidFormat,
-                R"(must be a string or an object)",
-            };
-        }
-
-        const auto &obj = value.toObject();
-        auto itDefault = obj.find("_");
-        if (itDefault == obj.end()) {
-            return Error{
-                Error::InvalidFormat,
-                R"(must contain "_" field)",
-            };
-        }
-        if (!itDefault->second.isString()) {
-            return Error{
-                Error::InvalidFormat,
-                R"("_" field must be a string)",
-            };
-        }
-
-        std::map<std::string, std::string> texts;
-        for (const auto &item : obj) {
-            if (!item.second.isString()) {
-                return Error{
-                    Error::InvalidFormat,
-                    R"(field ")" + item.first + R"(" must be a string)",
-                };
-            }
-            if (item.first != "_") {
-                texts[item.first] = item.second.toString();
-            }
-        }
-
-        return DisplayText(itDefault->second.toString(), texts);
-    }
-
     const std::string &DisplayText::text() const {
         stdc_impl_t;
         return impl.defaultText;

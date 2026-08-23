@@ -44,6 +44,8 @@ namespace srt {
 
         const std::string &id() const;
         stdc::VersionNumber version() const;
+        stdc::VersionNumber compatVersion() const;
+        int runtimeLevel() const;
 
         /// Returns whether this Package completed loading and was committed.
         bool isLoaded() const;
@@ -56,17 +58,18 @@ namespace srt {
         DisplayText description() const;
         DisplayText vendor() const;
         DisplayText readme() const;
-        DisplayText license() const;
+        DisplayText copyright() const;
         const std::string &url() const;
 
         /// Returns the contributions declared under \a category.
         ///
-        /// The returned pointers remain valid while the corresponding Package remains loaded.
+        /// The returned pointers remain valid while a handle retains the corresponding Package.
         std::vector<ContribSpec *> contributions(std::string_view category) const;
 
         /// Finds a contribution by category and Package local identifier.
         ///
-        /// Returns \c nullptr when this Package does not contain the requested contribution.
+        /// Returns \c nullptr when this Package does not contain the requested contribution. The
+        /// returned pointer remains valid while a handle retains the corresponding Package.
         ContribSpec *contribution(std::string_view category, std::string_view id) const;
 
         /// Resolves \a reference against this Package and its bound direct dependencies.

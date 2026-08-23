@@ -26,7 +26,7 @@ namespace srt {
 
     public:
         const InferenceSpec *spec() const;
-        SynthUnit *SU() const;
+        SynthUnit &synthUnit() const;
 
     protected:
         class Impl;

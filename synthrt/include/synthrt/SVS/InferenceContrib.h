@@ -1,118 +1,43 @@
 #ifndef SYNTHRT_INFERENCECONTRIB_H
 #define SYNTHRT_INFERENCECONTRIB_H
 
-#include <synthrt/Core/ContribHandler.h>
-#include <synthrt/Support/DisplayText.h>
+#include <filesystem>
+#include <memory>
+#include <vector>
+
+#include <synthrt/Core/ContribCategory.h>
+#include <synthrt/Core/ContribSpec.h>
+#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
-    /// InferenceInfoBase - The base class storing inference information which should be created
-    /// by a specific inference interpreter.
-    class InferenceInfoBase : public NamedObject {
-    public:
-        inline InferenceInfoBase(std::string name, std::string className, int apiLevel)
-            : NamedObject(std::move(name)), _className(std::move(className)), _apiLevel(apiLevel) {
-        }
-        virtual ~InferenceInfoBase() = default;
-
-        /// Related interpreter information.
-        inline const std::string &className() const {
-            return _className;
-        }
-        inline int apiLevel() const {
-            return _apiLevel;
-        }
-
-    protected:
-        std::string _className;
-        int _apiLevel;
-    };
-
-    class InferenceSchema : public InferenceInfoBase {
-    public:
-        inline InferenceSchema(std::string name, std::string iid, int apiLevel)
-            : InferenceInfoBase(std::move(name), std::move(iid), apiLevel) {
-        }
-    };
-
-    class InferenceConfiguration : public InferenceInfoBase {
-    public:
-        inline InferenceConfiguration(std::string name, std::string iid, int apiLevel)
-            : InferenceInfoBase(std::move(name), std::move(iid), apiLevel) {
-        }
-    };
-
-    class InferenceImportOptions : public InferenceInfoBase {
-    public:
-        inline InferenceImportOptions(std::string name, std::string iid, int apiLevel)
-            : InferenceInfoBase(std::move(name), std::move(iid), apiLevel) {
-        }
-    };
-
-    class InferenceRuntimeOptions : public InferenceInfoBase {
-    public:
-        inline InferenceRuntimeOptions(std::string name, std::string iid, int apiLevel)
-            : InferenceInfoBase(std::move(name), std::move(iid), apiLevel) {
-        }
-    };
-
-    class Inference;
-
-    class InferenceCategory;
-
+    /// The immutable declaration of one inference contribution.
     class SYNTHRT_EXPORT InferenceSpec : public ContribSpec {
     public:
-        ~InferenceSpec();
+        ~InferenceSpec() override;
 
-    public:
-        const std::string &className() const;
-        DisplayText name() const;
-        int apiLevel() const;
+        /// Returns the module declaration file.
+        const std::filesystem::path &declarationPath() const;
 
-        const JsonObject &manifestSchema() const;
-        /// \note Borrowed. The specification owns it and outlives every inference built from it.
-        InferenceSchema *schema() const;
+    private:
+        explicit InferenceSpec(const ContribCreateContext &context);
 
-        const JsonObject &manifestConfiguration() const;
-        /// \note Borrowed, as \c schema() is.
-        InferenceConfiguration *configuration() const;
-
-        const std::filesystem::path &path() const;
-
-    public:
-        /// Mainly called by \c SingerSpec at loading state.
-        Expected<NO<InferenceImportOptions>> createImportOptions(const JsonValue &options) const;
-
-        /// Creates an inference interface with the given options.
-        Expected<NO<Inference>>
-            createInference(const NO<InferenceImportOptions> &importOptions,
-                            const NO<InferenceRuntimeOptions> &runtimeOptions) const;
-
-    protected:
-        class Impl;
-        InferenceSpec();
+        std::filesystem::path m_declarationPath;
 
         friend class InferenceCategory;
-        friend class InferenceHandler;
     };
 
-    class InferenceHandler;
-
-    class InferenceDriver;
-
-
-    class SYNTHRT_EXPORT InferenceCategory : public ContribCategory {
+    /// Parses and indexes contributions in the built in \c inference category.
+    class SYNTHRT_EXPORT InferenceCategory final : public ContribCategory {
     public:
-        ~InferenceCategory();
+        InferenceCategory();
+        ~InferenceCategory() override;
 
-    public:
-        std::vector<InferenceSpec *> findInferences(const ContribLocator &identifier) const;
         std::vector<InferenceSpec *> inferences() const;
 
     protected:
-        explicit InferenceCategory(ContribHandler *handler);
-
-        friend class InferenceHandler;
+        Expected<std::unique_ptr<ContribSpec>>
+            createSpec(const ContribCreateContext &context) const override;
     };
 
 }

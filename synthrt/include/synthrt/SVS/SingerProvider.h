@@ -1,19 +1,17 @@
 #ifndef SYNTHRT_SINGERPROVIDER_H
 #define SYNTHRT_SINGERPROVIDER_H
 
-#include <synthrt/Support/Expected.h>
-#include <synthrt/SVS/SingerContrib.h>
+#include <synthrt/Core/ContribInterpreter.h>
 
 namespace srt {
 
-    class SingerProvider : public NamedObject {
+    /// Interprets and executes singer contributions.
+    class SingerProvider : public ContribInterpreter {
     public:
-        /// The highest singer API version currently supported by this model.
-        virtual int apiLevel() const = 0;
+        ~SingerProvider() override = default;
 
-        /// Called when \c SingerSpec loads.
-        virtual Expected<UNO<SingerConfiguration>>
-            createConfiguration(const SingerSpec *spec) const = 0;
+    protected:
+        SingerProvider() = default;
     };
 
 }

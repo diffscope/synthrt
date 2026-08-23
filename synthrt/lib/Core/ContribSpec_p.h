@@ -8,7 +8,18 @@
 
 namespace srt {
 
+    class ContribInterpreter;
     class PackageData;
+
+}
+
+namespace stdc::plugin {
+
+    class PluginLoader;
+
+}
+
+namespace srt {
 
     class ContribSpec::Import::Impl {
     public:
@@ -26,6 +37,8 @@ namespace srt {
         PackageData *package = nullptr;
         ContribReference reference;
         bool hasModuleDeclaration = false;
+        stdc::plugin::PluginLoader *pluginLoader = nullptr;
+        ContribInterpreter *interpreter = nullptr;
         DisplayText name;
         std::string interface;
         std::string variant;

@@ -1,10 +1,33 @@
 #include "PackageHandle.h"
 #include "PackageHandle_p.h"
 
+#include <algorithm>
 #include <cassert>
 #include <utility>
 
+#include "ContribCategory_p.h"
+#include "SynthUnit_p.h"
+
 namespace srt {
+
+    PackageData::~PackageData() {
+        if (!loaded || !synthUnit) {
+            return;
+        }
+        std::lock_guard<std::recursive_mutex> lock(synthUnit->_impl->loadMutex);
+        for (const auto &categoryEntry : contributions) {
+            auto *category = synthUnit->category(categoryEntry.first);
+            if (!category) {
+                continue;
+            }
+            auto &registered = category->_impl->contributions;
+            for (auto *contribution : categoryEntry.second) {
+                registered.erase(std::remove(registered.begin(), registered.end(), contribution),
+                                 registered.end());
+            }
+        }
+        dependencyBindings.clear();
+    }
 
     PackageHandle::PackageHandle(const PackageHandle &other) = default;
 
@@ -32,6 +55,16 @@ namespace srt {
     stdc::VersionNumber PackageHandle::version() const {
         assert(m_data);
         return m_data->version;
+    }
+
+    stdc::VersionNumber PackageHandle::compatVersion() const {
+        assert(m_data);
+        return m_data->compatVersion;
+    }
+
+    int PackageHandle::runtimeLevel() const {
+        assert(m_data);
+        return m_data->runtimeLevel;
     }
 
     bool PackageHandle::isLoaded() const {
@@ -64,9 +97,9 @@ namespace srt {
         return m_data->readme;
     }
 
-    DisplayText PackageHandle::license() const {
+    DisplayText PackageHandle::copyright() const {
         assert(m_data);
-        return m_data->license;
+        return m_data->copyright;
     }
 
     const std::string &PackageHandle::url() const {

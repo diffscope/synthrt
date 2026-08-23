@@ -1,32 +1,35 @@
 #ifndef SYNTHRT_INFERENCEINTERPRETER_H
 #define SYNTHRT_INFERENCEINTERPRETER_H
 
+#include <memory>
+
+#include <synthrt/Core/ContribInterpreter.h>
+#include <synthrt/Core/NamedObject.h>
 #include <synthrt/Support/Expected.h>
-#include <synthrt/SVS/InferenceContrib.h>
 
 namespace srt {
 
-    class InferenceInterpreter : public NamedObject {
+    class Inference;
+    class InferenceSpec;
+
+    /// Runtime options supplied when an inference instance is created.
+    class InferenceRuntimeOptions : public NamedObject {
     public:
-        /// The highest inference API version currently supported by this interpreter.
-        virtual int apiLevel() const = 0;
+        using NamedObject::NamedObject;
+        ~InferenceRuntimeOptions() override = default;
+    };
 
-        /// Called when \c InferenceSpec loads.
-        virtual Expected<UNO<InferenceSchema>> createSchema(const InferenceSpec *spec) const = 0;
+    /// Interprets and executes inference contributions.
+    class InferenceInterpreter : public ContribInterpreter {
+    public:
+        ~InferenceInterpreter() override = default;
 
-        /// Called when \c InferenceSpec loads.
-        virtual Expected<UNO<InferenceConfiguration>>
-            createConfiguration(const InferenceSpec *spec) const = 0;
+        virtual Expected<std::unique_ptr<Inference>>
+            createInference(InferenceSpec &spec, const ContribImportOptions &importOptions,
+                            const InferenceRuntimeOptions &runtimeOptions) = 0;
 
-        /// Called when \c SingerSpec loads.
-        virtual Expected<NO<InferenceImportOptions>>
-            createImportOptions(const InferenceSpec *spec, const JsonValue &options) const = 0;
-
-        /// Called when it's about to execute an inference.
-        virtual Expected<NO<Inference>>
-            createInference(const InferenceSpec *spec,
-                            const NO<InferenceImportOptions> &importOptions,
-                            const NO<InferenceRuntimeOptions> &runtimeOptions) = 0;
+    protected:
+        InferenceInterpreter() = default;
     };
 
 }

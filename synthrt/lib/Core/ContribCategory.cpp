@@ -2,7 +2,10 @@
 #include "ContribCategory_p.h"
 
 #include <cassert>
+#include <mutex>
 #include <utility>
+
+#include "SynthUnit_p.h"
 
 namespace srt {
 
@@ -27,6 +30,10 @@ namespace srt {
     }
 
     std::vector<ContribSpec *> ContribCategory::contributions() const {
+        if (!_impl->synthUnit) {
+            return {};
+        }
+        std::lock_guard<std::recursive_mutex> lock(_impl->synthUnit->_impl->loadMutex);
         return _impl->contributions;
     }
 

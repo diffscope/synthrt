@@ -11,6 +11,7 @@ project(synthrt
 # Build Options
 # ----------------------------------
 option(SYNTHRT_BUILD_TESTS "Build test cases" OFF)
+option(SYNTHRT_BUILD_DSINFER "Build the legacy dsinfer implementation" OFF)
 option(SYNTHRT_INSTALL "Install library" ON)
 option(SYNTHRT_INSTALL_MSVC_RUNTIME "Install MSVC runtime" OFF)
 
@@ -74,4 +75,6 @@ add_subdirectory(third-party)
 
 add_subdirectory(synthrt)
 
-add_subdirectory(dsinfer)
+if(SYNTHRT_BUILD_DSINFER)
+    add_subdirectory(dsinfer)
+endif()

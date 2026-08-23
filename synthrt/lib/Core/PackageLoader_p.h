@@ -2,12 +2,15 @@
 #define SYNTHRT_PACKAGELOADER_P_H
 
 #include <filesystem>
+#include <memory>
 
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
+
+    class PackageData;
 
     /// Coordinates Package inspection, probing, loading, and commit.
     class PackageLoader {
@@ -19,6 +22,8 @@ namespace srt {
     private:
         Expected<PackageHandle> openDataOnly(const std::filesystem::path &path);
         Expected<PackageHandle> openLoaded(const std::filesystem::path &path);
+        Expected<std::shared_ptr<PackageData>> readPackage(const std::filesystem::path &path,
+                                                           bool candidateOnly = false);
 
         SynthUnit *m_synthUnit;
     };

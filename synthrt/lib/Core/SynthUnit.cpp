@@ -19,7 +19,9 @@ namespace srt {
             }
             for (auto &idEntry : _impl->packages) {
                 for (auto &versionEntry : idEntry.second) {
-                    versionEntry.second->synthUnit = this;
+                    if (auto package = versionEntry.second.lock()) {
+                        package->synthUnit = this;
+                    }
                 }
             }
         }
@@ -36,7 +38,9 @@ namespace srt {
             }
             for (auto &idEntry : _impl->packages) {
                 for (auto &versionEntry : idEntry.second) {
-                    versionEntry.second->synthUnit = this;
+                    if (auto package = versionEntry.second.lock()) {
+                        package->synthUnit = this;
+                    }
                 }
             }
         }
@@ -65,6 +69,7 @@ namespace srt {
         if (!_impl || !category) {
             return Error(Error::InvalidArgument, "category must not be null");
         }
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
         if (_impl->packageLoadingBegun) {
             return Error(Error::InvalidArgument,
                          "categories cannot be registered after Package loading has begun");
@@ -100,6 +105,7 @@ namespace srt {
 
         category->_impl->synthUnit = this;
         if (category->declarationMode() == ContribCategory::ModuleDeclaration) {
+            _impl->pluginFactory.addStaticPlugins(category->interpreterIid());
             const auto pathsIt = _impl->pluginPaths.find(category->name());
             if (pathsIt != _impl->pluginPaths.end()) {
                 _impl->pluginFactory.setPluginPaths(category->interpreterIid(), pathsIt->second);
@@ -110,15 +116,18 @@ namespace srt {
     }
 
     void SynthUnit::setPackagePaths(stdc::array_view<std::filesystem::path> paths) {
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
         _impl->packagePaths.assign(paths.begin(), paths.end());
     }
 
     std::vector<std::filesystem::path> SynthUnit::packagePaths() const {
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
         return _impl->packagePaths;
     }
 
     void SynthUnit::setPluginPaths(std::string_view category,
                                    stdc::array_view<std::filesystem::path> paths) {
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
         auto &destination = _impl->pluginPaths[std::string(category)];
         destination.assign(paths.begin(), paths.end());
 
@@ -130,12 +139,14 @@ namespace srt {
     }
 
     std::vector<std::filesystem::path> SynthUnit::pluginPaths(std::string_view category) const {
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
         const auto it = _impl->pluginPaths.find(category);
         return it == _impl->pluginPaths.end() ? std::vector<std::filesystem::path>() : it->second;
     }
 
     Expected<PackageHandle> SynthUnit::openPackage(const std::filesystem::path &path,
                                                    OpenMode mode) {
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
         PackageLoader loader(*this);
         return loader.open(path, mode);
     }
@@ -143,37 +154,44 @@ namespace srt {
     std::optional<PackageHandle>
         SynthUnit::findLoadedPackage(std::string_view id,
                                      const stdc::VersionNumber &version) const {
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
         const auto idIt = _impl->packages.find(id);
         if (idIt == _impl->packages.end()) {
             return std::nullopt;
         }
         const auto versionIt = idIt->second.find(version);
-        if (versionIt == idIt->second.end() || !versionIt->second->loaded) {
+        if (versionIt == idIt->second.end()) {
             return std::nullopt;
         }
-        return PackageHandle(versionIt->second);
+        auto package = versionIt->second.lock();
+        if (!package || !package->loaded) {
+            return std::nullopt;
+        }
+        return PackageHandle(std::move(package));
     }
 
     std::vector<PackageHandle> SynthUnit::findLoadedPackages(std::string_view id) const {
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
         std::vector<PackageHandle> result;
         const auto it = _impl->packages.find(id);
         if (it == _impl->packages.end()) {
             return result;
         }
         for (const auto &item : it->second) {
-            if (item.second->loaded) {
-                result.push_back(PackageHandle(item.second));
+            if (auto package = item.second.lock(); package && package->loaded) {
+                result.push_back(PackageHandle(std::move(package)));
             }
         }
         return result;
     }
 
     std::vector<PackageHandle> SynthUnit::loadedPackages() const {
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
         std::vector<PackageHandle> result;
         for (const auto &idEntry : _impl->packages) {
             for (const auto &versionEntry : idEntry.second) {
-                if (versionEntry.second->loaded) {
-                    result.push_back(PackageHandle(versionEntry.second));
+                if (auto package = versionEntry.second.lock(); package && package->loaded) {
+                    result.push_back(PackageHandle(std::move(package)));
                 }
             }
         }

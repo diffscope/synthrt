@@ -17,6 +17,7 @@
 namespace srt {
 
     class ContribCategory;
+    class PackageData;
     class PackageLoader;
 
     /// Owns Package resolution, interpreter discovery, and committed runtime state.
@@ -80,7 +81,9 @@ namespace srt {
         class Impl;
         std::unique_ptr<Impl> _impl;
 
+        friend class ContribCategory;
         friend class PackageHandle;
+        friend class PackageData;
         friend class PackageLoader;
     };
 

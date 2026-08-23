@@ -4,18 +4,19 @@
 
 #include "InferenceContrib.h"
 #include "ITask_p.h"
+#include "PackageHandle.h"
 
 namespace srt {
 
     class Inference::Impl : public ITask::Impl {
     public:
-        Impl(Inference *decl, const InferenceSpec *spec) : ITask::Impl(decl), spec(spec) {
+        explicit Impl(const InferenceSpec *spec) : spec(spec) {
         }
 
         const InferenceSpec *spec;
     };
 
-    Inference::Inference(const InferenceSpec *spec) : ITask(*new Impl(this, spec)) {
+    Inference::Inference(const InferenceSpec *spec) : ITask(*new Impl(spec)) {
     }
 
     Inference::~Inference() = default;
@@ -25,9 +26,9 @@ namespace srt {
         return impl.spec;
     }
 
-    SynthUnit *Inference::SU() const {
+    SynthUnit &Inference::synthUnit() const {
         stdc_impl_t;
-        return impl.spec->SU();
+        return impl.spec->package().synthUnit();
     }
 
 }

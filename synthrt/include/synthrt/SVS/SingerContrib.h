@@ -1,120 +1,50 @@
 #ifndef SYNTHRT_SINGERCONTRIB_H
 #define SYNTHRT_SINGERCONTRIB_H
 
-#include <synthrt/Support/DisplayPath.h>
+#include <filesystem>
+#include <memory>
+#include <vector>
+
+#include <synthrt/Core/ContribCategory.h>
+#include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Support/DisplayText.h>
-#include <synthrt/Core/ContribHandler.h>
-#include <synthrt/SVS/InferenceContrib.h>
+#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
-    class SingerSpec;
-
-    class SingerCategory;
-
-    class SingerImportData;
-
-    struct SYNTHRT_EXPORT SingerDemoAudio {
-        DisplayText name;
-        DisplayPath path;
-    };
-
-    /// SingerInfoBase - The base class storing singer information.
-    class SingerInfoBase : public NamedObject {
-    public:
-        inline SingerInfoBase(std::string name, int apiLevel)
-            : NamedObject(std::move(name)), _apiLevel(apiLevel) {
-        }
-        virtual ~SingerInfoBase() = default;
-
-        inline int apiLevel() const {
-            return _apiLevel;
-        }
-
-    protected:
-        int _apiLevel;
-    };
-
-    class SingerConfiguration : public SingerInfoBase {
-    public:
-        inline SingerConfiguration(std::string model, int apiLevel)
-            : SingerInfoBase(std::move(model), apiLevel) {
-        }
-    };
-
-    class SYNTHRT_EXPORT SingerImport {
-    public:
-        SingerImport();
-        ~SingerImport();
-
-        bool isNull() const;
-
-        /// The locator of the imported inference.
-        const ContribLocator &inferenceLocator() const;
-
-        /// The related \c InferenceSpec instance.
-        InferenceSpec *inference() const;
-
-        /// The format of options is determined by the singer model and inference kind.
-        JsonValue manifestOptions() const;
-
-        /// The options of the related inference module.
-        NO<InferenceImportOptions> options() const;
-
-    protected:
-        SingerImport(const SingerImportData *data);
-
-        const SingerImportData *_data;
-
-        friend class SingerSpec;
-        friend class SingerCategory;
-        friend class SingerHandler;
-    };
-
+    /// The immutable declaration of one singer contribution.
     class SYNTHRT_EXPORT SingerSpec : public ContribSpec {
     public:
-        ~SingerSpec();
+        ~SingerSpec() override;
 
-    public:
-        /// Indicates the provider class to which the singer's voice library belongs
-        const std::string &className() const;
-        DisplayText name() const;
-        int apiLevel() const;
+        const std::filesystem::path &declarationPath() const;
+        const DisplayText &avatar() const;
+        const DisplayText &background() const;
+        const DisplayText &demoAudio() const;
 
-        DisplayPath avatar() const;
-        DisplayPath background() const;
-        stdc::array_view<SingerDemoAudio> demoAudios() const;
+    private:
+        SingerSpec(const ContribCreateContext &context, DisplayText avatar, DisplayText background,
+                   DisplayText demoAudio);
 
-        stdc::array_view<SingerImport> imports() const;
-
-        const JsonObject &manifestConfiguration() const;
-        /// \note Borrowed. The specification owns it and outlives every singer built from it.
-        SingerConfiguration *configuration() const;
-
-        const std::filesystem::path &path() const;
-
-    protected:
-        class Impl;
-        SingerSpec();
+        std::filesystem::path m_declarationPath;
+        DisplayText m_avatar;
+        DisplayText m_background;
+        DisplayText m_demoAudio;
 
         friend class SingerCategory;
-        friend class SingerHandler;
     };
 
-    class SingerHandler;
-
-    class SYNTHRT_EXPORT SingerCategory : public ContribCategory {
+    /// Parses and indexes contributions in the built in \c singer category.
+    class SYNTHRT_EXPORT SingerCategory final : public ContribCategory {
     public:
-        ~SingerCategory();
+        SingerCategory();
+        ~SingerCategory() override;
 
-    public:
-        std::vector<SingerSpec *> findSingers(const ContribLocator &locator) const;
         std::vector<SingerSpec *> singers() const;
 
     protected:
-        explicit SingerCategory(ContribHandler *handler);
-
-        friend class SingerHandler;
+        Expected<std::unique_ptr<ContribSpec>>
+            createSpec(const ContribCreateContext &context) const override;
     };
 
 }

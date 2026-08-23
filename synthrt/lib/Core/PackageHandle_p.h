@@ -14,16 +14,19 @@ namespace srt {
     public:
         explicit PackageData(SynthUnit *synthUnit) : synthUnit(synthUnit) {
         }
+        ~PackageData();
 
         SynthUnit *synthUnit;
         std::string id;
         stdc::VersionNumber version;
+        stdc::VersionNumber compatVersion;
+        int runtimeLevel = 0;
         bool loaded = false;
         DisplayText name;
         DisplayText description;
         DisplayText vendor;
         DisplayText readme;
-        DisplayText license;
+        DisplayText copyright;
         std::string url;
         std::filesystem::path path;
         std::vector<PackageDependency> dependencies;
