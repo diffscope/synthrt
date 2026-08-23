@@ -8,6 +8,7 @@
 #include <stdcorelib/adt/array_view.h>
 #include <stdcorelib/support/versionnumber.h>
 
+#include <synthrt/Core/PackageDependency.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/DisplayPath.h>
 #include <synthrt/Support/Expected.h>
@@ -17,25 +18,6 @@ namespace srt {
     class SynthUnit;
 
     class ContribSpec;
-
-    struct PackageDependency {
-        std::string id;
-        stdc::VersionNumber version;
-        bool required;
-
-        inline PackageDependency(bool required = true) : required(required) {
-        }
-
-        inline PackageDependency(std::string id, stdc::VersionNumber version, bool required = true)
-            : id(std::move(id)), version(version), required(required) {
-        }
-
-        inline bool operator==(const PackageDependency &other) const {
-            return id == other.id && version == other.version;
-        }
-
-        SYNTHRT_EXPORT static Expected<PackageDependency> fromJsonValue(const JsonValue &val);
-    };
 
     class PackageData;
 
