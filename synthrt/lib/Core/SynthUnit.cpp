@@ -71,14 +71,39 @@ namespace srt {
         if (!ContribReference::isValidDottedId(category->name())) {
             return Error(Error::InvalidArgument, "category has an invalid name");
         }
+        if (category->declarationMode() == ContribCategory::ModuleDeclaration &&
+            category->_impl->interpreterIid.empty()) {
+            return Error(Error::InvalidArgument,
+                         "module category interpreter plugin IID must not be empty");
+        }
+        if (category->declarationMode() == ContribCategory::EntryOnly &&
+            !category->_impl->interpreterIid.empty()) {
+            return Error(Error::InvalidArgument,
+                         "entry only category must not declare an interpreter plugin IID");
+        }
         if (category->_impl->synthUnit) {
             return Error(Error::InvalidArgument, "category is already registered");
         }
         if (_impl->categories.find(category->name()) != _impl->categories.end()) {
             return Error(Error::InvalidArgument, "category name is already registered");
         }
+        if (category->declarationMode() == ContribCategory::ModuleDeclaration) {
+            for (const auto &item : _impl->categories) {
+                if (item.second->declarationMode() == ContribCategory::ModuleDeclaration &&
+                    item.second->interpreterIid() == category->interpreterIid()) {
+                    return Error(Error::InvalidArgument,
+                                 "interpreter IID is already registered by another category");
+                }
+            }
+        }
 
         category->_impl->synthUnit = this;
+        if (category->declarationMode() == ContribCategory::ModuleDeclaration) {
+            const auto pathsIt = _impl->pluginPaths.find(category->name());
+            if (pathsIt != _impl->pluginPaths.end()) {
+                _impl->pluginFactory.setPluginPaths(category->interpreterIid(), pathsIt->second);
+            }
+        }
         _impl->categories.emplace(category->name(), std::move(category));
         return {};
     }
@@ -95,6 +120,12 @@ namespace srt {
                                    stdc::array_view<std::filesystem::path> paths) {
         auto &destination = _impl->pluginPaths[std::string(category)];
         destination.assign(paths.begin(), paths.end());
+
+        const auto categoryIt = _impl->categories.find(category);
+        if (categoryIt != _impl->categories.end() &&
+            categoryIt->second->declarationMode() == ContribCategory::ModuleDeclaration) {
+            _impl->pluginFactory.setPluginPaths(categoryIt->second->interpreterIid(), destination);
+        }
     }
 
     std::vector<std::filesystem::path> SynthUnit::pluginPaths(std::string_view category) const {

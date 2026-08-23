@@ -18,7 +18,7 @@ namespace srt {
 
     class ContribCategory;
 
-    /// Owns Package resolution, provider discovery, and committed runtime state.
+    /// Owns Package resolution, interpreter discovery, and committed runtime state.
     class SYNTHRT_EXPORT SynthUnit {
     public:
         SynthUnit();
@@ -51,14 +51,15 @@ namespace srt {
         void setPackagePaths(stdc::array_view<std::filesystem::path> paths);
         std::vector<std::filesystem::path> packagePaths() const;
 
-        /// Replaces the provider plugin search path sequence for \a category.
+        /// Replaces the interpreter plugin search path sequence for \a category.
         void setPluginPaths(std::string_view category,
                             stdc::array_view<std::filesystem::path> paths);
         std::vector<std::filesystem::path> pluginPaths(std::string_view category) const;
 
         /// Opens a Package using \a mode.
         ///
-        /// \c DataOnly reads manifests without discovering providers or changing committed state.
+        /// \c DataOnly reads manifests without discovering interpreters or changing committed
+        /// state.
         /// \c Load begins with an internal Probe, resolves dependencies, validates contributions,
         /// and returns only after an infallible commit. A failure is returned as an Error and
         /// never as a partially valid PackageHandle.

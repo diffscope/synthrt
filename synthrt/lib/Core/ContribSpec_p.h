@@ -18,7 +18,7 @@ namespace srt {
 
         ContribReference reference;
         JsonValue manifestOptions;
-        std::unique_ptr<ContribImportItem> options;
+        std::unique_ptr<ContribImportOptions> options;
     };
 
     class ContribSpec::Impl {
@@ -31,7 +31,7 @@ namespace srt {
         std::string variant;
         int level = 0;
         JsonValue manifestExports;
-        std::unique_ptr<ContribExportItem> exports;
+        std::unique_ptr<ContribExports> exports;
         JsonValue manifestConfiguration;
         std::unique_ptr<ContribConfiguration> configuration;
         std::vector<Import> imports;

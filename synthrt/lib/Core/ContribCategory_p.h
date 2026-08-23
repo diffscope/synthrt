@@ -11,12 +11,14 @@ namespace srt {
 
     class ContribCategory::Impl {
     public:
-        Impl(std::string name, DeclarationMode declarationMode)
-            : name(std::move(name)), declarationMode(declarationMode) {
+        Impl(std::string name, DeclarationMode declarationMode, std::string interpreterIid)
+            : name(std::move(name)), declarationMode(declarationMode),
+              interpreterIid(std::move(interpreterIid)) {
         }
 
         std::string name;
         DeclarationMode declarationMode;
+        std::string interpreterIid;
         SynthUnit *synthUnit = nullptr;
         std::vector<ContribSpec *> contributions;
     };

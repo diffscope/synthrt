@@ -15,7 +15,7 @@ namespace srt {
     class PackageData;
     class SynthUnit;
 
-    /// The index and provider discovery context for one contribution category.
+    /// The index and interpreter discovery context for one contribution category.
     class SYNTHRT_EXPORT ContribCategory {
     public:
         /// Describes which declaration structure the framework parses for this category.
@@ -32,6 +32,12 @@ namespace srt {
         const std::string &name() const;
 
         DeclarationMode declarationMode() const noexcept;
+
+        /// Returns the plugin IID used to discover interpreters for this category.
+        ///
+        /// This function is meaningful only when \c declarationMode() returns
+        /// \c ModuleDeclaration. It must not be called for an \c EntryOnly category.
+        const std::string &interpreterIid() const;
 
         /// Returns the SynthUnit to which this category is registered.
         ///
@@ -57,7 +63,8 @@ namespace srt {
         virtual Expected<std::unique_ptr<ContribSpec>>
             createSpec(const ContribCreateContext &context) const = 0;
 
-        ContribCategory(std::string name, DeclarationMode declarationMode);
+        ContribCategory(std::string name, DeclarationMode declarationMode,
+                        std::string interpreterIid = {});
 
     private:
         class Impl;

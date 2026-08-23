@@ -1,0 +1,48 @@
+#ifndef SYNTHRT_CONTRIBINTERPRETER_H
+#define SYNTHRT_CONTRIBINTERPRETER_H
+
+#include <memory>
+
+#include <synthrt/Core/ContribSpecSubObjects.h>
+#include <synthrt/Support/Expected.h>
+#include <synthrt/Support/JSON.h>
+#include <synthrt/synthrt_global.h>
+
+namespace srt {
+
+    class ContribSpec;
+
+    /// Interprets one or more module contracts.
+    ///
+    /// The same interpreter instance may serve more than one contribution and more than one
+    /// interface, variant, and Level triple.
+    class SYNTHRT_EXPORT ContribInterpreter {
+    public:
+        virtual ~ContribInterpreter();
+
+        /// Interprets the manifest exports of \a spec.
+        virtual Expected<std::unique_ptr<ContribExports>>
+            createExports(const ContribSpec &spec) const = 0;
+
+        /// Interprets the manifest configuration of \a spec.
+        virtual Expected<std::unique_ptr<ContribConfiguration>>
+            createConfiguration(const ContribSpec &spec) const = 0;
+
+        /// Interprets one import's manifest options using the contract of \a target.
+        virtual Expected<std::unique_ptr<ContribImportOptions>>
+            createImportOptions(const ContribSpec &target,
+                                const JsonValue &manifestOptions) const = 0;
+
+        /// Validates the interpreted, ordered imports of \a spec as one collection.
+        virtual Expected<void> validateImports(const ContribSpec &spec) const = 0;
+
+        /// Casts this interpreter to a category specific interpreter type.
+        SYNTHRT_DECLARE_AS_METHODS(ContribInterpreter)
+
+    protected:
+        ContribInterpreter() = default;
+    };
+
+}
+
+#endif // SYNTHRT_CONTRIBINTERPRETER_H

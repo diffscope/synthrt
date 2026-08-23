@@ -23,7 +23,7 @@ namespace srt {
         return _impl->manifestOptions;
     }
 
-    const ContribImportItem *ContribSpec::Import::options() const {
+    const ContribImportOptions *ContribSpec::Import::options() const {
         return _impl->options.get();
     }
 
@@ -67,7 +67,7 @@ namespace srt {
         return _impl->manifestExports;
     }
 
-    const ContribExportItem *ContribSpec::exports() const {
+    const ContribExports *ContribSpec::exports() const {
         assert(_impl->hasModuleDeclaration);
         return _impl->exports.get();
     }

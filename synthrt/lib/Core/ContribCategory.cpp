@@ -16,6 +16,11 @@ namespace srt {
         return _impl->declarationMode;
     }
 
+    const std::string &ContribCategory::interpreterIid() const {
+        assert(_impl->declarationMode == ModuleDeclaration);
+        return _impl->interpreterIid;
+    }
+
     SynthUnit &ContribCategory::synthUnit() const {
         assert(_impl->synthUnit);
         return *_impl->synthUnit;
@@ -25,8 +30,10 @@ namespace srt {
         return _impl->contributions;
     }
 
-    ContribCategory::ContribCategory(std::string name, DeclarationMode declarationMode)
-        : _impl(std::make_unique<Impl>(std::move(name), declarationMode)) {
+    ContribCategory::ContribCategory(std::string name, DeclarationMode declarationMode,
+                                     std::string interpreterIid)
+        : _impl(
+              std::make_unique<Impl>(std::move(name), declarationMode, std::move(interpreterIid))) {
     }
 
 }

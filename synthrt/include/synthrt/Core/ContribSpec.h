@@ -6,8 +6,8 @@
 
 #include <stdcorelib/adt/array_view.h>
 
-#include <synthrt/Core/ContribItem.h>
 #include <synthrt/Core/ContribReference.h>
+#include <synthrt/Core/ContribSpecSubObjects.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/JSON.h>
 #include <synthrt/synthrt_global.h>
@@ -38,7 +38,7 @@ namespace srt {
             /// Returns options interpreted by the target interpreter during load.
             ///
             /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
-            const ContribImportItem *options() const;
+            const ContribImportOptions *options() const;
 
         private:
             Import(ContribReference reference, JsonValue options);
@@ -86,7 +86,7 @@ namespace srt {
         /// Returns exports interpreted by the selected interpreter during load.
         ///
         /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
-        const ContribExportItem *exports() const;
+        const ContribExports *exports() const;
 
         /// Returns the configuration value read from the manifest.
         const JsonValue &manifestConfiguration() const;
