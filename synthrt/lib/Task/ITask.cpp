@@ -5,7 +5,7 @@
 
 namespace srt {
 
-    ITask::ITask() : ITask(*new Impl(this)) {
+    ITask::ITask() : ITask(*new Impl()) {
     }
 
     ITask::~ITask() = default;

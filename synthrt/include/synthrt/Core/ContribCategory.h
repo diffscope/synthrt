@@ -18,10 +18,24 @@ namespace srt {
     /// The index and provider discovery context for one contribution category.
     class SYNTHRT_EXPORT ContribCategory {
     public:
+        /// Describes which declaration structure the framework parses for this category.
+        enum DeclarationMode {
+            /// The framework parses only the contribution entry in \c desc.json.
+            EntryOnly,
+
+            /// The framework requires \c path and parses a common module declaration file.
+            ModuleDeclaration,
+        };
+
         virtual ~ContribCategory();
 
         const std::string &name() const;
 
+        DeclarationMode declarationMode() const noexcept;
+
+        /// Returns the SynthUnit to which this category is registered.
+        ///
+        /// This function may only be called after successful registration.
         SynthUnit &synthUnit() const;
 
         /// Casts this category to the concrete type registered for its name.
@@ -43,7 +57,7 @@ namespace srt {
         virtual Expected<std::unique_ptr<ContribSpec>>
             createSpec(const ContribCreateContext &context) const = 0;
 
-        ContribCategory(SynthUnit &synthUnit, std::string name);
+        ContribCategory(std::string name, DeclarationMode declarationMode);
 
     private:
         class Impl;

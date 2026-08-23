@@ -9,8 +9,7 @@ namespace srt {
 
     class ITask::Impl : public NamedObject::Impl {
     public:
-        inline Impl(ITask *task) : NamedObject::Impl(task) {
-        }
+        Impl() = default;
 
         State state = Idle;
     };

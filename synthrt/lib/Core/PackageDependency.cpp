@@ -5,8 +5,6 @@
 
 #include <stdcorelib/str.h>
 
-#include <stdcorelib/str.h>
-
 namespace srt {
 
     namespace {

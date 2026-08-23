@@ -10,7 +10,6 @@
 #include <stdcorelib/adt/array_view.h>
 #include <stdcorelib/support/versionnumber.h>
 
-#include <synthrt/Core/ContribCategoryProvider.h>
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Support/Expected.h>
 #include <synthrt/synthrt_global.h>
@@ -42,10 +41,11 @@ namespace srt {
         ContribCategory *category(std::string_view name);
         const ContribCategory *category(std::string_view name) const;
 
-        /// Registers one category before the first Package is opened.
+        /// Registers and takes ownership of one category before the first Package is opened.
         ///
-        /// Registration fails when the name is already registered or Package loading has begun.
-        Expected<void> addCategoryProvider(std::unique_ptr<ContribCategoryProvider> provider);
+        /// Registration binds the category to this SynthUnit. It fails when the name is already
+        /// registered or Package loading has begun.
+        Expected<void> addCategory(std::unique_ptr<ContribCategory> category);
 
         /// Replaces the Package search path sequence.
         void setPackagePaths(stdc::array_view<std::filesystem::path> paths);
@@ -75,7 +75,7 @@ namespace srt {
 
     private:
         class Impl;
-        std::shared_ptr<Impl> _impl;
+        std::unique_ptr<Impl> _impl;
 
         friend class PackageHandle;
     };

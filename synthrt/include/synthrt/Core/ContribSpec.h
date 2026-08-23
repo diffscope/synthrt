@@ -1,7 +1,6 @@
 #ifndef SYNTHRT_CONTRIBSPEC_H
 #define SYNTHRT_CONTRIBSPEC_H
 
-#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -51,6 +50,7 @@ namespace srt {
             Import &operator=(const Import &) = delete;
 
             friend class PackageData;
+            friend class ContribSpec;
         };
 
         virtual ~ContribSpec();
@@ -60,6 +60,16 @@ namespace srt {
 
         /// Returns a handle retaining the containing Package.
         PackageHandle package() const;
+
+        /// \name Common module declaration
+        ///
+        /// These functions are meaningful only when the contribution category uses
+        /// \c ContribCategory::ModuleDeclaration. They must not be called for a contribution whose
+        /// category uses \c ContribCategory::EntryOnly.
+        /// \{
+
+        /// Returns the contribution name for display purposes.
+        const DisplayText &name() const;
 
         /// Returns the contract identifier serialized as \c interface.
         const std::string &interface() const;
@@ -89,6 +99,8 @@ namespace srt {
         /// Returns imports in declaration order, including repeated references.
         stdc::array_view<Import> imports() const;
 
+        /// \}
+
         /// Casts this declaration to the concrete type registered for its category.
         ///
         /// The caller must first establish that \c reference().category() identifies \c T.
@@ -103,37 +115,6 @@ namespace srt {
         std::unique_ptr<Impl> _impl;
 
         friend class ContribCategory;
-        friend class PackageData;
-        friend class SynthUnit;
-    };
-
-    /// Common contribution data passed to a category while it creates a derived ContribSpec.
-    class SYNTHRT_EXPORT ContribCreateContext {
-    public:
-        ~ContribCreateContext();
-
-        const ContribReference &reference() const;
-        const std::filesystem::path &declarationPath() const;
-        const DisplayText &name() const;
-        const std::string &interface() const;
-        const std::string &variant() const;
-        int level() const;
-        const JsonValue &manifestExports() const;
-        const JsonValue &manifestConfiguration() const;
-        stdc::array_view<ContribSpec::Import> imports() const;
-
-        /// Returns the expanded declaration including fields owned by the category.
-        const JsonObject &declaration() const;
-
-    private:
-        ContribCreateContext();
-
-        class Impl;
-        std::unique_ptr<Impl> _impl;
-
-        ContribCreateContext(const ContribCreateContext &) = delete;
-        ContribCreateContext &operator=(const ContribCreateContext &) = delete;
-
         friend class PackageData;
         friend class SynthUnit;
     };
