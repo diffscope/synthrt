@@ -1,82 +1,57 @@
 #ifndef SYNTHRT_CONTRIBCATEGORY_H
 #define SYNTHRT_CONTRIBCATEGORY_H
 
-#include <filesystem>
+#include <memory>
+#include <string>
 #include <vector>
 
-#include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpec.h>
-#include <synthrt/Core/NamedObject.h>
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
-
-/// \file
-/// The contributes of one kind, as the rest of the program sees them.
-///
-/// This is the user's half. What it takes to define a new kind is in ContribHandler.h.
+#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
+    class ContribCreateContext;
+    class PackageData;
     class SynthUnit;
 
-    class PackageData;
-
-    class ContribHandler;
-
-    class SYNTHRT_EXPORT ContribCategory : public ObjectPool {
+    /// The index and provider discovery context for one contribution category.
+    class SYNTHRT_EXPORT ContribCategory {
     public:
-        ~ContribCategory();
+        virtual ~ContribCategory();
 
-    public:
-        /// The category's identifier, serving both roles it has: the property naming this
-        /// category's list inside a manifest's \c contributes object, and the segment sitting
-        /// between the \c ":" and the \c "/" of a reference.
-        ///
-        /// It must therefore be a \c segment, which the constructor asserts.
         const std::string &name() const;
 
-        /// Returns the related \c SynthUnit instance.
-        SynthUnit *SU() const;
+        SynthUnit &synthUnit() const;
 
-    public:
-        template <class T>
-        inline constexpr T *as();
+        /// Casts this category to the concrete type registered for its name.
+        ///
+        /// The caller must first establish that \c name() identifies \c T.
+        SYNTHRT_DECLARE_AS_METHODS(ContribCategory)
 
-        template <class T>
-        inline constexpr const T *as() const;
-
-    public:
-        /// The contributes of this kind that match \a loc.
-        std::vector<ContribSpec *> find(const ContribLocator &loc) const;
+        /// Returns all committed contributions in this category.
+        ///
+        /// Each pointer remains valid only while its containing Package remains loaded.
+        std::vector<ContribSpec *> contributions() const;
 
     protected:
+        /// Creates the category specific declaration for one contribution.
+        ///
+        /// The framework has already parsed the common contribution envelope in \a context.
+        /// Implementations parse only fields owned by their category and return the corresponding
+        /// ContribSpec derived type.
+        virtual Expected<std::unique_ptr<ContribSpec>>
+            createSpec(const ContribCreateContext &context) const = 0;
+
+        ContribCategory(SynthUnit &synthUnit, std::string name);
+
+    private:
         class Impl;
+        std::unique_ptr<Impl> _impl;
 
-        /// \param handler The handler that built this category and owns it.
-        explicit ContribCategory(ContribHandler *handler);
-
-        /// For a category defined inside synthrt, which can see this Impl.
-        explicit ContribCategory(Impl &impl);
-
-        friend class SynthUnit;
-        friend class PackageRef;
         friend class PackageData;
-        friend class ContribHandler;
+        friend class SynthUnit;
     };
-
-    template <class T>
-    inline constexpr T *ContribCategory::as() {
-        static_assert(std::is_base_of<ContribCategory, T>::value,
-                      "T should inherit from srt::ContribCategory");
-        return static_cast<T *>(this);
-    }
-
-    template <class T>
-    inline constexpr const T *ContribCategory::as() const {
-        static_assert(std::is_base_of<ContribCategory, T>::value,
-                      "T should inherit from srt::ContribCategory");
-        return static_cast<const T *>(this);
-    }
 
 }
 

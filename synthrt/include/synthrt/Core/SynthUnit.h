@@ -2,66 +2,83 @@
 #define SYNTHRT_SYNTHUNIT_H
 
 #include <filesystem>
+#include <memory>
+#include <optional>
+#include <string_view>
+#include <vector>
 
+#include <stdcorelib/adt/array_view.h>
 #include <stdcorelib/support/versionnumber.h>
-#include <stdcorelib/plugin/pluginfactory.h>
 
+#include <synthrt/Core/ContribCategoryProvider.h>
+#include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Support/Expected.h>
+#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
-    class PackageRef;
-
     class ContribCategory;
 
-    /// SynthUnit is the main class for loading and managing SynthRT packages.
-    class SYNTHRT_EXPORT SynthUnit : public stdc::plugin::PluginFactory {
+    /// Owns Package resolution, provider discovery, and committed runtime state.
+    class SYNTHRT_EXPORT SynthUnit {
     public:
         SynthUnit();
+        SynthUnit(SynthUnit &&RHS) noexcept;
+        SynthUnit &operator=(SynthUnit &&RHS) noexcept;
+
+        /// \warning All PackageHandle objects owned by this unit must have been released before
+        ///          destruction. All borrowed contribution pointers must no longer be used.
         ~SynthUnit();
 
-        ContribCategory *category(const std::string_view &name) const;
-
     public:
-        /// Configure the package searching paths.
-        inline void addPackagePath(const std::filesystem::path &path);
-        void addPackagePaths(stdc::array_view<std::filesystem::path> paths);
-        void setPackagePaths(stdc::array_view<std::filesystem::path> paths);
+        /// Selects how far Package opening may progress.
+        enum OpenMode {
+            /// Parses manifests without loading providers or committing runtime resources.
+            NoLoad,
+            /// Validates, loads, and commits the Package and its dependencies.
+            Load,
+        };
 
+        ContribCategory *category(std::string_view name);
+        const ContribCategory *category(std::string_view name) const;
+
+        /// Registers one category before the first Package is opened.
+        ///
+        /// Registration fails when the name is already registered or Package loading has begun.
+        Expected<void> addCategoryProvider(std::unique_ptr<ContribCategoryProvider> provider);
+
+        /// Replaces the Package search path sequence.
+        void setPackagePaths(stdc::array_view<std::filesystem::path> paths);
         std::vector<std::filesystem::path> packagePaths() const;
 
-    public:
-        /// Opens a package and returns a reference to it.
+        /// Replaces the provider plugin search path sequence for \a category.
+        void setPluginPaths(std::string_view category,
+                            stdc::array_view<std::filesystem::path> paths);
+        std::vector<std::filesystem::path> pluginPaths(std::string_view category) const;
+
+        /// Opens a Package using \a mode.
         ///
-        /// If opened in load mode, dependencies will be loaded by searching in the configured
-        /// package paths in sequence. Returns \c true only if all dependencies are successfully
-        /// loaded with no circular dependencies. Both direct loads and dependency loads via this
-        /// interface increase the package's reference count.
-        ///
-        /// \param path   The directory to the package to open.
-        /// \param noLoad Whether to only read the metadata (true) or open in load mode (false).
-        Expected<PackageRef> open(const std::filesystem::path &path, bool noLoad);
+        /// NoLoad reads manifests without loading providers or changing committed state. Load
+        /// resolves dependencies, validates contributions, and returns only after an infallible
+        /// commit. A failure is returned as an Error and never as a partially valid PackageHandle.
+        Expected<PackageHandle> openPackage(const std::filesystem::path &path, OpenMode mode);
 
-        /// Find a loaded package by ID and version.
-        PackageRef find(const std::string_view &id, const stdc::VersionNumber &version) const;
+        /// Finds a committed Package with the exact identifier and version.
+        std::optional<PackageHandle> findLoadedPackage(std::string_view id,
+                                                       const stdc::VersionNumber &version) const;
 
-        /// Find all loaded packages with the given ID.
-        std::vector<PackageRef> find(const std::string_view &id) const;
+        /// Returns committed Packages with the given identifier.
+        std::vector<PackageHandle> findLoadedPackages(std::string_view id) const;
 
-        /// Returns all loaded packages.
-        std::vector<PackageRef> packages() const;
+        /// Returns all committed Packages.
+        std::vector<PackageHandle> loadedPackages() const;
 
-    protected:
+    private:
         class Impl;
-        std::unique_ptr<Impl> _impl;
+        std::shared_ptr<Impl> _impl;
 
-        friend class PackageRef;
-        friend class ContribCategory;
+        friend class PackageHandle;
     };
-
-    inline void SynthUnit::addPackagePath(const std::filesystem::path &path) {
-        addPackagePaths({path});
-    }
 
 }
 
