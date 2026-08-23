@@ -29,7 +29,7 @@
 | 模块声明文件的公共字段 | 各类别各自定义、各自解析 | 提取为《公共字段》，由框架统一解析 |
 | `schema` | 名为 schema，装的却是功能清单 | 改名 `exports`，与 `imports` 成对 |
 | `configuration`的语法 | 未区分契约与实现 | 完全由`variant`规定，契约不规定其中的公共字段 |
-| 多语言值 | Runtime 按语言代码选择文字 | Runtime 忠实保存并向前端提供完整字符串 map，不解释语言代码或执行语言匹配 |
+| 多语言值 | Runtime 按语言代码选择文字 | Runtime 忠实提供完整 map，不解释语言代码；路径 value 在返回前完成解析与规范化 |
 | 多语言路径 | 未明确落到具体字段 | `readme`、`avatar`、`background`与`demoAudio`均为多语言路径 |
 | `imports` 条目 | `id` + `inferenceId` + `version` 三个字段，或一个裸字符串简写 | 一个 `ref` 引用串，**类别是其中一格**，不设简写 |
 | `imports`集合语义 | 未规定 | 有序数组，重复引用是独立导入实例，不自动去重 |
@@ -37,8 +37,9 @@
 | 可选依赖 | `dependencies[].required`，默认 `true` | **不支持**，所有依赖均为强制依赖 |
 | 依赖求解 | 候选选择与依赖图约束未规定 | 路径优先，同一路径选择最高兼容版本；允许多版本共存，禁止重复依赖、自依赖与环 |
 | Package 身份 | ID 与版本的实例共享语义未规定 | `(id, normalized-version)`唯一标识 Package，靠前搜索路径的来源遮蔽后续同身份来源 |
+| Package 加载来源 | DSPK 与安装目录的职责未分 | `.dspk`只由 Installer 安装，Loader 只读取已安装 Package 目录 |
 | 清单解析模式 | 未规定 | `noLoad`只读取和验证清单，`load`在成功完成`noLoad`后启动解释器；依赖求解不回溯 |
-| 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Commit 前只允许同步管理调用并禁止业务执行，Commit 不可失败；卸载执行 quit / wait，失败时终止 provider 执行域 |
+| 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Commit 前只允许同步管理调用并禁止业务执行，Commit 不可失败；卸载执行 quit / wait，Runtime 销毁前静止 provider domain |
 | Package 兼容承诺 | `compatVersion`只参与版本区间判断 | 明确兼容区间内必须保持的公开表面，由 Package 作者负责 |
 | DSPK 安全边界 | 未规定 | ZIP entry 文件名使用 UTF-8，解包严格封闭在安装目录内；运行时资源引用允许越过 Package root |
 | 模块 provider 发现 | 只规定 Inference 解释器 | 每个模块类别有专用插件搜索目录与 factory，无效元数据跳过，目录内按文件名确定排序，首次创建时选择并永久绑定首个 provider |
@@ -227,6 +228,8 @@ Level 是对某一作用域内能力版本的统称。`runtimeLevel`序列化 Pa
     + `id`：贡献 ID，由 Package 赋予，同一类别下不得重复。对于模块贡献，它是别处引用该模块时使用的模块 ID，不是模块自身的属性，因此模块声明文件中不出现它。
 + 其余字段由该类别自行规定。
 
+每个 (`Package`, category, contribution ID) 唯一确定一个 contribution instance。对于模块类别，它也唯一确定一个 module instance；不同 ID 即使在变量展开和路径规范化后指向同一个声明文件，也必须创建彼此独立的实例，不得按路径自动合并或推导别名。
+
 贡献不一定是模块。类别注册时必须声明其条目是否指向模块声明。模块类别的条目必须使用`path`指向包含公共模块字段的声明文件，并注册该类别专用的 provider factory 与插件搜索目录；`inference`与`singer`都是模块类别。非模块类别的条目不使用公共模块字段和模块 provider，其内容完全由类别规定，可以内联，也可以按该类别自己的规则引用其他文件。
 
 > **为什么 `id` 在这里而不在模块里**
@@ -278,7 +281,7 @@ Level 是对某一作用域内能力版本的统称。`runtimeLevel`序列化 Pa
 
 只写一个字符串，等价于只有`_`一项的对象。
 
-Runtime 不解释这些属性名，不验证 BCP 47、POSIX locale 或其他语言代码语法，不执行大小写折叠、canonicalization、fallback 或 Lookup，也不接收语言偏好来代替前端选择。除 JSON 本身禁止重复 key 外，语言代码在 Runtime 中是不透明且区分大小写的 map key；例如`zh-CN`与`ZH-cn`是两个不同的 key。Runtime API 必须允许前端取得完整 map，并忠实返回原样的 key 和完成变量展开后的 value。
+Runtime 不解释这些属性名，不验证 BCP 47、POSIX locale 或其他语言代码语法，不执行大小写折叠、canonicalization、fallback 或 Lookup，也不接收语言偏好来代替前端选择。除 JSON 本身禁止重复 key 外，语言代码在 Runtime 中是不透明且区分大小写的 map key；例如`zh-CN`与`ZH-cn`是两个不同的 key。Runtime API 必须允许前端取得完整 map，并忠实返回原样的 key。多语言文本的 value 是完成变量展开后的字符串，多语言路径的 value 按下文规则返回。
 
 推荐使用 BCP 47 语言标签，但不作强制要求；内容作者只需与消费该 map 的前端约定一致。采用哪套语言代码、如何匹配用户偏好、何时使用`_`以及是否合并大小写不同的 key，均由前端决定。
 
@@ -295,7 +298,7 @@ Runtime 不解释这些属性名，不验证 BCP 47、POSIX locale 或其他语�
 
 贡献类别与契约追加的字段是否多语言，以及是文本还是路径，由定义它们的一方明确规定。
 
-某个多语言字段的值是文件路径时，**每一个本地化的值各自解析**，基路径都是该声明文件所在的目录。
+某个多语言字段的值是文件路径时，**每一个本地化的值各自解析**，基路径都是该声明文件所在的目录。Runtime API 向前端提供的多语言路径 map 必须包含完成变量展开、基路径解析和词法规范化后的路径 value，不得只返回脱离声明目录上下文的原相对字符串。具体宿主路径类型由 Runtime API 规定。
 
 ### 结构标识符与 ModuleReference 文法
 
@@ -332,7 +335,7 @@ vendor/sample:singer/main
 
 #### 安装
 
-对于`dspk`文件，安装就是在某个目录中解压它。本规范对这个目录没有任何要求。
+对于`dspk`文件，安装就是在某个目录中解压它。本规范对这个目录没有任何要求。`.dspk`只作为 Installer 的输入；Loader 只从已经完成安装的 Package 目录执行`noLoad`与`load`，不得直接把 raw DSPK 作为候选或临时物化后加载。
 
 ##### 安全解包
 
@@ -381,7 +384,7 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 依赖求解始终先使用`noLoad`读取候选的`desc.json`。一个 Package 只有同时满足以下条件才是某个 dependency edge 的候选：
 
-- DSPK 或安装目录能够按本规范的安全规则读取
+- 安装目录能够按本规范读取
 - `desc.json`是有效清单
 - `$version`受当前加载器支持
 - `id`与 dependency 要求一致
@@ -391,7 +394,7 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 
 加载器对上述候选按搜索路径优先、同一路径选择最高版本的规则作出一次选择。选中后，不论后续递归依赖解析、其余清单的`noLoad`验证、provider 发现、`configuration`检查、解释器启动或模块初始化在哪一步失败，整条加载都必须失败，不得回退到其他候选版本，也不得重新搜索其他路径。
 
-对于一个`dspk`，当且仅当它的所有依赖项都能被加载，它才能被加载。dependency 要求的目标版本必须位于候选 Package 的闭区间`[compatVersion, version]`内。
+对于一个已安装 Package，当且仅当它的所有依赖项都能被加载，它才能被加载。dependency 要求的目标版本必须位于候选 Package 的闭区间`[compatVersion, version]`内。
 
 `dependencies`中不得出现两个`id`相同的条目，也不得出现与当前 Package 的`id`相同的条目。引用当前 Package 中的模块不声明自依赖，使用以`:`开头的引用。
 
@@ -433,7 +436,7 @@ Commit 是新建 Package 实例从不可执行状态进入可执行状态的唯�
 
 ImportBinding 的激活状态与 owning Package 一致：Ready 创建的 binding 保持关闭，Commit 时随 Package 原子打开，允许 importer 与 target 通过它双向调用；owning Package 进入`Stopping`时，必须先原子关闭 binding 双方发起新调用和 callback 的入口。未 Commit 且从未激活的 binding 可以在 rollback 中直接销毁。
 
-provider 必须保证每项运行时活动归属于具体的 Package 实例，其中通过 ImportBinding 产生的活动还必须归属于具体 binding，并提供 ImportBinding 及其调用级的停止隔离。关闭一条 binding 后，provider 必须能够停止、取消或隔离归属于该 binding 的全部既有活动，使 owning Package 的 wait 可以在不永久破坏共享 target 上其他仍有效 binding 与活动的前提下完成。在确认这些活动不可能再访问 owning Package 或该 binding 前，不得销毁二者。
+provider 必须保证每项运行时活动在任一时刻恰好归属于一个具体 Package 实例或一个已注册的 provider execution domain。由 Package 发起的活动初始归属于该 Package，其中通过 ImportBinding 产生的活动还必须归属于具体 binding。provider 必须提供 ImportBinding 及其调用级的停止隔离。关闭一条 binding 后，provider 必须能够停止、取消或隔离归属于该 binding 的全部既有活动，使 owning Package 的 wait 可以在不永久破坏共享 target 上其他仍有效 binding 与活动的前提下完成。在确认这些活动不可能再访问 owning Package 或该 binding 前，不得销毁二者。
 
 隔离允许底层计算继续运行，但必须原子结束它对原 Package 与 binding 的归属，并将 continuation 重新归属于 target 或 provider 执行域。continuation 必须独立持有继续运行所需的资源，不得再访问原 Package、binding 或原 Package 即将释放的 dependency edge；完成重新归属后，它不再属于原 Package 的 wait 集合。provider 级 scheduler、heartbeat 及其他执行域基础设施不归属于任一 Package，但不得在 Package 或 binding 归属结束后继续保存其指针或借用资源。provider 可以通过取消、迁移、重建、恢复或其他机制满足该结果，本规范不规定具体机制。不能满足该要求的 provider 不得让生命周期相互独立的 ImportBinding 共享同一个不可分割的故障单元；违反本要求的 provider 不合法，后续行为未定义。
 
@@ -579,7 +582,9 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 provider plugin 被选中后，其元数据与二进制工件直到当前 Runtime 整体销毁前不得被修改、替换或删除。违反该稳定性要求属于部署错误，其行为未定义；Runtime 不负责监视或检测变化，也不保存工件快照、执行 stale 检查或切换到其他 provider。
 
-provider plugin 成功加载后必须加入当前 Runtime 的常驻插件集合，并保持加载直到 Runtime 整体销毁或进程退出。Package rollback 和正常卸载均不得从该集合卸载 plugin，也不为 Package、module 或 ImportBinding 分别维护 plugin lease 或引用计数。多个 Package 和 module 可以共享同一已加载 plugin。Runtime 整体销毁时必须先销毁所有由 plugin 创建的 module、ImportBinding backend 及其他对象，最后才卸载常驻 plugin。
+provider plugin 成功加载后必须加入当前 Runtime 的常驻插件集合，并保持加载直到 Runtime 整体销毁或进程退出。Package rollback 和正常卸载均不得从该集合卸载 plugin，也不为 Package、module 或 ImportBinding 分别维护 plugin lease 或引用计数。多个 Package 和 module 可以共享同一已加载 plugin。
+
+Runtime 整体销毁前，必须先关闭所有 provider execution domain 的运行时入口，停止并等待全部归属于这些 domain 的 continuation、scheduler、heartbeat 及其他活动，确认所有 domain 已静止。只有此后才能销毁 plugin 创建的 module、ImportBinding backend 及其他对象，最后卸载常驻 plugin。provider 必须使该停止过程完成；违反要求的 provider 不合法，后续行为未定义。本规范不规定 activity 注册、等待或执行域管理的具体实现。
 
 `configuration`及其中由 variant 自行定义的格式版本不参与静态 provider 选择。选中的 provider 在`load`阶段发现不支持该`configuration`时，必须报告错误并使加载失败，不得尝试同类别搜索路径中的后续 provider。
 
