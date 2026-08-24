@@ -35,7 +35,7 @@ Three plugin interfaces sit between the host and the work:
 
 A plugin is a shared library exporting `synthrt_plugin_instance`, found by interface id and key. The ones shipped here are the DiffSinger singer provider, five interpreters (acoustic, duration, pitch, variance, vocoder) and the ONNX driver.
 
-The package format is specified separately, at [dspk.diffscope.org](https://dspk.diffscope.org/docs/1.0/package-specification.html). `docs/` holds the DiffSinger-side notes: `ds-spec-2.3.md` and `dsinfer-level-1-draft.md`.
+The current package format and inference contracts are documented in `docs/ds-spec-2.4.md` and `docs/dsinfer-level-1-revised.md`.
 
 ## Requirements
 
