@@ -3,7 +3,6 @@
 #include <set>
 #include <string_view>
 
-#include "ContribCreateContext.h"
 #include "InferenceInterpreterPlugin.h"
 
 namespace srt {

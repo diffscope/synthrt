@@ -9,7 +9,6 @@
 
 #include <stdcorelib/path.h>
 
-#include "ContribCreateContext.h"
 #include "SingerProviderPlugin.h"
 
 namespace fs = std::filesystem;

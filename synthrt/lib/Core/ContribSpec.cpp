@@ -4,7 +4,7 @@
 #include <cassert>
 #include <utility>
 
-#include "ContribCreateContext_p.h"
+#include "ContribCategory_p.h"
 #include "PackageHandle_p.h"
 
 namespace srt {

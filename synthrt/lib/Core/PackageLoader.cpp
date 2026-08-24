@@ -18,7 +18,6 @@
 
 #include "ContribCategory.h"
 #include "ContribCategory_p.h"
-#include "ContribCreateContext_p.h"
 #include "ContribLocator.h"
 #include "ContribSpec_p.h"
 #include "PackageHandle_p.h"

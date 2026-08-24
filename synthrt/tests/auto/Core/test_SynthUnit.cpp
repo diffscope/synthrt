@@ -9,7 +9,6 @@
 #include <stdcorelib/plugin/plugin.h>
 
 #include <synthrt/Core/ContribCategory.h>
-#include <synthrt/Core/ContribCreateContext.h>
 #include <synthrt/Core/ContribExecInstance.h>
 #include <synthrt/Core/ContribInterpreterPlugin.h>
 #include <synthrt/Core/ContribSpec.h>
