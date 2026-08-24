@@ -6,6 +6,7 @@
 #include "ContribCategory_p.h"
 #include "ContribLocator.h"
 #include "PackageLoader_p.h"
+#include "RuntimeService.h"
 
 namespace srt {
 
@@ -16,6 +17,11 @@ namespace srt {
         if (_impl) {
             for (auto &item : _impl->categories) {
                 item.second->_impl->synthUnit = this;
+            }
+            for (auto &iidEntry : _impl->runtimeServices) {
+                for (auto &nameEntry : iidEntry.second) {
+                    nameEntry.second->m_synthUnit = this;
+                }
             }
             for (auto &idEntry : _impl->packages) {
                 for (auto &versionEntry : idEntry.second) {
@@ -35,6 +41,11 @@ namespace srt {
         if (_impl) {
             for (auto &item : _impl->categories) {
                 item.second->_impl->synthUnit = this;
+            }
+            for (auto &iidEntry : _impl->runtimeServices) {
+                for (auto &nameEntry : iidEntry.second) {
+                    nameEntry.second->m_synthUnit = this;
+                }
             }
             for (auto &idEntry : _impl->packages) {
                 for (auto &versionEntry : idEntry.second) {
@@ -113,6 +124,67 @@ namespace srt {
         }
         _impl->categories.emplace(category->name(), std::move(category));
         return {};
+    }
+
+    Expected<void> SynthUnit::addRuntimeService(std::unique_ptr<RuntimeService> service) {
+        if (!_impl || !service) {
+            return Error(Error::InvalidArgument, "Runtime Service must not be null");
+        }
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
+        if (_impl->packageLoadingBegun) {
+            return Error(Error::InvalidArgument,
+                         "Runtime Services cannot be registered after Package loading has begun");
+        }
+        if (!ContribLocator::isValidDottedId(service->iid())) {
+            return Error(Error::InvalidArgument, "Runtime Service has an invalid IID");
+        }
+        if (!ContribLocator::isValidSegment(service->name())) {
+            return Error(Error::InvalidArgument, "Runtime Service has an invalid name");
+        }
+        if (service->m_synthUnit) {
+            return Error(Error::InvalidArgument, "Runtime Service is already registered");
+        }
+
+        auto &services = _impl->runtimeServices[service->iid()];
+        if (services.find(service->name()) != services.end()) {
+            return Error(Error::InvalidArgument, "Runtime Service identity is already registered");
+        }
+
+        auto name = service->name();
+        auto *registered = service.get();
+        services.emplace(std::move(name), std::move(service));
+        registered->m_synthUnit = this;
+        return {};
+    }
+
+    RuntimeService *SynthUnit::runtimeService(std::string_view iid, std::string_view name) const {
+        if (!_impl) {
+            return nullptr;
+        }
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
+        const auto iidIt = _impl->runtimeServices.find(iid);
+        if (iidIt == _impl->runtimeServices.end()) {
+            return nullptr;
+        }
+        const auto nameIt = iidIt->second.find(name);
+        return nameIt == iidIt->second.end() ? nullptr : nameIt->second.get();
+    }
+
+    std::vector<RuntimeService *> SynthUnit::runtimeServices(std::string_view iid) const {
+        std::vector<RuntimeService *> result;
+        if (!_impl) {
+            return result;
+        }
+        std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
+        const auto iidIt = _impl->runtimeServices.find(iid);
+        if (iidIt == _impl->runtimeServices.end()) {
+            return result;
+        }
+        result.reserve(iidIt->second.size());
+        for (const auto &item : iidIt->second) {
+            result.push_back(item.second.get());
+        }
+        return result;
     }
 
     void SynthUnit::setPackagePaths(stdc::array_view<std::filesystem::path> paths) {

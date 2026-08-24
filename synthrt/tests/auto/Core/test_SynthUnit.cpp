@@ -14,6 +14,7 @@
 #include <synthrt/Core/ContribInterpreterPlugin.h>
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Core/PackageHandle.h>
+#include <synthrt/Core/RuntimeService.h>
 #include <synthrt/Core/SynthUnit.h>
 
 #define BOOST_TEST_MAIN
@@ -93,6 +94,13 @@ namespace {
 
         srt::Expected<void> wait() override {
             return {};
+        }
+    };
+
+    class TestRuntimeService final : public srt::RuntimeService {
+    public:
+        TestRuntimeService(std::string iid, std::string name)
+            : RuntimeService(std::move(iid), std::move(name)) {
         }
     };
 
@@ -275,6 +283,59 @@ namespace {
 }
 
 BOOST_AUTO_TEST_SUITE(test_SynthUnit)
+
+BOOST_AUTO_TEST_CASE(test_unregistered_runtime_service_is_movable) {
+    TestRuntimeService original("org.openvpi.InferenceDriver", "onnx");
+    TestRuntimeService moved(std::move(original));
+
+    BOOST_CHECK_EQUAL(moved.iid(), "org.openvpi.InferenceDriver");
+    BOOST_CHECK_EQUAL(moved.name(), "onnx");
+
+    TestRuntimeService assigned("org.openvpi.Placeholder", "placeholder");
+    assigned = std::move(moved);
+    BOOST_CHECK_EQUAL(assigned.iid(), "org.openvpi.InferenceDriver");
+    BOOST_CHECK_EQUAL(assigned.name(), "onnx");
+}
+
+BOOST_AUTO_TEST_CASE(test_runtime_services_are_owned_and_indexed_by_synth_unit) {
+    TemporaryDirectory temporary;
+    const auto root = writePackage(temporary.path(), "root", "root", "1");
+    auto unit = makeUnit();
+
+    auto onnx = std::make_unique<TestRuntimeService>("org.openvpi.InferenceDriver", "onnx");
+    auto *onnxPointer = onnx.get();
+    BOOST_REQUIRE(unit.addRuntimeService(std::move(onnx)));
+    BOOST_REQUIRE(unit.addRuntimeService(
+        std::make_unique<TestRuntimeService>("org.openvpi.InferenceDriver", "remote")));
+    BOOST_CHECK(unit.runtimeService("org.openvpi.InferenceDriver", "onnx") == onnxPointer);
+    BOOST_CHECK(&onnxPointer->synthUnit() == &unit);
+    BOOST_CHECK_EQUAL(unit.runtimeServices("org.openvpi.InferenceDriver").size(), 2u);
+    BOOST_CHECK(unit.runtimeServices("org.openvpi.Missing").empty());
+
+    auto duplicate = unit.addRuntimeService(
+        std::make_unique<TestRuntimeService>("org.openvpi.InferenceDriver", "onnx"));
+    BOOST_REQUIRE(!duplicate);
+    BOOST_CHECK(duplicate.error().code() == srt::Error::InvalidArgument);
+
+    auto invalidIid =
+        unit.addRuntimeService(std::make_unique<TestRuntimeService>("invalid iid", "test"));
+    BOOST_REQUIRE(!invalidIid);
+    BOOST_CHECK(invalidIid.error().code() == srt::Error::InvalidArgument);
+    auto invalidName = unit.addRuntimeService(
+        std::make_unique<TestRuntimeService>("org.openvpi.InferenceDriver", "invalid/name"));
+    BOOST_REQUIRE(!invalidName);
+    BOOST_CHECK(invalidName.error().code() == srt::Error::InvalidArgument);
+
+    srt::SynthUnit moved(std::move(unit));
+    BOOST_CHECK(&onnxPointer->synthUnit() == &moved);
+    BOOST_CHECK(moved.runtimeService("org.openvpi.InferenceDriver", "onnx") == onnxPointer);
+
+    BOOST_REQUIRE(moved.openPackage(root, srt::SynthUnit::DataOnly));
+    auto late = moved.addRuntimeService(
+        std::make_unique<TestRuntimeService>("org.openvpi.InferenceDriver", "late"));
+    BOOST_REQUIRE(!late);
+    BOOST_CHECK(late.error().code() == srt::Error::InvalidArgument);
+}
 
 BOOST_AUTO_TEST_CASE(test_data_only_reads_and_validates_dependencies) {
     TemporaryDirectory temporary;

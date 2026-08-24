@@ -20,6 +20,7 @@ namespace srt {
     class ContribExecInstance;
     class PackageData;
     class PackageLoader;
+    class RuntimeService;
 
     /// Owns Package resolution, interpreter discovery, and committed runtime state.
     class SYNTHRT_EXPORT SynthUnit {
@@ -49,6 +50,17 @@ namespace srt {
         /// Registration binds the category to this SynthUnit. It fails when the name is already
         /// registered or Package loading has begun.
         Expected<void> addCategory(std::unique_ptr<ContribCategory> category);
+
+        /// Registers and takes ownership of one Runtime Service before Package loading begins.
+        ///
+        /// The pair formed by the service IID and name must be unique within this SynthUnit.
+        Expected<void> addRuntimeService(std::unique_ptr<RuntimeService> service);
+
+        /// Finds a Runtime Service by interface and implementation name.
+        RuntimeService *runtimeService(std::string_view iid, std::string_view name) const;
+
+        /// Returns all Runtime Services registered for one interface.
+        std::vector<RuntimeService *> runtimeServices(std::string_view iid) const;
 
         /// Replaces the Package search path sequence.
         void setPackagePaths(stdc::array_view<std::filesystem::path> paths);
@@ -87,6 +99,7 @@ namespace srt {
         friend class PackageHandle;
         friend class PackageData;
         friend class PackageLoader;
+        friend class RuntimeService;
     };
 
 }
