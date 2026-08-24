@@ -16,6 +16,9 @@ namespace srt {
 
     using LogCategory = stdc::LogCategory;
 
+    /// Returns the process-wide log category used by SynthRT itself.
+    SYNTHRT_EXPORT LogCategory &logCategory();
+
 }
 
 /*!

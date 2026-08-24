@@ -15,7 +15,7 @@ namespace srt {
     /// A prepared or active runtime connection from one contribution to another.
     class SYNTHRT_EXPORT ContribImportBinding {
     public:
-        enum class State {
+        enum State {
             Prepared,
             Active,
             Closed,

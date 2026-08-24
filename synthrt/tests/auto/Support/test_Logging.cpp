@@ -52,6 +52,14 @@ BOOST_AUTO_TEST_CASE(test_Logging_AliasesAreTheSameTypes) {
     BOOST_CHECK(srt::Logger::Fatal > srt::Logger::Trace);
 }
 
+BOOST_AUTO_TEST_CASE(test_Logging_SynthRTCategory) {
+    auto &first = srt::logCategory();
+    auto &second = srt::logCategory();
+
+    BOOST_CHECK_EQUAL(first.name(), "synthrt");
+    BOOST_CHECK(&first == &second);
+}
+
 BOOST_AUTO_TEST_CASE(test_Logging_MacrosForward) {
     Sink sink;
 

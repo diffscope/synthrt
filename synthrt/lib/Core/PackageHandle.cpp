@@ -3,12 +3,12 @@
 
 #include <algorithm>
 #include <cassert>
-#include <exception>
 #include <utility>
 
 #include "ContribCategory_p.h"
 #include "ContribImportBinding.h"
 #include "ContribSpec_p.h"
+#include "Logging.h"
 #include "SynthUnit_p.h"
 
 namespace srt {
@@ -31,8 +31,14 @@ namespace srt {
         for (const auto &categoryEntry : contributions) {
             for (auto *spec : categoryEntry.second) {
                 for (auto &import : spec->_impl->imports) {
-                    if (import._impl->binding && !import._impl->binding->waitForUnload()) {
-                        std::terminate();
+                    if (!import._impl->binding) {
+                        continue;
+                    }
+                    const auto result = import._impl->binding->waitForUnload();
+                    if (!result) {
+                        logCategory().srtFatal(
+                            "an import binding failed to stop during Package unload: %1",
+                            result.error().toString());
                     }
                 }
             }
