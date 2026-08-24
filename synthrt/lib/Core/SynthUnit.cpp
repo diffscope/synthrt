@@ -5,12 +5,29 @@
 
 #include "ContribCategory_p.h"
 #include "ContribLocator.h"
+#include "Logging.h"
 #include "PackageLoader_p.h"
 #include "RuntimeService.h"
 
 namespace srt {
 
     SynthUnit::SynthUnit() : _impl(std::make_unique<Impl>()) {
+        for (const auto &entry : ContribCategoryRegistry::entries()) {
+            auto category = entry.instantiate();
+            if (!category) {
+                logCategory().srtFatal("contribution category %1 produced no instance",
+                                       entry.name());
+            }
+            if (category->name() != entry.name()) {
+                logCategory().srtFatal(
+                    "contribution category registration name %1 does not match instance name %2",
+                    entry.name(), category->name());
+            }
+            if (auto result = addCategory(std::move(category)); !result) {
+                logCategory().srtFatal("failed to register contribution category %1: %2",
+                                       entry.name(), result.error().toString());
+            }
+        }
     }
 
     SynthUnit::SynthUnit(SynthUnit &&RHS) noexcept : _impl(std::move(RHS._impl)) {

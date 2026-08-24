@@ -178,6 +178,8 @@ namespace {
         }
     };
 
+    srt::ContribCategoryRegistry::Add<TestCategory> testCategoryRegistration(testCategoryName, "");
+
     class EntrySpec final : public srt::ContribSpec {
     public:
         EntrySpec(const srt::ContribCreateContext &context, std::string value)
@@ -279,14 +281,22 @@ namespace {
 
     srt::SynthUnit makeUnit() {
         srt::SynthUnit unit;
-        auto result = unit.addCategory(std::make_unique<TestCategory>());
-        BOOST_REQUIRE(result);
+        BOOST_REQUIRE(unit.category(testCategoryName));
         return unit;
     }
 
 }
 
 BOOST_AUTO_TEST_SUITE(test_SynthUnit)
+
+BOOST_AUTO_TEST_CASE(test_linked_categories_are_instantiated_for_each_unit) {
+    srt::SynthUnit first;
+    srt::SynthUnit second;
+
+    BOOST_REQUIRE(first.category(testCategoryName));
+    BOOST_REQUIRE(second.category(testCategoryName));
+    BOOST_CHECK(first.category(testCategoryName) != second.category(testCategoryName));
+}
 
 BOOST_AUTO_TEST_CASE(test_unregistered_runtime_service_is_movable) {
     TestRuntimeService original("org.openvpi.InferenceDriver", "onnx");

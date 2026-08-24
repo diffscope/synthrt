@@ -185,3 +185,6 @@ namespace srt {
     }
 
 }
+
+static srt::ContribCategoryRegistry::Add<srt::SingerCategory> singerCategoryRegistration("singer",
+                                                                                         "");

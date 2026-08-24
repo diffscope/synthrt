@@ -101,8 +101,8 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
               })");
 
     srt::SynthUnit unit;
-    BOOST_REQUIRE(unit.addCategory(std::make_unique<srt::InferenceCategory>()));
-    BOOST_REQUIRE(unit.addCategory(std::make_unique<srt::SingerCategory>()));
+    BOOST_REQUIRE(unit.category("inference"));
+    BOOST_REQUIRE(unit.category("singer"));
     auto opened = unit.openPackage(root, srt::SynthUnit::DataOnly);
     BOOST_REQUIRE(opened);
     auto package = opened.take();

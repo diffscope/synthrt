@@ -99,3 +99,6 @@ namespace srt {
     }
 
 }
+
+static srt::ContribCategoryRegistry::Add<srt::InferenceCategory>
+    inferenceCategoryRegistration("inference", "");

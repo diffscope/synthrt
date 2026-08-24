@@ -6,6 +6,8 @@
 
 #include "SynthUnit_p.h"
 
+STDC_INSTANTIATE_STATIC_REGISTRY_EXPORT(srt::ContribCategory, SYNTHRT_EXPORT)
+
 namespace srt {
 
     const ContribLocator &ContribCreateContext::locator() const {

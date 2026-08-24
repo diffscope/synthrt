@@ -25,6 +25,7 @@ namespace srt {
     /// Owns Package resolution, interpreter discovery, and committed runtime state.
     class SYNTHRT_EXPORT SynthUnit {
     public:
+        /// Constructs a unit with every category in \c ContribCategoryRegistry.
         SynthUnit();
         SynthUnit(SynthUnit &&RHS) noexcept;
         SynthUnit &operator=(SynthUnit &&RHS) noexcept;

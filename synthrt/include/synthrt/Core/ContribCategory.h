@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <stdcorelib/adt/array_view.h>
+#include <stdcorelib/support/staticregistry.h>
 
 #include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpec.h>
@@ -140,6 +141,19 @@ namespace srt {
         friend class SynthUnit;
     };
 
+    /// The process wide registry of contribution categories available at link time.
+    ///
+    /// Each SynthUnit constructs a fresh instance of every registered category. Registration must
+    /// therefore finish before the SynthUnit is constructed. Loading a library afterward does not
+    /// add its categories to existing units.
+    using ContribCategoryRegistry = stdc::StaticRegistry<ContribCategory>;
+
 }
+
+#if !defined(SYNTHRT_LIBRARY) && defined(_MSC_VER)
+// MSVC needs the dllimport declaration when inline registry code references the exported registry
+// storage. GNU family compilers must instantiate nested registration types locally.
+extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategory>;
+#endif
 
 #endif // SYNTHRT_CONTRIBCATEGORY_H
