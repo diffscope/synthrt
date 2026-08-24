@@ -190,12 +190,12 @@ BOOST_AUTO_TEST_CASE(driver_extension) {
     BOOST_REQUIRE(ext->objectName() == ds::Api::Onnx::API_NAME);
 
     auto onnx = static_cast<const ds::Api::Onnx::DriverExtension *>(ext);
-    BOOST_CHECK(onnx->ortApi != nullptr);
-    BOOST_CHECK(onnx->ortApiBase != nullptr);
-    BOOST_CHECK(onnx->ortApiVersion > 0);
+    BOOST_CHECK(onnx->runtimeApi.ortApi != nullptr);
+    BOOST_CHECK(onnx->runtimeApi.ortApiBase != nullptr);
+    BOOST_CHECK(onnx->runtimeApi.ortApiVersion > 0);
     BOOST_CHECK(!onnx->runtimePath.empty());
     BOOST_CHECK(onnx->ep == ds::Api::Onnx::ExecutionProvider::CPU);
-    BOOST_TEST_MESSAGE("ORT_API_VERSION the driver asked for: " << onnx->ortApiVersion);
+    BOOST_TEST_MESSAGE("ORT_API_VERSION the driver asked for: " << onnx->runtimeApi.ortApiVersion);
 }
 
 struct SessionResultValidator {

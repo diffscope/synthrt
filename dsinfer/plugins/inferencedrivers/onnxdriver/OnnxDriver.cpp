@@ -126,19 +126,39 @@ namespace ds {
             ortDSO.swap(dylib);
 
             extension.runtimePath = path;
-            extension.ortApiBase = apiBase;
-            extension.ortApi = api;
-            extension.ortApiVersion = ORT_API_VERSION;
+            extension.runtimeApi = {apiBase, api, ORT_API_VERSION};
 
             Log.srtInfo("Init - Onnx environment Load successful");
             return srt::Expected<void>();
+        }
+
+        srt::Expected<void> useExternalApi(const Api::Onnx::RuntimeApi &runtimeApi) {
+            if (!runtimeApi.ortApiBase || !runtimeApi.ortApi) {
+                return srt::Error(srt::Error::InvalidArgument,
+                                  "external ONNX Runtime API pointers must not be null");
+            }
+            if (runtimeApi.ortApiVersion != ORT_API_VERSION) {
+                return srt::Error(
+                    srt::Error::InvalidArgument,
+                    stdc::formatN("external ONNX Runtime API version must be %1, got %2",
+                                  ORT_API_VERSION, runtimeApi.ortApiVersion));
+            }
+            if (runtimeApi.ortApiBase->GetApi(runtimeApi.ortApiVersion) != runtimeApi.ortApi) {
+                return srt::Error(srt::Error::InvalidArgument,
+                                  "external ONNX Runtime API does not belong to its API base");
+            }
+
+            Ort::InitApi(runtimeApi.ortApi);
+            extension.runtimeApi = runtimeApi;
+            Log.srtInfo("Init - Using externally owned onnx environment");
+            return {};
         }
 
         /// Keeps the library the extension points into alive.
         std::unique_ptr<stdc::SharedLibrary> ortDSO;
 
         /// Everything a caller may ask about the runtime, and the record of whether it is loaded:
-        /// \c ortApi is null until load() succeeds.
+        /// \c runtimeApi.ortApi is null until initialization succeeds.
         Api::Onnx::DriverExtension extension;
     };
 
@@ -166,18 +186,22 @@ namespace ds {
         // Example logging
         Log.srtDebug("initialize: driver type: %1", args.type());
 
-        if (impl.extension.ortApi) {
+        if (impl.extension.runtimeApi.ortApi) {
             return srt::Error{
                 srt::Error::FileDuplicated,
                 "onnx runtime has been initialized by another instance",
             };
         }
 
-        auto dllPath = onnxArgs.runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
-
-        if (auto exp = impl.load(dllPath); !exp) {
-            // Propagate the detailed reason from \c load() instead of a generic message.
-            return exp;
+        if (onnxArgs.runtimeApi) {
+            if (auto result = impl.useExternalApi(*onnxArgs.runtimeApi); !result) {
+                return result;
+            }
+        } else {
+            auto dllPath = onnxArgs.runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
+            if (auto result = impl.load(dllPath); !result) {
+                return result;
+            }
         }
 
         onnxdriver::Env::DeviceConfig devConfig;
@@ -196,7 +220,7 @@ namespace ds {
 
     const InferenceDriverExtension *OnnxDriver::extension() const {
         stdc_impl_t;
-        return impl.extension.ortApi ? &impl.extension : nullptr;
+        return impl.extension.runtimeApi.ortApi ? &impl.extension : nullptr;
     }
 
 }

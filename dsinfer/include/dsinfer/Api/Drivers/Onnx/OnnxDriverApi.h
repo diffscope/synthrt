@@ -4,13 +4,14 @@
 #include <filesystem>
 #include <map>
 #include <memory>
+#include <optional>
 #include <set>
 
 #include <dsinfer/Core/Tensor.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
 
-/// Forward declarations keep ONNX Runtime headers out of clients that do not use DriverExtension.
+/// Forward declarations keep ONNX Runtime headers out of clients that do not exchange its API.
 struct OrtApi;
 struct OrtApiBase;
 
@@ -28,6 +29,18 @@ namespace ds::Api::Onnx {
         CUDA,    ///< Executes models with the ONNX Runtime CUDA backend.
         DML,     ///< Executes models with the ONNX Runtime DirectML backend.
         CoreML,  ///< Executes models with the ONNX Runtime Core ML backend.
+    };
+
+    /// Identifies one ONNX Runtime API table.
+    struct RuntimeApi {
+        /// ONNX Runtime API bootstrap table.
+        const OrtApiBase *ortApiBase = nullptr;
+
+        /// ONNX Runtime API table.
+        const OrtApi *ortApi = nullptr;
+
+        /// Version of \c ortApi.
+        int ortApiVersion = 0;
     };
 
     /// Configures initialization of the ONNX inference driver.
@@ -48,6 +61,12 @@ namespace ds::Api::Onnx {
         ///
         /// An empty path requests the driver's default lookup behavior.
         std::filesystem::path runtimePath;
+
+        /// Externally owned ONNX Runtime API, or empty to load \c runtimePath.
+        ///
+        /// The caller retains ownership when this has a value and must keep the ONNX Runtime
+        /// library alive until after the driver is destroyed.
+        std::optional<RuntimeApi> runtimeApi;
     };
 
     /// Configures one ONNX inference session.
@@ -93,16 +112,11 @@ namespace ds::Api::Onnx {
         inline DriverExtension() : InferenceDriverExtension(API_NAME, API_VERSION) {
         }
 
-        /// ONNX Runtime API table, or null before driver initialization succeeds.
-        const OrtApi *ortApi = nullptr;
-
-        /// ONNX Runtime API bootstrap table, or null before driver initialization succeeds.
-        const OrtApiBase *ortApiBase = nullptr;
-
-        /// Value of \c ORT_API_VERSION requested by the driver.
+        /// ONNX Runtime API used by the driver.
         ///
-        /// A client compiled for another API version must not use \c ortApi.
-        int ortApiVersion = 0;
+        /// A client compiled for another API version must not use \c runtimeApi. This value does
+        /// not own the ONNX Runtime library.
+        RuntimeApi runtimeApi;
 
         /// Path of the ONNX Runtime shared library loaded by the driver.
         std::filesystem::path runtimePath;

@@ -144,6 +144,19 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     BOOST_CHECK(unit.runtimeService(ds::InferenceDriver::IID, ds::Api::Onnx::API_NAME) ==
                 driverPointer);
 
+    auto *extension = driverPointer->extension()->as<ds::Api::Onnx::DriverExtension>();
+    auto externalResult = factory.create(ds::Api::Onnx::API_NAME);
+    BOOST_REQUIRE(externalResult);
+    auto externalDriver = externalResult.take();
+    ds::Api::Onnx::DriverInitArgs externalArgs;
+    externalArgs.runtimeApi = extension->runtimeApi;
+    BOOST_REQUIRE(externalDriver->initialize(externalArgs));
+    auto *externalExtension = externalDriver->extension()->as<ds::Api::Onnx::DriverExtension>();
+    BOOST_CHECK(externalExtension->runtimeApi.ortApiBase == extension->runtimeApi.ortApiBase);
+    BOOST_CHECK(externalExtension->runtimeApi.ortApi == extension->runtimeApi.ortApi);
+    BOOST_CHECK_EQUAL(externalExtension->runtimeApi.ortApiVersion,
+                      extension->runtimeApi.ortApiVersion);
+
     auto session = driverPointer->createSession();
     BOOST_REQUIRE(session);
     BOOST_CHECK(!session->isOpen());
