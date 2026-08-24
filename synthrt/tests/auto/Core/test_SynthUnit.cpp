@@ -224,6 +224,7 @@ BOOST_AUTO_TEST_CASE(test_data_only_expands_variables_without_loading_plugin) {
                   ],
                   "vendor":"${${selector}}",
                   "readme":"${assets}/readme.txt",
+                  "applicationData":{"assetRoot":"${assets}"},
                   "contributions":{"com.example.test":[
                     {"id":"main","path":"${modulePath}"}
                   ]}
@@ -233,10 +234,18 @@ BOOST_AUTO_TEST_CASE(test_data_only_expands_variables_without_loading_plugin) {
                   "interface":"com.example.Contract",
                   "variant":"test",
                   "level":1,
-                  "vars":[{"name":"d","value":"$"}],
+                  "vars":[
+                    {"name":"d","value":"$"},
+                    {"name":"dollars","value":"$$$$"}
+                  ],
                   "name":"$${target}",
+                  "extensionData":{"assetRoot":"${assets}"},
                   "exports":{},
-                  "configuration":{"assets":"${assets}"}
+                  "configuration":{
+                    "assets":"${assets}",
+                    "replacementIsNotRetokenized":"${d}{target}",
+                    "replacementDollarsRemainLiteral":"${dollars}"
+                  }
               })");
 
     auto unit = makeUnit();
@@ -253,12 +262,22 @@ BOOST_AUTO_TEST_CASE(test_data_only_expands_variables_without_loading_plugin) {
     BOOST_CHECK_EQUAL(package.vendor().text(), "Expanded");
     BOOST_CHECK_EQUAL(package.readme().text(),
                       (root / "assets" / "readme.txt").lexically_normal().string());
+    BOOST_CHECK_EQUAL(package.manifestDeclaration().at("applicationData")["assetRoot"].toString(),
+                      root.lexically_normal().string() + "/assets");
+    BOOST_CHECK(package.manifestDeclaration().find("vars") == package.manifestDeclaration().end());
 
     auto *spec = package.contribution(testCategoryName, "main");
     BOOST_REQUIRE(spec);
     BOOST_CHECK_EQUAL(spec->name().text(), "${target}");
+    BOOST_CHECK_EQUAL(spec->manifestDeclaration().at("extensionData")["assetRoot"].toString(),
+                      root.lexically_normal().string() + "/assets");
+    BOOST_CHECK(spec->manifestDeclaration().find("vars") == spec->manifestDeclaration().end());
     BOOST_CHECK_EQUAL(spec->manifestConfiguration()["assets"].toString(),
                       root.lexically_normal().string() + "/assets");
+    BOOST_CHECK_EQUAL(spec->manifestConfiguration()["replacementIsNotRetokenized"].toString(),
+                      "${target}");
+    BOOST_CHECK_EQUAL(spec->manifestConfiguration()["replacementDollarsRemainLiteral"].toString(),
+                      "$$");
     BOOST_CHECK(!spec->exports());
     BOOST_CHECK(!spec->configuration());
     BOOST_CHECK_EQUAL(pluginCreateCount, createCount);
@@ -335,32 +354,78 @@ BOOST_AUTO_TEST_CASE(test_dependency_cycle_reports_chain) {
     BOOST_CHECK(unit.loadedPackages().empty());
 }
 
-BOOST_AUTO_TEST_CASE(test_invalid_manifest_profile_is_rejected) {
+BOOST_AUTO_TEST_CASE(test_missing_dependency_reports_not_found) {
     TemporaryDirectory temporary;
+    const auto root = writePackage(temporary.path(), "root", "root", "1", {},
+                                   R"([{"id":"missing","version":"1"}])");
+
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(root, srt::SynthUnit::Load);
+
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::FileNotFound);
+    BOOST_CHECK(unit.loadedPackages().empty());
+}
+
+BOOST_AUTO_TEST_CASE(test_missing_import_target_reports_not_found) {
+    TemporaryDirectory temporary;
+    const auto root = writePackage(temporary.path(), "root", "root", "1", {}, "[]",
+                                   R"([{"ref":":com.example.test/missing"}])");
+
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(root, srt::SynthUnit::Load);
+
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::FileNotFound);
+    BOOST_CHECK(unit.loadedPackages().empty());
+}
+
+BOOST_AUTO_TEST_CASE(test_manifest_profile_distinguishes_invalid_and_extensible_input) {
+    TemporaryDirectory temporary;
+    const auto missingVersion = temporary.path() / "missing-version";
+    writeText(missingVersion / "desc.json", R"({"id":"missing","version":"1","runtimeLevel":1})");
+
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(missingVersion, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
+
+    const auto equivalentVersion = temporary.path() / "equivalent-version";
+    writeText(equivalentVersion / "desc.json",
+              R"({"$version":"1.0.0.0","id":"equivalent","version":"1","runtimeLevel":1})");
+    opened = unit.openPackage(equivalentVersion, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(opened);
+
+    const auto unsupportedVersion = temporary.path() / "unsupported-version";
+    writeText(unsupportedVersion / "desc.json",
+              R"({"$version":"2.0","id":"new","version":"1","runtimeLevel":1})");
+    opened = unit.openPackage(unsupportedVersion, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::FeatureNotSupported);
+
     const auto duplicate = temporary.path() / "duplicate";
     writeText(duplicate / "desc.json",
               R"({"$version":"1.0","id":"first","id":"second","version":"1","runtimeLevel":1})");
 
-    auto unit = makeUnit();
-    auto opened = unit.openPackage(duplicate, srt::SynthUnit::DataOnly);
+    opened = unit.openPackage(duplicate, srt::SynthUnit::DataOnly);
     BOOST_REQUIRE(!opened);
     BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
     BOOST_CHECK(opened.error().toString().find("duplicate object key") != std::string::npos);
-
-    const auto malformedVariable = temporary.path() / "malformed-variable";
-    writeText(
-        malformedVariable / "desc.json",
-        R"({"$version":"1.0","id":"bad","version":"1","runtimeLevel":1,"vendor":"${missing"})");
-    opened = unit.openPackage(malformedVariable, srt::SynthUnit::DataOnly);
-    BOOST_REQUIRE(!opened);
-    BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
 
     const auto oldField = temporary.path() / "old-field";
     writeText(oldField / "desc.json",
               R"({"$version":"1.0","id":"old","version":"1","runtimeLevel":1,"contributes":{}})");
     opened = unit.openPackage(oldField, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(opened);
+    BOOST_CHECK(opened->manifestDeclaration().at("contributes").isObject());
+
+    const auto unknownCategory = temporary.path() / "unknown-category";
+    writeText(
+        unknownCategory / "desc.json",
+        R"({"$version":"1.0","id":"unknown","version":"1","runtimeLevel":1,"contributions":{"com.example.unknown":[]}})");
+    opened = unit.openPackage(unknownCategory, srt::SynthUnit::DataOnly);
     BOOST_REQUIRE(!opened);
-    BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
+    BOOST_CHECK(opened.error().code() == srt::Error::FeatureNotSupported);
     BOOST_CHECK(unit.loadedPackages().empty());
 }
 

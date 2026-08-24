@@ -18,13 +18,21 @@ namespace srt {
         /// Error's constructor, which keeps their codes from colliding with these.
         enum ErrorCode {
             NoError = 0,
+            /// Input data or a provider result does not conform to its required contract.
             InvalidFormat,
+            /// A requested file, Package, or contribution cannot be found.
             FileNotFound,
+            /// An existing file or shared library cannot be opened.
             FileNotOpen,
+            /// A location contains more than one file or Package with the same identity.
             FileDuplicated,
+            /// A Package dependency graph contains a cycle.
             RecursiveDependency,
+            /// The Runtime recognizes a requested feature but cannot provide it.
             FeatureNotSupported,
+            /// A caller supplied an invalid API argument.
             InvalidArgument,
+            /// The requested API has not been implemented.
             NotImplemented,
         };
 
@@ -202,8 +210,7 @@ namespace srt {
     }
 
     inline Error::Error(ErrorCode code)
-        : _code(static_cast<int>(code), category()),
-          _msg(defaultMessage(static_cast<int>(code))) {
+        : _code(static_cast<int>(code), category()), _msg(defaultMessage(static_cast<int>(code))) {
     }
 
     inline Error Error::success() {

@@ -8,6 +8,8 @@
 #include <string>
 #include <vector>
 
+#include <stdcorelib/adt/vlarray.h>
+
 namespace srt {
 
     class PackageData : public std::enable_shared_from_this<PackageData> {
@@ -22,6 +24,7 @@ namespace srt {
         stdc::VersionNumber compatVersion;
         int runtimeLevel = 0;
         bool loaded = false;
+        JsonObject manifestDeclaration;
         DisplayText name;
         DisplayText description;
         DisplayText vendor;
@@ -29,9 +32,9 @@ namespace srt {
         DisplayText copyright;
         std::string url;
         std::filesystem::path path;
-        std::vector<PackageDependency> dependencies;
+        stdc::vlarray<PackageDependency> dependencies;
         std::map<std::string, std::shared_ptr<PackageData>, std::less<>> dependencyBindings;
-        std::vector<std::unique_ptr<ContribSpec>> ownedContributions;
+        stdc::vlarray<std::unique_ptr<ContribSpec>> ownedContributions;
         std::map<std::string, std::vector<ContribSpec *>, std::less<>> contributions;
         std::map<std::string, std::map<std::string, ContribSpec *, std::less<>>, std::less<>>
             contributionIndex;

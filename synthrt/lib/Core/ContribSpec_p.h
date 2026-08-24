@@ -4,7 +4,8 @@
 #include "ContribSpec.h"
 
 #include <utility>
-#include <vector>
+
+#include <stdcorelib/adt/vlarray.h>
 
 namespace srt {
 
@@ -39,6 +40,7 @@ namespace srt {
         bool hasModuleDeclaration = false;
         stdc::plugin::PluginLoader *pluginLoader = nullptr;
         ContribInterpreter *interpreter = nullptr;
+        JsonObject manifestDeclaration;
         DisplayText name;
         std::string interface;
         std::string variant;
@@ -47,7 +49,7 @@ namespace srt {
         std::unique_ptr<ContribExports> exports;
         JsonValue manifestConfiguration;
         std::unique_ptr<ContribConfiguration> configuration;
-        std::vector<Import> imports;
+        stdc::vlarray<Import> imports;
     };
 
 }

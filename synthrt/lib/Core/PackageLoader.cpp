@@ -11,8 +11,8 @@
 #include <string_view>
 #include <tuple>
 #include <utility>
-#include <vector>
 
+#include <stdcorelib/adt/vlarray.h>
 #include <stdcorelib/path.h>
 #include <stdcorelib/str.h>
 
@@ -31,10 +31,12 @@ namespace srt {
     namespace {
 
         constexpr int supportedRuntimeLevel = 1;
-        constexpr std::string_view supportedManifestVersion = "1.0";
+        const stdc::VersionNumber supportedManifestVersion(1, 0);
 
         using Variables = std::map<std::string, std::string, std::less<>>;
 
+        // The JSON parser retains only one value for a repeated key. Scan the source first so the
+        // manifest profile can reject duplicates before that information is lost.
         class JsonProfileValidator {
         public:
             explicit JsonProfileValidator(std::string_view source) : m_source(source) {
@@ -244,85 +246,30 @@ namespace srt {
                                [](char ch) { return stdc::str::is_alnum(ch) || ch == '_'; });
         }
 
-        class TemplateExpander {
-        public:
-            TemplateExpander(std::string_view source,
-                             const std::function<std::string_view(std::string_view)> &lookup)
-                : m_source(source), m_lookup(lookup) {
-            }
-
-            Expected<std::string> expand() {
-                return expandRange(false, 0);
-            }
-
-        private:
-            Expected<std::string> expandRange(bool nested, std::size_t depth) {
-                if (depth > 256) {
-                    return Error(Error::InvalidFormat, "string variable nesting is too deep");
-                }
-
-                std::string result;
-                while (m_offset < m_source.size()) {
-                    const auto ch = m_source[m_offset];
-                    if (nested && ch == '}') {
-                        return result;
-                    }
-                    if (ch != '$') {
-                        result += ch;
-                        ++m_offset;
-                        continue;
-                    }
-                    if (m_offset + 1 >= m_source.size()) {
-                        result += '$';
-                        ++m_offset;
-                        continue;
-                    }
-                    if (m_source[m_offset + 1] == '$') {
-                        result += '$';
-                        m_offset += 2;
-                        continue;
-                    }
-                    if (m_source[m_offset + 1] != '{') {
-                        result += '$';
-                        ++m_offset;
-                        continue;
-                    }
-
-                    m_offset += 2;
-                    auto payload = expandRange(true, depth + 1);
-                    if (!payload) {
-                        return payload.takeError();
-                    }
-                    if (m_offset >= m_source.size() || m_source[m_offset] != '}') {
-                        return Error(Error::InvalidFormat,
-                                     "string variable reference has no closing brace");
-                    }
-                    ++m_offset;
-
-                    const auto &name = payload.get();
-                    if (isVariableName(name)) {
-                        result += m_lookup(name);
-                    }
-                }
-
-                if (nested) {
-                    return Error(Error::InvalidFormat,
-                                 "string variable reference has no closing brace");
-                }
-                return result;
-            }
-
-            std::string_view m_source;
-            const std::function<std::string_view(std::string_view)> &m_lookup;
-            std::size_t m_offset = 0;
-        };
-
         Expected<std::string> expandString(std::string_view source, const Variables &variables) {
-            const auto lookup = [&variables](std::string_view name) -> std::string_view {
+            const auto lookup = [&variables](std::string_view name) -> std::string {
+                if (!isVariableName(name)) {
+                    return {};
+                }
                 const auto it = variables.find(name);
-                return it == variables.end() ? std::string_view() : std::string_view(it->second);
+                if (it == variables.end()) {
+                    return {};
+                }
+
+                // varexp removes one layer of dollar escaping after substitution. Protect dollars
+                // from variable values so only the original source participates in tokenization.
+                std::string escaped;
+                escaped.reserve(it->second.size());
+                for (const auto ch : it->second) {
+                    if (ch == '$') {
+                        escaped += '$';
+                    }
+                    escaped += ch;
+                }
+                return escaped;
             };
-            return TemplateExpander(source, lookup).expand();
+
+            return stdc::str::varexp(source, lookup);
         }
 
         Expected<Variables> readVariables(const JsonObject &object, const Variables &outer) {
@@ -355,6 +302,8 @@ namespace srt {
                     return Error(Error::InvalidFormat, "vars contains a duplicate name");
                 }
 
+                // Only earlier entries are visible. This makes forward references empty and
+                // prevents a variable cycle without a separate dependency graph.
                 Variables visible = outer;
                 for (const auto &item : values) {
                     visible.insert_or_assign(item.first, item.second);
@@ -414,6 +363,7 @@ namespace srt {
                 visible.insert_or_assign(item.first, item.second);
             }
 
+            // Later parsers receive only usable strings. They must not repeat template expansion.
             object.erase("vars");
             for (auto &item : object) {
                 if (preserveVersion && item.first == "$version") {
@@ -526,18 +476,6 @@ namespace srt {
             return DisplayText(defaultText.take(), localized);
         }
 
-        Expected<void> rejectUnknownFields(const JsonObject &object,
-                                           const std::set<std::string_view> &allowed,
-                                           std::string_view declaration) {
-            for (const auto &item : object) {
-                if (allowed.find(item.first) == allowed.end()) {
-                    return Error(Error::InvalidFormat,
-                                 std::string(declaration) + " has unknown field " + item.first);
-                }
-            }
-            return {};
-        }
-
     }
 
     PackageLoader::PackageLoader(SynthUnit &synthUnit) : m_synthUnit(&synthUnit) {
@@ -557,6 +495,8 @@ namespace srt {
     }
 
     Expected<PackageHandle> PackageLoader::openDataOnly(const fs::path &path) {
+        // DataOnly deliberately stops after typed manifest construction. It never performs plugin
+        // discovery and never publishes the Package to SynthUnit.
         auto package = readPackage(path);
         if (!package) {
             return package.takeError();
@@ -575,9 +515,17 @@ namespace srt {
         }
 
         using Identity = std::pair<std::string, stdc::VersionNumber>;
-        using PackageList = std::vector<std::shared_ptr<PackageData>>;
+        using PackageList = stdc::vlarray<std::shared_ptr<PackageData>>;
 
-        std::vector<PackageList> catalog;
+        enum class ProbeState {
+            Unvisited,
+            Visiting,
+            Complete,
+        };
+
+        // Catalog entries contain only the fields that determine candidacy. Module declarations
+        // are read after selection so a broken selected Package fails instead of causing fallback.
+        stdc::vlarray<PackageList> catalog;
         std::set<Identity> discoveredIdentities;
         for (const auto &searchPathValue : m_synthUnit->_impl->packagePaths) {
             std::error_code error;
@@ -587,7 +535,7 @@ namespace srt {
                 continue;
             }
 
-            std::vector<fs::path> directories;
+            stdc::vlarray<fs::path> directories;
             fs::directory_iterator iterator(searchPath, error);
             const fs::directory_iterator end;
             while (!error && iterator != end) {
@@ -597,6 +545,8 @@ namespace srt {
                 error.clear();
                 iterator.increment(error);
             }
+            // Filesystem enumeration order is unspecified. Sorting makes duplicate diagnostics and
+            // source discovery reproducible within one search path.
             std::sort(directories.begin(), directories.end(), [](const auto &LHS, const auto &RHS) {
                 return displayPath(LHS.filename()) < displayPath(RHS.filename());
             });
@@ -614,6 +564,8 @@ namespace srt {
                     return Error(Error::FileDuplicated,
                                  "one Package search path contains a duplicate identity");
                 }
+                // The first search path containing an identity owns that identity. Later copies
+                // are shadowed even when a different dependency edge encounters them first.
                 if (discoveredIdentities.insert(identity).second) {
                     packages.push_back(std::move(package));
                 }
@@ -622,13 +574,15 @@ namespace srt {
         }
 
         std::map<Identity, std::shared_ptr<PackageData>> transaction;
-        std::map<Identity, int> states;
-        std::vector<Identity> stack;
+        std::map<Identity, ProbeState> states;
+        stdc::vlarray<Identity> stack;
         const Identity rootIdentity(root->id, root->version);
         transaction.emplace(rootIdentity, root);
 
         const auto selectDependency =
             [&](const PackageDependency &dependency) -> Expected<std::shared_ptr<PackageData>> {
+            // Search path priority dominates version. Only candidates in the first matching path
+            // compete by version.
             for (const auto &pathPackages : catalog) {
                 std::shared_ptr<PackageData> selected;
                 for (const auto &candidate : pathPackages) {
@@ -652,6 +606,8 @@ namespace srt {
                 if (auto loaded = m_synthUnit->findLoadedPackage(selected->id, selected->version)) {
                     return loaded->m_data;
                 }
+                // Selection is final before the full Probe. A later error must not retry a lower
+                // version or another search path.
                 auto selectedResult = readPackage(selected->path);
                 if (!selectedResult) {
                     return selectedResult.takeError().withContext(
@@ -661,7 +617,7 @@ namespace srt {
                 transaction.emplace(identity, selectedPackage);
                 return selectedPackage;
             }
-            return Error(Error::FeatureNotSupported,
+            return Error(Error::FileNotFound,
                          "no installed Package satisfies dependency " + dependency.id);
         };
 
@@ -689,12 +645,14 @@ namespace srt {
                 return {};
             }
 
+            // The three states implement depth first traversal and retain the active stack for a
+            // complete dependency cycle diagnostic.
             const Identity identity(package->id, package->version);
             const auto state = states[identity];
-            if (state == 2) {
+            if (state == ProbeState::Complete) {
                 return {};
             }
-            if (state == 1) {
+            if (state == ProbeState::Visiting) {
                 std::string chain;
                 const auto begin = std::find(stack.begin(), stack.end(), identity);
                 for (auto it = begin; it != stack.end(); ++it) {
@@ -707,7 +665,7 @@ namespace srt {
                 return Error(Error::RecursiveDependency, "Package dependency cycle: " + chain);
             }
 
-            states[identity] = 1;
+            states[identity] = ProbeState::Visiting;
             stack.push_back(identity);
             for (const auto &dependency : package->dependencies) {
                 auto selected = selectDependency(dependency);
@@ -739,12 +697,14 @@ namespace srt {
                         return Error(Error::FeatureNotSupported,
                                      "no interpreter provides the requested module triple");
                     }
+                    // Probe records the chosen loader without loading it. This binding remains
+                    // fixed for the lifetime of the contribution.
                     spec->_impl->pluginLoader = loader;
 
                     for (const auto &import : spec->_impl->imports) {
                         auto *target = resolveTarget(package, import.reference());
                         if (!target) {
-                            return Error(Error::FeatureNotSupported,
+                            return Error(Error::FileNotFound,
                                          "module import target does not exist");
                         }
                         auto *targetCategory =
@@ -759,18 +719,23 @@ namespace srt {
             }
 
             stack.pop_back();
-            states[identity] = 2;
+            states[identity] = ProbeState::Complete;
             return {};
         };
 
+        // Probe performs all dependency and reference work that requires no provider execution.
         auto probeResult = probePackage(root);
         if (!probeResult) {
+            // A partial graph can already contain strong edges when cycle detection fails. Remove
+            // every temporary edge so transaction objects are released normally.
             for (const auto &packageEntry : transaction) {
                 packageEntry.second->dependencyBindings.clear();
             }
             return probeResult.takeError();
         }
 
+        // Acquire loads each selected plugin once and asks it to interpret declarations. Nothing
+        // is visible through SynthUnit during this phase.
         for (const auto &packageEntry : transaction) {
             const auto &package = packageEntry.second;
             if (package->loaded) {
@@ -806,6 +771,8 @@ namespace srt {
             }
         }
 
+        // Ready lets the target interpreter own options parsing, then lets the importing
+        // interpreter validate the complete ordered import collection.
         for (const auto &packageEntry : transaction) {
             const auto &package = packageEntry.second;
             if (package->loaded) {
@@ -836,6 +803,8 @@ namespace srt {
             }
         }
 
+        // Commit contains no fallible work. The SynthUnit transaction lock prevents readers from
+        // observing the registry while the new objects are being inserted.
         for (const auto &packageEntry : transaction) {
             const auto &package = packageEntry.second;
             if (package->loaded) {
@@ -849,6 +818,7 @@ namespace srt {
                                                       categoryEntry.second.end());
             }
         }
+        // Mark every Package loaded only after the entire closure has been published.
         for (const auto &packageEntry : transaction) {
             packageEntry.second->loaded = true;
         }
@@ -859,12 +829,23 @@ namespace srt {
                                                                       bool candidateOnly) {
         std::error_code pathError;
         auto root = fs::absolute(path, pathError).lexically_normal();
-        if (pathError || !fs::is_directory(root, pathError) || pathError) {
-            return Error(Error::FileNotFound, "Package path is not a readable directory");
+        if (pathError) {
+            return Error(Error::FileNotOpen, "failed to resolve Package path");
+        }
+        const auto isDirectory = fs::is_directory(root, pathError);
+        if (pathError) {
+            return Error(Error::FileNotOpen, "failed to access Package path");
+        }
+        if (!isDirectory) {
+            return Error(Error::FileNotFound, "Package path is not a directory");
         }
 
         const auto descPath = root / "desc.json";
-        if (!fs::is_regular_file(descPath, pathError) || pathError) {
+        const auto isDeclaration = fs::is_regular_file(descPath, pathError);
+        if (pathError) {
+            return Error(Error::FileNotOpen, "failed to access Package desc.json");
+        }
+        if (!isDeclaration) {
             return Error(Error::FileNotFound, "Package root does not contain desc.json");
         }
 
@@ -874,11 +855,18 @@ namespace srt {
         }
         auto desc = descResult.take();
 
+        // These gates are intentionally checked before expansion and contribution parsing. An
+        // unsupported runtime must not attempt to understand newer declaration structures.
         const auto formatIt = desc.find("$version");
-        if (formatIt == desc.end() || !formatIt->second.isString() ||
-            formatIt->second.toString() != supportedManifestVersion) {
-            return Error(Error::FeatureNotSupported,
-                         "Package manifest version is missing or unsupported");
+        if (formatIt == desc.end()) {
+            return Error(Error::InvalidFormat, "Package manifest version is missing");
+        }
+        auto manifestVersion = readVersion(formatIt->second, "$version");
+        if (!manifestVersion) {
+            return manifestVersion.takeError();
+        }
+        if (manifestVersion.get() != supportedManifestVersion) {
+            return Error(Error::FeatureNotSupported, "Package manifest version is unsupported");
         }
         const auto runtimeIt = desc.find("runtimeLevel");
         if (runtimeIt == desc.end() || !runtimeIt->second.isInt() ||
@@ -894,16 +882,6 @@ namespace srt {
             return variablesResult.takeError().withContext("failed to expand desc.json");
         }
         const auto packageVariables = variablesResult.take();
-
-        static const std::set<std::string_view> packageFields = {
-            "$version",  "compatVersion", "contributions",
-            "copyright", "dependencies",  "description",
-            "id",        "readme",        "runtimeLevel",
-            "url",       "vendor",        "version",
-        };
-        if (auto result = rejectUnknownFields(desc, packageFields, "desc.json"); !result) {
-            return result.takeError();
-        }
 
         const auto idIt = desc.find("id");
         if (idIt == desc.end() || !idIt->second.isString() ||
@@ -996,12 +974,15 @@ namespace srt {
 
         const auto contributionsIt = desc.find("contributions");
         if (contributionsIt == desc.end()) {
+            package->manifestDeclaration = std::move(desc);
             return package;
         }
         if (!contributionsIt->second.isObject()) {
             return Error(Error::InvalidFormat, "contributions must be an object");
         }
 
+        // Candidate discovery validates category availability without opening module declaration
+        // files. Remaining category and contract failures belong to the selected Package Probe.
         for (const auto &categoryEntry : contributionsIt->second.toObject()) {
             if (!ContribReference::isValidDottedId(categoryEntry.first)) {
                 return Error(Error::InvalidFormat, "contributions contains an invalid category");
@@ -1015,6 +996,7 @@ namespace srt {
             }
         }
         if (candidateOnly) {
+            package->manifestDeclaration = std::move(desc);
             return package;
         }
 
@@ -1056,6 +1038,8 @@ namespace srt {
                         return Error(Error::InvalidFormat,
                                      "module contribution path must not contain NUL");
                     }
+                    // Absolute paths and paths outside Package root are intentional. Their layout
+                    // stability is the Package author's responsibility.
                     const auto declarationPath =
                         resolvePath(root, declarationIt->second.toString());
                     auto declarationResult = readJsonObject(declarationPath);
@@ -1124,13 +1108,6 @@ namespace srt {
                                              "module import must be an object");
                             }
                             const auto &importObject = importValue.toObject();
-                            static const std::set<std::string_view> importFields = {"options",
-                                                                                    "ref"};
-                            if (auto result = rejectUnknownFields(importObject, importFields,
-                                                                  "module import");
-                                !result) {
-                                return result.takeError();
-                            }
                             const auto refIt = importObject.find("ref");
                             if (refIt == importObject.end() || !refIt->second.isString()) {
                                 return Error(Error::InvalidFormat,
@@ -1155,6 +1132,8 @@ namespace srt {
                                 it != importObject.end()) {
                                 options = it->second;
                             }
+                            // Repeated references are distinct import instances and array order is
+                            // part of the importing contract.
                             context.imports.push_back(
                                 ContribSpec::Import(std::move(reference), std::move(options)));
                         }
@@ -1178,6 +1157,7 @@ namespace srt {
             }
         }
 
+        package->manifestDeclaration = std::move(desc);
         return package;
     }
 

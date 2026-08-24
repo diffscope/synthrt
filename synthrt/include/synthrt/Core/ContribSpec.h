@@ -70,6 +70,9 @@ namespace srt {
         /// category uses \c ContribCategory::EntryOnly.
         /// \{
 
+        /// Returns the expanded common module declaration, including unknown fields.
+        const JsonObject &manifestDeclaration() const;
+
         /// Returns the contribution name for display purposes.
         const DisplayText &name() const;
 

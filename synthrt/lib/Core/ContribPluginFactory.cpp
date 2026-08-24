@@ -145,8 +145,8 @@ namespace srt {
         }
 
         if (!loader->load()) {
-            return Error(Error::InvalidFormat, "failed to load contribution interpreter plugin: " +
-                                                   loader->errorMessage());
+            return Error(Error::FileNotOpen, "failed to load contribution interpreter plugin: " +
+                                                 loader->errorMessage());
         }
 
         auto *plugin = static_cast<ContribInterpreterPlugin *>(loader->plugin());

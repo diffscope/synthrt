@@ -67,6 +67,11 @@ namespace srt {
         return m_data->runtimeLevel;
     }
 
+    const JsonObject &PackageHandle::manifestDeclaration() const {
+        assert(m_data);
+        return m_data->manifestDeclaration;
+    }
+
     bool PackageHandle::isLoaded() const {
         assert(m_data);
         return m_data->loaded;

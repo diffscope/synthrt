@@ -14,6 +14,7 @@
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Core/PackageDependency.h>
 #include <synthrt/Support/DisplayText.h>
+#include <synthrt/Support/JSON.h>
 #include <synthrt/synthrt_global.h>
 
 namespace srt {
@@ -46,6 +47,9 @@ namespace srt {
         stdc::VersionNumber version() const;
         stdc::VersionNumber compatVersion() const;
         int runtimeLevel() const;
+
+        /// Returns the expanded object read from \c desc.json, including unknown fields.
+        const JsonObject &manifestDeclaration() const;
 
         /// Returns whether this Package completed loading and was committed.
         bool isLoaded() const;

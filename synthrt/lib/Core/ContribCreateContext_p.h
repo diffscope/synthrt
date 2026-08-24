@@ -4,7 +4,8 @@
 #include "ContribCreateContext.h"
 
 #include <optional>
-#include <vector>
+
+#include <stdcorelib/adt/vlarray.h>
 
 namespace srt {
 
@@ -23,7 +24,7 @@ namespace srt {
         int level = 0;
         JsonValue manifestExports;
         JsonValue manifestConfiguration;
-        std::vector<ContribSpec::Import> imports;
+        stdc::vlarray<ContribSpec::Import> imports;
     };
 
 }

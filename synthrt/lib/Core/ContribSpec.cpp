@@ -62,6 +62,11 @@ namespace srt {
         return _impl->level;
     }
 
+    const JsonObject &ContribSpec::manifestDeclaration() const {
+        assert(_impl->hasModuleDeclaration);
+        return _impl->manifestDeclaration;
+    }
+
     const JsonValue &ContribSpec::manifestExports() const {
         assert(_impl->hasModuleDeclaration);
         return _impl->manifestExports;
@@ -96,6 +101,7 @@ namespace srt {
         }
 
         _impl->hasModuleDeclaration = true;
+        _impl->manifestDeclaration = *context.m_data->manifestDeclaration;
         _impl->name = context.m_data->name;
         _impl->interface = context.m_data->interface;
         _impl->variant = context.m_data->variant;
