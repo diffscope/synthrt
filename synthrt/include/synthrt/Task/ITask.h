@@ -37,7 +37,7 @@ namespace srt {
         std::string m_type;
         int m_version;
 
-        STDC_DISABLE_COPY_MOVE(TaskPayload)
+        STDC_DISABLE_COPY(TaskPayload)
     };
 
     /// Initialization data supplied before a Task is executed.
@@ -119,7 +119,7 @@ namespace srt {
         std::atomic<State> m_state = State::Idle;
 
     private:
-        STDC_DISABLE_COPY_MOVE(ITask)
+        STDC_DISABLE_COPY(ITask)
     };
 
 }

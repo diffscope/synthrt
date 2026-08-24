@@ -54,7 +54,7 @@ namespace srt {
         PackageData *m_package;
         std::atomic<LifecycleState> m_state = LifecycleState::Running;
 
-        STDC_DISABLE_COPY_MOVE(ContribExecInstance)
+        STDC_DISABLE_COPY(ContribExecInstance)
 
         friend class PackageData;
     };

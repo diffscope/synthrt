@@ -37,7 +37,7 @@ namespace srt {
         std::string m_variant;
         int m_level;
 
-        STDC_DISABLE_COPY_MOVE(ContribSpecPayload)
+        STDC_DISABLE_COPY(ContribSpecPayload)
     };
 
 }

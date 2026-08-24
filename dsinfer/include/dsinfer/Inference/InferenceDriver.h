@@ -38,7 +38,7 @@ namespace ds {
         std::string m_type;
         int m_version;
 
-        STDC_DISABLE_COPY_MOVE(InferenceDriverPayload)
+        STDC_DISABLE_COPY(InferenceDriverPayload)
     };
 
     /// Initialization data supplied to an inference driver.

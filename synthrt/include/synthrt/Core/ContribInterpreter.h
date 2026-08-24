@@ -49,6 +49,8 @@ namespace srt {
 
     protected:
         ContribInterpreter() = default;
+
+        STDC_DISABLE_COPY(ContribInterpreter)
     };
 
 }
