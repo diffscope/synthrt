@@ -1,53 +1,52 @@
-#ifndef PARAMTAG_H
-#define PARAMTAG_H
+#ifndef DSINFER_PARAMTAG_H
+#define DSINFER_PARAMTAG_H
 
-#include <string_view>
-#include <type_traits>
+#include <functional>
+#include <string>
+#include <utility>
 
 namespace ds {
 
     class ParamTag {
     public:
-        inline constexpr ParamTag() = default;
+        /// Creates an unspecified tag.
+        ParamTag() = default;
 
-        template <size_t N>
-        inline constexpr ParamTag(const char (&name)[N]) : _name(name, N - 1) {
+        /// Creates a tag that owns a name.
+        explicit ParamTag(std::string name) : m_name(std::move(name)) {
         }
 
-        inline constexpr std::string_view name() const {
-            return _name;
+        /// Returns the parameter name. An empty name denotes an unspecified tag.
+        const std::string &name() const noexcept {
+            return m_name;
         }
 
-        inline bool operator==(const ParamTag &RHS) const {
-            return _name == RHS._name;
+        bool operator==(const ParamTag &RHS) const noexcept {
+            return m_name == RHS.m_name;
         }
 
-        inline bool operator!=(const ParamTag &RHS) const {
-            return _name != RHS._name;
+        bool operator!=(const ParamTag &RHS) const noexcept {
+            return m_name != RHS.m_name;
         }
 
-        inline bool operator<(const ParamTag &RHS) const {
-            return _name < RHS._name;
+        bool operator<(const ParamTag &RHS) const noexcept {
+            return m_name < RHS.m_name;
         }
 
-        inline bool operator>(const ParamTag &RHS) const {
-            return _name > RHS._name;
+        bool operator>(const ParamTag &RHS) const noexcept {
+            return m_name > RHS.m_name;
         }
 
-        inline bool operator<=(const ParamTag &RHS) const {
-            return _name <= RHS._name;
+        bool operator<=(const ParamTag &RHS) const noexcept {
+            return m_name <= RHS.m_name;
         }
 
-        inline bool operator>=(const ParamTag &RHS) const {
-            return _name >= RHS._name;
+        bool operator>=(const ParamTag &RHS) const noexcept {
+            return m_name >= RHS.m_name;
         }
 
-        inline size_t hash() const {
-            return std::hash<std::string_view>()(_name);
-        }
-
-    protected:
-        const std::string_view _name;
+    private:
+        std::string m_name;
     };
 
 }
@@ -56,11 +55,11 @@ namespace std {
 
     template <>
     struct hash<ds::ParamTag> {
-        inline size_t operator()(const ds::ParamTag &key) const {
-            return key.hash();
+        size_t operator()(const ds::ParamTag &key) const noexcept {
+            return hash<string>{}(key.name());
         }
     };
 
 }
 
-#endif // PARAMTAG_H
+#endif // DSINFER_PARAMTAG_H
