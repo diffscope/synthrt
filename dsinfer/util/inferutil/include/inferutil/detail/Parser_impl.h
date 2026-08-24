@@ -255,7 +255,7 @@ namespace ds::inferutil {
             if (!it->second.isString()) {
                 collectError("string field \"" + fieldName + "\" type mismatch");
             } else {
-                out = stdc::path::clean_path(spec->path() /
+                out = stdc::path::clean_path(spec->declarationPath().parent_path() /
                                              stdc::path::from_utf8(it->second.toString()));
             }
         } else {
@@ -270,7 +270,8 @@ namespace ds::inferutil {
             if (!it->second.isString()) {
                 collectError(R"(string field "phonemes" type mismatch)");
             } else {
-                auto path = spec->path() / stdc::path::from_utf8(it->second.toString());
+                auto path = spec->declarationPath().parent_path() /
+                            stdc::path::from_utf8(it->second.toString());
                 loadIdMapping(it->first, path, out);
             }
         } else {
@@ -345,7 +346,8 @@ namespace ds::inferutil {
             if (!it->second.isString()) {
                 collectError(R"(string field "languages" type mismatch)");
             } else {
-                auto path = spec->path() / stdc::path::from_utf8(it->second.toString());
+                auto path = spec->declarationPath().parent_path() /
+                            stdc::path::from_utf8(it->second.toString());
                 loadIdMapping(it->first, path, out);
             }
         } else {
@@ -400,7 +402,7 @@ namespace ds::inferutil {
                             R"(object field "speakers" values type mismatch: string expected)");
                     } else {
                         // Get speaker embedding vector file (.emb) path
-                        auto path = stdc::clean_path(spec->path() /
+                        auto path = stdc::clean_path(spec->declarationPath().parent_path() /
                                                      stdc::path::from_utf8(value.toString()));
                         // Try loading .emb file
                         if (auto exp = loadSpeakerEmbedding(hiddenSize, path); exp) {

@@ -14,7 +14,6 @@
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
-#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
 #include <dsinfer/Core/Tensor.h>
@@ -31,17 +30,17 @@ namespace ds {
     namespace Co = Api::Common::L1;
     namespace Pit = Api::Pitch::L1;
     namespace Onnx = Api::Onnx;
-    namespace DiffSinger = Api::DiffSinger::L1;
 
     static inline srt::Expected<const Pit::PitchConfiguration *>
-        getConfig(const srt::InferenceSpec *spec) {
+        getConfig(const srt::InferenceSpec &spec) {
 
-        const auto genericConfig = spec->configuration();
+        const auto genericConfig = spec.configuration();
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "pitch configuration is nullptr");
         }
-        if (!(genericConfig->className() == Pit::API_CLASS &&
-              genericConfig->objectName() == Pit::API_NAME)) {
+        if (genericConfig->interface() != Pit::API_INTERFACE ||
+            genericConfig->variant() != Pit::API_VARIANT ||
+            genericConfig->level() != Pit::API_LEVEL) {
             return srt::Error(srt::Error::InvalidArgument, "invalid pitch configuration");
         }
         return static_cast<const Pit::PitchConfiguration *>(genericConfig);
@@ -49,178 +48,167 @@ namespace ds {
 
     class PitchInference::Impl {
     public:
-        srt::NO<Pit::PitchResult> result;
         InferenceDriver *driver = nullptr;
-        srt::UNO<InferenceSession> encoderSession;
-        srt::UNO<InferenceSession> predictorSession;
+        std::unique_ptr<InferenceSession> encoderSession;
+        std::unique_ptr<InferenceSession> predictorSession;
         mutable std::shared_mutex mutex;
     };
 
-    PitchInference::PitchInference(const srt::InferenceSpec *spec)
+    PitchInference::PitchInference(srt::InferenceSpec &spec)
         : Inference(spec), _impl(std::make_unique<Impl>()) {
     }
 
     PitchInference::~PitchInference() = default;
 
-    srt::Expected<void> PitchInference::initialize(const srt::NO<srt::TaskInitArgs> &args) {
+    srt::Expected<void> PitchInference::initialize(const srt::TaskInitArgs &args) {
         stdc_impl_t;
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
-        if (!args) {
-            return srt::Error(srt::Error::InvalidArgument, "pitch task init args is nullptr");
-        }
-        if (auto name = args->objectName(); name != Pit::API_NAME) {
+        if (auto name = args.type(); name != Pit::API_INTERFACE) {
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(R"(invalid pitch task init args name: expected "%1", got "%2")",
-                              Pit::API_NAME, name));
+                              Pit::API_INTERFACE, name));
         }
-        auto pitchArgs = args.as<Pit::PitchInitArgs>();
+        const auto &pitchArgs = *args.as<Pit::PitchInitArgs>();
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
-
-        // If there are existing result, they will be cleared.
-        impl.result.reset();
 
         if (auto res = inferutil::getInferenceDriver(this); res) {
             impl.driver = res.take();
         } else {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return res.takeError();
         }
 
         // Get pitch config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return expConfig.takeError();
         }
         const auto config = expConfig.take();
 
         // Open pitch session (encoder)
         impl.encoderSession = impl.driver->createSession();
-        auto encoderOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
-        encoderOpenArgs->useCpu = false;
+        Onnx::SessionOpenArgs encoderOpenArgs;
+        encoderOpenArgs.useCpu = false;
         if (auto res = impl.encoderSession->open(config->encoder, encoderOpenArgs); !res) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return res;
         }
 
         // Open pitch session (predictor)
         impl.predictorSession = impl.driver->createSession();
-        auto predictorOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
-        predictorOpenArgs->useCpu = false;
+        Onnx::SessionOpenArgs predictorOpenArgs;
+        predictorOpenArgs.useCpu = false;
         if (auto res = impl.predictorSession->open(config->predictor, predictorOpenArgs); !res) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return res;
         }
 
         // Initialize inference state
-        setState(Idle);
+        ITask::setState(ITask::Idle);
 
         // return success
         return srt::Expected<void>();
     }
 
-    srt::Expected<srt::NO<srt::TaskResult>>
-        PitchInference::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<std::unique_ptr<srt::TaskResult>>
+        PitchInference::start(const srt::TaskStartInput &input) {
         stdc_impl_t;
 
         {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "inference driver not initialized");
             }
         }
 
-        setState(Running);
+        ITask::setState(ITask::Running);
 
         // Get pitch config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return expConfig.takeError();
         }
         const auto config = expConfig.take();
 
-        if (!input) {
-            setState(Failed);
-            return srt::Error(srt::Error::InvalidArgument, "pitch input is nullptr");
-        }
 
-        if (const auto &name = input->objectName(); name != Pit::API_NAME) {
-            setState(Failed);
+        if (const auto &name = input.type(); name != Pit::API_INTERFACE) {
+            ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(R"(invalid pitch task init args name: expected "%1", got "%2")",
-                              Pit::API_NAME, name));
+                              Pit::API_INTERFACE, name));
         }
 
-        auto pitchInput = input.as<Pit::PitchStartInput>();
+        const auto &pitchInput = *input.as<Pit::PitchStartInput>();
         // ...
 
-        auto sessionInput = srt::NO<Onnx::SessionStartInput>::create();
+        auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
 
         double frameWidth = config->frameWidth;
         if (!std::isfinite(frameWidth) || frameWidth <= 0) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "frame width must be positive");
         }
 
         // Part 1: Linguistic Encoder Inference
         {
-            srt::NO<Onnx::SessionStartInput> linguisticInput;
+            std::shared_ptr<Onnx::SessionStartInput> linguisticInput;
             switch (config->linguisticMode) {
                 case Co::LinguisticMode::LM_Word:
                     if (auto exp = inferutil::preprocessLinguisticWord(
-                            pitchInput->words, config->phonemes, config->languages,
+                            pitchInput.words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
                         exp) {
                         linguisticInput = exp.take();
                     } else {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return exp.takeError().withContext(
                             "failed to build the linguistic word input");
                     }
                     break;
                 case Co::LinguisticMode::LM_Phoneme:
                     if (auto exp = inferutil::preprocessLinguisticPhoneme(
-                            pitchInput->words, config->phonemes, config->languages,
+                            pitchInput.words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
                         exp) {
                         linguisticInput = exp.take();
                     } else {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return exp.takeError().withContext(
                             "failed to build the linguistic phoneme input");
                     }
                     break;
                 default:
-                    setState(Failed);
+                    ITask::setState(ITask::Failed);
                     return srt::Error(ds::ErrorCode::InvalidInput, "invalid LinguisticMode");
             }
 
             // Run Linguistic Encoder Inference
             std::unique_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "pitch linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
-                    inferutil::runEncoder(impl.encoderSession.get(), linguisticInput,
+                    inferutil::runEncoder(impl.encoderSession.get(), *linguisticInput,
                                           /* out */ sessionInput, false);
                 !encoderSessionExp) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return encoderSessionExp.takeError().withContext("the linguistic encoder failed");
             }
         }
 
         // Part 2: Pitch Inference
 
-        auto noteCount = inferutil::getNoteCount(pitchInput->words);
+        auto noteCount = inferutil::getNoteCount(pitchInput.words);
 
         std::vector<uint8_t> noteRest;
         std::vector<float> noteMidi;
@@ -230,7 +218,7 @@ namespace ds {
         noteDur.reserve(noteCount);
 
         double noteDurSum = 0;
-        for (const auto &word : pitchInput->words) {
+        for (const auto &word : pitchInput.words) {
             for (const auto &note : word.notes) {
                 noteRest.emplace_back(note.is_rest ? 1 : 0);
                 noteMidi.emplace_back(note.is_rest ? 0
@@ -258,7 +246,7 @@ namespace ds {
         if (auto exp = tensorFrom1DArray(noteMidi); exp) {
             sessionInput->inputs.emplace("note_midi", exp.take());
         } else {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return exp.takeError().withContext(R"(failed to build the "note_midi" input)");
         }
 
@@ -272,7 +260,7 @@ namespace ds {
             if (exp) {
                 sessionInput->inputs.emplace("note_rest", exp.take());
             } else {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(R"(failed to build the "note_rest" input)");
             }
         }
@@ -280,21 +268,21 @@ namespace ds {
         if (auto exp = tensorFrom1DArray(noteDur); exp) {
             sessionInput->inputs.emplace("note_dur", exp.take());
         } else {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return exp.takeError().withContext(R"(failed to build the "note_dur" input)");
         }
 
-        if (auto exp = inferutil::preprocessPhonemeDurations(pitchInput->words, config->frameWidth);
+        if (auto exp = inferutil::preprocessPhonemeDurations(pitchInput.words, config->frameWidth);
             exp) {
             sessionInput->inputs.emplace("ph_dur", exp.take());
         } else {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return exp.takeError().withContext(R"(failed to build the "ph_dur" input)");
         }
 
         bool satisfyPitch = false;
         bool satisfyExpr = !config->useExpressiveness;
-        for (const auto &param : pitchInput->parameters) {
+        for (const auto &param : pitchInput.parameters) {
             const auto isPitch = param.tag == Co::Tags::Pitch;
             const auto isExpr = param.tag == Co::Tags::Expr;
             if (!isPitch && !isExpr) {
@@ -304,7 +292,7 @@ namespace ds {
             auto samples =
                 inferutil::resample(param.values, param.interval, frameWidth, targetLength, true);
             if (samples.size() != targetLength) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::ProcessingFailed,
                                   "parameter " + std::string(param.tag.name()) +
                                       " resample failed");
@@ -314,14 +302,14 @@ namespace ds {
                 if (auto exp = Tensor::create(ITensor::Float, {1, targetLength}); exp) {
                     auto pitchTensor = exp.take();
                     if (pitchTensor->elementCount() != targetLength) {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return srt::Error(
                             ds::ErrorCode::ShapeMismatch,
                             "pitch tensor element count does not match target length");
                     }
                     auto pitchBuffer = pitchTensor->data<float>();
                     if (!pitchBuffer) {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return srt::Error(ds::ErrorCode::ProcessingFailed,
                                           "failed to create pitch tensor");
                     }
@@ -330,7 +318,7 @@ namespace ds {
                     }
                     sessionInput->inputs.emplace("pitch", std::move(pitchTensor));
                 } else {
-                    setState(Failed);
+                    ITask::setState(ITask::Failed);
                     return exp.takeError().withContext(R"(failed to build the "pitch" input)");
                 }
                 // Retake
@@ -355,7 +343,7 @@ namespace ds {
                 if (exp) {
                     sessionInput->inputs.emplace("retake", exp.take());
                 } else {
-                    setState(Failed);
+                    ITask::setState(ITask::Failed);
                     return exp.takeError().withContext(R"(failed to build the "retake" input)");
                 }
                 satisfyPitch = true;
@@ -363,13 +351,13 @@ namespace ds {
                 if (auto exp = Tensor::create(ITensor::Float, {1, targetLength}); exp) {
                     auto exprTensor = exp.take();
                     if (exprTensor->elementCount() != targetLength) {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return srt::Error(ds::ErrorCode::ShapeMismatch,
                                           "expr tensor element count does not match target length");
                     }
                     auto exprBuffer = exprTensor->data<float>();
                     if (!exprBuffer) {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return srt::Error(ds::ErrorCode::ProcessingFailed,
                                           "failed to create expr tensor");
                     }
@@ -379,7 +367,7 @@ namespace ds {
                     sessionInput->inputs.emplace("expr", std::move(exprTensor));
                     satisfyExpr = true;
                 } else {
-                    setState(Failed);
+                    ITask::setState(ITask::Failed);
                     return exp.takeError().withContext(R"(failed to build the "expr" input)");
                 }
             }
@@ -391,7 +379,7 @@ namespace ds {
             if (auto exp = Tensor::createFilled<float>({1, targetLength}, 0.0f); exp) {
                 sessionInput->inputs.emplace("pitch", exp.take());
             } else {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(R"(failed to build the "pitch" input)");
             }
             if (auto exp = Tensor::createFromRawData(ITensor::Bool, {1, targetLength},
@@ -400,7 +388,7 @@ namespace ds {
                 sessionInput->inputs.emplace("retake", exp.take());
                 satisfyPitch = true;
             } else {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(R"(failed to build the "retake" input)");
             }
         }
@@ -412,25 +400,25 @@ namespace ds {
                 sessionInput->inputs.emplace("expr", exp.take());
                 satisfyExpr = true;
             } else {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(R"(failed to build the "expr" input)");
             }
         }
 
         // Speaker embedding
         if (config->useSpeakerEmbedding) {
-            if (pitchInput->speakers.empty()) {
-                setState(Failed);
+            if (pitchInput.speakers.empty()) {
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::InvalidInput, "no speakers found in pitch input");
             }
 
             auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
-                pitchInput->speakers, config->speakers, config->hiddenSize, frameWidth,
+                pitchInput.speakers, config->speakers, config->hiddenSize, frameWidth,
                 targetLength);
             if (exp) {
                 sessionInput->inputs["spk_embed"] = exp.take();
             } else {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(R"(failed to build the "spk_embed" input)");
             }
         } else {
@@ -438,14 +426,14 @@ namespace ds {
         }
 
         // input param: steps / speedup
-        int64_t acceleration = pitchInput->steps;
+        int64_t acceleration = pitchInput.steps;
         if (!config->useContinuousAcceleration) {
             acceleration = inferutil::getSpeedupFromSteps(acceleration);
         }
         {
             auto exp = Tensor::createScalar<int64_t>(acceleration);
             if (!exp) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(
                     stdc::formatN(R"(failed to build the "%1" input)",
                                   config->useContinuousAcceleration ? "steps" : "speedup"));
@@ -462,80 +450,85 @@ namespace ds {
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::NotInitialized,
                               "pitch predictor session is not initialized");
         }
 
-        srt::NO<srt::TaskResult> sessionTaskResult;
-        auto sessionExp = impl.predictorSession->start(sessionInput);
+        std::unique_ptr<srt::TaskResult> sessionTaskResult;
+        auto sessionExp = impl.predictorSession->start(*sessionInput);
         if (!sessionExp) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return sessionExp.takeError();
         } else {
             sessionTaskResult = sessionExp.take();
         }
 
-        auto pitchResult = srt::NO<Pit::PitchResult>::create();
+        auto pitchResult = std::make_unique<Pit::PitchResult>();
 
         // Get session results
         if (!sessionTaskResult) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "pitch predictor session result is nullptr");
         }
-        if (sessionTaskResult->objectName() != Onnx::API_NAME) {
-            setState(Failed);
+        if (sessionTaskResult->type() != Onnx::API_NAME) {
+            ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
         if (auto it_pred = sessionResult->outputs.find(outParamPitchPred);
             it_pred != sessionResult->outputs.end()) {
             // Extract onnx model result and copy to pitch final result vector (float -> double)
             auto output = std::move(it_pred->second);
             if (output->dataType() != ITensor::Float) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::SessionFailed, "model output is not float");
             }
             const auto view = output->view<float>();
             if (view.empty()) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::SessionFailed, "model output is empty");
             }
             pitchResult->interval = frameWidth;
             pitchResult->pitch.assign(view.begin(), view.end());
         } else {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::SessionFailed, "invalid result output");
         }
-        impl.result = pitchResult;
-
-        setState(Idle);
-        return pitchResult;
+        ITask::setState(ITask::Idle);
+        return std::unique_ptr<srt::TaskResult>(std::move(pitchResult));
     }
 
-    srt::Expected<void> PitchInference::startAsync(const srt::NO<srt::TaskStartInput> &input,
-                                                   const StartAsyncCallback &callback) {
+    srt::Expected<void> PitchInference::startAsync(std::shared_ptr<const srt::TaskStartInput>,
+                                                   AsyncCallback) {
         // TODO:
         return srt::Error(srt::Error::NotImplemented);
     }
 
-    bool PitchInference::stop() {
+    srt::Expected<void> PitchInference::stop() {
         stdc_impl_t;
-        bool flag = true;
         for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
             if (session) {
-                flag &= session->stop();
+                if (auto result = session->stop(); !result) {
+                    return result;
+                }
             }
         }
-        setState(Terminated);
-        return flag;
+        ITask::setState(ITask::Canceled);
+        return {};
     }
 
-    srt::NO<srt::TaskResult> PitchInference::result() const {
+    srt::Expected<void> PitchInference::waitForFinished() {
         stdc_impl_t;
-        std::shared_lock<std::shared_mutex> lock(impl.mutex);
-        return impl.result;
+        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
+            if (session) {
+                if (auto result = session->waitForFinished(); !result) {
+                    return result;
+                }
+            }
+        }
+        return {};
     }
 
 }

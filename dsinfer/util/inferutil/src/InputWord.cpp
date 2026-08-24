@@ -13,7 +13,7 @@ namespace ds::inferutil {
 
     namespace Co = Api::Common::L1;
 
-    srt::Expected<srt::NO<ITensor>>
+    srt::Expected<std::shared_ptr<ITensor>>
         preprocessPhonemeTokens(const std::vector<Co::InputWordInfo> &words,
                                 const std::map<std::string, int> &tokens) {
 
@@ -56,7 +56,7 @@ namespace ds::inferutil {
         return helper.take();
     }
 
-    srt::Expected<srt::NO<ITensor>>
+    srt::Expected<std::shared_ptr<ITensor>>
         preprocessPhonemeLanguages(const std::vector<Co::InputWordInfo> &words,
                                    const std::map<std::string, int> &languages) {
 
@@ -88,7 +88,7 @@ namespace ds::inferutil {
         return helper.take();
     }
 
-    srt::Expected<srt::NO<ITensor>>
+    srt::Expected<std::shared_ptr<ITensor>>
         preprocessPhonemeDurations(const std::vector<Co::InputWordInfo> &words, double frameWidth,
                                    int64_t *outTargetLength) {
 

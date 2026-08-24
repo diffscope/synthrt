@@ -11,18 +11,17 @@ namespace ds {
         ~DurationInterpreter();
 
     public:
-        int apiLevel() const override;
-        srt::Expected<srt::UNO<srt::InferenceSchema>>
-            createSchema(const srt::InferenceSpec *spec) const override;
-        srt::Expected<srt::UNO<srt::InferenceConfiguration>>
-            createConfiguration(const srt::InferenceSpec *spec) const override;
-        srt::Expected<srt::NO<srt::InferenceImportOptions>>
-            createImportOptions(const srt::InferenceSpec *spec,
+        srt::Expected<std::unique_ptr<srt::ContribExports>>
+            createExports(const srt::ContribSpec &spec) const override;
+        srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
+            createConfiguration(const srt::ContribSpec &spec) const override;
+        srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
+            createImportOptions(const srt::ContribSpec &target,
                                 const srt::JsonValue &options) const override;
-        srt::Expected<srt::NO<srt::Inference>>
-            createInference(const srt::InferenceSpec *spec,
-                            const srt::NO<srt::InferenceImportOptions> &importOptions,
-                            const srt::NO<srt::InferenceRuntimeOptions> &runtimeOptions) override;
+        srt::Expected<std::unique_ptr<srt::Inference>>
+            createInference(srt::InferenceSpec &spec,
+                            const srt::ContribImportOptions &importOptions,
+                            const srt::InferenceRuntimeOptions &runtimeOptions) override;
     };
 
 }

@@ -8,15 +8,11 @@ namespace ds {
     public:
         DurationInterpreterPlugin() = default;
 
-        const char *key() const override {
-            return "ai.svs.DurationInference";
-        }
-
-        srt::UNO<srt::InferenceInterpreter> create() override {
-            return srt::UNO<DurationInterpreter>::create();
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>> create() override {
+            return std::unique_ptr<srt::ContribInterpreter>(new DurationInterpreter());
         }
     };
 
 }
 
-SYNTHRT_EXPORT_PLUGIN(ds::DurationInterpreterPlugin)
+STDC_EXPORT_PLUGIN(ds::DurationInterpreterPlugin)

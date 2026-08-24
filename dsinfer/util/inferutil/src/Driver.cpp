@@ -5,24 +5,19 @@
 
 #include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
-#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
 namespace ds::inferutil {
     srt::Expected<InferenceDriver *> getInferenceDriver(const srt::Inference *obj) {
         namespace Onnx = Api::Onnx;
-        namespace DiffSinger = Api::DiffSinger::L1;
-
-        auto inferenceCate = obj->spec()->SU()->category("inference");
-        auto dsdriverObject = inferenceCate->getFirstUniqueObject("dsdriver");
-
-        if (!dsdriverObject) {
-            return srt::Error(ds::ErrorCode::NotInitialized, "could not find dsdriver");
+        auto *service = obj->synthUnit().runtimeService(InferenceDriver::IID, Onnx::API_NAME);
+        if (!service) {
+            return srt::Error(ds::ErrorCode::NotInitialized,
+                              "could not find the ONNX inference driver");
         }
-
-        auto onnxDriver = static_cast<InferenceDriver *>(dsdriverObject);
+        auto *onnxDriver = service->as<InferenceDriver>();
 
         const auto arch = onnxDriver->arch();
-        constexpr auto expectedArch = DiffSinger::API_NAME;
+        constexpr auto expectedArch = "diffsinger";
         const bool isArchMatch = arch == expectedArch;
 
         const auto backend = onnxDriver->backend();

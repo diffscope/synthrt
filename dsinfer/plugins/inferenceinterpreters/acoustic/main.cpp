@@ -8,15 +8,12 @@ namespace ds {
     public:
         AcousticInterpreterPlugin() = default;
 
-        const char *key() const override {
-            return "ai.svs.AcousticInference";
-        }
 
-        srt::UNO<srt::InferenceInterpreter> create() override {
-            return srt::UNO<AcousticInterpreter>::create();
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>> create() override {
+            return std::unique_ptr<srt::ContribInterpreter>(new AcousticInterpreter());
         }
     };
 
 }
 
-SYNTHRT_EXPORT_PLUGIN(ds::AcousticInterpreterPlugin)
+STDC_EXPORT_PLUGIN(ds::AcousticInterpreterPlugin)

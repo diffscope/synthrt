@@ -29,7 +29,7 @@ namespace ds::inferutil {
     public:
         ConfigurationParser(const srt::InferenceSpec *spec_, ErrorCollector *ec_)
             : spec(spec_), ec(ec_) {
-            pConfig = &spec->manifestConfiguration();
+            pConfig = &spec->manifestConfiguration().toObject();
         }
 
         inline void parse_bool_optional(bool &out, const std::string &fieldName);
@@ -81,7 +81,7 @@ namespace ds::inferutil {
     class SchemaParser {
     public:
         SchemaParser(const srt::InferenceSpec *spec_, ErrorCollector *ec_) : spec(spec_), ec(ec_) {
-            pSchema = &spec->manifestSchema();
+            pSchema = &spec->manifestExports().toObject();
         }
 
         inline void parse_bool_optional(bool &out, const std::string &fieldName);
@@ -131,6 +131,7 @@ namespace ds::inferutil {
                 ec->collectError(std::forward<T>(msg));
             }
         }
+
     private:
         const srt::InferenceSpec *spec;
         ErrorCollector *ec;

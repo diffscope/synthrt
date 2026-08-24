@@ -1,0 +1,13 @@
+{
+    "iid": "org.openvpi.InferenceInterpreter",
+    "name": "pitch",
+    "metadata": {
+        "interpreters": [
+            {
+                "interface": "org.openvpi.svs.PitchInference",
+                "variant": "onnx",
+                "level": 1
+            }
+        ]
+    }
+}

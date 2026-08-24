@@ -10,21 +10,21 @@
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
 namespace ds::inferutil {
-    srt::Expected<srt::NO<Api::Onnx::SessionStartInput>>
+    srt::Expected<std::shared_ptr<Api::Onnx::SessionStartInput>>
         preprocessLinguisticPhoneme(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                     const std::map<std::string, int> &tokens,
                                     const std::map<std::string, int> &languages, bool useLanguageId,
                                     double frameWidth);
 
-    srt::Expected<srt::NO<Api::Onnx::SessionStartInput>>
+    srt::Expected<std::shared_ptr<Api::Onnx::SessionStartInput>>
         preprocessLinguisticWord(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                  const std::map<std::string, int> &tokens,
                                  const std::map<std::string, int> &languages, bool useLanguageId,
                                  double frameWidth);
 
     srt::Expected<void> runEncoder(InferenceSession *encoderSession,
-                                   const srt::NO<srt::TaskStartInput> &linguisticInput,
-                                   srt::NO<Api::Onnx::SessionStartInput> &out,
+                                   const srt::TaskStartInput &linguisticInput,
+                                   std::shared_ptr<Api::Onnx::SessionStartInput> &out,
                                    bool useXMasks = true);
 }
 #endif // DSINFER_INFERUTIL_LINGUISTICENCODER_H

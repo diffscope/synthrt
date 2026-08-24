@@ -8,15 +8,12 @@ namespace ds {
     public:
         VocoderInterpreterPlugin() = default;
 
-        const char *key() const override {
-            return "ai.svs.VocoderInference";
-        }
 
-        srt::UNO<srt::InferenceInterpreter> create() override {
-            return srt::UNO<VocoderInterpreter>::create();
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>> create() override {
+            return std::unique_ptr<srt::ContribInterpreter>(new VocoderInterpreter());
         }
     };
 
 }
 
-SYNTHRT_EXPORT_PLUGIN(ds::VocoderInterpreterPlugin)
+STDC_EXPORT_PLUGIN(ds::VocoderInterpreterPlugin)

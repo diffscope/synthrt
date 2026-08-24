@@ -111,6 +111,11 @@ namespace srt {
     protected:
         ITask();
 
+        /// Updates the state exposed by state().
+        inline void setState(State state) noexcept {
+            m_state = state;
+        }
+
         std::atomic<State> m_state = State::Idle;
 
     private:

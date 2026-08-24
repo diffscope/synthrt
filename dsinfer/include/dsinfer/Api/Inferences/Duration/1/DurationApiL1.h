@@ -13,27 +13,27 @@
 
 namespace ds::Api::Duration::L1 {
 
-    inline constexpr char API_NAME[] = "duration";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.DurationInference";
 
-    inline constexpr char API_CLASS[] = "ai.svs.DurationInference";
+    inline constexpr char API_VARIANT[] = "onnx";
 
     inline constexpr int API_LEVEL = 1;
 
     using InputWordInfo = Common::L1::InputWordInfo;
 
-    class DurationSchema : public srt::InferenceSchema {
+    class DurationSchema : public srt::ContribExports {
     public:
-        inline DurationSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
+        inline DurationSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 说话人（音色）名称列表
         std::vector<std::string> speakers;
     };
 
-    class DurationConfiguration : public srt::InferenceConfiguration {
+    class DurationConfiguration : public srt::ContribConfiguration {
     public:
         inline DurationConfiguration()
-            : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 音素名称与音素 ID 对应表或存储对应信息
@@ -64,10 +64,10 @@ namespace ds::Api::Duration::L1 {
         int hiddenSize = 256;
     };
 
-    class DurationImportOptions : public srt::InferenceImportOptions {
+    class DurationImportOptions : public srt::ContribImportOptions {
     public:
         inline DurationImportOptions()
-            : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 歌手全局音色名称 => 模块内部嵌入名称映射
@@ -77,7 +77,7 @@ namespace ds::Api::Duration::L1 {
     class DurationRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline DurationRuntimeOptions()
-            : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// Reserved
@@ -85,7 +85,7 @@ namespace ds::Api::Duration::L1 {
 
     class DurationInitArgs : public srt::InferenceInitArgs {
     public:
-        inline DurationInitArgs() : InferenceInitArgs(API_NAME) {
+        inline DurationInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
         }
 
         /// Reserved
@@ -93,7 +93,7 @@ namespace ds::Api::Duration::L1 {
 
     class DurationStartInput : public srt::TaskStartInput {
     public:
-        inline DurationStartInput() : srt::TaskStartInput(API_NAME) {
+        inline DurationStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
         }
 
         double duration = 0;
@@ -102,7 +102,7 @@ namespace ds::Api::Duration::L1 {
 
     class DurationResult : public srt::TaskResult {
     public:
-        inline DurationResult() : srt::TaskResult(API_NAME) {
+        inline DurationResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
         }
 
         std::vector<double> durations;

@@ -13,4 +13,12 @@ namespace srt {
         return *ContribExecInstance::spec().as<InferenceSpec>();
     }
 
+    Expected<void> Inference::quit() {
+        return stop();
+    }
+
+    Expected<void> Inference::wait() {
+        return waitForFinished();
+    }
+
 }

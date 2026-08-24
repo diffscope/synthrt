@@ -15,7 +15,6 @@
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
-#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
 #include <dsinfer/Core/Tensor.h>
@@ -32,31 +31,32 @@ namespace ds {
     namespace Co = Api::Common::L1;
     namespace Var = Api::Variance::L1;
     namespace Onnx = Api::Onnx;
-    namespace DiffSinger = Api::DiffSinger::L1;
 
     static inline srt::Expected<const Var::VarianceConfiguration *>
-        getConfig(const srt::InferenceSpec *spec) {
+        getConfig(const srt::InferenceSpec &spec) {
 
-        const auto genericConfig = spec->configuration();
+        const auto genericConfig = spec.configuration();
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "variance configuration is nullptr");
         }
-        if (!(genericConfig->className() == Var::API_CLASS &&
-              genericConfig->objectName() == Var::API_NAME)) {
+        if (genericConfig->interface() != Var::API_INTERFACE ||
+            genericConfig->variant() != Var::API_VARIANT ||
+            genericConfig->level() != Var::API_LEVEL) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance configuration");
         }
         return static_cast<const Var::VarianceConfiguration *>(genericConfig);
     }
 
     static inline srt::Expected<const Var::VarianceSchema *>
-        getSchema(const srt::InferenceSpec *spec) {
+        getSchema(const srt::InferenceSpec &spec) {
 
-        const auto genericSchema = spec->schema();
+        const auto genericSchema = spec.exports();
         if (!genericSchema) {
             return srt::Error(srt::Error::InvalidArgument, "variance schema is nullptr");
         }
-        if (!(genericSchema->className() == Var::API_CLASS &&
-              genericSchema->objectName() == Var::API_NAME)) {
+        if (genericSchema->interface() != Var::API_INTERFACE ||
+            genericSchema->variant() != Var::API_VARIANT ||
+            genericSchema->level() != Var::API_LEVEL) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance schema");
         }
         return static_cast<const Var::VarianceSchema *>(genericSchema);
@@ -64,98 +64,91 @@ namespace ds {
 
     class VarianceInference::Impl {
     public:
-        srt::NO<Var::VarianceResult> result;
         InferenceDriver *driver = nullptr;
-        srt::UNO<InferenceSession> encoderSession;
-        srt::UNO<InferenceSession> predictorSession;
+        std::unique_ptr<InferenceSession> encoderSession;
+        std::unique_ptr<InferenceSession> predictorSession;
         mutable std::shared_mutex mutex;
     };
 
-    VarianceInference::VarianceInference(const srt::InferenceSpec *spec)
+    VarianceInference::VarianceInference(srt::InferenceSpec &spec)
         : Inference(spec), _impl(std::make_unique<Impl>()) {
     }
 
     VarianceInference::~VarianceInference() = default;
 
-    srt::Expected<void> VarianceInference::initialize(const srt::NO<srt::TaskInitArgs> &args) {
+    srt::Expected<void> VarianceInference::initialize(const srt::TaskInitArgs &args) {
         stdc_impl_t;
         // Currently, no args to process. But we still need to enforce callers to pass the correct
         // args type.
-        if (!args) {
-            return srt::Error(srt::Error::InvalidArgument, "variance task init args is nullptr");
-        }
-        if (auto name = args->objectName(); name != Var::API_NAME) {
+        if (auto name = args.type(); name != Var::API_INTERFACE) {
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(R"(invalid variance task init args name: expected "%1", got "%2")",
-                              Var::API_NAME, name));
+                              Var::API_INTERFACE, name));
         }
-        auto varianceArgs = args.as<Var::VarianceInitArgs>();
+        const auto &varianceArgs = *args.as<Var::VarianceInitArgs>();
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
-
-        // If there are existing result, they will be cleared.
-        impl.result.reset();
 
         if (auto res = inferutil::getInferenceDriver(this); res) {
             impl.driver = res.take();
         } else {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return res.takeError();
         }
 
         // Get variance config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return expConfig.takeError();
         }
         const auto config = expConfig.take();
 
         // Open variance session (encoder)
         impl.encoderSession = impl.driver->createSession();
-        auto encoderOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
-        encoderOpenArgs->useCpu = false;
+        Onnx::SessionOpenArgs encoderOpenArgs;
+        encoderOpenArgs.useCpu = false;
         if (auto res = impl.encoderSession->open(config->encoder, encoderOpenArgs); !res) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return res;
         }
 
         // Open variance session (predictor)
         impl.predictorSession = impl.driver->createSession();
-        auto predictorOpenArgs = srt::NO<Onnx::SessionOpenArgs>::create();
-        predictorOpenArgs->useCpu = false;
+        Onnx::SessionOpenArgs predictorOpenArgs;
+        predictorOpenArgs.useCpu = false;
         if (auto res = impl.predictorSession->open(config->predictor, predictorOpenArgs); !res) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return res;
         }
 
         // Initialize inference state
-        setState(Idle);
+        ITask::setState(ITask::Idle);
 
         // return success
         return srt::Expected<void>();
     }
 
-    srt::Expected<srt::NO<srt::TaskResult>>
-        VarianceInference::start(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<std::unique_ptr<srt::TaskResult>>
+        VarianceInference::start(const srt::TaskStartInput &input) {
         stdc_impl_t;
 
         {
             std::shared_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.driver) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "inference driver not initialized");
             }
         }
 
-        setState(Running);
+        ITask::setState(ITask::Running);
 
         // Get variance config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return expConfig.takeError();
         }
         const auto config = expConfig.take();
@@ -163,80 +156,76 @@ namespace ds {
         // Get variance schema
         auto expSchema = getSchema(spec());
         if (!expSchema) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return expSchema.takeError();
         }
         const auto schema = expSchema.take();
 
-        if (!input) {
-            setState(Failed);
-            return srt::Error(srt::Error::InvalidArgument, "variance input is nullptr");
-        }
 
-        if (const auto &name = input->objectName(); name != Var::API_NAME) {
-            setState(Failed);
+        if (const auto &name = input.type(); name != Var::API_INTERFACE) {
+            ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(R"(invalid variance task init args name: expected "%1", got "%2")",
-                              Var::API_NAME, name));
+                              Var::API_INTERFACE, name));
         }
 
-        const auto varianceInput = input.as<Var::VarianceStartInput>();
+        const auto &varianceInput = *input.as<Var::VarianceStartInput>();
         // ...
 
-        auto sessionInput = srt::NO<Onnx::SessionStartInput>::create();
+        auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
 
         double frameWidth = config->frameWidth;
         if (!std::isfinite(frameWidth) || frameWidth <= 0) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "frame width must be positive");
         }
 
         // Part 1: Linguistic Encoder Inference
         {
-            srt::NO<Onnx::SessionStartInput> linguisticInput;
+            std::shared_ptr<Onnx::SessionStartInput> linguisticInput;
             switch (config->linguisticMode) {
                 case Co::LinguisticMode::LM_Word:
                     if (auto exp = inferutil::preprocessLinguisticWord(
-                            varianceInput->words, config->phonemes, config->languages,
+                            varianceInput.words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
                         exp) {
                         linguisticInput = exp.take();
                     } else {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return exp.takeError().withContext(
                             "failed to build the linguistic word input");
                     }
                     break;
                 case Co::LinguisticMode::LM_Phoneme:
                     if (auto exp = inferutil::preprocessLinguisticPhoneme(
-                            varianceInput->words, config->phonemes, config->languages,
+                            varianceInput.words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
                         exp) {
                         linguisticInput = exp.take();
                     } else {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return exp.takeError().withContext(
                             "failed to build the linguistic phoneme input");
                     }
                     break;
                 default:
-                    setState(Failed);
+                    ITask::setState(ITask::Failed);
                     return srt::Error(ds::ErrorCode::InvalidInput, "invalid LinguisticMode");
             }
 
             // Run Linguistic Encoder Inference
             std::unique_lock<std::shared_mutex> lock(impl.mutex);
             if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "variance linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
-                    inferutil::runEncoder(impl.encoderSession.get(), linguisticInput,
+                    inferutil::runEncoder(impl.encoderSession.get(), *linguisticInput,
                                           /* out */ sessionInput, false);
                 !encoderSessionExp) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return encoderSessionExp.takeError().withContext("the linguistic encoder failed");
             }
         }
@@ -244,24 +233,24 @@ namespace ds {
         // Part 2: Variance Inference
 
         double totalDuration = 0.0;
-        for (const auto &word : varianceInput->words) {
+        for (const auto &word : varianceInput.words) {
             totalDuration += inferutil::getWordDuration(word);
         }
         const auto targetLength = static_cast<int64_t>(std::llround(totalDuration / frameWidth));
 
         // ph_dur
         if (auto exp =
-                inferutil::preprocessPhonemeDurations(varianceInput->words, config->frameWidth);
+                inferutil::preprocessPhonemeDurations(varianceInput.words, config->frameWidth);
             exp) {
             sessionInput->inputs.emplace("ph_dur", exp.take());
         } else {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return exp.takeError().withContext(R"(failed to build the "ph_dur" input)");
         }
 
         // pitch and parameters
         if (schema->predictions.empty()) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::InvalidInput, "no parameters to predict");
         }
         bool satisfyPitch = false;
@@ -271,14 +260,14 @@ namespace ds {
         constexpr auto kRetakeFalse = std::byte{0};
         Tensor::Container retake(targetLength * schema->predictions.size(), kRetakeTrue);
 
-        for (const auto &param : varianceInput->parameters) {
+        for (const auto &param : varianceInput.parameters) {
             const auto isPitch = param.tag == Co::Tags::Pitch;
 
             // Resample
             auto samples =
                 inferutil::resample(param.values, param.interval, frameWidth, targetLength, true);
             if (samples.size() != targetLength) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::ProcessingFailed,
                                   "parameter " + std::string(param.tag.name()) +
                                       " resample failed");
@@ -288,14 +277,14 @@ namespace ds {
                 if (auto exp = Tensor::create(ITensor::Float, {1, targetLength}); exp) {
                     auto pitchTensor = exp.take();
                     if (pitchTensor->elementCount() != targetLength) {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return srt::Error(
                             ds::ErrorCode::ShapeMismatch,
                             "pitch tensor element count does not match target length");
                     }
                     auto pitchBuffer = pitchTensor->data<float>();
                     if (!pitchBuffer) {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return srt::Error(ds::ErrorCode::ProcessingFailed,
                                           "failed to create pitch tensor");
                     }
@@ -306,7 +295,7 @@ namespace ds {
                     satisfyPitch = true;
                     continue;
                 } else {
-                    setState(Failed);
+                    ITask::setState(ITask::Failed);
                     return exp.takeError().withContext(R"(failed to build the "pitch" input)");
                 }
             }
@@ -319,14 +308,14 @@ namespace ds {
                 if (auto exp = Tensor::create(ITensor::Float, {1, targetLength}); exp) {
                     auto paramTensor = exp.take();
                     if (paramTensor->elementCount() != targetLength) {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return srt::Error(
                             ds::ErrorCode::ShapeMismatch,
                             "param tensor element count does not match target length");
                     }
                     auto paramBuffer = paramTensor->data<float>();
                     if (!paramBuffer) {
-                        setState(Failed);
+                        ITask::setState(ITask::Failed);
                         return srt::Error(ds::ErrorCode::ProcessingFailed,
                                           "failed to create param tensor");
                     }
@@ -336,7 +325,7 @@ namespace ds {
                     sessionInput->inputs.emplace(param.tag.name(), std::move(paramTensor));
                     sessionInput->outputs.emplace(std::string(param.tag.name()) + "_pred");
                 } else {
-                    setState(Failed);
+                    ITask::setState(ITask::Failed);
                     return exp.takeError().withContext(
                         stdc::formatN(R"(failed to build the "%1" input)", param.tag.name()));
                 }
@@ -399,12 +388,12 @@ namespace ds {
             exp) {
             sessionInput->inputs.emplace("retake", exp.take());
         } else {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return exp.takeError().withContext(R"(failed to build the "retake" input)");
         }
 
         if (!satisfyPitch) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::InvalidInput, "missing pitch input");
         }
 
@@ -419,7 +408,7 @@ namespace ds {
                 sessionInput->inputs.emplace(prediction.name(), exp.take());
                 sessionInput->outputs.emplace(std::string(prediction.name()) + "_pred");
             } else {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(
                     stdc::formatN(R"(failed to build the "%1" input)", prediction.name()));
             }
@@ -427,19 +416,19 @@ namespace ds {
 
         // Speaker embedding
         if (config->useSpeakerEmbedding) {
-            if (varianceInput->speakers.empty()) {
-                setState(Failed);
+            if (varianceInput.speakers.empty()) {
+                ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::InvalidInput,
                                   "no speakers found in variance input");
             }
 
             auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
-                varianceInput->speakers, config->speakers, config->hiddenSize, frameWidth,
+                varianceInput.speakers, config->speakers, config->hiddenSize, frameWidth,
                 targetLength);
             if (exp) {
                 sessionInput->inputs["spk_embed"] = exp.take();
             } else {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(R"(failed to build the "spk_embed" input)");
             }
         } else {
@@ -447,14 +436,14 @@ namespace ds {
         }
 
         // input param: steps / speedup
-        int64_t acceleration = varianceInput->steps;
+        int64_t acceleration = varianceInput.steps;
         if (!config->useContinuousAcceleration) {
             acceleration = inferutil::getSpeedupFromSteps(acceleration);
         }
         {
             auto exp = Tensor::createScalar<int64_t>(acceleration);
             if (!exp) {
-                setState(Failed);
+                ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(
                     stdc::formatN(R"(failed to build the "%1" input)",
                                   config->useContinuousAcceleration ? "steps" : "speedup"));
@@ -468,33 +457,33 @@ namespace ds {
 
         std::unique_lock<std::shared_mutex> lock(impl.mutex);
         if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::NotInitialized,
                               "variance predictor session is not initialized");
         }
 
-        srt::NO<srt::TaskResult> sessionTaskResult;
-        auto sessionExp = impl.predictorSession->start(sessionInput);
+        std::unique_ptr<srt::TaskResult> sessionTaskResult;
+        auto sessionExp = impl.predictorSession->start(*sessionInput);
         if (!sessionExp) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return sessionExp.takeError();
         } else {
             sessionTaskResult = sessionExp.take();
         }
 
-        auto varianceResult = srt::NO<Var::VarianceResult>::create();
+        auto varianceResult = std::make_unique<Var::VarianceResult>();
 
         // Get session results
         if (!sessionTaskResult) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "variance predictor session result is nullptr");
         }
-        if (sessionTaskResult->objectName() != Onnx::API_NAME) {
-            setState(Failed);
+        if (sessionTaskResult->type() != Onnx::API_NAME) {
+            ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto sessionResult = sessionTaskResult.as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
         varianceResult->predictions.reserve(sessionResult->outputs.size());
         for (const auto &[outputName, output] : sessionResult->outputs) {
             for (const auto &prediction : schema->predictions) {
@@ -512,40 +501,45 @@ namespace ds {
         const auto expectedCount = schema->predictions.size();
         const auto actualCount = varianceResult->predictions.size();
         if (expectedCount != actualCount) {
-            setState(Failed);
+            ITask::setState(ITask::Failed);
             return srt::Error(
                 ds::ErrorCode::ShapeMismatch,
                 stdc::formatN("predicted parameter count mismatch: expected %1, got %2",
                               expectedCount, actualCount));
         }
-        impl.result = varianceResult;
-
-        setState(Idle);
-        return varianceResult;
+        ITask::setState(ITask::Idle);
+        return std::unique_ptr<srt::TaskResult>(std::move(varianceResult));
     }
 
-    srt::Expected<void> VarianceInference::startAsync(const srt::NO<srt::TaskStartInput> &input,
-                                                      const StartAsyncCallback &callback) {
+    srt::Expected<void> VarianceInference::startAsync(std::shared_ptr<const srt::TaskStartInput>,
+                                                      AsyncCallback) {
         // TODO:
         return srt::Error(srt::Error::NotImplemented);
     }
 
-    bool VarianceInference::stop() {
+    srt::Expected<void> VarianceInference::stop() {
         stdc_impl_t;
-        bool flag = true;
         for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
             if (session) {
-                flag &= session->stop();
+                if (auto result = session->stop(); !result) {
+                    return result;
+                }
             }
         }
-        setState(Terminated);
-        return flag;
+        ITask::setState(ITask::Canceled);
+        return {};
     }
 
-    srt::NO<srt::TaskResult> VarianceInference::result() const {
+    srt::Expected<void> VarianceInference::waitForFinished() {
         stdc_impl_t;
-        std::shared_lock<std::shared_mutex> lock(impl.mutex);
-        return impl.result;
+        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
+            if (session) {
+                if (auto result = session->waitForFinished(); !result) {
+                    return result;
+                }
+            }
+        }
+        return {};
     }
 
 }

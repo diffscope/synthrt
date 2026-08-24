@@ -47,11 +47,11 @@ namespace ds::inferutil {
             return _current == _end;
         }
 
-        inline srt::NO<Tensor> &value() {
+        inline std::shared_ptr<Tensor> &value() {
             return _tensor;
         }
 
-        inline srt::NO<Tensor> &&take() {
+        inline std::shared_ptr<Tensor> &&take() {
             return std::move(_tensor);
         }
 
@@ -78,7 +78,7 @@ namespace ds::inferutil {
     private:
         TensorHelper() : _current(nullptr), _end(nullptr) {};
 
-        srt::NO<Tensor> _tensor;
+        std::shared_ptr<Tensor> _tensor;
         T *_current;
         const T *_end;
     };

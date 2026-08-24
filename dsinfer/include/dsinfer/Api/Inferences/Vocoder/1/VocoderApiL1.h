@@ -9,9 +9,9 @@
 
 namespace ds::Api::Vocoder::L1 {
 
-    inline constexpr char API_NAME[] = "vocoder";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.VocoderInference";
 
-    inline constexpr char API_CLASS[] = "ai.svs.VocoderInference";
+    inline constexpr char API_VARIANT[] = "onnx";
 
     inline constexpr int API_LEVEL = 1;
 
@@ -19,10 +19,10 @@ namespace ds::Api::Vocoder::L1 {
 
     using MelScale = Common::L1::MelScale;
 
-    class VocoderImportOptions : public srt::InferenceImportOptions {
+    class VocoderImportOptions : public srt::ContribImportOptions {
     public:
         inline VocoderImportOptions()
-            : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         // TODO
@@ -31,24 +31,24 @@ namespace ds::Api::Vocoder::L1 {
     class VocoderRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline VocoderRuntimeOptions()
-            : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// Reserved
     };
 
-    class VocoderSchema : public srt::InferenceSchema {
+    class VocoderSchema : public srt::ContribExports {
     public:
-        inline VocoderSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
+        inline VocoderSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// Reserved
     };
 
-    class VocoderConfiguration : public srt::InferenceConfiguration {
+    class VocoderConfiguration : public srt::ContribConfiguration {
     public:
         inline VocoderConfiguration()
-            : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 声码器模型文件路径
@@ -87,7 +87,7 @@ namespace ds::Api::Vocoder::L1 {
 
     class VocoderInitArgs : public srt::InferenceInitArgs {
     public:
-        inline VocoderInitArgs() : InferenceInitArgs(API_NAME) {
+        inline VocoderInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
         }
 
         /// Reserved
@@ -95,16 +95,16 @@ namespace ds::Api::Vocoder::L1 {
 
     class VocoderStartInput : public srt::TaskStartInput {
     public:
-        inline VocoderStartInput() : srt::TaskStartInput(API_NAME) {
+        inline VocoderStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
         }
 
-        srt::NO<ITensor> mel;
-        srt::NO<ITensor> f0;
+        std::shared_ptr<ITensor> mel;
+        std::shared_ptr<ITensor> f0;
     };
 
     class VocoderResult : public srt::TaskResult {
     public:
-        inline VocoderResult() : srt::TaskResult(API_NAME) {
+        inline VocoderResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
         }
 
         std::vector<uint8_t> audioData;

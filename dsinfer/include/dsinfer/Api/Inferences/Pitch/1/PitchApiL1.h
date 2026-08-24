@@ -13,9 +13,9 @@
 
 namespace ds::Api::Pitch::L1 {
 
-    inline constexpr char API_NAME[] = "pitch";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.PitchInference";
 
-    inline constexpr char API_CLASS[] = "ai.svs.PitchInference";
+    inline constexpr char API_VARIANT[] = "onnx";
 
     inline constexpr int API_LEVEL = 1;
 
@@ -24,9 +24,9 @@ namespace ds::Api::Pitch::L1 {
     using InputParameterInfo = Common::L1::InputParameterInfo;
     using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
 
-    class PitchSchema : public srt::InferenceSchema {
+    class PitchSchema : public srt::ContribExports {
     public:
-        inline PitchSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
+        inline PitchSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 说话人（音色）名称列表
@@ -36,9 +36,10 @@ namespace ds::Api::Pitch::L1 {
         bool allowExpressiveness = true;
     };
 
-    class PitchConfiguration : public srt::InferenceConfiguration {
+    class PitchConfiguration : public srt::ContribConfiguration {
     public:
-        inline PitchConfiguration() : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
+        inline PitchConfiguration()
+            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 音素名称与音素 ID 对应表或存储对应信息
@@ -81,9 +82,10 @@ namespace ds::Api::Pitch::L1 {
         bool useContinuousAcceleration = true;
     };
 
-    class PitchImportOptions : public srt::InferenceImportOptions {
+    class PitchImportOptions : public srt::ContribImportOptions {
     public:
-        inline PitchImportOptions() : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
+        inline PitchImportOptions()
+            : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 歌手全局音色名称 => 模块内部嵌入名称映射
@@ -93,7 +95,7 @@ namespace ds::Api::Pitch::L1 {
     class PitchRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline PitchRuntimeOptions()
-            : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// Reserved
@@ -101,7 +103,7 @@ namespace ds::Api::Pitch::L1 {
 
     class PitchInitArgs : public srt::InferenceInitArgs {
     public:
-        inline PitchInitArgs() : InferenceInitArgs(API_NAME) {
+        inline PitchInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
         }
 
         /// Reserved
@@ -109,7 +111,7 @@ namespace ds::Api::Pitch::L1 {
 
     class PitchStartInput : public srt::TaskStartInput {
     public:
-        inline PitchStartInput() : srt::TaskStartInput(API_NAME) {
+        inline PitchStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
         }
 
         double duration = 0;
@@ -122,7 +124,7 @@ namespace ds::Api::Pitch::L1 {
 
     class PitchResult : public srt::TaskResult {
     public:
-        inline PitchResult() : srt::TaskResult(API_NAME) {
+        inline PitchResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
         }
 
         std::vector<double> pitch;

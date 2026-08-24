@@ -1,0 +1,13 @@
+{
+    "iid": "org.openvpi.InferenceInterpreter",
+    "name": "vocoder",
+    "metadata": {
+        "interpreters": [
+            {
+                "interface": "org.openvpi.svs.VocoderInference",
+                "variant": "onnx",
+                "level": 1
+            }
+        ]
+    }
+}

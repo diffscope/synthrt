@@ -5,26 +5,24 @@
 
 #include <synthrt/Core/ContribInterpreter.h>
 #include <synthrt/Core/ContribSpecPayload.h>
+#include <synthrt/SVS/Inference.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
 
-    class Inference;
     class InferenceSpec;
 
-    /// Runtime options supplied when an inference instance is created.
-    class InferenceRuntimeOptions : public ContribSpecPayload {
-    public:
-        ~InferenceRuntimeOptions() = default;
-
-    protected:
-        using ContribSpecPayload::ContribSpecPayload;
-    };
-
     /// Interprets and executes inference contributions.
-    class InferenceInterpreter : public ContribInterpreter {
+    class SYNTHRT_EXPORT InferenceInterpreter : public ContribInterpreter {
     public:
         ~InferenceInterpreter() = default;
+
+        Expected<void> validateImports(const ContribSpec &spec) const override;
+
+        Expected<std::unique_ptr<ContribImportBinding>>
+            createImportBinding(ContribSpec &importer, const ContribSpec::Import &declaration,
+                                ContribSpec &target,
+                                std::unique_ptr<ContribImportOptions> options) const override;
 
         virtual Expected<std::unique_ptr<Inference>>
             createInference(InferenceSpec &spec, const ContribImportOptions &importOptions,

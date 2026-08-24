@@ -18,26 +18,15 @@ namespace ds {
 
     VarianceInterpreter::~VarianceInterpreter() = default;
 
-    int VarianceInterpreter::apiLevel() const {
-        return 1;
-    }
 
-    srt::Expected<srt::UNO<srt::InferenceSchema>>
-        VarianceInterpreter::createSchema(const srt::InferenceSpec *spec) const {
-        if (!spec) {
-            // fatal error: null pointer, return immediately
-            return srt::Error{
-                srt::Error::InvalidArgument,
-                "fatal in createSchema: InferenceSpec is nullptr",
-            };
-        }
-
-        auto result = srt::UNO<Var::VarianceSchema>::create();
+    srt::Expected<std::unique_ptr<srt::ContribExports>>
+        VarianceInterpreter::createExports(const srt::ContribSpec &spec) const {
+        auto result = std::make_unique<Var::VarianceSchema>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
 
-        inferutil::SchemaParser parser(spec, &ec);
+        inferutil::SchemaParser parser(spec.as<srt::InferenceSpec>(), &ec);
 
         // speakers, string[]
         {
@@ -61,26 +50,18 @@ namespace ds {
                 ec.getErrorMessage("error parsing variance schema"),
             };
         }
-        return result;
+        return std::move(result);
     }
 
-    srt::Expected<srt::UNO<srt::InferenceConfiguration>>
-        VarianceInterpreter::createConfiguration(const srt::InferenceSpec *spec) const {
-        if (!spec) {
-            // fatal error: null pointer, return immediately
-            return srt::Error{
-                srt::Error::InvalidArgument,
-                "fatal in createConfiguration: InferenceSpec is nullptr",
-            };
-        }
-
-        const auto &config = spec->manifestConfiguration();
-        auto result = srt::UNO<Var::VarianceConfiguration>::create();
+    srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
+        VarianceInterpreter::createConfiguration(const srt::ContribSpec &spec) const {
+        const auto &config = spec.manifestConfiguration();
+        auto result = std::make_unique<Var::VarianceConfiguration>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
 
-        inferutil::ConfigurationParser parser(spec, &ec);
+        inferutil::ConfigurationParser parser(spec.as<srt::InferenceSpec>(), &ec);
         // phonemes, load file (json value is string of file path)
         {
             static_assert(std::is_same_v<decltype(result->phonemes), std::map<std::string, int>>);
@@ -163,11 +144,11 @@ namespace ds {
                 ec.getErrorMessage("error parsing variance configuration"),
             };
         }
-        return result;
+        return std::move(result);
     }
 
-    srt::Expected<srt::NO<srt::InferenceImportOptions>>
-        VarianceInterpreter::createImportOptions(const srt::InferenceSpec *spec,
+    srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
+        VarianceInterpreter::createImportOptions(const srt::ContribSpec &target,
                                                  const srt::JsonValue &options) const {
         if (!options.isObject()) {
             return srt::Error{
@@ -176,12 +157,12 @@ namespace ds {
             };
         }
         const auto &obj = options.toObject();
-        auto result = srt::NO<Var::VarianceImportOptions>::create();
+        auto result = std::make_unique<Var::VarianceImportOptions>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
 
-        inferutil::ImportOptionsParser parser(spec, &ec, obj);
+        inferutil::ImportOptionsParser parser(target.as<srt::InferenceSpec>(), &ec, obj);
 
         // speakerMapping, { string: string }
         {
@@ -206,13 +187,14 @@ namespace ds {
                 ec.getErrorMessage("error parsing variance import options"),
             };
         }
-        return result;
+        return std::move(result);
     }
 
-    srt::Expected<srt::NO<srt::Inference>> VarianceInterpreter::createInference(
-        const srt::InferenceSpec *spec, const srt::NO<srt::InferenceImportOptions> &importOptions,
-        const srt::NO<srt::InferenceRuntimeOptions> &runtimeOptions) {
-        return srt::NO<VarianceInference>::create(spec);
+    srt::Expected<std::unique_ptr<srt::Inference>>
+        VarianceInterpreter::createInference(srt::InferenceSpec &spec,
+                                             const srt::ContribImportOptions &,
+                                             const srt::InferenceRuntimeOptions &) {
+        return std::unique_ptr<srt::Inference>(new VarianceInference(spec));
     }
 
 }

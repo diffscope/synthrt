@@ -1,0 +1,13 @@
+{
+    "iid": "org.openvpi.InferenceInterpreter",
+    "name": "duration",
+    "metadata": {
+        "interpreters": [
+            {
+                "interface": "org.openvpi.svs.DurationInference",
+                "variant": "onnx",
+                "level": 1
+            }
+        ]
+    }
+}

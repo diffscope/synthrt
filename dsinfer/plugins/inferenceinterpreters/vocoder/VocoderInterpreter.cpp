@@ -18,32 +18,21 @@ namespace ds {
 
     VocoderInterpreter::~VocoderInterpreter() = default;
 
-    int VocoderInterpreter::apiLevel() const {
-        return 1;
+
+    srt::Expected<std::unique_ptr<srt::ContribExports>>
+        VocoderInterpreter::createExports(const srt::ContribSpec &spec) const {
+        return std::make_unique<Vo::VocoderSchema>();
     }
 
-    srt::Expected<srt::UNO<srt::InferenceSchema>>
-        VocoderInterpreter::createSchema(const srt::InferenceSpec *spec) const {
-        return srt::UNO<Vo::VocoderSchema>::create();
-    }
-
-    srt::Expected<srt::UNO<srt::InferenceConfiguration>>
-        VocoderInterpreter::createConfiguration(const srt::InferenceSpec *spec) const {
-        if (!spec) {
-            // fatal error: null pointer, return immediately
-            return srt::Error{
-                srt::Error::InvalidArgument,
-                "fatal in createConfiguration: InferenceSpec is nullptr",
-            };
-        }
-
-        const auto &config = spec->manifestConfiguration();
-        auto result = srt::UNO<Vo::VocoderConfiguration>::create();
+    srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
+        VocoderInterpreter::createConfiguration(const srt::ContribSpec &spec) const {
+        const auto &config = spec.manifestConfiguration();
+        auto result = std::make_unique<Vo::VocoderConfiguration>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
 
-        inferutil::ConfigurationParser parser(spec, &ec);
+        inferutil::ConfigurationParser parser(spec.as<srt::InferenceSpec>(), &ec);
 
         // [REQUIRED] model, path (json value is string)
         {
@@ -117,19 +106,20 @@ namespace ds {
                 ec.getErrorMessage("error parsing vocoder configuration"),
             };
         }
-        return result;
+        return std::move(result);
     }
 
-    srt::Expected<srt::NO<srt::InferenceImportOptions>>
-        VocoderInterpreter::createImportOptions(const srt::InferenceSpec *spec,
+    srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
+        VocoderInterpreter::createImportOptions(const srt::ContribSpec &target,
                                                 const srt::JsonValue &options) const {
-        return srt::NO<Vo::VocoderImportOptions>::create();
+        return std::make_unique<Vo::VocoderImportOptions>();
     }
 
-    srt::Expected<srt::NO<srt::Inference>> VocoderInterpreter::createInference(
-        const srt::InferenceSpec *spec, const srt::NO<srt::InferenceImportOptions> &importOptions,
-        const srt::NO<srt::InferenceRuntimeOptions> &runtimeOptions) {
-        return srt::NO<VocoderInference>::create(spec);
+    srt::Expected<std::unique_ptr<srt::Inference>>
+        VocoderInterpreter::createInference(srt::InferenceSpec &spec,
+                                            const srt::ContribImportOptions &,
+                                            const srt::InferenceRuntimeOptions &) {
+        return std::unique_ptr<srt::Inference>(new VocoderInference(spec));
     }
 
 }

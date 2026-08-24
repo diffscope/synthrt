@@ -15,13 +15,13 @@ namespace ds::inferutil {
 
     namespace Co = Api::Common::L1;
 
-    srt::Expected<srt::NO<Api::Onnx::SessionStartInput>>
+    srt::Expected<std::shared_ptr<Api::Onnx::SessionStartInput>>
         preprocessLinguisticPhoneme(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                     const std::map<std::string, int> &tokens,
                                     const std::map<std::string, int> &languages, bool useLanguageId,
                                     double frameWidth) {
 
-        auto sessionInput = srt::NO<Api::Onnx::SessionStartInput>::create();
+        auto sessionInput = std::make_shared<Api::Onnx::SessionStartInput>();
 
         if (auto exp = preprocessPhonemeTokens(words, tokens); exp) {
             sessionInput->inputs.emplace("tokens", exp.take());
@@ -49,13 +49,13 @@ namespace ds::inferutil {
         return sessionInput;
     }
 
-    srt::Expected<srt::NO<Api::Onnx::SessionStartInput>>
+    srt::Expected<std::shared_ptr<Api::Onnx::SessionStartInput>>
         preprocessLinguisticWord(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                  const std::map<std::string, int> &tokens,
                                  const std::map<std::string, int> &languages, bool useLanguageId,
                                  double frameWidth) {
 
-        auto sessionInput = srt::NO<Api::Onnx::SessionStartInput>::create();
+        auto sessionInput = std::make_shared<Api::Onnx::SessionStartInput>();
 
         if (auto exp = preprocessPhonemeTokens(words, tokens); exp) {
             sessionInput->inputs.emplace("tokens", exp.take());
@@ -104,11 +104,11 @@ namespace ds::inferutil {
         return sessionInput;
     }
     srt::Expected<void> runEncoder(InferenceSession *encoderSession,
-                                   const srt::NO<srt::TaskStartInput> &linguisticInput,
-                                   srt::NO<Api::Onnx::SessionStartInput> &out,
+                                   const srt::TaskStartInput &linguisticInput,
+                                   std::shared_ptr<Api::Onnx::SessionStartInput> &out,
                                    bool useXMasks) {
         // Assuming encoderSession is already opened
-        srt::NO<srt::TaskResult> sessionTaskResult;
+        std::unique_ptr<srt::TaskResult> sessionTaskResult;
         auto sessionExp = encoderSession->start(linguisticInput);
         if (!sessionExp) {
             return sessionExp.takeError();
@@ -121,10 +121,11 @@ namespace ds::inferutil {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "linguistic encoder session result is nullptr");
         }
-        if (sessionTaskResult->objectName() != Api::Onnx::API_NAME) {
+        if (sessionTaskResult->type() != Api::Onnx::API_NAME ||
+            sessionTaskResult->version() != Api::Onnx::API_VERSION) {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto encoderResult = sessionTaskResult.as<Api::Onnx::SessionResult>();
+        auto *encoderResult = sessionTaskResult->as<Api::Onnx::SessionResult>();
         for (auto &&[name, value] : encoderResult->outputs) {
             if (name == "encoder_out") {
                 out->inputs.emplace("encoder_out", std::move(value));

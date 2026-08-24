@@ -14,7 +14,7 @@ namespace ds::inferutil {
     srt::Expected<std::vector<float>> loadSpeakerEmbedding(int hiddenSize,
                                                            const std::filesystem::path &path);
 
-    srt::Expected<srt::NO<ITensor>> preprocessSpeakerEmbeddingFrames(
+    srt::Expected<std::shared_ptr<ITensor>> preprocessSpeakerEmbeddingFrames(
         const std::vector<Api::Common::L1::InputSpeakerInfo> &speakers,
         const std::map<std::string, std::vector<float>> &embMap, int hiddenSize,
         double frameWidth, int64_t targetLength);

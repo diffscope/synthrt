@@ -20,15 +20,15 @@ namespace ds::Api::Variance::L1 {
     using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
     using LinguisticMode = Common::L1::LinguisticMode;
 
-    inline constexpr char API_NAME[] = "variance";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.VarianceInference";
 
-    inline constexpr char API_CLASS[] = "ai.svs.VarianceInference";
+    inline constexpr char API_VARIANT[] = "onnx";
 
     inline constexpr int API_LEVEL = 1;
 
-    class VarianceSchema : public srt::InferenceSchema {
+    class VarianceSchema : public srt::ContribExports {
     public:
-        inline VarianceSchema() : srt::InferenceSchema(API_NAME, API_CLASS, API_LEVEL) {
+        inline VarianceSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 说话人（音色）名称列表
@@ -38,10 +38,10 @@ namespace ds::Api::Variance::L1 {
         std::vector<ParamTag> predictions;
     };
 
-    class VarianceConfiguration : public srt::InferenceConfiguration {
+    class VarianceConfiguration : public srt::ContribConfiguration {
     public:
         inline VarianceConfiguration()
-            : srt::InferenceConfiguration(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 音素名称与音素 ID 对应表或存储对应信息
@@ -78,10 +78,10 @@ namespace ds::Api::Variance::L1 {
         bool useContinuousAcceleration = true;
     };
 
-    class VarianceImportOptions : public srt::InferenceImportOptions {
+    class VarianceImportOptions : public srt::ContribImportOptions {
     public:
         inline VarianceImportOptions()
-            : srt::InferenceImportOptions(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// 歌手全局音色名称 => 模块内部嵌入名称映射
@@ -94,7 +94,7 @@ namespace ds::Api::Variance::L1 {
     class VarianceRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline VarianceRuntimeOptions()
-            : srt::InferenceRuntimeOptions(API_NAME, API_CLASS, API_LEVEL) {
+            : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         /// Reserved
@@ -102,7 +102,7 @@ namespace ds::Api::Variance::L1 {
 
     class VarianceInitArgs : public srt::InferenceInitArgs {
     public:
-        inline VarianceInitArgs() : InferenceInitArgs(API_NAME) {
+        inline VarianceInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
         }
 
         /// Reserved
@@ -110,7 +110,7 @@ namespace ds::Api::Variance::L1 {
 
     class VarianceStartInput : public srt::TaskStartInput {
     public:
-        inline VarianceStartInput() : srt::TaskStartInput(API_NAME) {
+        inline VarianceStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
         }
 
         double duration = 0;
@@ -125,7 +125,7 @@ namespace ds::Api::Variance::L1 {
     public:
         using InputParameterInfo = Common::L1::InputParameterInfo;
 
-        inline VarianceResult() : srt::TaskResult(API_NAME) {
+        inline VarianceResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
         }
 
         std::vector<InputParameterInfo> predictions;

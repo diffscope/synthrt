@@ -37,15 +37,15 @@ namespace ds::inferutil {
         return wordDuration;
     }
 
-    srt::Expected<srt::NO<ITensor>>
+    srt::Expected<std::shared_ptr<ITensor>>
         preprocessPhonemeTokens(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                 const std::map<std::string, int> &tokens);
 
-    srt::Expected<srt::NO<ITensor>>
+    srt::Expected<std::shared_ptr<ITensor>>
         preprocessPhonemeLanguages(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                    const std::map<std::string, int> &languages);
 
-    srt::Expected<srt::NO<ITensor>>
+    srt::Expected<std::shared_ptr<ITensor>>
         preprocessPhonemeDurations(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                    double frameWidth, int64_t *outTargetLength = nullptr);
 }
