@@ -1,0 +1,13 @@
+{
+    "iid": "org.openvpi.SingerProvider",
+    "name": "diffsinger",
+    "metadata": {
+        "interpreters": [
+            {
+                "interface": "org.openvpi.svs.Singer",
+                "variant": "diffsinger",
+                "level": 1
+            }
+        ]
+    }
+}

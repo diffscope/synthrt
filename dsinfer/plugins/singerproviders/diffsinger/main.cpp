@@ -8,15 +8,11 @@ namespace ds {
     public:
         DiffSingerProviderPlugin() = default;
 
-        const char *key() const {
-            return "diffsinger";
-        }
-
-        srt::UNO<srt::SingerProvider> create() override {
-            return srt::UNO<DiffSingerProvider>::create();
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>> create() override {
+            return std::unique_ptr<srt::ContribInterpreter>(new DiffSingerProvider());
         }
     };
 
 }
 
-SYNTHRT_EXPORT_PLUGIN(ds::DiffSingerProviderPlugin)
+STDC_EXPORT_PLUGIN(ds::DiffSingerProviderPlugin)

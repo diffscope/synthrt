@@ -5,13 +5,16 @@
 
 namespace ds::Api::DiffSinger::L1 {
 
-    inline constexpr char API_NAME[] = "diffsinger";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.Singer";
+
+    inline constexpr char API_VARIANT[] = "diffsinger";
 
     inline constexpr int API_LEVEL = 1;
 
-    class DiffSingerConfiguration : public srt::SingerConfiguration {
+    class DiffSingerConfiguration : public srt::ContribConfiguration {
     public:
-        DiffSingerConfiguration() : srt::SingerConfiguration(API_NAME, API_LEVEL) {
+        DiffSingerConfiguration()
+            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
         std::filesystem::path dict;

@@ -11,10 +11,8 @@ namespace ds {
         ~DiffSingerProvider();
 
     public:
-        int apiLevel() const override;
-
-        srt::Expected<srt::UNO<srt::SingerConfiguration>>
-            createConfiguration(const srt::SingerSpec *spec) const override;
+        srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
+            createConfiguration(const srt::ContribSpec &spec) const override;
     };
 
 }

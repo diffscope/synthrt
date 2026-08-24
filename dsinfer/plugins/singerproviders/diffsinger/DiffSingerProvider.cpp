@@ -15,22 +15,11 @@ namespace ds {
 
     DiffSingerProvider::~DiffSingerProvider() = default;
 
-    int DiffSingerProvider::apiLevel() const {
-        return Ds::API_LEVEL;
-    }
-
-    srt::Expected<srt::UNO<srt::SingerConfiguration>>
-        DiffSingerProvider::createConfiguration(const srt::SingerSpec *spec) const {
-        if (!spec) {
-            // fatal error: null pointer, return immediately
-            return srt::Error{
-                srt::Error::InvalidArgument,
-                "fatal in createConfiguration: SingerSpec is nullptr",
-            };
-        }
-
-        const auto &config = spec->manifestConfiguration();
-        auto result = srt::UNO<Ds::DiffSingerConfiguration>::create();
+    srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
+        DiffSingerProvider::createConfiguration(const srt::ContribSpec &spec) const {
+        const auto &singerSpec = *spec.as<srt::SingerSpec>();
+        const auto &config = singerSpec.manifestConfiguration().toObject();
+        auto result = std::make_unique<Ds::DiffSingerConfiguration>();
 
         // Collect all the errors and return to user
         bool hasErrors = false;
@@ -48,8 +37,9 @@ namespace ds {
                 if (!it->second.isString()) {
                     collectError(R"(string field "dict" type mismatch)");
                 } else {
-                    result->dict = stdc::path::clean_path(
-                        spec->path() / stdc::path::from_utf8(it->second.toString()));
+                    result->dict =
+                        stdc::path::clean_path(singerSpec.declarationPath().parent_path() /
+                                               stdc::path::from_utf8(it->second.toString()));
                 }
             } else {
                 collectError(R"(string field "dict" is missing)");
@@ -62,7 +52,7 @@ namespace ds {
                 formatErrorMessage("error parsing diffsinger configuration", errorList),
             };
         }
-        return result;
+        return std::unique_ptr<srt::ContribConfiguration>(std::move(result));
     }
 
     static inline std::string formatErrorMessage(const std::string &msgPrefix,
