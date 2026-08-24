@@ -1,15 +1,13 @@
 #include "OnnxDriver.h"
 
-#include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
-#include <stdcorelib/support/sharedlibrary.h>
 
-#include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
+#include "OnnxDriverLogging.h"
 #include "OnnxSession.h"
-#include "OnnxDriver_Logger.h"
-#include "internal/Env.h"
+#include "Runtime/DriverContext.h"
+#include "Runtime/OnnxRuntime.h"
 
 #ifndef ORT_API_MANUAL_INIT
 #  error "dsinfer requires ort to be manually initialized, but ORT_API_MANUAL_INIT is not set!"
@@ -25,153 +23,22 @@
 #  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("libonnxruntime.so")
 #endif
 
-namespace fs = std::filesystem;
-
 namespace ds {
 
     using namespace Api;
 
     namespace onnxdriver {
 
-        srt::LogCategory Log("onnxdriver");
+        srt::LogCategory g_log("onnxdriver");
 
     }
 
-    using onnxdriver::Log;
-
-#ifdef _WIN32
-    /// Scoped override of the process-wide DLL search path.
-    ///
-    /// The ORT directory must be searchable while \c onnxruntime.dll is being opened, so that its
-    /// own dependencies resolve. The previous path is restored on every exit path, including the
-    /// error ones.
-    class ScopedLibraryPath {
-    public:
-        explicit ScopedLibraryPath(const fs::path &dir)
-            : _original(stdc::SharedLibrary::setLibraryPath(dir)) {
-        }
-        ~ScopedLibraryPath() {
-            stdc::SharedLibrary::setLibraryPath(_original);
-        }
-
-        ScopedLibraryPath(const ScopedLibraryPath &) = delete;
-        ScopedLibraryPath &operator=(const ScopedLibraryPath &) = delete;
-
-    private:
-        fs::path _original;
-    };
-#endif
-
-    class OnnxDriver::Impl {
-    public:
-        Impl() {
-        }
-
-        ~Impl() {
-        }
-
-        srt::Expected<void> load(const fs::path &path) {
-            Log.srtInfo("Init - Loading onnx environment");
-
-            auto dylib = std::make_unique<stdc::SharedLibrary>();
-
-            /**
-             *  1. Load Ort shared library and create handle
-             */
-            Log.srtDebug("Init - Loading ORT shared library from %1", path);
-            {
-#ifdef _WIN32
-                ScopedLibraryPath libraryPath(path.parent_path());
-#endif
-                if (!dylib->open(path, stdc::SharedLibrary::ResolveAllSymbolsHint |
-                                           stdc::SharedLibrary::ExportExternalSymbolsHint)) {
-                    std::string msg =
-                        stdc::formatN("Load library failed: %1 [%2]", dylib->errorMessage(), path);
-                    Log.srtCritical("Init - %1", msg);
-                    return srt::Error(ds::ErrorCode::DriverLoadFailed, std::move(msg));
-                }
-            }
-
-            /**
-             *  2. Get Ort API getter handle
-             */
-            Log.srtDebug("Init - Getting ORT API handle");
-            auto handle =
-                reinterpret_cast<OrtApiBase *(ORT_API_CALL *) ()>(dylib->resolve("OrtGetApiBase"));
-            if (!handle) {
-                std::string msg =
-                    stdc::formatN("Failed to get API handle: %1 [%2]", dylib->errorMessage(), path);
-                Log.srtCritical("Init - %1", msg);
-                return srt::Error(ds::ErrorCode::DriverLoadFailed, std::move(msg));
-            }
-
-            /**
-             *  3. Check Ort API
-             */
-            Log.srtDebug("Init - ORT_API_VERSION is %1", ORT_API_VERSION);
-            auto apiBase = handle();
-            auto api = apiBase->GetApi(ORT_API_VERSION);
-            if (!api) {
-                std::string msg = stdc::formatN("%1: failed to get API instance", path);
-                Log.srtCritical("Init - %1", msg);
-                return srt::Error(ds::ErrorCode::DriverLoadFailed, std::move(msg));
-            }
-            Log.srtDebug("Init - ORT library version is %1", apiBase->GetVersionString());
-
-            /**
-             *  4. Successfully get Ort API
-             */
-            Ort::InitApi(api);
-
-            ortDSO.swap(dylib);
-
-            extension.runtimePath = path;
-            extension.runtimeApi = {apiBase, api, ORT_API_VERSION};
-
-            Log.srtInfo("Init - Onnx environment Load successful");
-            return srt::Expected<void>();
-        }
-
-        srt::Expected<void> useExternalApi(const Api::Onnx::RuntimeApi &runtimeApi) {
-            if (!runtimeApi.ortApiBase || !runtimeApi.ortApi) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "external ONNX Runtime API pointers must not be null");
-            }
-            if (runtimeApi.ortApiVersion != ORT_API_VERSION) {
-                return srt::Error(
-                    srt::Error::InvalidArgument,
-                    stdc::formatN("external ONNX Runtime API version must be %1, got %2",
-                                  ORT_API_VERSION, runtimeApi.ortApiVersion));
-            }
-            if (runtimeApi.ortApiBase->GetApi(runtimeApi.ortApiVersion) != runtimeApi.ortApi) {
-                return srt::Error(srt::Error::InvalidArgument,
-                                  "external ONNX Runtime API does not belong to its API base");
-            }
-
-            Ort::InitApi(runtimeApi.ortApi);
-            extension.runtimeApi = runtimeApi;
-            Log.srtInfo("Init - Using externally owned onnx environment");
-            return {};
-        }
-
-        /// Keeps the library the extension points into alive.
-        std::unique_ptr<stdc::SharedLibrary> ortDSO;
-
-        /// Everything a caller may ask about the runtime, and the record of whether it is loaded:
-        /// \c runtimeApi.ortApi is null until initialization succeeds.
-        Api::Onnx::DriverExtension extension;
-    };
-
-    OnnxDriver::OnnxDriver()
-        : InferenceDriver(Api::Onnx::API_NAME), _impl(std::make_unique<Impl>()) {
+    OnnxDriver::OnnxDriver() : InferenceDriver(Api::Onnx::API_NAME) {
     }
 
-    OnnxDriver::~OnnxDriver() {
-    }
+    OnnxDriver::~OnnxDriver() = default;
 
     srt::Expected<void> OnnxDriver::initialize(const InferenceDriverInitArgs &args) {
-        stdc_impl_t;
-
         if (args.type() != Onnx::API_NAME || args.version() != Onnx::API_VERSION) {
             return srt::Error{
                 srt::Error::InvalidArgument,
@@ -183,44 +50,44 @@ namespace ds {
 
         const auto &onnxArgs = *args.as<Onnx::DriverInitArgs>();
 
-        // Example logging
-        Log.srtDebug("initialize: driver type: %1", args.type());
-
-        if (impl.extension.runtimeApi.ortApi) {
+        if (m_context) {
             return srt::Error{
                 srt::Error::FileDuplicated,
-                "onnx runtime has been initialized by another instance",
+                "ONNX driver is already initialized",
             };
         }
 
-        if (onnxArgs.runtimeApi) {
-            if (auto result = impl.useExternalApi(*onnxArgs.runtimeApi); !result) {
-                return result;
-            }
-        } else {
-            auto dllPath = onnxArgs.runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
-            if (auto result = impl.load(dllPath); !result) {
-                return result;
-            }
+        if (onnxArgs.ep == Onnx::ExecutionProvider::CoreML) {
+            return srt::Error(srt::Error::FeatureNotSupported,
+                              "the ONNX driver does not implement the Core ML provider");
         }
 
-        onnxdriver::Env::DeviceConfig devConfig;
-        devConfig.ep = onnxArgs.ep;
-        devConfig.deviceIndex = onnxArgs.deviceIndex;
-        onnxdriver::Env::setDeviceConfig(devConfig);
+        srt::Expected<std::shared_ptr<onnxdriver::OnnxRuntime>> runtime =
+            onnxArgs.runtimeApi
+                ? onnxdriver::OnnxRuntime::borrow(*onnxArgs.runtimeApi)
+                : onnxdriver::OnnxRuntime::load(onnxArgs.runtimePath / ONNXRUNTIME_DYLIB_FILENAME);
+        if (!runtime) {
+            return runtime.takeError().withContext("failed to initialize ONNX Runtime");
+        }
 
-        impl.extension.ep = onnxArgs.ep;
-        impl.extension.deviceIndex = onnxArgs.deviceIndex;
-        return srt::Expected<void>();
+        m_context = std::make_shared<onnxdriver::DriverContext>(runtime.take(), onnxArgs.ep,
+                                                                onnxArgs.deviceIndex);
+        m_extension.runtimeApi = m_context->runtime().api();
+        m_extension.runtimePath = m_context->runtime().path();
+        m_extension.ep = onnxArgs.ep;
+        m_extension.deviceIndex = onnxArgs.deviceIndex;
+
+        onnxdriver::g_log.srtInfo("Initialized ONNX Runtime %1",
+                                  m_extension.runtimeApi.ortApiBase->GetVersionString());
+        return {};
     }
 
     std::unique_ptr<InferenceSession> OnnxDriver::createSession() {
-        return std::make_unique<OnnxSession>();
+        return m_context ? std::make_unique<OnnxSession>(m_context) : nullptr;
     }
 
     const InferenceDriverExtension *OnnxDriver::extension() const {
-        stdc_impl_t;
-        return impl.extension.runtimeApi.ortApi ? &impl.extension : nullptr;
+        return m_context ? &m_extension : nullptr;
     }
 
 }

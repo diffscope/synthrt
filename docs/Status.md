@@ -39,6 +39,9 @@ SynthRT 的 Package 基础设施目前已经实现：
 - 公开的 Inference Driver、Session、Interpreter 和 Singer Provider 接口
 - ONNX Driver Factory 和基于 Backend 的插件元数据
 - 支持内部加载 ONNX Runtime，或借用由外部持有生命周期的 ONNX Runtime API
+- ONNX Runtime API 与 Environment 的进程内一致性、按 Driver 隔离的模型缓存以及由 Session 共同持有的运行时生命周期
+- ONNX Session 的同步与异步执行、终止与等待、输入输出 Tensor 转换，以及回调期间销毁 Session 的安全边界
+- 使用真实 ONNX 模型覆盖内部与外部 Runtime API、并发打开、同步与异步推理、错误输入和无效模型的自动化测试
 - 修订后的 level 1 推理契约和已经迁移到 2.4 的示例 Package 结构
 - 主要基于公开 Runtime API 的命令行集成
 
@@ -51,11 +54,8 @@ SynthRT 的 Package 基础设施目前已经实现：
 
 ## 后续工作
 
-1. 确认并提交重构后的 README。
-2. 创建 `refactor-v2/onnxruntime` 分支。
-3. 将 `onnxdriver` 重构为职责和所有权明确的小型组件，并统一 SynthRT 与 dsinfer 的命名、注释、错误处理和日志风格。
-4. 使用自动化测试覆盖 ONNX Runtime 加载、外部 API 生命周期、Environment 创建、Execution Provider 选择、Session 创建、Tensor 转换和失败路径。
-5. 从 Driver 手动测试和 Utility 中移除剩余的过时 API。
-6. 完成 Interpreter 执行，并连接 `ContribExecInstance`、`ContribImportBinding`、quit、wait 和 Package 释放行为。
-7. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
-8. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。
+1. 从 Driver 手动测试和 Utility 中移除剩余的过时 API，并把仍有价值的手动场景迁移到自动化测试。
+2. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
+3. 完成 Interpreter 执行，并连接 `ContribExecInstance`、`ContribImportBinding`、quit、wait 和 Package 释放行为。
+4. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
+5. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。

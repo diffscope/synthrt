@@ -1,6 +1,9 @@
 #include "OnnxTensor.h"
 
-#include <numeric>
+#include <cstring>
+#include <limits>
+#include <optional>
+#include <utility>
 
 namespace ds {
 
@@ -26,7 +29,6 @@ namespace ds {
             case ITensor::Bool:
                 return sizeof(bool);
             default:
-                assert(false && "Unsupported data type");
                 return 0;
         }
     }
@@ -63,7 +65,8 @@ namespace ds {
     static inline bool verifyShape(ITensor::DataType dataType, const std::vector<int64_t> &shape,
                                    size_t dataSize) {
         if (shape.empty()) {
-            return dataSize == getElementSize(dataType);
+            const auto elementSize = getElementSize(dataType);
+            return elementSize != 0 && dataSize == elementSize;
         }
 
         auto maybeTotalElements = getElementCountFromShape(dataType, shape);
@@ -82,10 +85,10 @@ namespace ds {
         return totalBytes == static_cast<uint64_t>(dataSize);
     }
 
-    srt::Expected<void> verify(ITensor::DataType dataType, const std::vector<int64_t> &shape,
-                               size_t dataSize) {
+    static srt::Expected<void> verify(ITensor::DataType dataType, const std::vector<int64_t> &shape,
+                                      size_t dataSize) {
         if (dataType == ITensor::Undefined) {
-            return srt::Error(srt::Error::InvalidArgument, "data type can not be Undefined");
+            return srt::Error(srt::Error::InvalidArgument, "data type cannot be Undefined");
         }
         if (!verifyShape(dataType, shape, dataSize)) {
             return srt::Error(srt::Error::InvalidArgument, "data size and shape mismatch");
@@ -94,29 +97,29 @@ namespace ds {
     }
 
     OnnxTensor::OnnxTensor()
-        : _value(nullptr), _dataType(Undefined), _elementSize(0), _bytesSize(0) {
+        : m_value(nullptr), m_dataType(Undefined), m_elementSize(0), m_byteSize(0) {
     }
 
     OnnxTensor::OnnxTensor(OnnxTensor &&other) noexcept
-        : _value(std::move(other._value)), _dataType(other._dataType),
-          _shape(std::move(other._shape)), _elementSize(other._elementSize),
-          _bytesSize(other._bytesSize) {
-        other._dataType = Undefined;
-        other._elementSize = 0;
-        other._bytesSize = 0;
+        : m_value(std::move(other.m_value)), m_dataType(other.m_dataType),
+          m_shape(std::move(other.m_shape)), m_elementSize(other.m_elementSize),
+          m_byteSize(other.m_byteSize) {
+        other.m_dataType = Undefined;
+        other.m_elementSize = 0;
+        other.m_byteSize = 0;
     }
 
     OnnxTensor &OnnxTensor::operator=(OnnxTensor &&other) noexcept {
         if (this != &other) {
-            _value = std::move(other._value);
-            _dataType = other._dataType;
-            _shape = std::move(other._shape);
-            _elementSize = other._elementSize;
-            _bytesSize = other._bytesSize;
+            m_value = std::move(other.m_value);
+            m_dataType = other.m_dataType;
+            m_shape = std::move(other.m_shape);
+            m_elementSize = other.m_elementSize;
+            m_byteSize = other.m_byteSize;
 
-            other._dataType = Undefined;
-            other._elementSize = 0;
-            other._bytesSize = 0;
+            other.m_dataType = Undefined;
+            other.m_elementSize = 0;
+            other.m_byteSize = 0;
         }
         return *this;
     }
@@ -137,9 +140,6 @@ namespace ds {
         }
 
         auto tensor = std::make_shared<OnnxTensor>();
-        if (!tensor) {
-            return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create OnnxTensor");
-        }
         ONNXTensorElementDataType onnxType = ONNX_TENSOR_ELEMENT_DATA_TYPE_UNDEFINED;
         switch (dataType) {
             case Float:
@@ -155,68 +155,78 @@ namespace ds {
                 return srt::Error(srt::Error::InvalidArgument, "unsupported data type");
         }
 
-        tensor->_dataType = dataType;
-        tensor->_shape = shape;
-        tensor->_elementSize = elementSize;
-        tensor->_bytesSize = totalElements * elementSize;
-
-        Ort::AllocatorWithDefaultOptions allocator{};
-        tensor->_value = Ort::Value::CreateTensor(allocator, shape.data(), shape.size(), onnxType);
-        if (!tensor->_value) {
-            return srt::Error(ds::ErrorCode::ProcessingFailed,
-                              "failed to create Ort::Value tensor");
+        try {
+            Ort::AllocatorWithDefaultOptions allocator;
+            tensor->m_value =
+                Ort::Value::CreateTensor(allocator, shape.data(), shape.size(), onnxType);
+        } catch (const Ort::Exception &error) {
+            return srt::Error(ds::ErrorCode::ProcessingFailed, error.what());
         }
 
+        tensor->m_dataType = dataType;
+        tensor->m_shape = shape;
+        tensor->m_elementSize = elementSize;
+        tensor->m_byteSize = totalElements * elementSize;
         return tensor;
     }
 
     srt::Expected<std::shared_ptr<OnnxTensor>>
         OnnxTensor::createFromRawView(DataType dataType, const std::vector<int64_t> &shape,
                                       const stdc::array_view<std::byte> &data) {
-
-        auto exp = create(dataType, shape);
-        if (!exp) {
-            return exp.takeError();
+        if (!data.empty() && !data.data()) {
+            return srt::Error(srt::Error::InvalidArgument, "tensor storage must not be null");
         }
-        auto tensor = exp.take();
+        if (auto verified = verify(dataType, shape, data.size()); !verified) {
+            return verified.takeError();
+        }
 
-        auto ortValueBuffer = static_cast<std::byte *>(tensor->_value.GetTensorMutableRawData());
-        std::memcpy(ortValueBuffer, data.data(), data.size());
+        auto tensorResult = create(dataType, shape);
+        if (!tensorResult) {
+            return tensorResult.takeError();
+        }
+        auto tensor = tensorResult.take();
+
+        if (!data.empty()) {
+            auto ortValueBuffer =
+                static_cast<std::byte *>(tensor->m_value.GetTensorMutableRawData());
+            std::memcpy(ortValueBuffer, data.data(), data.size());
+        }
 
         return tensor;
     }
 
     srt::Expected<std::shared_ptr<OnnxTensor>> OnnxTensor::createFromOrtValue(Ort::Value &&value) {
-        auto tensor = std::make_shared<OnnxTensor>();
-        if (!tensor) {
-            return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create OnnxTensor");
-        }
         if (!value || !value.IsTensor()) {
             return srt::Error(srt::Error::InvalidArgument, "Ort::Value is null or not a tensor");
         }
-        auto typeInfo = value.GetTensorTypeAndShapeInfo();
-        auto ortType = typeInfo.GetElementType();
+        try {
+            auto tensor = std::make_shared<OnnxTensor>();
+            auto typeInfo = value.GetTensorTypeAndShapeInfo();
+            const auto ortType = typeInfo.GetElementType();
 
-        tensor->_shape = typeInfo.GetShape();
-        tensor->_elementSize = getElementSizeFromOrtType(ortType);
-        tensor->_bytesSize = typeInfo.GetElementCount() * tensor->_elementSize;
+            tensor->m_shape = typeInfo.GetShape();
+            tensor->m_elementSize = getElementSizeFromOrtType(ortType);
+            tensor->m_byteSize = typeInfo.GetElementCount() * tensor->m_elementSize;
 
-        switch (ortType) {
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
-                tensor->_dataType = Float;
-                break;
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
-                tensor->_dataType = Bool;
-                break;
-            case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
-                tensor->_dataType = Int64;
-                break;
-            default:
-                return srt::Error(srt::Error::InvalidArgument, "unsupported data type");
+            switch (ortType) {
+                case ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT:
+                    tensor->m_dataType = Float;
+                    break;
+                case ONNX_TENSOR_ELEMENT_DATA_TYPE_BOOL:
+                    tensor->m_dataType = Bool;
+                    break;
+                case ONNX_TENSOR_ELEMENT_DATA_TYPE_INT64:
+                    tensor->m_dataType = Int64;
+                    break;
+                default:
+                    return srt::Error(srt::Error::InvalidArgument, "unsupported data type");
+            }
+
+            tensor->m_value = std::move(value);
+            return tensor;
+        } catch (const Ort::Exception &error) {
+            return srt::Error(srt::Error::InvalidArgument, error.what());
         }
-
-        tensor->_value = std::move(value);
-        return tensor;
     }
 
     srt::Expected<std::shared_ptr<OnnxTensor>>
@@ -224,70 +234,61 @@ namespace ds {
         if (!tensor) {
             return srt::Error(srt::Error::InvalidArgument, "tensor must not be nullptr");
         }
+        if (tensor->byteSize() != 0 && !tensor->rawData()) {
+            return srt::Error(srt::Error::InvalidArgument, "tensor storage must not be null");
+        }
         return createFromRawView(tensor->dataType(), tensor->shape(), tensor->rawView());
     }
 
-    Ort::Value OnnxTensor::takeOrtValue(Ort::Value &&value) {
-        Ort::Value valueToRelease = std::move(_value);
-        _value = std::move(value);
-        return valueToRelease;
+    Ort::Value &OnnxTensor::ortValue() {
+        return m_value;
     }
 
-    Ort::Value OnnxTensor::releaseOrtValue() {
-        Ort::Value valueToRelease = std::move(_value);
-        _value = Ort::Value(nullptr);
-        return valueToRelease;
-    }
-
-    Ort::Value *OnnxTensor::valuePtr() {
-        return &_value;
-    }
-
-    const Ort::Value *OnnxTensor::valuePtr() const {
-        return &_value;
+    const Ort::Value &OnnxTensor::ortValue() const {
+        return m_value;
     }
 
     std::string OnnxTensor::backend() const {
-        return BACKEND;
+        return Backend;
     }
 
     ITensor::DataType OnnxTensor::dataType() const {
-        return _dataType;
+        return m_dataType;
     }
     std::vector<int64_t> OnnxTensor::shape() const {
-        return _shape;
+        return m_shape;
     }
     size_t OnnxTensor::byteSize() const {
-        return _bytesSize;
+        return m_byteSize;
     }
 
     size_t OnnxTensor::elementCount() const {
-        if (_elementSize == 0) {
+        if (m_elementSize == 0) {
             return 0;
         }
-        return _bytesSize / _elementSize;
+        return m_byteSize / m_elementSize;
     }
 
     size_t OnnxTensor::elementSize() const {
-        return _elementSize;
+        return m_elementSize;
     }
 
     const std::byte *OnnxTensor::rawData() const {
-        if (!_value || !_value.IsTensor()) {
+        if (!m_value || !m_value.IsTensor()) {
             return nullptr;
         }
-        return static_cast<const std::byte *>(_value.GetTensorRawData());
+        return static_cast<const std::byte *>(m_value.GetTensorRawData());
     }
 
     std::byte *OnnxTensor::mutableRawData() {
-        if (!_value || !_value.IsTensor()) {
+        if (!m_value || !m_value.IsTensor()) {
             return nullptr;
         }
-        return static_cast<std::byte *>(_value.GetTensorMutableRawData());
+        return static_cast<std::byte *>(m_value.GetTensorMutableRawData());
     }
 
     stdc::array_view<std::byte> OnnxTensor::rawView() const {
-        if (!_value || !_value.IsTensor()) {
+        if (!m_value || !m_value.IsTensor()) {
             return {};
         }
         return {rawData(), byteSize()};
@@ -298,7 +299,7 @@ namespace ds {
     }
 
     bool OnnxTensor::isValid() const {
-        return _value && _value.IsTensor() && _dataType != Undefined;
+        return m_value && m_value.IsTensor() && m_dataType != Undefined;
     }
 
 }

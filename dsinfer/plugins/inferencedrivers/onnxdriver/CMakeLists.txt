@@ -46,11 +46,17 @@ else()
     set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.so ${_onnxruntime_default_dir}/lib/*.so.*)
 endif()
 
+if(DSINFER_INSTALL)
+    set(_ort_copy_install_args INSTALL_DIR .)
+else()
+    set(_ort_copy_install_args SKIP_INSTALL)
+endif()
+
 # Copy onnxruntime shared libraries
 qm_add_copy_command(${PROJECT_NAME}
     SOURCES ${_ort_default_lib_files}
     DESTINATION runtimes/onnx/default
-    INSTALL_DIR .
+    ${_ort_copy_install_args}
 )
 
 if(EXISTS ${_onnxruntime_cuda_dir} AND IS_DIRECTORY ${_onnxruntime_cuda_dir})
@@ -64,7 +70,7 @@ if(EXISTS ${_onnxruntime_cuda_dir} AND IS_DIRECTORY ${_onnxruntime_cuda_dir})
         qm_add_copy_command(${PROJECT_NAME}
             SOURCES ${_ort_cuda_lib_files}
             DESTINATION runtimes/onnx/cuda
-            INSTALL_DIR .
+            ${_ort_copy_install_args}
         )
     endif()
 endif()
