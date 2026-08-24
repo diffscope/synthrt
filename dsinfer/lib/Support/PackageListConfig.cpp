@@ -7,7 +7,7 @@
 #include <stdcorelib/path.h>
 
 #include <synthrt/Support/JSON.h>
-#include <synthrt/Core/ContribCategory.h>
+#include <synthrt/Core/ContribLocator.h>
 
 using srt::JsonArray;
 using srt::JsonObject;
@@ -16,6 +16,26 @@ using srt::Error;
 using srt::Expected;
 
 namespace ds {
+
+    namespace {
+
+        std::optional<std::pair<std::string, stdc::VersionNumber>>
+            parsePackageReference(std::string_view value) {
+            const auto separator = value.find('=');
+            if (separator == std::string_view::npos ||
+                value.find('=', separator + 1) != std::string_view::npos) {
+                return std::nullopt;
+            }
+
+            auto id = value.substr(0, separator);
+            auto version = stdc::VersionNumber::fromString(value.substr(separator + 1));
+            if (!srt::ContribLocator::isValidPackageId(id) || !version) {
+                return std::nullopt;
+            }
+            return std::pair(std::string(id), *version);
+        }
+
+    }
 
     srt::Expected<void> PackageListConfig::load(const std::filesystem::path &path) {
         std::string id_;
@@ -83,14 +103,12 @@ namespace ds {
                 if (id.empty()) {
                     continue;
                 }
-                // A package reference, so a package and a version but no contribute part.
-                auto identifier = srt::ContribLocator::fromString(id);
-                if (identifier.package().empty() || identifier.version().isEmpty() ||
-                    !identifier.id().empty()) {
+                auto reference = parsePackageReference(id);
+                if (!reference) {
                     continue;
                 }
-                pkg._id = identifier.package();
-                pkg._version = identifier.version();
+                pkg._id = std::move(reference->first);
+                pkg._version = reference->second;
             }
             // relativeLocation
             {
@@ -151,9 +169,7 @@ namespace ds {
 
                 // id
                 //
-                // Rendered through ContribLocator so that load() parses back what is written here.
-                pkgObj["id"] =
-                    srt::ContribLocator(packageItem._id, packageItem._version).toString();
+                pkgObj["id"] = packageItem._id + "=" + packageItem._version.toString();
 
                 // relativeLocation
                 pkgObj["relativeLocation"] = stdc::path::to_utf8(packageItem._relativeLocation);
