@@ -6,8 +6,6 @@
 
 #include <stdcorelib/support/versionnumber.h>
 
-#include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
 #include <synthrt/synthrt_global.h>
 
 namespace srt {
@@ -27,8 +25,6 @@ namespace srt {
         inline bool operator!=(const PackageDependency &other) const {
             return !(*this == other);
         }
-
-        static Expected<PackageDependency> fromJsonValue(const JsonValue &value);
 
     public:
         std::string id;

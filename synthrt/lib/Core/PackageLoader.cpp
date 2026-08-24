@@ -431,6 +431,39 @@ namespace srt {
             return *version;
         }
 
+        Expected<PackageDependency> readDependency(const JsonValue &value) {
+            if (!value.isObject()) {
+                return Error(Error::InvalidFormat, "dependency must be an object");
+            }
+
+            const auto &object = value.toObject();
+            static const std::set<std::string_view> allowedKeys = {"id", "version"};
+            for (const auto &item : object) {
+                if (!allowedKeys.count(item.first)) {
+                    return Error(Error::InvalidFormat,
+                                 std::string("unknown dependency field \"") + item.first + '"');
+                }
+            }
+
+            const auto id = object.find("id");
+            if (id == object.end() || !id->second.isString() ||
+                !ContribLocator::isValidPackageId(id->second.toString())) {
+                return Error(Error::InvalidFormat, "dependency has a missing or invalid id field");
+            }
+
+            const auto version = object.find("version");
+            if (version == object.end()) {
+                return Error(Error::InvalidFormat,
+                             "dependency has a missing or invalid version field");
+            }
+            auto parsedVersion = readVersion(version->second, "dependency version");
+            if (!parsedVersion) {
+                return parsedVersion.takeError();
+            }
+
+            return PackageDependency(id->second.toString(), parsedVersion.take());
+        }
+
         fs::path pathFromManifest(std::string_view text) {
             std::string normalized(text);
             std::replace(normalized.begin(), normalized.end(), '\\', '/');
@@ -1029,7 +1062,7 @@ namespace srt {
             }
             std::set<std::string, std::less<>> ids;
             for (const auto &value : dependenciesIt->second.toArray()) {
-                auto dependency = PackageDependency::fromJsonValue(value);
+                auto dependency = readDependency(value);
                 if (!dependency) {
                     return dependency.takeError().withContext("invalid Package dependency");
                 }

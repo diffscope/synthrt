@@ -276,6 +276,32 @@ namespace {
 
 BOOST_AUTO_TEST_SUITE(test_SynthUnit)
 
+BOOST_AUTO_TEST_CASE(test_data_only_reads_and_validates_dependencies) {
+    TemporaryDirectory temporary;
+    const auto valid = writePackage(temporary.path(), "valid", "root", "1", {},
+                                    R"([{"id":"vendor/sample","version":"1.2.3"}])");
+
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(valid, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(opened);
+    BOOST_REQUIRE_EQUAL(opened->dependencies().size(), 1u);
+    BOOST_CHECK_EQUAL(opened->dependencies()[0].id, "vendor/sample");
+    BOOST_CHECK(opened->dependencies()[0].version == stdc::VersionNumber(1, 2, 3));
+
+    std::size_t sequence = 0;
+    for (const auto *dependencies : {
+             R"([{"id":"sample","version":"1","required":true}])",
+             R"([{"id":"sample","version":"01"}])",
+             R"([{"id":"sample"}])",
+             R"([{"version":"1"}])",
+         }) {
+        const auto invalid = writePackage(temporary.path(), "invalid-" + std::to_string(sequence++),
+                                          "invalid", "1", {}, dependencies);
+        auto result = unit.openPackage(invalid, srt::SynthUnit::DataOnly);
+        BOOST_CHECK_MESSAGE(!result, dependencies);
+    }
+}
+
 BOOST_AUTO_TEST_CASE(test_data_only_expands_variables_without_loading_plugin) {
     TemporaryDirectory temporary;
     const auto root = temporary.path() / "root";
