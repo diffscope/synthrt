@@ -11,7 +11,7 @@ project(synthrt
 # Build Options
 # ----------------------------------
 option(SYNTHRT_BUILD_TESTS "Build test cases" OFF)
-option(SYNTHRT_BUILD_DSINFER "Build the legacy dsinfer implementation" OFF)
+option(SYNTHRT_BUILD_DSINFER "Build dsinfer module" ON)
 option(SYNTHRT_INSTALL "Install library" ON)
 option(SYNTHRT_INSTALL_MSVC_RUNTIME "Install MSVC runtime" OFF)
 
