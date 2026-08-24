@@ -256,7 +256,7 @@ namespace ds {
             if (auto exp = Tensor::create(ITensor::Float, shape); exp) {
                 // get tensor buffer
                 auto tensor = exp.take();
-                auto buffer = tensor->mutableData<float>();
+                auto buffer = tensor->data<float>();
                 if (!buffer) {
                     setState(Failed);
                     return srt::Error(ds::ErrorCode::ProcessingFailed,

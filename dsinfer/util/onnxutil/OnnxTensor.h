@@ -171,26 +171,26 @@ namespace ds {
     inline srt::Expected<srt::NO<OnnxTensor>>
         OnnxTensor::createFromView(const std::vector<int64_t> &shape,
                                    const stdc::array_view<T> &data) {
-        static_assert(tensor_traits<T>::is_valid, "Unsupported tensor data type");
+        static_assert(TensorTraits<T>::isValid, "Unsupported tensor data type");
         static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
                       "sizeof(bool) == 1 does not satisfy");
 
         stdc::array_view<std::byte> rawView{reinterpret_cast<const std::byte *>(data.data()),
                                             data.size() * sizeof(T)};
-        return createFromRawView(tensor_traits<T>::data_type, shape, rawView);
+        return createFromRawView(TensorTraits<T>::dataType, shape, rawView);
     }
 
     template <typename T>
     inline srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::createScalar(T value,
                                                                        bool zeroDimensions) {
-        static_assert(tensor_traits<T>::is_valid, "Unsupported tensor data type");
+        static_assert(TensorTraits<T>::isValid, "Unsupported tensor data type");
         static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
                       "sizeof(bool) == 1 does not satisfy");
 
         Tensor::Container data(sizeof(T));
         stdc::array_view<std::byte> rawView(data.data(), data.size());
 
-        return createFromRawView(tensor_traits<T>::data_type,
+        return createFromRawView(TensorTraits<T>::dataType,
                                  zeroDimensions ? std::vector<int64_t>{} : std::vector<int64_t>{1},
                                  rawView);
     }
@@ -199,16 +199,16 @@ namespace ds {
     inline srt::Expected<srt::NO<OnnxTensor>>
         OnnxTensor::createFilled(const std::vector<int64_t> &shape, T value) {
 
-        static_assert(tensor_traits<T>::is_valid, "Unsupported tensor data type");
+        static_assert(TensorTraits<T>::isValid, "Unsupported tensor data type");
         static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
                       "sizeof(bool) == 1 does not satisfy");
 
-        auto exp = create(tensor_traits<T>::data_type, shape);
+        auto exp = create(TensorTraits<T>::dataType, shape);
         if (!exp) {
             return exp.takeError();
         }
         auto tensor = exp.take();
-        auto dataPtr = tensor->template mutableData<T>();
+        auto dataPtr = tensor->template data<T>();
         std::fill(dataPtr, dataPtr + tensor->elementCount(), value);
         return tensor;
     }

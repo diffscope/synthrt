@@ -41,14 +41,14 @@ namespace ds::inferutil {
 
     srt::Expected<srt::NO<ITensor>> preprocessSpeakerEmbeddingFrames(
         const std::vector<Api::Common::L1::InputSpeakerInfo> &speakers,
-        const std::map<std::string, std::vector<float>> &embMap, int hiddenSize,
-        double frameWidth, int64_t targetLength) {
+        const std::map<std::string, std::vector<float>> &embMap, int hiddenSize, double frameWidth,
+        int64_t targetLength) {
 
         std::vector<int64_t> shape = {1, targetLength, hiddenSize};
         if (auto exp = Tensor::create(ITensor::Float, shape); exp) {
             // get tensor buffer
             auto tensor = exp.take();
-            auto buffer = tensor->mutableData<float>();
+            auto buffer = tensor->data<float>();
             if (!buffer) {
                 return srt::Error(ds::ErrorCode::ProcessingFailed,
                                   "failed to create spk_embed tensor");

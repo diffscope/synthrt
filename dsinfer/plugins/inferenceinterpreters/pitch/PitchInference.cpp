@@ -319,7 +319,7 @@ namespace ds {
                             ds::ErrorCode::ShapeMismatch,
                             "pitch tensor element count does not match target length");
                     }
-                    auto pitchBuffer = pitchTensor->mutableData<float>();
+                    auto pitchBuffer = pitchTensor->data<float>();
                     if (!pitchBuffer) {
                         setState(Failed);
                         return srt::Error(ds::ErrorCode::ProcessingFailed,
@@ -367,7 +367,7 @@ namespace ds {
                         return srt::Error(ds::ErrorCode::ShapeMismatch,
                                           "expr tensor element count does not match target length");
                     }
-                    auto exprBuffer = exprTensor->mutableData<float>();
+                    auto exprBuffer = exprTensor->data<float>();
                     if (!exprBuffer) {
                         setState(Failed);
                         return srt::Error(ds::ErrorCode::ProcessingFailed,

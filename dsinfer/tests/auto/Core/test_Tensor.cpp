@@ -9,7 +9,7 @@
 
 using ds::ITensor;
 using ds::Tensor;
-using ds::tensor_traits;
+using ds::TensorTraits;
 
 namespace {
 
@@ -23,19 +23,19 @@ BOOST_AUTO_TEST_SUITE(test_Tensor)
 
 // Every data type the enumeration lists has to have a registered trait, or the templates silently
 // refuse to work with it.
-BOOST_AUTO_TEST_CASE(test_tensor_traits) {
-    static_assert(tensor_traits<float>::is_valid);
-    static_assert(tensor_traits<int64_t>::is_valid);
-    static_assert(tensor_traits<bool>::is_valid);
-    static_assert(tensor_traits<float>::data_type == ITensor::Float);
-    static_assert(tensor_traits<int64_t>::data_type == ITensor::Int64);
-    static_assert(tensor_traits<bool>::data_type == ITensor::Bool);
+BOOST_AUTO_TEST_CASE(test_TensorTraits) {
+    static_assert(TensorTraits<float>::isValid);
+    static_assert(TensorTraits<int64_t>::isValid);
+    static_assert(TensorTraits<bool>::isValid);
+    static_assert(TensorTraits<float>::dataType == ITensor::Float);
+    static_assert(TensorTraits<int64_t>::dataType == ITensor::Int64);
+    static_assert(TensorTraits<bool>::dataType == ITensor::Bool);
 
     // Anything else is not a tensor type, which is what the static_asserts in the templates rest
     // on.
-    static_assert(!tensor_traits<double>::is_valid);
-    static_assert(!tensor_traits<int>::is_valid);
-    static_assert(tensor_traits<double>::data_type == ITensor::Undefined);
+    static_assert(!TensorTraits<double>::isValid);
+    static_assert(!TensorTraits<int>::isValid);
+    static_assert(TensorTraits<double>::dataType == ITensor::Undefined);
 }
 
 // A tensor that was never given a type answers rather than aborting. It is the state the default
@@ -48,7 +48,7 @@ BOOST_AUTO_TEST_CASE(test_Tensor_Default) {
     BOOST_CHECK(t.elementSize() == 0);
     BOOST_CHECK(t.elementCount() == 0);
     BOOST_CHECK(t.rawView().empty());
-    BOOST_CHECK(t.backend() == Tensor::BACKEND);
+    BOOST_CHECK(t.backend() == Tensor::Backend);
 }
 
 BOOST_AUTO_TEST_CASE(test_Tensor_Create) {
@@ -103,7 +103,7 @@ BOOST_AUTO_TEST_CASE(test_Tensor_CreateFromView) {
 
     // The tensor holds its own copy, so the caller's buffer going away or changing does not reach
     // it.
-    auto *mutableData = t->mutableData<float>();
+    auto *mutableData = t->data<float>();
     mutableData[0] = 99.0f;
     BOOST_CHECK(source[0] == 1.0f);
 
@@ -199,14 +199,14 @@ BOOST_AUTO_TEST_CASE(test_Tensor_TypedAccessChecksTheType) {
     BOOST_REQUIRE(exp);
     auto t = exp.take();
 
+    BOOST_CHECK(t->constData<float>() != nullptr);
     BOOST_CHECK(t->data<float>() != nullptr);
-    BOOST_CHECK(t->mutableData<float>() != nullptr);
     BOOST_CHECK(!t->view<float>().empty());
 
+    BOOST_CHECK(t->constData<int64_t>() == nullptr);
     BOOST_CHECK(t->data<int64_t>() == nullptr);
-    BOOST_CHECK(t->mutableData<int64_t>() == nullptr);
     BOOST_CHECK(t->view<int64_t>().empty());
-    BOOST_CHECK(t->data<bool>() == nullptr);
+    BOOST_CHECK(t->constData<bool>() == nullptr);
 
     // The raw accessors do not care, which is what makes the typed ones worth having.
     BOOST_CHECK(t->rawData() != nullptr);
@@ -218,7 +218,7 @@ BOOST_AUTO_TEST_CASE(test_Tensor_Alignment) {
     for (int64_t n : {int64_t(1), int64_t(3), int64_t(1000)}) {
         auto exp = Tensor::create(ITensor::Float, {n});
         BOOST_REQUIRE(exp);
-        BOOST_CHECK(alignedTo(exp.get()->rawData(), Tensor::ALIGNMENT));
+        BOOST_CHECK(alignedTo(exp.get()->rawData(), Tensor::Alignment));
     }
 }
 
@@ -236,7 +236,7 @@ BOOST_AUTO_TEST_CASE(test_Tensor_Clone) {
     BOOST_CHECK(copy->byteSize() == original->byteSize());
 
     // Deep, so writing through one is not visible through the other.
-    original->mutableData<int64_t>()[0] = 99;
+    original->data<int64_t>()[0] = 99;
     BOOST_CHECK(copy->view<int64_t>()[0] == 5);
     BOOST_CHECK(original->view<int64_t>()[0] == 99);
 }
@@ -280,8 +280,8 @@ BOOST_AUTO_TEST_CASE(test_ITensor_ThroughTheInterface) {
     auto exp = Tensor::createFilled<int64_t>({3}, 8);
     BOOST_REQUIRE(exp);
 
-    srt::NO<ITensor> tensor = exp.take();
-    BOOST_CHECK(tensor->backend() == Tensor::BACKEND);
+    std::shared_ptr<ITensor> tensor = exp.take();
+    BOOST_CHECK(tensor->backend() == Tensor::Backend);
     BOOST_CHECK(tensor->dataType() == ITensor::Int64);
     BOOST_CHECK(tensor->elementCount() == 3);
     BOOST_CHECK(tensor->view<int64_t>()[1] == 8);

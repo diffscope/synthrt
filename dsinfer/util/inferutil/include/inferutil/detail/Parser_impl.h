@@ -25,7 +25,7 @@ namespace ds::inferutil {
         class ParamTagMappings {
         public:
             // Add new variance parameters here. Remember to update `varianceKeys`
-            inline static constexpr std::array<std::pair<std::string_view, ParamTag>, 5>
+            inline static const std::array<std::pair<std::string_view, ParamTag>, 5>
                 varianceMapping = {
                     std::pair{"energy",        Api::Common::L1::Tags::Energy      },
                     std::pair{"breathiness",   Api::Common::L1::Tags::Breathiness },
@@ -35,7 +35,7 @@ namespace ds::inferutil {
             };
 
             // Add new transition parameters here. Remember to update `transitionKeys`
-            inline static constexpr std::array<std::pair<std::string_view, ParamTag>, 3>
+            inline static const std::array<std::pair<std::string_view, ParamTag>, 2>
                 transitionMapping = {
                     std::pair{"gender",   Api::Common::L1::Tags::Gender  },
                     std::pair{"velocity", Api::Common::L1::Tags::Velocity},
@@ -69,7 +69,7 @@ namespace ds::inferutil {
         inline bool tryFindAndInsertVarianceParameters(std::string_view key, Container &out) {
             const auto pred = [&](const auto &pair) { return pair.first == key; };
 
-            constexpr auto &vmap = ParamTagMappings::varianceMapping;
+            const auto &vmap = ParamTagMappings::varianceMapping;
             if (const auto it = std::find_if(vmap.begin(), vmap.end(), pred); it != vmap.end()) {
                 insertParamHelper(out, it->second);
                 return true;
@@ -82,7 +82,7 @@ namespace ds::inferutil {
         inline bool tryFindAndInsertTransitionParameters(std::string_view key, Container &out) {
             const auto pred = [&](const auto &pair) { return pair.first == key; };
 
-            constexpr auto &tmap = ParamTagMappings::transitionMapping;
+            const auto &tmap = ParamTagMappings::transitionMapping;
             if (const auto it = std::find_if(tmap.begin(), tmap.end(), pred); it != tmap.end()) {
                 insertParamHelper(out, it->second);
                 return true;

@@ -17,12 +17,12 @@ namespace ds::inferutil {
         static srt::Expected<TensorHelper> createFor1DArray(size_t size) {
             TensorHelper helper;
             std::vector<int64_t> shape{1, static_cast<int64_t>(size)};
-            auto exp = Tensor::create(tensor_traits<T>::data_type, shape);
+            auto exp = Tensor::create(TensorTraits<T>::dataType, shape);
             if (!exp) {
                 return exp.takeError();
             }
             helper._tensor = exp.take();
-            auto dataPtr = helper._tensor->template mutableData<T>();
+            auto dataPtr = helper._tensor->template data<T>();
             if (STDC_UNLIKELY(dataPtr == nullptr)) {
                 return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create tensor");
             }

@@ -13,21 +13,21 @@ namespace ds::Api::Common::L1 {
     namespace Tags {
 
         /// Pitch controls
-        inline constexpr ParamTag Pitch("pitch");
-        inline constexpr ParamTag Expr("expr");
-        inline constexpr ParamTag F0("f0");
-        inline constexpr ParamTag ToneShift("tone_shift");
+        inline const ParamTag Pitch("pitch");
+        inline const ParamTag Expr("expr");
+        inline const ParamTag F0("f0");
+        inline const ParamTag ToneShift("tone_shift");
 
         /// Variance controls
-        inline constexpr ParamTag Energy("energy");
-        inline constexpr ParamTag Breathiness("breathiness");
-        inline constexpr ParamTag Voicing("voicing");
-        inline constexpr ParamTag Tension("tension");
-        inline constexpr ParamTag MouthOpening("mouth_opening");
+        inline const ParamTag Energy("energy");
+        inline const ParamTag Breathiness("breathiness");
+        inline const ParamTag Voicing("voicing");
+        inline const ParamTag Tension("tension");
+        inline const ParamTag MouthOpening("mouth_opening");
 
         /// Transition controls
-        inline constexpr ParamTag Gender("gender");
-        inline constexpr ParamTag Velocity("velocity");
+        inline const ParamTag Gender("gender");
+        inline const ParamTag Velocity("velocity");
 
     };
 
@@ -55,7 +55,7 @@ namespace ds::Api::Common::L1 {
     struct InputPhonemeInfo {
         struct Speaker {
             std::string name;
-            double proportion = 1;  // range: [0, 1]
+            double proportion = 1; // range: [0, 1]
         };
 
         std::string token;
@@ -80,19 +80,19 @@ namespace ds::Api::Common::L1 {
 
     struct InputParameterInfo {
         struct RetakeRange {
-            double start = 0;  // seconds (include)
-            double end = 0;  // seconds (exclude)
+            double start = 0; // seconds (include)
+            double end = 0;   // seconds (exclude)
         };
 
         ParamTag tag;
         std::vector<double> values;
-        double interval = 0;  // seconds
-        std::optional<RetakeRange> retake;  // if no value, retake the full range
+        double interval = 0;               // seconds
+        std::optional<RetakeRange> retake; // if no value, retake the full range
     };
 
     struct InputSpeakerInfo {
         std::string name;
-        double interval = 0;  // seconds
+        double interval = 0; // seconds
         std::vector<double> proportions;
     };
 

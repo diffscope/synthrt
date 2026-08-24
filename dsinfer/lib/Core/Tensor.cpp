@@ -87,8 +87,24 @@ namespace ds {
         return srt::Expected<void>();
     }
 
-    srt::Expected<srt::NO<Tensor>> Tensor::create(DataType dataType,
-                                                  const std::vector<int64_t> &shape) {
+    Tensor::Tensor(Tensor &&other) noexcept
+        : m_dataType(other.m_dataType), m_shape(std::move(other.m_shape)),
+          m_data(std::move(other.m_data)) {
+        other.m_dataType = Undefined;
+    }
+
+    Tensor &Tensor::operator=(Tensor &&other) noexcept {
+        if (this != &other) {
+            m_dataType = other.m_dataType;
+            m_shape = std::move(other.m_shape);
+            m_data = std::move(other.m_data);
+            other.m_dataType = Undefined;
+        }
+        return *this;
+    }
+
+    srt::Expected<std::shared_ptr<Tensor>> Tensor::create(DataType dataType,
+                                                          const std::vector<int64_t> &shape) {
         if (dataType == Undefined) {
             return srt::Error(srt::Error::InvalidArgument, "data type can not be Undefined");
         }
@@ -102,66 +118,66 @@ namespace ds {
         if (elementSize == 0) {
             return srt::Error(srt::Error::InvalidArgument, "invalid data type");
         }
-        auto tensor = srt::NO<Tensor>::create();
-        tensor->_dataType = dataType;
-        tensor->_shape = shape;
-        tensor->_data = Container(totalElements * elementSize, std::byte{0});
+        auto tensor = std::make_shared<Tensor>();
+        tensor->m_dataType = dataType;
+        tensor->m_shape = shape;
+        tensor->m_data = Container(totalElements * elementSize, std::byte{0});
         return tensor;
     }
 
-    srt::Expected<srt::NO<Tensor>> Tensor::createFromRawData(DataType dataType,
-                                                             const std::vector<int64_t> &shape,
-                                                             const Container &data) {
-        auto tensor = srt::NO<Tensor>::create();
+    srt::Expected<std::shared_ptr<Tensor>>
+        Tensor::createFromRawData(DataType dataType, const std::vector<int64_t> &shape,
+                                  const Container &data) {
+        auto tensor = std::make_shared<Tensor>();
         if (auto exp = verify(dataType, shape, data.size()); !exp) {
             return exp.takeError();
         }
-        tensor->_dataType = dataType;
-        tensor->_shape = shape;
-        tensor->_data = data;
+        tensor->m_dataType = dataType;
+        tensor->m_shape = shape;
+        tensor->m_data = data;
         return tensor;
     }
 
-    srt::Expected<srt::NO<Tensor>>
+    srt::Expected<std::shared_ptr<Tensor>>
         Tensor::createFromRawView(DataType dataType, const std::vector<int64_t> &shape,
                                   const stdc::array_view<std::byte> &data) {
-        auto tensor = srt::NO<Tensor>::create();
+        auto tensor = std::make_shared<Tensor>();
         if (auto exp = verify(dataType, shape, data.size()); !exp) {
             return exp.takeError();
         }
-        tensor->_dataType = dataType;
-        tensor->_shape = shape;
-        tensor->_data = Container{data.begin(), data.end()};
+        tensor->m_dataType = dataType;
+        tensor->m_shape = shape;
+        tensor->m_data = Container{data.begin(), data.end()};
         return tensor;
     }
 
-    srt::Expected<srt::NO<Tensor>> Tensor::createFromRawData(DataType dataType,
-                                                             const std::vector<int64_t> &shape,
-                                                             Container &&data) {
-        auto tensor = srt::NO<Tensor>::create();
+    srt::Expected<std::shared_ptr<Tensor>>
+        Tensor::createFromRawData(DataType dataType, const std::vector<int64_t> &shape,
+                                  Container &&data) {
+        auto tensor = std::make_shared<Tensor>();
         if (auto exp = verify(dataType, shape, data.size()); !exp) {
             return exp.takeError();
         }
-        tensor->_dataType = dataType;
-        tensor->_shape = shape;
-        tensor->_data = std::move(data);
+        tensor->m_dataType = dataType;
+        tensor->m_shape = shape;
+        tensor->m_data = std::move(data);
         return tensor;
     }
 
     std::string Tensor::backend() const {
-        return BACKEND;
+        return Backend;
     }
 
     ITensor::DataType Tensor::dataType() const {
-        return _dataType;
+        return m_dataType;
     }
 
     std::vector<int64_t> Tensor::shape() const {
-        return _shape;
+        return m_shape;
     }
 
     size_t Tensor::byteSize() const {
-        return _data.size();
+        return m_data.size();
     }
 
     size_t Tensor::elementCount() const {
@@ -172,26 +188,26 @@ namespace ds {
     }
 
     size_t Tensor::elementSize() const {
-        return getElementSize(_dataType);
+        return getElementSize(m_dataType);
     }
 
     const std::byte *Tensor::rawData() const {
-        return _data.data();
+        return m_data.data();
     }
 
     std::byte *Tensor::mutableRawData() {
-        return _data.data();
+        return m_data.data();
     }
 
     stdc::array_view<std::byte> Tensor::rawView() const {
-        return {_data.data(), _data.size()};
+        return {m_data.data(), m_data.size()};
     }
 
-    srt::NO<ITensor> Tensor::clone() const {
-        auto tensor = srt::NO<Tensor>::create();
-        tensor->_dataType = _dataType;
-        tensor->_shape = _shape;
-        tensor->_data = _data;
+    std::shared_ptr<ITensor> Tensor::clone() const {
+        auto tensor = std::make_shared<Tensor>();
+        tensor->m_dataType = m_dataType;
+        tensor->m_shape = m_shape;
+        tensor->m_data = m_data;
         return tensor;
     }
 
