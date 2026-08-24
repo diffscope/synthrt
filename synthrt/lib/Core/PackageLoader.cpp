@@ -791,12 +791,32 @@ namespace srt {
                             return options.takeError().withContext(
                                 "failed to interpret module import options");
                         }
-                        import._impl->options = options.take();
+                        auto typedOptions = options.take();
+                        if (!typedOptions) {
+                            return Error(Error::InvalidFormat,
+                                         "target interpreter returned null import options");
+                        }
+                        import._impl->options = std::move(typedOptions);
                     }
                     auto validation = spec->_impl->interpreter->validateImports(*spec);
                     if (!validation) {
                         return validation.takeError().withContext(
                             "module imports failed interpreter validation");
+                    }
+                    for (auto &import : spec->_impl->imports) {
+                        auto *target = resolveTarget(package, import.locator());
+                        auto binding = spec->_impl->interpreter->createImportBinding(
+                            *spec, import, *target, std::move(import._impl->options));
+                        if (!binding) {
+                            return binding.takeError().withContext(
+                                "failed to create module import binding");
+                        }
+                        auto preparedBinding = binding.take();
+                        if (!preparedBinding) {
+                            return Error(Error::InvalidFormat,
+                                         "importer interpreter returned a null import binding");
+                        }
+                        import._impl->binding = std::move(preparedBinding);
                     }
                 }
             }
@@ -815,6 +835,23 @@ namespace srt {
                 category->_impl->contributions.insert(category->_impl->contributions.end(),
                                                       categoryEntry.second.begin(),
                                                       categoryEntry.second.end());
+            }
+        }
+        // Binding activation cannot fail and occurs under the same visibility barrier as registry
+        // publication.
+        for (const auto &packageEntry : transaction) {
+            const auto &package = packageEntry.second;
+            if (package->loaded) {
+                continue;
+            }
+            for (const auto &categoryEntry : package->contributions) {
+                for (auto *spec : categoryEntry.second) {
+                    for (auto &import : spec->_impl->imports) {
+                        if (import._impl->binding) {
+                            import._impl->binding->activateForCommit();
+                        }
+                    }
+                }
             }
         }
         // Mark every Package loaded only after the entire closure has been published.

@@ -3,14 +3,14 @@
 
 #include <memory>
 
+#include <synthrt/Core/ContribImportBinding.h>
+#include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Core/ContribSpecSubObjects.h>
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 #include <synthrt/synthrt_global.h>
 
 namespace srt {
-
-    class ContribSpec;
 
     /// Interprets one or more module contracts.
     ///
@@ -35,6 +35,15 @@ namespace srt {
 
         /// Validates the interpreted, ordered imports of \a spec as one collection.
         virtual Expected<void> validateImports(const ContribSpec &spec) const = 0;
+
+        /// Creates a prepared runtime binding owned by \a importer.
+        ///
+        /// The binding takes ownership of \a options and must remain closed until the Loader
+        /// activates it during Commit.
+        virtual Expected<std::unique_ptr<ContribImportBinding>>
+            createImportBinding(ContribSpec &importer, const ContribSpec::Import &declaration,
+                                ContribSpec &target,
+                                std::unique_ptr<ContribImportOptions> options) const = 0;
 
         /// Casts this interpreter to a category specific interpreter type.
         SYNTHRT_DECLARE_AS_METHODS(ContribInterpreter)

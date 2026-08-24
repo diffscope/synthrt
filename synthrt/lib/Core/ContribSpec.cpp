@@ -24,7 +24,11 @@ namespace srt {
     }
 
     const ContribImportOptions *ContribSpec::Import::options() const {
-        return _impl->options.get();
+        return _impl->binding ? &_impl->binding->options() : _impl->options.get();
+    }
+
+    ContribImportBinding *ContribSpec::Import::binding() const {
+        return _impl->binding.get();
     }
 
     ContribSpec::Import::Import(ContribLocator locator, JsonValue options)

@@ -3,6 +3,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <stdcorelib/plugin/plugin.h>
@@ -31,11 +32,37 @@ namespace {
     int configurationCount = 0;
     int optionsCount = 0;
     int validationCount = 0;
+    int bindingCreateCount = 0;
+    int bindingActivateCount = 0;
+    int bindingCloseCount = 0;
+    int bindingWaitCount = 0;
     bool rejectImports = false;
 
     class TestExports final : public srt::ContribExports {};
     class TestConfiguration final : public srt::ContribConfiguration {};
     class TestOptions final : public srt::ContribImportOptions {};
+
+    class TestBinding final : public srt::ContribImportBinding {
+    public:
+        TestBinding(srt::ContribSpec &importer, const srt::ContribSpec::Import &declaration,
+                    srt::ContribSpec &target, std::unique_ptr<srt::ContribImportOptions> options)
+            : ContribImportBinding(importer, declaration, target, std::move(options)) {
+        }
+
+    private:
+        void activate() noexcept override {
+            ++bindingActivateCount;
+        }
+
+        void close() noexcept override {
+            ++bindingCloseCount;
+        }
+
+        srt::Expected<void> wait() override {
+            ++bindingWaitCount;
+            return {};
+        }
+    };
 
     class TestInterpreter final : public srt::ContribInterpreter {
     public:
@@ -68,6 +95,16 @@ namespace {
                 }
             }
             return {};
+        }
+
+        srt::Expected<std::unique_ptr<srt::ContribImportBinding>>
+            createImportBinding(srt::ContribSpec &importer,
+                                const srt::ContribSpec::Import &declaration,
+                                srt::ContribSpec &target,
+                                std::unique_ptr<srt::ContribImportOptions> options) const override {
+            ++bindingCreateCount;
+            return std::unique_ptr<srt::ContribImportBinding>(
+                new TestBinding(importer, declaration, target, std::move(options)));
         }
     };
 
@@ -303,6 +340,10 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     const auto oldConfiguration = configurationCount;
     const auto oldOptions = optionsCount;
     const auto oldValidation = validationCount;
+    const auto oldBindingCreate = bindingCreateCount;
+    const auto oldBindingActivate = bindingActivateCount;
+    const auto oldBindingClose = bindingCloseCount;
+    const auto oldBindingWait = bindingWaitCount;
 
     auto opened = unit.openPackage(root, srt::SynthUnit::Load);
     BOOST_REQUIRE(opened);
@@ -317,23 +358,38 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_REQUIRE_EQUAL(rootSpec->imports().size(), 2u);
     BOOST_CHECK(rootSpec->imports()[0].options());
     BOOST_CHECK(rootSpec->imports()[1].options());
+    BOOST_REQUIRE(rootSpec->imports()[0].binding());
+    BOOST_REQUIRE(rootSpec->imports()[1].binding());
+    BOOST_CHECK(rootSpec->imports()[0].binding()->state() ==
+                srt::ContribImportBinding::State::Active);
+    BOOST_CHECK(rootSpec->imports()[1].binding()->state() ==
+                srt::ContribImportBinding::State::Active);
 
     const auto dependencyLocator = srt::ContribLocator::fromString("dep:com.example.test/main");
     auto *dependencySpec = package.resolve(dependencyLocator);
     BOOST_REQUIRE(dependencySpec);
+    BOOST_CHECK(&rootSpec->imports()[0].binding()->importer() == rootSpec);
+    BOOST_CHECK(&rootSpec->imports()[0].binding()->declaration() == &rootSpec->imports()[0]);
+    BOOST_CHECK(&rootSpec->imports()[0].binding()->target() == dependencySpec);
+    BOOST_CHECK(&rootSpec->imports()[0].binding()->options() == rootSpec->imports()[0].options());
     BOOST_CHECK(dependencySpec->package().version() == stdc::VersionNumber(2));
     BOOST_CHECK_EQUAL(exportsCount - oldExports, 2);
     BOOST_CHECK_EQUAL(configurationCount - oldConfiguration, 2);
     BOOST_CHECK_EQUAL(optionsCount - oldOptions, 2);
     BOOST_CHECK_EQUAL(validationCount - oldValidation, 2);
+    BOOST_CHECK_EQUAL(bindingCreateCount - oldBindingCreate, 2);
+    BOOST_CHECK_EQUAL(bindingActivateCount - oldBindingActivate, 2);
 
     auto openedAgain = unit.openPackage(root, srt::SynthUnit::Load);
     BOOST_REQUIRE(openedAgain);
     BOOST_CHECK(openedAgain.get() == package);
     BOOST_CHECK_EQUAL(exportsCount - oldExports, 2);
+    BOOST_CHECK_EQUAL(bindingCreateCount - oldBindingCreate, 2);
 
     openedAgain->reset();
     package.reset();
+    BOOST_CHECK_EQUAL(bindingCloseCount - oldBindingClose, 2);
+    BOOST_CHECK_EQUAL(bindingWaitCount - oldBindingWait, 2);
     BOOST_CHECK(unit.loadedPackages().empty());
     BOOST_CHECK(unit.category(testCategoryName)->contributions().empty());
 }

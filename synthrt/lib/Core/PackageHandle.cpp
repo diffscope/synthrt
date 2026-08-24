@@ -3,9 +3,12 @@
 
 #include <algorithm>
 #include <cassert>
+#include <exception>
 #include <utility>
 
 #include "ContribCategory_p.h"
+#include "ContribImportBinding.h"
+#include "ContribSpec_p.h"
 #include "SynthUnit_p.h"
 
 namespace srt {
@@ -15,6 +18,25 @@ namespace srt {
             return;
         }
         std::lock_guard<std::recursive_mutex> lock(synthUnit->_impl->loadMutex);
+        // Close every binding before waiting so independent calls can drain in parallel.
+        for (const auto &categoryEntry : contributions) {
+            for (auto *spec : categoryEntry.second) {
+                for (auto &import : spec->_impl->imports) {
+                    if (import._impl->binding) {
+                        import._impl->binding->closeForUnload();
+                    }
+                }
+            }
+        }
+        for (const auto &categoryEntry : contributions) {
+            for (auto *spec : categoryEntry.second) {
+                for (auto &import : spec->_impl->imports) {
+                    if (import._impl->binding && !import._impl->binding->waitForUnload()) {
+                        std::terminate();
+                    }
+                }
+            }
+        }
         for (const auto &categoryEntry : contributions) {
             auto *category = synthUnit->category(categoryEntry.first);
             if (!category) {
@@ -26,7 +48,6 @@ namespace srt {
                                  registered.end());
             }
         }
-        dependencyBindings.clear();
     }
 
     PackageHandle::PackageHandle(const PackageHandle &other) = default;

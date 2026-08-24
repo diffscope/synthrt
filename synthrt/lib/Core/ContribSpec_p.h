@@ -7,6 +7,8 @@
 
 #include <stdcorelib/adt/vlarray.h>
 
+#include "ContribImportBinding.h"
+
 namespace srt {
 
     class ContribInterpreter;
@@ -31,6 +33,7 @@ namespace srt {
         ContribLocator locator;
         JsonValue manifestOptions;
         std::unique_ptr<ContribImportOptions> options;
+        std::unique_ptr<ContribImportBinding> binding;
     };
 
     class ContribSpec::Impl {

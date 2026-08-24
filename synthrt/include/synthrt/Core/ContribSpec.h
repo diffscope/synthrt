@@ -16,6 +16,7 @@ namespace srt {
 
     class ContribCategory;
     class ContribCreateContext;
+    class ContribImportBinding;
     class PackageData;
     class PackageHandle;
     class PackageLoader;
@@ -40,6 +41,11 @@ namespace srt {
             ///
             /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
             const ContribImportOptions *options() const;
+
+            /// Returns the runtime binding created during load.
+            ///
+            /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
+            ContribImportBinding *binding() const;
 
         private:
             Import(ContribLocator locator, JsonValue options);
