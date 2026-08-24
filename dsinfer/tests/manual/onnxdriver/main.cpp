@@ -17,7 +17,7 @@
 
 #include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Inference/InferenceDriver.h>
-#include <dsinfer/Inference/InferenceDriverPlugin.h>
+#include <dsinfer/Inference/InferenceDriverFactory.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
 #include "TestCaseLoader.h"
@@ -70,22 +70,12 @@ struct InferenceFixture {
 
         auto pluginPath = defaultPluginDir / STDC_TSTR("inferencedrivers");
 
-        su.addPluginPath("org.openvpi.InferenceDriver", pluginPath);
-
-        const char *pluginKey = ds::Api::Onnx::DRIVER_NAME;
-        auto plugin = su.plugin<ds::InferenceDriverPlugin>(pluginKey);
-        if (!plugin) {
-            return srt::Error{
-                srt::Error::FileNotOpen,
-                stdc::formatN("Could not load plugin \"%1\", path: %2", pluginKey, pluginPath),
-            };
+        driverFactory.addPluginPath(pluginPath);
+        auto driverResult = driverFactory.create(ds::Api::Onnx::API_NAME);
+        if (!driverResult) {
+            return driverResult.takeError();
         }
-
-        auto onnxDriver = plugin->create();
-
-        if (!onnxDriver) {
-            return srt::Error{ds::ErrorCode::DriverLoadFailed, "Failed to create onnx driver"};
-        }
+        auto onnxDriver = driverResult.take();
 
         const auto backend = onnxDriver->backend();
         constexpr auto expectedBackend = ds::Api::Onnx::API_NAME;
@@ -113,6 +103,7 @@ struct InferenceFixture {
 
 
     static inline srt::SynthUnit su;
+    static inline ds::InferenceDriverFactory driverFactory;
     static inline srt::UNO<ds::InferenceDriver> driver;
     fs::path modelDir;
     fs::path caseDir;

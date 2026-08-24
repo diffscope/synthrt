@@ -70,7 +70,7 @@ namespace ds {
 
         /// Returns the backend contract name.
         const std::string &backend() const noexcept {
-            return m_backend;
+            return name();
         }
 
         /// Initializes process resources used by sessions from this driver.
@@ -87,10 +87,7 @@ namespace ds {
         SYNTHRT_DECLARE_AS_METHODS(InferenceDriver)
 
     protected:
-        InferenceDriver(std::string name, std::string backend);
-
-    private:
-        std::string m_backend;
+        explicit InferenceDriver(std::string backend);
     };
 
 }

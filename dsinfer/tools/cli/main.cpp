@@ -119,7 +119,7 @@ static void initializeSU(srt::SynthUnit &su, ds::InferenceDriverFactory &driverF
 
     // Load driver
     driverFactory.addPluginPath(defaultPluginDir / STDC_TSTR("inferencedrivers"));
-    auto driverResult = driverFactory.create(ds::Api::Onnx::DRIVER_NAME);
+    auto driverResult = driverFactory.create(ds::Api::Onnx::API_NAME);
     if (!driverResult) {
         throw std::runtime_error("failed to load inference driver: " +
                                  driverResult.error().message());
@@ -130,7 +130,7 @@ static void initializeSU(srt::SynthUnit &su, ds::InferenceDriverFactory &driverF
     // TODO: users should be able to configure these args
     onnxArgs.ep = ep;
     auto ortParentPath = defaultPluginDir / STDC_TSTR("inferencedrivers") /
-                         stdc::path::from_utf8(ds::Api::Onnx::DRIVER_NAME) / STDC_TSTR("runtimes") /
+                         stdc::path::from_utf8(ds::Api::Onnx::API_NAME) / STDC_TSTR("runtimes") /
                          STDC_TSTR("onnx");
     if (ep == EP::CUDA) {
         onnxArgs.runtimePath = ortParentPath / STDC_TSTR("cuda");

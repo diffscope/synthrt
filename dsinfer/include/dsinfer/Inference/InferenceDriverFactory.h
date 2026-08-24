@@ -37,11 +37,11 @@ namespace ds {
         /// Returns the inference driver plugin search path sequence.
         std::vector<std::filesystem::path> pluginPaths() const;
 
-        /// Returns valid plugin neutral driver names in discovery order.
-        std::vector<std::string> driverNames() const;
+        /// Returns declared driver backends in discovery order.
+        std::vector<std::string> backends() const;
 
-        /// Loads the first plugin named \a name and creates its driver.
-        srt::Expected<std::unique_ptr<InferenceDriver>> create(std::string_view name);
+        /// Loads the first plugin for \a backend and creates its driver.
+        srt::Expected<std::unique_ptr<InferenceDriver>> create(std::string_view backend);
     };
 
 }

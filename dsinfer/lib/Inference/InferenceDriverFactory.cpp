@@ -12,7 +12,7 @@ namespace ds {
 
     namespace {
 
-        std::optional<std::string> driverName(const stdc::json::Value &manifest) {
+        std::optional<std::string> driverBackend(const stdc::json::Value &manifest) {
             if (!manifest.isObject()) {
                 return std::nullopt;
             }
@@ -20,7 +20,15 @@ namespace ds {
             if (!name.isString() || !srt::ContribLocator::isValidSegment(name.toString())) {
                 return std::nullopt;
             }
-            return name.toString();
+            const auto &metadata = manifest["metadata"];
+            if (!metadata.isObject()) {
+                return std::nullopt;
+            }
+            const auto &backend = metadata["backend"];
+            if (!backend.isString() || !srt::ContribLocator::isValidDottedId(backend.toString())) {
+                return std::nullopt;
+            }
+            return backend.toString();
         }
 
     }
@@ -48,27 +56,27 @@ namespace ds {
         return PluginFactory::pluginPaths(InferenceDriverPlugin::IID);
     }
 
-    std::vector<std::string> InferenceDriverFactory::driverNames() const {
+    std::vector<std::string> InferenceDriverFactory::backends() const {
         std::vector<std::string> result;
         std::set<std::string> visited;
         for (auto *loader : plugins(InferenceDriverPlugin::IID)) {
-            auto name = driverName(loader->manifest());
-            if (name && visited.insert(*name).second) {
-                result.push_back(std::move(*name));
+            auto backend = driverBackend(loader->manifest());
+            if (backend && visited.insert(*backend).second) {
+                result.push_back(std::move(*backend));
             }
         }
         return result;
     }
 
     srt::Expected<std::unique_ptr<InferenceDriver>>
-        InferenceDriverFactory::create(std::string_view name) {
-        if (!srt::ContribLocator::isValidSegment(name)) {
-            return srt::Error(srt::Error::InvalidArgument, "driver name is invalid");
+        InferenceDriverFactory::create(std::string_view backend) {
+        if (!srt::ContribLocator::isValidDottedId(backend)) {
+            return srt::Error(srt::Error::InvalidArgument, "driver backend is invalid");
         }
 
         for (auto *loader : plugins(InferenceDriverPlugin::IID)) {
-            const auto candidateName = driverName(loader->manifest());
-            if (!candidateName || *candidateName != name) {
+            const auto candidateBackend = driverBackend(loader->manifest());
+            if (!candidateBackend || *candidateBackend != backend) {
                 continue;
             }
             if (!loader->load()) {
@@ -87,7 +95,7 @@ namespace ds {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "inference driver plugin returned a null driver");
             }
-            if (driver->iid() != InferenceDriver::IID || driver->name() != name) {
+            if (driver->iid() != InferenceDriver::IID || driver->backend() != backend) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "inference driver identity does not match plugin metadata");
             }
@@ -95,7 +103,8 @@ namespace ds {
         }
 
         return srt::Error(srt::Error::FileNotFound,
-                          "inference driver plugin was not found: " + std::string(name));
+                          "inference driver plugin was not found for backend: " +
+                              std::string(backend));
     }
 
 }
