@@ -3,6 +3,7 @@
 
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <set>
 
 #include <dsinfer/Core/Tensor.h>
@@ -57,7 +58,7 @@ namespace ds::Api::Onnx {
         }
 
         /// The input port names and the input tensors.
-        std::map<std::string, srt::NO<ITensor>> inputs;
+        std::map<std::string, std::shared_ptr<ITensor>> inputs;
 
         /// The output port names.
         std::set<std::string> outputs;
@@ -68,7 +69,7 @@ namespace ds::Api::Onnx {
         inline SessionResult() : InferenceSessionResult(API_NAME, API_VERSION) {
         }
 
-        std::map<std::string, srt::NO<ITensor>> outputs;
+        std::map<std::string, std::shared_ptr<ITensor>> outputs;
     };
 
     /// What the driver loaded, for a caller that means to use the same runtime.

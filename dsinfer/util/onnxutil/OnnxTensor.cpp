@@ -45,12 +45,12 @@ namespace ds {
         }
 
         for (const auto dim : shape) {
-            // Each dimension must be positive
+            // Dynamic and zero sized dimensions cannot describe allocated tensor storage.
             if (dim <= 0) {
                 return std::nullopt;
             }
 
-            // Check for multiplication overflow
+            // Include element size in the bound so the resulting byte count also fits.
             if (dim > std::numeric_limits<uint64_t>::max() / elementSize / totalElements) {
                 return std::nullopt;
             }
@@ -78,7 +78,6 @@ namespace ds {
             return false;
         }
 
-        // Check whether total bytes match
         const uint64_t totalBytes = totalElements * static_cast<uint64_t>(elementSize);
         return totalBytes == static_cast<uint64_t>(dataSize);
     }
@@ -124,9 +123,8 @@ namespace ds {
 
     OnnxTensor::~OnnxTensor() = default;
 
-    srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::create(DataType dataType,
-                                                          const std::vector<int64_t> &shape) {
-        // Check if shape is valid
+    srt::Expected<std::shared_ptr<OnnxTensor>>
+        OnnxTensor::create(DataType dataType, const std::vector<int64_t> &shape) {
         auto maybeTotalElements = getElementCountFromShape(dataType, shape);
         if (!maybeTotalElements.has_value()) {
             return srt::Error(srt::Error::InvalidArgument, "invalid shape");
@@ -138,8 +136,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "invalid data type");
         }
 
-        // Create OnnxTensor object
-        auto tensor = srt::NO<OnnxTensor>::create();
+        auto tensor = std::make_shared<OnnxTensor>();
         if (!tensor) {
             return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create OnnxTensor");
         }
@@ -158,13 +155,11 @@ namespace ds {
                 return srt::Error(srt::Error::InvalidArgument, "unsupported data type");
         }
 
-        // Populate OnnxTensor metadata
         tensor->_dataType = dataType;
         tensor->_shape = shape;
         tensor->_elementSize = elementSize;
         tensor->_bytesSize = totalElements * elementSize;
 
-        // Create underlying Ort::Value
         Ort::AllocatorWithDefaultOptions allocator{};
         tensor->_value = Ort::Value::CreateTensor(allocator, shape.data(), shape.size(), onnxType);
         if (!tensor->_value) {
@@ -175,7 +170,7 @@ namespace ds {
         return tensor;
     }
 
-    srt::Expected<srt::NO<OnnxTensor>>
+    srt::Expected<std::shared_ptr<OnnxTensor>>
         OnnxTensor::createFromRawView(DataType dataType, const std::vector<int64_t> &shape,
                                       const stdc::array_view<std::byte> &data) {
 
@@ -185,15 +180,14 @@ namespace ds {
         }
         auto tensor = exp.take();
 
-        // Copy data
         auto ortValueBuffer = static_cast<std::byte *>(tensor->_value.GetTensorMutableRawData());
         std::memcpy(ortValueBuffer, data.data(), data.size());
 
         return tensor;
     }
 
-    srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::createFromOrtValue(Ort::Value &&value) {
-        auto tensor = srt::NO<OnnxTensor>::create();
+    srt::Expected<std::shared_ptr<OnnxTensor>> OnnxTensor::createFromOrtValue(Ort::Value &&value) {
+        auto tensor = std::make_shared<OnnxTensor>();
         if (!tensor) {
             return srt::Error(ds::ErrorCode::ProcessingFailed, "failed to create OnnxTensor");
         }
@@ -225,8 +219,8 @@ namespace ds {
         return tensor;
     }
 
-    srt::Expected<srt::NO<OnnxTensor>>
-        OnnxTensor::createFromTensor(const srt::NO<ITensor> &tensor) {
+    srt::Expected<std::shared_ptr<OnnxTensor>>
+        OnnxTensor::createFromTensor(const std::shared_ptr<ITensor> &tensor) {
         if (!tensor) {
             return srt::Error(srt::Error::InvalidArgument, "tensor must not be nullptr");
         }
@@ -299,7 +293,7 @@ namespace ds {
         return {rawData(), byteSize()};
     }
 
-    srt::NO<ITensor> OnnxTensor::clone() const {
+    std::shared_ptr<ITensor> OnnxTensor::clone() const {
         return createFromRawView(dataType(), shape(), rawView()).valueOr(nullptr);
     }
 

@@ -6,7 +6,6 @@
 
 #include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
-#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
 #include "OnnxSession.h"
 #include "OnnxDriver_Logger.h"
@@ -143,38 +142,33 @@ namespace ds {
         Api::Onnx::DriverExtension extension;
     };
 
-    OnnxDriver::OnnxDriver() : _impl(std::make_unique<Impl>()) {
+    OnnxDriver::OnnxDriver()
+        : InferenceDriver(Api::Onnx::API_NAME), _impl(std::make_unique<Impl>()) {
     }
 
     OnnxDriver::~OnnxDriver() {
     }
 
     std::string OnnxDriver::arch() const {
-        return DiffSinger::L1::API_NAME;
+        return "diffsinger";
     }
 
-    std::string OnnxDriver::backend() const {
-        return Api::Onnx::API_NAME;
-    }
-
-    srt::Expected<void> OnnxDriver::initialize(const srt::NO<InferenceDriverInitArgs> &args) {
+    srt::Expected<void> OnnxDriver::initialize(const InferenceDriverInitArgs &args) {
         stdc_impl_t;
 
-        if (args->objectName() != Onnx::API_NAME) {
+        if (args.type() != Onnx::API_NAME || args.version() != Onnx::API_VERSION) {
             return srt::Error{
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid driver name: expected "%1", got "%2")", Onnx::API_NAME,
-                              args->objectName()),
+                stdc::formatN(
+                    R"(invalid driver payload: expected "%1" level %2, got "%3" level %4)",
+                    Onnx::API_NAME, Onnx::API_VERSION, args.type(), args.version()),
             };
         }
 
-        auto onnxArgs = args.as<Onnx::DriverInitArgs>();
-        if (!onnxArgs) {
-            return srt::Error{srt::Error::InvalidArgument, "onnx args is null pointer"};
-        }
+        const auto &onnxArgs = *args.as<Onnx::DriverInitArgs>();
 
         // Example logging
-        Log.srtDebug("initialize: driver name: %1", args->objectName());
+        Log.srtDebug("initialize: driver type: %1", args.type());
 
         if (impl.extension.ortApi) {
             return srt::Error{
@@ -183,7 +177,7 @@ namespace ds {
             };
         }
 
-        auto dllPath = onnxArgs->runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
+        auto dllPath = onnxArgs.runtimePath / ONNXRUNTIME_DYLIB_FILENAME;
 
         if (auto exp = impl.load(dllPath); !exp) {
             // Propagate the detailed reason from \c load() instead of a generic message.
@@ -191,17 +185,17 @@ namespace ds {
         }
 
         onnxdriver::Env::DeviceConfig devConfig;
-        devConfig.ep = onnxArgs->ep;
-        devConfig.deviceIndex = onnxArgs->deviceIndex;
+        devConfig.ep = onnxArgs.ep;
+        devConfig.deviceIndex = onnxArgs.deviceIndex;
         onnxdriver::Env::setDeviceConfig(devConfig);
 
-        impl.extension.ep = onnxArgs->ep;
-        impl.extension.deviceIndex = onnxArgs->deviceIndex;
+        impl.extension.ep = onnxArgs.ep;
+        impl.extension.deviceIndex = onnxArgs.deviceIndex;
         return srt::Expected<void>();
     }
 
-    srt::UNO<InferenceSession> OnnxDriver::createSession() {
-        return srt::UNO<OnnxSession>::create();
+    std::unique_ptr<InferenceSession> OnnxDriver::createSession() {
+        return std::make_unique<OnnxSession>();
     }
 
     const InferenceDriverExtension *OnnxDriver::extension() const {

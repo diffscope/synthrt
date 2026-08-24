@@ -27,7 +27,7 @@ set(_onnxdriver_ep_macros ${_onnxdriver_ep_macro_dml} ${_onnxdriver_ep_macro_cud
 find_package(stduuid CONFIG REQUIRED)
 find_package(blake3 CONFIG REQUIRED)
 
-dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY} NO_EXPORT
+dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/onnx NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_17
     LINKS dsinfer
@@ -35,6 +35,19 @@ dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY} NO_EXPORT
     INCLUDE_PRIVATE *
     DEFINES ORT_API_MANUAL_INIT ${_onnxdriver_ep_macros}
 )
+
+set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME onnx)
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${CMAKE_CURRENT_SOURCE_DIR}/plugin.json
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/plugin.json
+)
+
+if(DSINFER_INSTALL)
+    install(FILES plugin.json
+        DESTINATION ${DSINFER_INSTALL_PLUGINS_DIR}/${CURRENT_PLUGIN_CATEGORY}/onnx
+    )
+endif()
 
 if(WIN32)
     set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dll)

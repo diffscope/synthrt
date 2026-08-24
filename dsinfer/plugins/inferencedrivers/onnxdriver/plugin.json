@@ -1,0 +1,4 @@
+{
+    "iid": "org.openvpi.InferenceDriver",
+    "name": "onnx"
+}

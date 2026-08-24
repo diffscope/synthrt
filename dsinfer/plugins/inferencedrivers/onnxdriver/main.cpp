@@ -8,16 +8,11 @@ namespace ds {
     public:
         OnnxDriverPlugin() = default;
 
-    public:
-        const char *key() const override {
-            return "onnx";
-        }
-
-        srt::UNO<InferenceDriver> create() override {
-            return srt::UNO<OnnxDriver>::create();
+        srt::Expected<std::unique_ptr<InferenceDriver>> create() override {
+            return std::unique_ptr<InferenceDriver>(new OnnxDriver());
         }
     };
 
 }
 
-SYNTHRT_EXPORT_PLUGIN(ds::OnnxDriverPlugin)
+STDC_EXPORT_PLUGIN(ds::OnnxDriverPlugin)

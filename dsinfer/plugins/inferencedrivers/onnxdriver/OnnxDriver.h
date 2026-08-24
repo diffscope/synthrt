@@ -14,10 +14,9 @@ namespace ds {
 
     public:
         std::string arch() const override;
-        std::string backend() const override;
 
-        srt::Expected<void> initialize(const srt::NO<InferenceDriverInitArgs> &args) override;
-        srt::UNO<InferenceSession> createSession() override;
+        srt::Expected<void> initialize(const InferenceDriverInitArgs &args) override;
+        std::unique_ptr<InferenceSession> createSession() override;
 
         const InferenceDriverExtension *extension() const override;
 

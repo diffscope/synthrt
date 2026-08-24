@@ -10,165 +10,120 @@
 
 namespace ds {
 
-    /**
-     * @class OnnxTensor
-     * @brief A wrapper around Ort::Value representing an ONNX Runtime tensor.
-     *
-     * This class provides an implementation of the ITensor interface and acts
-     * as an adapter between the dsinfer framework and ONNX Runtime.
-     */
+    /// Adapts an ONNX Runtime tensor to the ITensor interface.
     class OnnxTensor : public ITensor {
     public:
         static constexpr const char *BACKEND = "onnx";
 
-        /**
-         * @brief Constructs an empty (invalid) OnnxTensor.
-         */
+        /// Constructs an invalid tensor without an underlying c Ort::Value.
         OnnxTensor();
 
+        /// Moves the underlying c Ort::Value and cached tensor metadata.
         OnnxTensor(OnnxTensor &&other) noexcept;
 
-        /**
-         * @brief Copy constructor is deleted.
-         *
-         * OnnxTensor is move-only. Use clone() to create a deep copy instead.
-         */
         OnnxTensor(const OnnxTensor &) = delete;
-
-        /**
-         * @brief Copy assignment operator is deleted.
-         *
-         * OnnxTensor is move-only. Use clone() to create a deep copy instead.
-         */
         OnnxTensor &operator=(const OnnxTensor &) = delete;
 
-        /**
-         * @brief Move assignment from another OnnxTensor
-         *
-         * @param other The OnnxTensor to move from.
-         */
+        /// Replaces this tensor by moving from a other.
         OnnxTensor &operator=(OnnxTensor &&other) noexcept;
 
-        /**
-         * @brief Destructor of OnnxTensor.
-         */
         ~OnnxTensor();
 
-        static srt::Expected<srt::NO<OnnxTensor>> create(DataType,
-                                                         const std::vector<int64_t> &shape);
+        /// Allocates an uninitialized ONNX tensor with a dataType and a shape.
+        static srt::Expected<std::shared_ptr<OnnxTensor>> create(DataType dataType,
+                                                                 const std::vector<int64_t> &shape);
 
-        /**
-         * @brief Creates a shared OnnxTensor from data type, shape, and raw bytes.
-         *
-         * @param dataType The type of the tensor elements.
-         * @param shape The shape of the tensor.
-         * @param data The raw tensor data.
-         */
-        static srt::Expected<srt::NO<OnnxTensor>>
+        /// Copies a data into an ONNX tensor with a dataType and a shape.
+        static srt::Expected<std::shared_ptr<OnnxTensor>>
             createFromRawView(DataType dataType, const std::vector<int64_t> &shape,
                               const stdc::array_view<std::byte> &data);
 
+        /// Copies typed a data into an ONNX tensor with a shape.
         template <typename T>
-        static srt::Expected<srt::NO<OnnxTensor>> createFromView(const std::vector<int64_t> &shape,
-                                                                 const stdc::array_view<T> &data);
+        static srt::Expected<std::shared_ptr<OnnxTensor>>
+            createFromView(const std::vector<int64_t> &shape, const stdc::array_view<T> &data);
 
+        /// Creates an ONNX tensor containing the scalar a value.
         template <typename T>
-        static srt::Expected<srt::NO<OnnxTensor>> createScalar(T value,
-                                                               bool zeroDimensions = false);
+        static srt::Expected<std::shared_ptr<OnnxTensor>> createScalar(T value,
+                                                                       bool zeroDimensions = false);
 
+        /// Creates an ONNX tensor with every element initialized to a value.
         template <typename T>
-        static srt::Expected<srt::NO<OnnxTensor>> createFilled(const std::vector<int64_t> &shape,
-                                                               T value);
-        /**
-         * @brief Constructs an OnnxTensor by taking ownership of an existing Ort::Value.
-         *
-         * The caller must not use the original Ort::Value after passing it in.
-         *
-         * @param value The Ort::Value to take ownership of.
-         */
-        static srt::Expected<srt::NO<OnnxTensor>> createFromOrtValue(Ort::Value &&value);
+        static srt::Expected<std::shared_ptr<OnnxTensor>>
+            createFilled(const std::vector<int64_t> &shape, T value);
 
-        static srt::Expected<srt::NO<OnnxTensor>> createFromTensor(const srt::NO<ITensor> &tensor);
+        /// Takes ownership of a tensor c Ort::Value.
+        static srt::Expected<std::shared_ptr<OnnxTensor>> createFromOrtValue(Ort::Value &&value);
 
-        /**
-         * @brief Takes ownership of an existing Ort::Value. After that, the Ort::Value
-         * previously held will be released and returned.
-         *
-         * The caller must not use the original Ort::Value after passing it in.
-         *
-         * @param value The Ort::Value to take ownership of.
-         * @return Ort::Value previously held by this OnnxTensor object.
-         */
+        /// Copies a tensor into ONNX Runtime owned storage.
+        static srt::Expected<std::shared_ptr<OnnxTensor>>
+            createFromTensor(const std::shared_ptr<ITensor> &tensor);
+
+        /// Replaces the underlying value and returns the previously owned c Ort::Value.
         Ort::Value takeOrtValue(Ort::Value &&value);
 
-        /**
-         * @brief Releases ownership of the internal Ort::Value.
-         *
-         * After this call, the OnnxTensor becomes invalid.
-         *
-         * @return The Ort::Value previously held by this OnnxTensor object.
-         */
+        /// Releases the underlying c Ort::Value and leaves this tensor invalid.
         Ort::Value releaseOrtValue();
 
-        /**
-         * @brief Gets a mutable pointer to the underlying Ort::Value.
-         *
-         * This does not transfer ownership. The caller must not delete or move the pointer.
-         *
-         * @return A pointer to the internal Ort::Value.
-         */
+        /// Returns mutable access to the owned c Ort::Value without transferring ownership.
         Ort::Value *valuePtr();
 
-        /**
-         * @brief Gets a const pointer to the underlying Ort::Value.
-         *
-         * This does not transfer ownership. The caller must not delete or move the pointer.
-         *
-         * @return A const pointer to the internal Ort::Value.
-         */
+        /// Returns immutable access to the owned c Ort::Value.
         const Ort::Value *valuePtr() const;
 
-        // ITensor interface implementation
+        /// Returns c onnx.
         std::string backend() const override;
 
-        /**
-         * @brief Gets the data type of the tensor.
-         * @return The tensor's data type.
-         */
+        /// Returns the cached tensor element type.
         DataType dataType() const override;
 
-        /**
-         * @brief Gets the shape of the tensor.
-         * @return A vector of dimensions.
-         */
+        /// Returns the cached tensor dimensions.
         std::vector<int64_t> shape() const override;
-        size_t byteSize() const override;
-        size_t elementCount() const override;
-        size_t elementSize() const override;
-        const std::byte *rawData() const override;
-        std::byte *mutableRawData() override;
-        stdc::array_view<std::byte> rawView() const override;
-        srt::NO<ITensor> clone() const override;
 
-        /**
-         * @brief Checks whether the tensor is valid.
-         * @return True if the internal Ort::Value is non-null and a tensor.
-         */
+        /// Returns the tensor storage size in bytes.
+        size_t byteSize() const override;
+
+        /// Returns the number of tensor elements.
+        size_t elementCount() const override;
+
+        /// Returns the size of one tensor element in bytes.
+        size_t elementSize() const override;
+
+        /// Returns immutable access to the tensor storage.
+        const std::byte *rawData() const override;
+
+        /// Returns mutable access to the tensor storage.
+        std::byte *mutableRawData() override;
+
+        /// Returns an immutable view of the tensor storage.
+        stdc::array_view<std::byte> rawView() const override;
+
+        /// Creates an independently owned deep copy.
+        std::shared_ptr<ITensor> clone() const override;
+
+        /// Returns whether this object owns a supported tensor c Ort::Value.
         bool isValid() const;
 
     protected:
-        /// The internal Ort::Value representing the tensor.
+        /// Owns the ONNX Runtime tensor.
         Ort::Value _value;
 
-        // Cached metadata
+        /// Caches the element type exposed through ITensor.
         DataType _dataType;
+
+        /// Caches the tensor dimensions.
         std::vector<int64_t> _shape;
+
+        /// Caches the size of one element in bytes.
         size_t _elementSize;
+
+        /// Caches the total storage size in bytes.
         size_t _bytesSize;
     };
 
     template <typename T>
-    inline srt::Expected<srt::NO<OnnxTensor>>
+    inline srt::Expected<std::shared_ptr<OnnxTensor>>
         OnnxTensor::createFromView(const std::vector<int64_t> &shape,
                                    const stdc::array_view<T> &data) {
         static_assert(TensorTraits<T>::isValid, "Unsupported tensor data type");
@@ -181,8 +136,8 @@ namespace ds {
     }
 
     template <typename T>
-    inline srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::createScalar(T value,
-                                                                       bool zeroDimensions) {
+    inline srt::Expected<std::shared_ptr<OnnxTensor>>
+        OnnxTensor::createScalar(T value, bool zeroDimensions) {
         static_assert(TensorTraits<T>::isValid, "Unsupported tensor data type");
         static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
                       "sizeof(bool) == 1 does not satisfy");
@@ -196,7 +151,7 @@ namespace ds {
     }
 
     template <typename T>
-    inline srt::Expected<srt::NO<OnnxTensor>>
+    inline srt::Expected<std::shared_ptr<OnnxTensor>>
         OnnxTensor::createFilled(const std::vector<int64_t> &shape, T value) {
 
         static_assert(TensorTraits<T>::isValid, "Unsupported tensor data type");
@@ -212,6 +167,7 @@ namespace ds {
         std::fill(dataPtr, dataPtr + tensor->elementCount(), value);
         return tensor;
     }
+
 }
 
 #endif // DSINFER_ONNXTENSOR_H

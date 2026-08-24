@@ -51,7 +51,7 @@ namespace ds {
     /// A reusable execution session for one inference model.
     class DSINFER_EXPORT InferenceSession : public srt::ITask {
     public:
-        virtual ~InferenceSession() = default;
+        virtual ~InferenceSession();
 
         /// Opens the model at \a path using backend specific arguments.
         virtual srt::Expected<void> open(const std::filesystem::path &path,
@@ -65,6 +65,9 @@ namespace ds {
 
         /// Returns an identifier unique within the driver runtime.
         virtual int64_t id() const = 0;
+
+    protected:
+        InferenceSession();
     };
 
 }

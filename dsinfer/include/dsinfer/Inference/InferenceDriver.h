@@ -66,7 +66,7 @@ namespace ds {
     public:
         static constexpr const char *IID = "org.openvpi.InferenceDriver";
 
-        virtual ~InferenceDriver() = default;
+        virtual ~InferenceDriver();
 
         /// Returns the singer architecture supported by this driver.
         virtual std::string arch() const = 0;
@@ -90,8 +90,7 @@ namespace ds {
         SYNTHRT_DECLARE_AS_METHODS(InferenceDriver)
 
     protected:
-        explicit InferenceDriver(std::string name) : RuntimeService(IID, std::move(name)) {
-        }
+        explicit InferenceDriver(std::string name);
     };
 
 }

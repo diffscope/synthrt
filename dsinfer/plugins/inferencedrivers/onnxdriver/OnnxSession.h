@@ -12,18 +12,19 @@ namespace ds {
 
     public:
         srt::Expected<void> open(const std::filesystem::path &path,
-                                 const srt::NO<InferenceSessionOpenArgs> &args) override;
+                                 const InferenceSessionOpenArgs &args) override;
         srt::Expected<void> close() override;
         bool isOpen() const override;
 
         int64_t id() const override;
 
     public:
-        srt::Expected<srt::NO<srt::TaskResult>> start(const srt::NO<srt::TaskStartInput> &input) override;
-        srt::Expected<void> startAsync(const srt::NO<srt::TaskStartInput> &input,
-                                       const StartAsyncCallback &callback) override;
-        srt::NO<srt::TaskResult> result() const override;
-        bool stop() override;
+        srt::Expected<std::unique_ptr<srt::TaskResult>>
+            start(const srt::TaskStartInput &input) override;
+        srt::Expected<void> startAsync(std::shared_ptr<const srt::TaskStartInput> input,
+                                       AsyncCallback callback) override;
+        srt::Expected<void> stop() override;
+        srt::Expected<void> waitForFinished() override;
 
     protected:
         class Impl;

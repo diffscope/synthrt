@@ -1,3 +1,5 @@
+#include <array>
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -6,6 +8,7 @@
 
 #include <synthrt/Core/SynthUnit.h>
 
+#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Inference/InferenceDriverFactory.h>
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Inference/InferenceSession.h>
@@ -119,5 +122,35 @@ BOOST_AUTO_TEST_CASE(test_RejectsMissingAndMismatchedDrivers) {
     BOOST_REQUIRE(!invalid);
     BOOST_CHECK(invalid.error().code() == srt::Error::InvalidArgument);
 }
+
+#ifdef DSINFER_TEST_DRIVER_PLUGIN_PATH
+BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
+    ds::InferenceDriverFactory factory;
+    const std::array<std::filesystem::path, 1> pluginPaths{DSINFER_TEST_DRIVER_PLUGIN_PATH};
+    factory.setPluginPaths(pluginPaths);
+
+    const auto names = factory.driverNames();
+    BOOST_REQUIRE_EQUAL(names.size(), 1u);
+    BOOST_CHECK_EQUAL(names.front(), "onnx");
+
+    auto result = factory.create("onnx");
+    BOOST_REQUIRE(result);
+    auto driver = result.take();
+    BOOST_CHECK_EQUAL(driver->backend(), "onnx");
+
+    ds::Api::Onnx::DriverInitArgs initArgs;
+    initArgs.runtimePath = pluginPaths.front() / "onnx" / "runtimes" / "onnx" / "default";
+    BOOST_REQUIRE(driver->initialize(initArgs));
+
+    auto *driverPointer = driver.get();
+    srt::SynthUnit unit;
+    BOOST_REQUIRE(unit.addRuntimeService(std::move(driver)));
+    BOOST_CHECK(unit.runtimeService(ds::InferenceDriver::IID, "onnx") == driverPointer);
+
+    auto session = driverPointer->createSession();
+    BOOST_REQUIRE(session);
+    BOOST_CHECK(!session->isOpen());
+}
+#endif
 
 BOOST_AUTO_TEST_SUITE_END()

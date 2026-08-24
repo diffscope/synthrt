@@ -136,14 +136,14 @@ namespace ds::onnxdriver {
     };
 
     struct SessionAsyncRunContext {
-        srt::ITask::StartAsyncCallback callback;
+        srt::ITask::AsyncCallback callback;
 
         // Keeps the caller's input alive for the whole duration of the async run.
         // \c SessionRunContext stores bare <tt>const char *</tt> borrowed from this object's map
         // keys and output name strings, and for the \c onnx backend it also stores \c OrtValue
         // pointers owned by the input tensors. \c RunAsync() returns immediately, so without this
         // reference the caller may drop the input while ORT is still reading from it.
-        srt::NO<Api::Onnx::SessionStartInput> input;
+        std::shared_ptr<const Api::Onnx::SessionStartInput> input;
     };
 
     class Session::Impl {
@@ -158,23 +158,19 @@ namespace ds::onnxdriver {
 
         std::unique_ptr<SessionRunContext> context;
         std::unique_ptr<SessionAsyncRunContext> asyncContext;
-        srt::NO<Api::Onnx::SessionResult> sessionResult;
-
         // Tracks whether an async run handed to ORT is still outstanding. The completion callback
         // runs on an ORT worker thread and touches this \c Impl, so \c close() and the destructor
         // must wait for it rather than tearing the object down underneath it.
         //
-        // \note This only closes the use-after-free window. Concurrent access to \c context,
-        //       \c asyncContext and \c sessionResult from the callback thread and from \c run()
-        //       or \c result() on another thread is still unsynchronized. Issue B3 reworks the
-        //       locking scheme as a whole.
+        // \note This only closes the use-after-free window. Concurrent access to \c context and
+        //       \c asyncContext from the callback thread and from \c run() on another thread is
+        //       still unsynchronized. Issue B3 reworks the locking scheme as a whole.
         std::mutex asyncMtx;
         std::condition_variable asyncCv;
         bool asyncRunning = false;
         std::thread::id asyncCallbackThread;
 
-        Impl() : sessionResult(srt::NO<Api::Onnx::SessionResult>::create()) {
-        }
+        Impl() = default;
 
         void beginAsyncRun() {
             std::lock_guard<std::mutex> lock(asyncMtx);
@@ -248,7 +244,7 @@ namespace ds::onnxdriver {
             return ortTensor;
         }
 
-        static inline Ort::Value createOrtValueFromTensor(const srt::NO<ITensor> &tensor,
+        static inline Ort::Value createOrtValueFromTensor(const std::shared_ptr<ITensor> &tensor,
                                                           const Ort::MemoryInfo &memoryInfo,
                                                           srt::Error *error = nullptr) {
             const auto &rawBuffer = tensor->rawData();
@@ -267,8 +263,7 @@ namespace ds::onnxdriver {
                 case ITensor::Float:
                     return _createOrtValueFromTensorImpl<float>(rawBuffer, dataLength, shape);
                 case ITensor::Int64:
-                    return _createOrtValueFromTensorImpl<int64_t>(rawBuffer, dataLength,
-                                                                  shape);
+                    return _createOrtValueFromTensorImpl<int64_t>(rawBuffer, dataLength, shape);
                 case ITensor::Bool:
                     return _createOrtValueFromTensorImpl<bool>(rawBuffer, dataLength, shape);
                 default:
@@ -279,8 +274,8 @@ namespace ds::onnxdriver {
             }
         }
 
-        static inline srt::NO<ITensor> createTensorFromOrtValue(const Ort::Value &ortValue,
-                                                                srt::Error *error = nullptr) {
+        static inline std::shared_ptr<ITensor>
+            createTensorFromOrtValue(const Ort::Value &ortValue, srt::Error *error = nullptr) {
             if (!ortValue.IsTensor()) {
                 if (error) {
                     *error = {srt::Error::InvalidArgument, "Ort::Value is not a tensor"};
@@ -317,8 +312,7 @@ namespace ds::onnxdriver {
                     return {};
             }
 
-            auto rawData =
-                static_cast<const std::byte *>(ortValue.GetTensorData<void>());
+            auto rawData = static_cast<const std::byte *>(ortValue.GetTensorData<void>());
             stdc::array_view<std::byte> data{rawData, rawData + totalSize * elementSize};
 
             if (auto exp = Tensor::createFromRawView(tensorType, shape, data); exp) {
@@ -331,9 +325,8 @@ namespace ds::onnxdriver {
             }
         }
 
-        inline srt::Error
-            validateInputValueMap(const srt::NO<Api::Onnx::SessionStartInput> &input) {
-            const auto &inputValueMap = input->inputs;
+        inline srt::Error validateInputValueMap(const Api::Onnx::SessionStartInput &input) {
+            const auto &inputValueMap = input.inputs;
             if (inputValueMap.empty()) {
                 return {ds::ErrorCode::InvalidInput, "Input map is empty"};
             }
@@ -405,14 +398,15 @@ namespace ds::onnxdriver {
             impl.enterAsyncCallback();
 
             auto &ctx = *impl.context;
-            impl.sessionResult->outputs.clear();
             Ort::Status runStatus(status);
             if (!runStatus.IsOK()) {
-                impl.sessionResult->error = {ds::ErrorCode::SessionFailed, runStatus.GetErrorMessage()};
-                impl.asyncContext->callback(impl.sessionResult, impl.sessionResult->error);
+                impl.asyncContext->callback(
+                    srt::Error(ds::ErrorCode::SessionFailed, runStatus.GetErrorMessage()));
                 srtCritical("runAsyncCallback failed");
                 return;
             }
+
+            auto result = std::make_unique<Api::Onnx::SessionResult>();
             for (size_t i = 0; i < num_outputs; ++i) {
                 // Transfer ownership of the raw OrtValue* to an Ort::Value wrapper,
                 // which will subsequently be managed by OnnxTensor. No manual release is required.
@@ -423,21 +417,18 @@ namespace ds::onnxdriver {
 
                 auto exp = OnnxTensor::createFromOrtValue(std::move(managedOrtValue));
                 if (!exp) {
-                    impl.sessionResult->error = exp.takeError();
-                    impl.asyncContext->callback(impl.sessionResult, impl.sessionResult->error);
+                    impl.asyncContext->callback(exp.takeError());
                     return;
                 }
 
-                impl.sessionResult->outputs.emplace(
-                    ctx.outputNames[i],
-                    exp.take());
+                result->outputs.emplace(ctx.outputNames[i], exp.take());
             }
-            impl.asyncContext->callback(impl.sessionResult, impl.sessionResult->error);
+            impl.asyncContext->callback(std::unique_ptr<srt::TaskResult>(std::move(result)));
             srtDebug("runAsyncCallback completed");
         }
 
-        inline srt::NO<Api::Onnx::SessionResult> sessionRun(const srt::NO<Api::Onnx::SessionStartInput> &sessionStartInput,
-                               srt::Error *error = nullptr) {
+        inline srt::Expected<std::unique_ptr<srt::TaskResult>>
+            sessionRun(const Api::Onnx::SessionStartInput &sessionStartInput) {
             const auto &filename = realPath.filename();
             Log.srtInfo("Session [%1] - Running inference", filename);
 
@@ -451,60 +442,48 @@ namespace ds::onnxdriver {
                             elapsedStr);
             });
 
-            if (!(sessionStartInput && sessionStartInput->objectName() == Api::Onnx::API_NAME)) {
-                if (error) {
-                    *error = {srt::Error::InvalidArgument, "Session start input is not valid"};
-                }
-                return {};
-            }
-
             if (auto validateError = validateInputValueMap(sessionStartInput);
                 !validateError.ok()) {
-                if (error) {
-                    *error = std::move(validateError);
-                }
                 timer.deactivate();
-                return {};
+                return validateError;
             }
 
-            const auto &inputValueMap = sessionStartInput->inputs;
+            const auto &inputValueMap = sessionStartInput.inputs;
             auto inputCount = inputValueMap.size();
-            auto outputCount = sessionStartInput->outputs.size();
+            auto outputCount = sessionStartInput.outputs.size();
 
             context = std::make_unique<SessionRunContext>(inputCount, outputCount);
             auto &ctx = *context;
 
-            auto result = srt::NO<Api::Onnx::SessionResult>::create();
+            auto result = std::make_unique<Api::Onnx::SessionResult>();
             try {
                 auto memInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
 
                 for (auto &[name, value] : inputValueMap) {
                     ctx.inputNames.push_back(name.c_str());
                     if (value->backend() == "tensor") {
-                        auto ortValue = createOrtValueFromTensor(value, memInfo, error);
+                        srt::Error error;
+                        auto ortValue = createOrtValueFromTensor(value, memInfo, &error);
                         if (!ortValue) {
-                            if (error) {
-                                *error = {srt::Error::InvalidArgument,
-                                          "Could not create Ort Tensor for input name \"" + name +
-                                              "\""};
-                            }
-                            return {};
+                            return error.ok()
+                                       ? srt::Error(
+                                             srt::Error::InvalidArgument,
+                                             "Could not create Ort Tensor for input name \"" +
+                                                 name + "\"")
+                                       : error;
                         }
                         ctx.inputValueRegistry.push_back(std::move(ortValue));
                         ctx.inputValuePtrs.push_back(ctx.inputValueRegistry.back());
                     } else if (value->backend() == "onnx") {
-                        auto ortValue = value.as<OnnxTensor>();
+                        auto *ortValue = static_cast<OnnxTensor *>(value.get());
                         ctx.inputValuePtrs.push_back(*(ortValue->valuePtr()));
                     } else {
-                        if (error) {
-                            *error = {srt::Error::InvalidArgument,
-                                      "Unknown tensor backend for input name \"" + name + "\""};
-                        }
-                        return {};
+                        return srt::Error(srt::Error::InvalidArgument,
+                                          "Unknown tensor backend for input name \"" + name + "\"");
                     }
                 }
 
-                for (auto &name : sessionStartInput->outputs) {
+                for (auto &name : sessionStartInput.outputs) {
                     ctx.outputNames.push_back(name.c_str());
                 }
                 runOptions.UnsetTerminate();
@@ -515,10 +494,7 @@ namespace ds::onnxdriver {
 
                 if (!statusRun.IsOK()) {
                     ctx.releaseOutputValues();
-                    if (error) {
-                        *error = srt::Error(ds::ErrorCode::SessionFailed, statusRun.GetErrorMessage());
-                    }
-                    return {};
+                    return srt::Error(ds::ErrorCode::SessionFailed, statusRun.GetErrorMessage());
                 }
 
                 for (size_t i = 0; i < ctx.outputValuePtrs.size(); ++i) {
@@ -533,29 +509,20 @@ namespace ds::onnxdriver {
 
                     auto exp = OnnxTensor::createFromOrtValue(std::move(managedOrtValue));
                     if (!exp) {
-                        if (error) {
-                            *error = exp.takeError();
-                        }
-                        return {};
+                        return exp.takeError();
                     }
-                    result->outputs.emplace(
-                        ctx.outputNames[i],
-                        exp.take());
+                    result->outputs.emplace(ctx.outputNames[i], exp.take());
                 }
-                sessionResult = result;
-                return result;
+                return std::unique_ptr<srt::TaskResult>(std::move(result));
             } catch (const Ort::Exception &err) {
-                if (error) {
-                    *error = srt::Error(ds::ErrorCode::SessionFailed, err.what());
-                }
+                timer.deactivate();
+                return srt::Error(ds::ErrorCode::SessionFailed, err.what());
             }
-            timer.deactivate();
-            return {};
         }
 
-        inline bool sessionRunAsync(const srt::NO<Api::Onnx::SessionStartInput> &sessionStartInput,
-                                    const srt::ITask::StartAsyncCallback &callback,
-                                    srt::Error *error = nullptr) {
+        inline srt::Expected<void>
+            sessionRunAsync(std::shared_ptr<const Api::Onnx::SessionStartInput> sessionStartInput,
+                            srt::ITask::AsyncCallback callback) {
             const auto &filename = realPath.filename();
             Log.srtInfo("Session [%1] - Running inference", filename);
 
@@ -569,20 +536,10 @@ namespace ds::onnxdriver {
                             elapsedStr);
             });
 
-            if (!(sessionStartInput && sessionStartInput->objectName() == Api::Onnx::API_NAME)) {
-                if (error) {
-                    *error = {srt::Error::InvalidArgument, "Session start input is not valid"};
-                }
-                return false;
-            }
-
-            if (auto validateError = validateInputValueMap(sessionStartInput);
+            if (auto validateError = validateInputValueMap(*sessionStartInput);
                 !validateError.ok()) {
-                if (error) {
-                    *error = std::move(validateError);
-                }
                 timer.deactivate();
-                return false;
+                return validateError;
             }
 
             const auto &inputValueMap = sessionStartInput->inputs;
@@ -599,26 +556,24 @@ namespace ds::onnxdriver {
                 for (auto &[name, value] : inputValueMap) {
                     ctx.inputNames.push_back(name.c_str());
                     if (value->backend() == "tensor") {
-                        auto ortValue = createOrtValueFromTensor(value, memInfo, error);
+                        srt::Error error;
+                        auto ortValue = createOrtValueFromTensor(value, memInfo, &error);
                         if (!ortValue) {
-                            if (error) {
-                                *error = {srt::Error::InvalidArgument,
-                                          "Could not create Ort Tensor for input name \"" + name +
-                                              "\""};
-                            }
-                            return false;
+                            return error.ok()
+                                       ? srt::Error(
+                                             srt::Error::InvalidArgument,
+                                             "Could not create Ort Tensor for input name \"" +
+                                                 name + "\"")
+                                       : error;
                         }
                         ctx.inputValueRegistry.push_back(std::move(ortValue));
                         ctx.inputValuePtrs.push_back(ctx.inputValueRegistry.back());
                     } else if (value->backend() == "onnx") {
-                        auto ortValue = value.as<OnnxTensor>();
+                        auto *ortValue = static_cast<OnnxTensor *>(value.get());
                         ctx.inputValuePtrs.push_back(*(ortValue->valuePtr()));
                     } else {
-                        if (error) {
-                            *error = {srt::Error::InvalidArgument,
-                                      "Unknown tensor backend for input name \"" + name + "\""};
-                        }
-                        return false;
+                        return srt::Error(srt::Error::InvalidArgument,
+                                          "Unknown tensor backend for input name \"" + name + "\"");
                     }
                 }
 
@@ -627,10 +582,10 @@ namespace ds::onnxdriver {
                 }
                 runOptions.UnsetTerminate();
 
-                asyncContext->callback = callback;
+                asyncContext->callback = std::move(callback);
                 // Retain the input until the run completes, since \c ctx holds raw pointers into
                 // it.
-                asyncContext->input = sessionStartInput;
+                asyncContext->input = std::move(sessionStartInput);
 
                 // Must be set before the run is handed to ORT. The completion callback may fire
                 // on a worker thread before \c RunAsync() has even returned here.
@@ -644,22 +599,16 @@ namespace ds::onnxdriver {
                     // has to be retired here.
                     endAsyncRun();
                     ctx.releaseOutputValues();
-                    if (error) {
-                        *error = srt::Error(ds::ErrorCode::SessionFailed, statusRun.GetErrorMessage());
-                    }
-                    return false;
+                    return srt::Error(ds::ErrorCode::SessionFailed, statusRun.GetErrorMessage());
                 }
-                return true;
+                return {};
             } catch (const Ort::Exception &err) {
                 // Retire the run if it was already flagged, otherwise \c waitForAsyncRun() would
                 // block forever on a run that never started. Harmless when it was never flagged.
                 endAsyncRun();
-                if (error) {
-                    *error = srt::Error(ds::ErrorCode::SessionFailed, err.what());
-                }
+                timer.deactivate();
+                return srt::Error(ds::ErrorCode::SessionFailed, err.what());
             }
-            timer.deactivate();
-            return false;
         }
     };
 
@@ -726,7 +675,7 @@ namespace ds::onnxdriver {
     }
 
     srt::Expected<void> Session::open(const fs::path &path,
-                                      const srt::NO<Api::Onnx::SessionOpenArgs> &args) {
+                                      const Api::Onnx::SessionOpenArgs &args) {
         stdc_impl_t;
 
         if (isOpen()) {
@@ -751,7 +700,7 @@ namespace ds::onnxdriver {
         std::streamsize size;
 
         int hints = SH_NoHint;
-        if (args->useCpu) {
+        if (args.useCpu) {
             hints |= SH_PreferCPUHint;
         }
         // Search path
@@ -932,54 +881,34 @@ namespace ds::onnxdriver {
         impl.runOptions.SetTerminate();
     }
 
-    srt::Expected<srt::NO<srt::TaskResult>> Session::run(const srt::NO<srt::TaskStartInput> &input) {
+    srt::Expected<std::unique_ptr<srt::TaskResult>> Session::run(const srt::TaskStartInput &input) {
         stdc_impl_t;
-        srt::Error tmpError;
-        if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
-            tmpError = {srt::Error::InvalidArgument, "invalid task start input"};
-            impl.sessionResult->error = tmpError;
-            return tmpError;
+        if (input.type() != Api::Onnx::API_NAME || input.version() != Api::Onnx::API_VERSION) {
+            return srt::Error(srt::Error::InvalidArgument, "invalid task start input");
         }
         if (!impl.group) {
-            tmpError = {ds::ErrorCode::NotInitialized, "session is not open"};
-            impl.sessionResult->error = tmpError;
-            return tmpError;
+            return srt::Error(ds::ErrorCode::NotInitialized, "session is not open");
         }
-        auto startInput = input.as<Api::Onnx::SessionStartInput>();
-        auto result = impl.sessionRun(startInput, &tmpError);
-        if (!result) {
-            impl.sessionResult->error = tmpError;
-            return tmpError;
-        }
-        impl.sessionResult = result;
-        return result;
+        return impl.sessionRun(*input.as<Api::Onnx::SessionStartInput>());
     }
 
-    srt::Expected<void> Session::runAsync(const srt::NO<srt::TaskStartInput> &input,
-                                          const srt::ITask::StartAsyncCallback &callback) {
+    srt::Expected<void> Session::runAsync(std::shared_ptr<const srt::TaskStartInput> input,
+                                          srt::ITask::AsyncCallback callback) {
         stdc_impl_t;
-        srt::Error tmpError;
-        if (!(input && input->objectName() == Api::Onnx::API_NAME)) {
-            tmpError = {srt::Error::InvalidArgument, "invalid task start input"};
-            impl.sessionResult->error = tmpError;
-            return tmpError;
+        if (!input || input->type() != Api::Onnx::API_NAME ||
+            input->version() != Api::Onnx::API_VERSION) {
+            return srt::Error(srt::Error::InvalidArgument, "invalid task start input");
         }
         if (!impl.group) {
-            tmpError = {ds::ErrorCode::NotInitialized, "session is not open"};
-            impl.sessionResult->error = tmpError;
-            return tmpError;
+            return srt::Error(ds::ErrorCode::NotInitialized, "session is not open");
         }
-        auto startInput = input.as<Api::Onnx::SessionStartInput>();
-        bool ok = impl.sessionRunAsync(startInput, callback, &tmpError);
-        if (!ok) {
-            impl.sessionResult->error = tmpError;
-            return tmpError;
-        }
-        return srt::Expected<void>();
+        return impl.sessionRunAsync(
+            std::static_pointer_cast<const Api::Onnx::SessionStartInput>(std::move(input)),
+            std::move(callback));
     }
 
-    srt::NO<srt::TaskResult> Session::result() const {
+    void Session::waitForFinished() {
         stdc_impl_t;
-        return impl.sessionResult.as<srt::TaskResult>();
+        impl.waitForAsyncRun();
     }
 }

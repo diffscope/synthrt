@@ -35,21 +35,22 @@ namespace ds::onnxdriver {
         Session &operator=(Session &&other) noexcept;
 
     public:
-        srt::Expected<void> open(const std::filesystem::path &path, const srt::NO<Api::Onnx::SessionOpenArgs> &args);
+        srt::Expected<void> open(const std::filesystem::path &path,
+                                 const Api::Onnx::SessionOpenArgs &args);
         srt::Expected<void> close();
 
         const std::vector<std::string> &inputNames() const;
         const std::vector<std::string> &outputNames() const;
 
-        srt::Expected<srt::NO<srt::TaskResult>> run(const srt::NO<srt::TaskStartInput> &input);
-        srt::Expected<void> runAsync(const srt::NO<srt::TaskStartInput> &input, const srt::ITask::StartAsyncCallback &callback);
+        srt::Expected<std::unique_ptr<srt::TaskResult>> run(const srt::TaskStartInput &input);
+        srt::Expected<void> runAsync(std::shared_ptr<const srt::TaskStartInput> input,
+                                     srt::ITask::AsyncCallback callback);
 
         void terminate();
+        void waitForFinished();
 
         const std::filesystem::path &path() const;
         bool isOpen() const;
-
-        srt::NO<srt::TaskResult> result() const;
 
     protected:
         class Impl;
