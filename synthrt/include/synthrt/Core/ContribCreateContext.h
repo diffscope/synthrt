@@ -6,7 +6,7 @@
 
 #include <stdcorelib/adt/array_view.h>
 
-#include <synthrt/Core/ContribReference.h>
+#include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/JSON.h>
@@ -25,7 +25,7 @@ namespace srt {
     /// ContribCategory::createSpec() call that receives it.
     class SYNTHRT_EXPORT ContribCreateContext {
     public:
-        const ContribReference &reference() const;
+        const ContribLocator &locator() const;
 
         /// Returns the expanded contribution entry from \c desc.json.
         const JsonObject &manifestEntry() const;

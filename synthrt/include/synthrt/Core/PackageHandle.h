@@ -10,7 +10,7 @@
 #include <stdcorelib/adt/array_view.h>
 #include <stdcorelib/support/versionnumber.h>
 
-#include <synthrt/Core/ContribReference.h>
+#include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Core/PackageDependency.h>
 #include <synthrt/Support/DisplayText.h>
@@ -76,11 +76,11 @@ namespace srt {
         /// returned pointer remains valid while a handle retains the corresponding Package.
         ContribSpec *contribution(std::string_view category, std::string_view id) const;
 
-        /// Resolves \a reference against this Package and its bound direct dependencies.
+        /// Resolves \a locator against this Package and its bound direct dependencies.
         ///
         /// Resolution never searches for or loads another Package version. Returns \c nullptr when
-        /// the reference does not identify a contribution in the resolved dependency context.
-        ContribSpec *resolve(const ContribReference &reference) const;
+        /// the locator does not identify a contribution in the resolved dependency context.
+        ContribSpec *resolve(const ContribLocator &locator) const;
 
         const std::filesystem::path &path() const;
         stdc::array_view<PackageDependency> dependencies() const;

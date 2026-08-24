@@ -14,7 +14,7 @@ namespace srt {
     class ContribCreateContext::Data {
     public:
         PackageData *package = nullptr;
-        ContribReference reference;
+        ContribLocator locator;
         JsonObject manifestEntry;
         std::optional<std::filesystem::path> declarationPath;
         std::optional<JsonObject> manifestDeclaration;

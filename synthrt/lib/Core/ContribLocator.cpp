@@ -1,4 +1,4 @@
-#include "ContribReference.h"
+#include "ContribLocator.h"
 
 #include <cstddef>
 
@@ -6,7 +6,7 @@
 
 namespace srt {
 
-    std::string ContribReference::toString() const {
+    std::string ContribLocator::toString() const {
         std::string result = m_packageId;
         result += ':';
         result += m_category;
@@ -15,7 +15,7 @@ namespace srt {
         return result;
     }
 
-    ContribReference ContribReference::fromString(std::string_view token) {
+    ContribLocator ContribLocator::fromString(std::string_view token) {
         const auto colon = token.find(':');
         if (colon == std::string_view::npos ||
             token.find(':', colon + 1) != std::string_view::npos) {
@@ -40,7 +40,7 @@ namespace srt {
         return {std::string(packageId), std::string(category), std::string(contributionId)};
     }
 
-    bool ContribReference::isValidSegment(std::string_view token) {
+    bool ContribLocator::isValidSegment(std::string_view token) {
         if (token.empty()) {
             return false;
         }
@@ -52,15 +52,15 @@ namespace srt {
         return true;
     }
 
-    bool ContribReference::isValidPackageId(std::string_view token) {
+    bool ContribLocator::isValidPackageId(std::string_view token) {
         return isValidSeparatedId(token, '/');
     }
 
-    bool ContribReference::isValidDottedId(std::string_view token) {
+    bool ContribLocator::isValidDottedId(std::string_view token) {
         return isValidSeparatedId(token, '.');
     }
 
-    bool ContribReference::isValidSeparatedId(std::string_view token, char separator) {
+    bool ContribLocator::isValidSeparatedId(std::string_view token, char separator) {
         if (token.empty()) {
             return false;
         }

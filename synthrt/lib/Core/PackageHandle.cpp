@@ -128,18 +128,18 @@ namespace srt {
         return contributionIt == categoryIt->second.end() ? nullptr : contributionIt->second;
     }
 
-    ContribSpec *PackageHandle::resolve(const ContribReference &reference) const {
+    ContribSpec *PackageHandle::resolve(const ContribLocator &locator) const {
         assert(m_data);
-        if (reference.isLocal()) {
-            return contribution(reference.category(), reference.contributionId());
+        if (locator.isLocal()) {
+            return contribution(locator.category(), locator.contributionId());
         }
 
-        const auto dependency = m_data->dependencyBindings.find(reference.packageId());
+        const auto dependency = m_data->dependencyBindings.find(locator.packageId());
         if (dependency == m_data->dependencyBindings.end()) {
             return nullptr;
         }
         return PackageHandle(dependency->second)
-            .contribution(reference.category(), reference.contributionId());
+            .contribution(locator.category(), locator.contributionId());
     }
 
     const std::filesystem::path &PackageHandle::path() const {

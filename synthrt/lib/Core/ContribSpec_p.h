@@ -24,11 +24,11 @@ namespace srt {
 
     class ContribSpec::Import::Impl {
     public:
-        Impl(ContribReference reference, JsonValue manifestOptions)
-            : reference(std::move(reference)), manifestOptions(std::move(manifestOptions)) {
+        Impl(ContribLocator locator, JsonValue manifestOptions)
+            : locator(std::move(locator)), manifestOptions(std::move(manifestOptions)) {
         }
 
-        ContribReference reference;
+        ContribLocator locator;
         JsonValue manifestOptions;
         std::unique_ptr<ContribImportOptions> options;
     };
@@ -36,7 +36,7 @@ namespace srt {
     class ContribSpec::Impl {
     public:
         PackageData *package = nullptr;
-        ContribReference reference;
+        ContribLocator locator;
         bool hasModuleDeclaration = false;
         stdc::plugin::PluginLoader *pluginLoader = nullptr;
         ContribInterpreter *interpreter = nullptr;

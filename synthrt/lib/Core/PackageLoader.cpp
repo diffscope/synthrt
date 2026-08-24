@@ -19,7 +19,7 @@
 #include "ContribCategory.h"
 #include "ContribCategory_p.h"
 #include "ContribCreateContext_p.h"
-#include "ContribReference.h"
+#include "ContribLocator.h"
 #include "ContribSpec_p.h"
 #include "PackageHandle_p.h"
 #include "SynthUnit_p.h"
@@ -622,20 +622,20 @@ namespace srt {
         };
 
         const auto resolveTarget = [](const std::shared_ptr<PackageData> &package,
-                                      const ContribReference &reference) -> ContribSpec * {
+                                      const ContribLocator &locator) -> ContribSpec * {
             PackageData *targetPackage = package.get();
-            if (!reference.isLocal()) {
-                const auto dependency = package->dependencyBindings.find(reference.packageId());
+            if (!locator.isLocal()) {
+                const auto dependency = package->dependencyBindings.find(locator.packageId());
                 if (dependency == package->dependencyBindings.end()) {
                     return nullptr;
                 }
                 targetPackage = dependency->second.get();
             }
-            const auto category = targetPackage->contributionIndex.find(reference.category());
+            const auto category = targetPackage->contributionIndex.find(locator.category());
             if (category == targetPackage->contributionIndex.end()) {
                 return nullptr;
             }
-            const auto contribution = category->second.find(reference.contributionId());
+            const auto contribution = category->second.find(locator.contributionId());
             return contribution == category->second.end() ? nullptr : contribution->second;
         };
 
@@ -702,13 +702,12 @@ namespace srt {
                     spec->_impl->pluginLoader = loader;
 
                     for (const auto &import : spec->_impl->imports) {
-                        auto *target = resolveTarget(package, import.reference());
+                        auto *target = resolveTarget(package, import.locator());
                         if (!target) {
                             return Error(Error::FileNotFound,
                                          "module import target does not exist");
                         }
-                        auto *targetCategory =
-                            m_synthUnit->category(target->reference().category());
+                        auto *targetCategory = m_synthUnit->category(target->locator().category());
                         if (!targetCategory || targetCategory->declarationMode() !=
                                                    ContribCategory::ModuleDeclaration) {
                             return Error(Error::InvalidFormat,
@@ -723,7 +722,7 @@ namespace srt {
             return {};
         };
 
-        // Probe performs all dependency and reference work that requires no provider execution.
+        // Probe performs all dependency and locator work that requires no provider execution.
         auto probeResult = probePackage(root);
         if (!probeResult) {
             // A partial graph can already contain strong edges when cycle detection fails. Remove
@@ -785,7 +784,7 @@ namespace srt {
                 }
                 for (auto *spec : categoryEntry.second) {
                     for (auto &import : spec->_impl->imports) {
-                        auto *target = resolveTarget(package, import.reference());
+                        auto *target = resolveTarget(package, import.locator());
                         auto options = target->_impl->interpreter->createImportOptions(
                             *target, import.manifestOptions());
                         if (!options) {
@@ -885,7 +884,7 @@ namespace srt {
 
         const auto idIt = desc.find("id");
         if (idIt == desc.end() || !idIt->second.isString() ||
-            !ContribReference::isValidPackageId(idIt->second.toString())) {
+            !ContribLocator::isValidPackageId(idIt->second.toString())) {
             return Error(Error::InvalidFormat, "Package id is missing or invalid");
         }
 
@@ -984,7 +983,7 @@ namespace srt {
         // Candidate discovery validates category availability without opening module declaration
         // files. Remaining category and contract failures belong to the selected Package Probe.
         for (const auto &categoryEntry : contributionsIt->second.toObject()) {
-            if (!ContribReference::isValidDottedId(categoryEntry.first)) {
+            if (!ContribLocator::isValidDottedId(categoryEntry.first)) {
                 return Error(Error::InvalidFormat, "contributions contains an invalid category");
             }
             if (!m_synthUnit->category(categoryEntry.first)) {
@@ -1016,7 +1015,7 @@ namespace srt {
                 const auto contributionIdIt = context.manifestEntry.find("id");
                 if (contributionIdIt == context.manifestEntry.end() ||
                     !contributionIdIt->second.isString() ||
-                    !ContribReference::isValidSegment(contributionIdIt->second.toString())) {
+                    !ContribLocator::isValidSegment(contributionIdIt->second.toString())) {
                     return Error(Error::InvalidFormat,
                                  "contribution entry has a missing or invalid id");
                 }
@@ -1025,7 +1024,7 @@ namespace srt {
                     return Error(Error::InvalidFormat,
                                  "contribution category contains a duplicate id");
                 }
-                context.reference = ContribReference(categoryName, contributionId);
+                context.locator = ContribLocator(categoryName, contributionId);
 
                 if (category->declarationMode() == ContribCategory::ModuleDeclaration) {
                     const auto declarationIt = context.manifestEntry.find("path");
@@ -1062,12 +1061,12 @@ namespace srt {
                     const auto variantIt = declaration.find("variant");
                     const auto levelIt = declaration.find("level");
                     if (interfaceIt == declaration.end() || !interfaceIt->second.isString() ||
-                        !ContribReference::isValidDottedId(interfaceIt->second.toString())) {
+                        !ContribLocator::isValidDottedId(interfaceIt->second.toString())) {
                         return Error(Error::InvalidFormat,
                                      "module interface is missing or invalid");
                     }
                     if (variantIt == declaration.end() || !variantIt->second.isString() ||
-                        !ContribReference::isValidDottedId(variantIt->second.toString())) {
+                        !ContribLocator::isValidDottedId(variantIt->second.toString())) {
                         return Error(Error::InvalidFormat, "module variant is missing or invalid");
                     }
                     if (levelIt == declaration.end() || !levelIt->second.isInt() ||
@@ -1113,17 +1112,17 @@ namespace srt {
                                 return Error(Error::InvalidFormat,
                                              "module import requires a string ref field");
                             }
-                            auto reference = ContribReference::fromString(refIt->second.toString());
-                            if (!reference.isValid()) {
+                            auto locator = ContribLocator::fromString(refIt->second.toString());
+                            if (!locator.isValid()) {
                                 return Error(Error::InvalidFormat,
                                              "module import has an invalid ref field");
                             }
-                            if (!reference.isLocal() &&
-                                std::none_of(package->dependencies.begin(),
-                                             package->dependencies.end(),
-                                             [&](const auto &dependency) {
-                                                 return dependency.id == reference.packageId();
-                                             })) {
+                            if (!locator.isLocal() && std::none_of(package->dependencies.begin(),
+                                                                   package->dependencies.end(),
+                                                                   [&](const auto &dependency) {
+                                                                       return dependency.id ==
+                                                                              locator.packageId();
+                                                                   })) {
                                 return Error(Error::InvalidFormat,
                                              "module import references an undeclared dependency");
                             }
@@ -1132,10 +1131,10 @@ namespace srt {
                                 it != importObject.end()) {
                                 options = it->second;
                             }
-                            // Repeated references are distinct import instances and array order is
+                            // Repeated locators are distinct import instances and array order is
                             // part of the importing contract.
                             context.imports.push_back(
-                                ContribSpec::Import(std::move(reference), std::move(options)));
+                                ContribSpec::Import(std::move(locator), std::move(options)));
                         }
                     }
                 }

@@ -318,8 +318,8 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(rootSpec->imports()[0].options());
     BOOST_CHECK(rootSpec->imports()[1].options());
 
-    const auto dependencyReference = srt::ContribReference::fromString("dep:com.example.test/main");
-    auto *dependencySpec = package.resolve(dependencyReference);
+    const auto dependencyLocator = srt::ContribLocator::fromString("dep:com.example.test/main");
+    auto *dependencySpec = package.resolve(dependencyLocator);
     BOOST_REQUIRE(dependencySpec);
     BOOST_CHECK(dependencySpec->package().version() == stdc::VersionNumber(2));
     BOOST_CHECK_EQUAL(exportsCount - oldExports, 2);

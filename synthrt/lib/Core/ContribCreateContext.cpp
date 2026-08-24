@@ -5,8 +5,8 @@
 
 namespace srt {
 
-    const ContribReference &ContribCreateContext::reference() const {
-        return m_data->reference;
+    const ContribLocator &ContribCreateContext::locator() const {
+        return m_data->locator;
     }
 
     const JsonObject &ContribCreateContext::manifestEntry() const {

@@ -17,7 +17,7 @@
 #include <stdcorelib/support/sharedlibrary.h>
 
 #include "ContribInterpreterPlugin.h"
-#include "ContribReference.h"
+#include "ContribLocator.h"
 
 namespace fs = std::filesystem;
 
@@ -35,7 +35,7 @@ namespace srt {
             }
 
             const auto &name = manifest["name"];
-            if (!name.isString() || !ContribReference::isValidSegment(name.toString())) {
+            if (!name.isString() || !ContribLocator::isValidSegment(name.toString())) {
                 return false;
             }
 
@@ -60,8 +60,8 @@ namespace srt {
                 const auto &declaredLevel = value["level"];
                 if (!declaredInterface.isString() || !declaredVariant.isString() ||
                     !declaredLevel.isInt() ||
-                    !ContribReference::isValidDottedId(declaredInterface.toString()) ||
-                    !ContribReference::isValidDottedId(declaredVariant.toString())) {
+                    !ContribLocator::isValidDottedId(declaredInterface.toString()) ||
+                    !ContribLocator::isValidDottedId(declaredVariant.toString())) {
                     return false;
                 }
 

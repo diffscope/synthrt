@@ -4,7 +4,7 @@
 #include <utility>
 
 #include "ContribCategory_p.h"
-#include "ContribReference.h"
+#include "ContribLocator.h"
 #include "PackageLoader_p.h"
 
 namespace srt {
@@ -74,7 +74,7 @@ namespace srt {
             return Error(Error::InvalidArgument,
                          "categories cannot be registered after Package loading has begun");
         }
-        if (!ContribReference::isValidDottedId(category->name())) {
+        if (!ContribLocator::isValidDottedId(category->name())) {
             return Error(Error::InvalidArgument, "category has an invalid name");
         }
         if (category->declarationMode() == ContribCategory::ModuleDeclaration &&

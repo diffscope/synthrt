@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_CONTRIBREFERENCE_H
-#define SYNTHRT_CONTRIBREFERENCE_H
+#ifndef SYNTHRT_CONTRIBLOCATOR_H
+#define SYNTHRT_CONTRIBLOCATOR_H
 
 #include <string>
 #include <string_view>
@@ -11,25 +11,25 @@ namespace srt {
 
     /// Identifies a contribution in the current Package or one of its resolved dependencies.
     ///
-    /// A ContribReference does not contain a Package version and does not perform dependency
+    /// A ContribLocator does not contain a Package version and does not perform dependency
     /// resolution. An empty package identifier refers to the current Package.
     ///
     /// \code
-    /// contrib-reference = package-id ":" category "/" contribution-id
-    ///                   / ":" category "/" contribution-id
+    /// contrib-locator = package-id ":" category "/" contribution-id
+    ///                 / ":" category "/" contribution-id
     /// \endcode
-    class SYNTHRT_EXPORT ContribReference {
+    class SYNTHRT_EXPORT ContribLocator {
     public:
-        ContribReference() = default;
+        ContribLocator() = default;
 
-        ContribReference(std::string packageId, std::string category, std::string contributionId)
+        ContribLocator(std::string packageId, std::string category, std::string contributionId)
             : m_packageId(std::move(packageId)), m_category(std::move(category)),
               m_contributionId(std::move(contributionId)) {
         }
 
-        /// Constructs a reference to a contribution in the current Package.
-        ContribReference(std::string category, std::string contributionId)
-            : ContribReference({}, std::move(category), std::move(contributionId)) {
+        /// Constructs a locator for a contribution in the current Package.
+        ContribLocator(std::string category, std::string contributionId)
+            : ContribLocator({}, std::move(category), std::move(contributionId)) {
         }
 
         /// Returns the direct dependency Package identifier.
@@ -49,22 +49,22 @@ namespace srt {
             return m_contributionId;
         }
 
-        /// Returns whether this reference targets the current Package.
+        /// Returns whether this locator targets the current Package.
         bool isLocal() const {
             return m_packageId.empty();
         }
 
-        /// Returns whether all components satisfy the ContribReference grammar.
+        /// Returns whether all components satisfy the ContribLocator grammar.
         bool isValid() const {
             return (m_packageId.empty() || isValidPackageId(m_packageId)) &&
                    isValidDottedId(m_category) && isValidSegment(m_contributionId);
         }
 
-        /// Renders this value using the persistent ContribReference syntax.
+        /// Renders this value using the persistent ContribLocator syntax.
         std::string toString() const;
 
         /// Parses \a token, returning an invalid empty value when it does not match the grammar.
-        static ContribReference fromString(std::string_view token);
+        static ContribLocator fromString(std::string_view token);
 
         /// Returns whether \a token matches the shared identifier segment grammar.
         static bool isValidSegment(std::string_view token);
@@ -75,12 +75,12 @@ namespace srt {
         /// Returns whether \a token is a category or another dotted identifier.
         static bool isValidDottedId(std::string_view token);
 
-        bool operator==(const ContribReference &other) const {
+        bool operator==(const ContribLocator &other) const {
             return m_packageId == other.m_packageId && m_category == other.m_category &&
                    m_contributionId == other.m_contributionId;
         }
 
-        bool operator!=(const ContribReference &other) const {
+        bool operator!=(const ContribLocator &other) const {
             return !(*this == other);
         }
 
@@ -94,4 +94,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_CONTRIBREFERENCE_H
+#endif // SYNTHRT_CONTRIBLOCATOR_H

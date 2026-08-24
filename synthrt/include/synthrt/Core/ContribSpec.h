@@ -6,7 +6,7 @@
 
 #include <stdcorelib/adt/array_view.h>
 
-#include <synthrt/Core/ContribReference.h>
+#include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpecSubObjects.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/JSON.h>
@@ -31,7 +31,7 @@ namespace srt {
             Import &operator=(Import &&other) noexcept;
             ~Import();
 
-            const ContribReference &reference() const;
+            const ContribLocator &locator() const;
 
             /// Returns the options value read from the manifest.
             const JsonValue &manifestOptions() const;
@@ -42,7 +42,7 @@ namespace srt {
             const ContribImportOptions *options() const;
 
         private:
-            Import(ContribReference reference, JsonValue options);
+            Import(ContribLocator locator, JsonValue options);
 
             class Impl;
             std::unique_ptr<Impl> _impl;
@@ -58,7 +58,7 @@ namespace srt {
         virtual ~ContribSpec();
 
         /// Returns the identity assigned by the containing Package.
-        const ContribReference &reference() const;
+        const ContribLocator &locator() const;
 
         /// Returns a handle retaining the containing Package.
         PackageHandle package() const;
@@ -101,14 +101,14 @@ namespace srt {
         /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
         const ContribConfiguration *configuration() const;
 
-        /// Returns imports in declaration order, including repeated references.
+        /// Returns imports in declaration order, including repeated locators.
         stdc::array_view<Import> imports() const;
 
         /// \}
 
         /// Casts this declaration to the concrete type registered for its category.
         ///
-        /// The caller must first establish that \c reference().category() identifies \c T.
+        /// The caller must first establish that \c locator().category() identifies \c T.
         SYNTHRT_DECLARE_AS_METHODS(ContribSpec)
 
     protected:

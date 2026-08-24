@@ -15,8 +15,8 @@ namespace srt {
 
     ContribSpec::Import::~Import() = default;
 
-    const ContribReference &ContribSpec::Import::reference() const {
-        return _impl->reference;
+    const ContribLocator &ContribSpec::Import::locator() const {
+        return _impl->locator;
     }
 
     const JsonValue &ContribSpec::Import::manifestOptions() const {
@@ -27,14 +27,14 @@ namespace srt {
         return _impl->options.get();
     }
 
-    ContribSpec::Import::Import(ContribReference reference, JsonValue options)
-        : _impl(std::make_unique<Impl>(std::move(reference), std::move(options))) {
+    ContribSpec::Import::Import(ContribLocator locator, JsonValue options)
+        : _impl(std::make_unique<Impl>(std::move(locator), std::move(options))) {
     }
 
     ContribSpec::~ContribSpec() = default;
 
-    const ContribReference &ContribSpec::reference() const {
-        return _impl->reference;
+    const ContribLocator &ContribSpec::locator() const {
+        return _impl->locator;
     }
 
     PackageHandle ContribSpec::package() const {
@@ -95,7 +95,7 @@ namespace srt {
     ContribSpec::ContribSpec(const ContribCreateContext &context)
         : _impl(std::make_unique<Impl>()) {
         _impl->package = context.m_data->package;
-        _impl->reference = context.m_data->reference;
+        _impl->locator = context.m_data->locator;
         if (!context.m_data->manifestDeclaration) {
             return;
         }
@@ -110,7 +110,7 @@ namespace srt {
         _impl->manifestConfiguration = context.m_data->manifestConfiguration;
         _impl->imports.reserve(context.m_data->imports.size());
         for (const auto &item : context.m_data->imports) {
-            _impl->imports.push_back(Import(item.reference(), item.manifestOptions()));
+            _impl->imports.push_back(Import(item.locator(), item.manifestOptions()));
         }
     }
 
