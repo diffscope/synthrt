@@ -7,6 +7,7 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <cassert>
 
 #include <stdcorelib/adt/vlarray.h>
 
@@ -35,6 +36,7 @@ namespace srt {
         Impl(std::string name, DeclarationMode declarationMode, std::string interpreterIid)
             : name(std::move(name)), declarationMode(declarationMode),
               interpreterIid(std::move(interpreterIid)) {
+            assert(declarationMode != EntryOnly || interpreterIid.empty());
         }
 
         std::string name;

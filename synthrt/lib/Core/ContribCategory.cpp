@@ -1,7 +1,6 @@
 #include "ContribCategory.h"
 #include "ContribCategory_p.h"
 
-#include <cassert>
 #include <mutex>
 #include <utility>
 

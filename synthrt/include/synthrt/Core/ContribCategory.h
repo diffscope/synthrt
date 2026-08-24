@@ -123,6 +123,11 @@ namespace srt {
         virtual Expected<std::unique_ptr<ContribSpec>>
             createSpec(const ContribCreateContext &context) const = 0;
 
+        /// Constructs a contribution category implemented by the derived class.
+        ///
+        /// An \c EntryOnly category is parsed entirely by \c createSpec() and does not discover or
+        /// load an interpreter. Its \a interpreterIid must be empty. A \c ModuleDeclaration
+        /// category uses \a interpreterIid to discover the interpreter for its declarations.
         ContribCategory(std::string name, DeclarationMode declarationMode,
                         std::string interpreterIid = {});
 
