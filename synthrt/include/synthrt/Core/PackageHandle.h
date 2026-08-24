@@ -12,7 +12,6 @@
 
 #include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpec.h>
-#include <synthrt/Core/PackageDependency.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/JSON.h>
 #include <synthrt/synthrt_global.h>
@@ -23,6 +22,27 @@ namespace srt {
     class PackageLoader;
 
     class SynthUnit;
+
+    /// Describes one required direct Package dependency.
+    struct PackageDependency {
+        inline PackageDependency() = default;
+
+        inline PackageDependency(std::string id, stdc::VersionNumber version)
+            : id(std::move(id)), version(std::move(version)) {
+        }
+
+        inline bool operator==(const PackageDependency &other) const {
+            return id == other.id && version == other.version;
+        }
+
+        inline bool operator!=(const PackageDependency &other) const {
+            return !(*this == other);
+        }
+
+    public:
+        std::string id;
+        stdc::VersionNumber version;
+    };
 
     /// A shared handle to Package metadata and any committed runtime resources it owns.
     ///
