@@ -783,8 +783,10 @@ TEST_CASE("PackageValidator invalid version type (number instead of string)", "[
 // Display text compliance (ds-spec 2.4 §多语言文本)
 // ===========================================================================
 
-// The scanner tolerates these violations (legacy packages keep loading via
-// DisplayText::fromJsonValueTolerant); the validator must surface them.
+// The scanner tolerates a missing "_" default (legacy packages keep loading
+// via DisplayText::fromJsonValueTolerant); the validator must surface it.
+// (ds-spec 2.4 still mandates "_"; keys themselves are opaque to the Runtime,
+// so key spellings are at most Warning-level guidance — see below.)
 TEST_CASE("PackageValidator reports display text missing '_' default", "[ds-bank][validator][complex][displaytext]") {
     const auto dir = makeTempDir("validator-no-default");
 
@@ -815,7 +817,10 @@ TEST_CASE("PackageValidator reports display text missing '_' default", "[ds-bank
     std::filesystem::remove_all(dir);
 }
 
-TEST_CASE("PackageValidator reports POSIX-style language tags", "[ds-bank][validator][complex][displaytext]") {
+// Language tags are opaque to the Runtime (ds-spec 2.4: no matching, no BCP 47
+// validation), so a POSIX-style separator is legal data — the validator only
+// nudges authors toward BCP 47 with a Warning, never an Error.
+TEST_CASE("PackageValidator nudges POSIX-style language tags to BCP 47", "[ds-bank][validator][complex][displaytext]") {
     const auto dir = makeTempDir("validator-posix-tags");
 
     writeFile(dir / "desc.json", R"json({
@@ -840,7 +845,7 @@ TEST_CASE("PackageValidator reports POSIX-style language tags", "[ds-bank][valid
     bool foundDescTag = false;
     bool foundSpeakerTag = false;
     for (const auto &item : report.items()) {
-        if (item.severity != ValidationReport::Severity::Error ||
+        if (item.severity != ValidationReport::Severity::Warning ||
             item.message.find("BCP 47") == std::string::npos) {
             continue;
         }
@@ -854,6 +859,14 @@ TEST_CASE("PackageValidator reports POSIX-style language tags", "[ds-bank][valid
     }
     REQUIRE(foundDescTag);
     REQUIRE(foundSpeakerTag);
+    // Opaque keys stay legal: the POSIX-tagged entries themselves must not
+    // draw any Error-level diagnostic.
+    for (const auto &item : report.items()) {
+        if (item.severity == ValidationReport::Severity::Error) {
+            CHECK(item.path.find("/name/zh_CN") == std::string::npos);
+            CHECK(item.path.find("/name/zh_TW") == std::string::npos);
+        }
+    }
 
     std::filesystem::remove_all(dir);
 }

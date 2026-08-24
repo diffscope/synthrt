@@ -25,8 +25,8 @@ namespace ds::bank {
         void setLanguageId(std::string languageId);
 
         /// Display name, all translations retained (ds-spec 2.4 多语言文本).
-        /// Resolve with text(locale) using a BCP 47 preference tag; text()
-        /// yields the default ("_") text.
+        /// Resolve with text(key) by exact key lookup; text() yields the
+        /// default ("_") text. Matching policy is the front-end's decision.
         const srt::core::DisplayText &name() const;
         void setName(srt::core::DisplayText name);
 

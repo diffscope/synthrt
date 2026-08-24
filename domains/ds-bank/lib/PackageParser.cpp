@@ -44,9 +44,9 @@ namespace ds::bank {
     }
 
     // 解析多语言字段（字符串或本地化对象）为 DisplayText，**保留全部翻译**，
-    // 解析期不做任何语言裁决（ds-spec 2.4 §多语言文本）。语言键为 BCP 47
-    // 标签，匹配（RFC 4647 Lookup，大小写不敏感）由 DisplayText::text(locale)
-    // 在调用方取词时进行——因此切换 UI 语言无需重新解析。
+    // 解析期不做任何语言裁决（ds-spec 2.4 §多语言文本）。语言键对 Runtime
+    // 是不透明且区分大小写的 map key，Runtime 不做任何匹配；调用方以
+    // text(key) 精确直取、自行决定候选键与回退——切换 UI 语言无需重新解析。
     //
     // 宽松解析（fromJsonValueTolerant）：缺 "_" 时按历史行为选默认文本
     // （"default" → "en" → 第一个字符串键），非字符串条目跳过而非报错，

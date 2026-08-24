@@ -1,6 +1,5 @@
 #include "DisplayPath.h"
 
-#include <cctype>
 #include <utility>
 
 #include <stdcorelib/adt/vlarray.h>
@@ -13,7 +12,8 @@ namespace srt::core {
     public:
         std::filesystem::path defaultPath;
 
-        /// The language tags, owned here so that the map below has something to key into.
+        /// The language tags, owned here so that \c locales() has something to hand out and the
+        /// map below has something to key into.
         ///
         /// \note Nothing may be added once \c paths refers into this. A language tag is short
         ///       enough to live in the string's own small buffer, so relocating one during a
@@ -23,21 +23,6 @@ namespace srt::core {
         /// Keyed by a view into \c locales rather than by a second copy of the same tag.
         std::map<std::string_view, std::filesystem::path, std::less<>> paths;
     };
-
-    // Same matching rule as DisplayText (ds-spec 2.4): case-insensitive, the
-    // '-' separator matched strictly.
-    static bool tagEqualsIgnoreCase(std::string_view a, std::string_view b) {
-        if (a.size() != b.size()) {
-            return false;
-        }
-        for (size_t i = 0; i < a.size(); ++i) {
-            if (std::tolower(static_cast<unsigned char>(a[i])) !=
-                std::tolower(static_cast<unsigned char>(b[i]))) {
-                return false;
-            }
-        }
-        return true;
-    }
 
     DisplayPath::DisplayPath() : _impl(std::make_shared<Impl>()) {
     }
@@ -56,6 +41,12 @@ namespace srt::core {
         // can relocate what an earlier key already points at.
         impl.locales.reserve(paths.size());
         for (const auto &item : paths) {
+            // "_" is the default entry of the JSON object form, not a
+            // translation key: keep it out of locales()/path(key) even if a
+            // direct caller passes it in the map.
+            if (item.first == "_") {
+                continue;
+            }
             impl.locales.push_back(item.first);
             impl.paths.emplace(impl.locales.back(), item.second);
         }
@@ -121,24 +112,21 @@ namespace srt::core {
         return impl.defaultPath;
     }
 
-    const std::filesystem::path &DisplayPath::path(std::string_view locale) const {
+    const std::filesystem::path *DisplayPath::path(std::string_view key) const {
         stdc_impl_t;
 
-        // RFC 4647 §3.4 Lookup, identical to DisplayText::text(locale).
-        std::string_view range = locale;
-        while (!range.empty()) {
-            for (const auto &item : impl.paths) {
-                if (tagEqualsIgnoreCase(item.first, range)) {
-                    return item.second;
-                }
-            }
-            const auto pos = range.find_last_of('-');
-            if (pos == std::string_view::npos) {
-                break;
-            }
-            range = range.substr(0, pos);
+        // Same pass-through semantics as DisplayText::text(key): exact,
+        // case-sensitive key lookup, no matching, no fallback.
+        const auto it = impl.paths.find(key);
+        if (it == impl.paths.end()) {
+            return nullptr;
         }
-        return impl.defaultPath;
+        return &it->second;
+    }
+
+    stdc::array_view<std::string> DisplayPath::locales() const {
+        stdc_impl_t;
+        return {impl.locales.data(), impl.locales.size()};
     }
 
     bool DisplayPath::isEmpty() const {

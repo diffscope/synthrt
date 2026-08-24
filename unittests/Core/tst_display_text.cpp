@@ -3,9 +3,11 @@
 // Ported from main's synthrt/tests/auto/Support/test_DisplayText.cpp
 // (Boost.Test -> Catch2) and extended for the ds-spec 2.4 localization rules:
 //   - object form requires the "_" default entry (strict parsing);
-//   - text(locale) is RFC 4647 Lookup (strip-from-right), case-insensitive;
-//   - the '-' separator is strict: POSIX-style "zh_CN" keys never match a
-//     BCP 47 lookup (and vice versa);
+//   - the Runtime performs NO matching: text(key) is an exact, case-sensitive
+//     key lookup returning nullptr for absent keys, with no Lookup, no case
+//     folding and no fallback to the default text;
+//   - keys are opaque: POSIX-style "zh_CN" is an ordinary key like any other;
+//   - locales() exposes every key except "_" verbatim, in sorted order;
 //   - fromJsonValueTolerant() never fails and reproduces the legacy
 //     "default" -> "en" -> first-entry default selection.
 
@@ -34,6 +36,11 @@ namespace {
         return exp.error();
     }
 
+    // Exact key lookup, unwrapped for readable assertions.
+    const std::string *get(const DisplayText &text, std::string_view key) {
+        return text.text(key);
+    }
+
 } // namespace
 
 TEST_CASE("DisplayText basic object form", "[core][displaytext]") {
@@ -47,8 +54,10 @@ TEST_CASE("DisplayText basic object form", "[core][displaytext]") {
         )");
 
         CHECK(text.text() == "DEF");
-        CHECK(text.text("zh-CN") == "CN");
-        CHECK(text.text("zh-TW") == "TW");
+        REQUIRE(get(text, "zh-CN") != nullptr);
+        CHECK(*get(text, "zh-CN") == "CN");
+        REQUIRE(get(text, "zh-TW") != nullptr);
+        CHECK(*get(text, "zh-TW") == "TW");
     }
 
     {
@@ -59,8 +68,10 @@ TEST_CASE("DisplayText basic object form", "[core][displaytext]") {
         auto text = DisplayText("DEF", map);
 
         CHECK(text.text() == "DEF");
-        CHECK(text.text("zh-CN") == "CN");
-        CHECK(text.text("zh-TW") == "TW");
+        REQUIRE(get(text, "zh-CN") != nullptr);
+        CHECK(*get(text, "zh-CN") == "CN");
+        REQUIRE(get(text, "zh-TW") != nullptr);
+        CHECK(*get(text, "zh-TW") == "TW");
     }
 }
 
@@ -68,56 +79,70 @@ TEST_CASE("DisplayText basic object form", "[core][displaytext]") {
 TEST_CASE("DisplayText string form", "[core][displaytext]") {
     auto text = parse(R"("DEF")");
     CHECK(text.text() == "DEF");
-    CHECK(text.text("zh-CN") == "DEF");
+    CHECK(get(text, "zh-CN") == nullptr);
     CHECK(!text.isEmpty());
 
     // An empty string parses, and counts as empty.
     CHECK(parse(R"("")").isEmpty());
 }
 
-// RFC 4647 Lookup: strip from the right until a match, else the default.
-TEST_CASE("DisplayText lookup matching (ds-spec 2.4)", "[core][displaytext]") {
+// The Runtime does no matching (ds-spec 2.4): text(key) is an exact key
+// lookup, case-sensitive, without subtag stripping or default fallback.
+TEST_CASE("DisplayText exact key lookup, no matching rules", "[core][displaytext]") {
     auto text = parse(R"({"_": "DEF", "zh-Hans": "HANS", "zh": "ZH", "ja-JP": "JP"})");
 
-    // Exact match wins.
-    CHECK(text.text("ja-JP") == "JP");
-    // Strip-from-right: zh-Hans-CN -> zh-Hans.
-    CHECK(text.text("zh-Hans-CN") == "HANS");
-    CHECK(text.text("zh-Hans-SG") == "HANS");
-    // Two-step strip: zh-Hant-TW -> zh-Hant (absent) -> zh.
-    CHECK(text.text("zh-Hant-TW") == "ZH");
-    // No script inference: zh-TW does NOT reach zh-Hans; it lands on zh.
-    CHECK(text.text("zh-TW") == "ZH");
-    // Lookup is case-insensitive on both exact and stripped forms.
-    CHECK(text.text("JA-jp") == "JP");
-    CHECK(text.text("ZH-hANS-cn") == "HANS");
-    // Unknown language falls back to the default.
-    CHECK(text.text("ko") == "DEF");
-    CHECK(text.text("ko-KR") == "DEF");
-    CHECK(text.text("") == "DEF");
+    // Exact keys hit.
+    REQUIRE(get(text, "ja-JP") != nullptr);
+    CHECK(*get(text, "ja-JP") == "JP");
 
-    // No cross-separator matching: POSIX-style keys are inert.
-    auto posix = parse(R"({"_": "DEF", "zh_CN": "POSIX"})");
-    CHECK(posix.text("zh-CN") == "DEF");
-    CHECK(posix.text("zh_CN") == "DEF"); // "zh_CN" is not a '-'-separated tag
+    // No Lookup: a longer preference does NOT strip its way to a stored key.
+    CHECK(get(text, "zh-Hans-CN") == nullptr);
+    CHECK(get(text, "zh-Hant-TW") == nullptr);
+    // ...and a shorter preference does NOT reach a longer stored key either.
+    CHECK(get(text, "ja") == nullptr);
+
+    // Matching is case-sensitive: keys are opaque byte strings.
+    CHECK(get(text, "JA-jp") == nullptr);
+    CHECK(get(text, "ZH-hANS-cn") == nullptr);
+
+    // Unknown keys yield nothing; the caller decides when to use text().
+    CHECK(get(text, "ko") == nullptr);
+    CHECK(get(text, "ko-KR") == nullptr);
+    CHECK(get(text, "") == nullptr);
+    CHECK(text.text() == "DEF");
 }
 
-// An unknown locale falls back to the default rather than returning nothing.
-TEST_CASE("DisplayText locale fallback", "[core][displaytext]") {
+// POSIX-style keys are ordinary opaque keys: retained verbatim and fetchable
+// by their exact spelling, just not by any other spelling.
+TEST_CASE("DisplayText treats POSIX-style keys as ordinary keys", "[core][displaytext]") {
+    auto posix = parse(R"({"_": "DEF", "zh_CN": "POSIX"})");
+
+    REQUIRE(posix.locales().size() == 1);
+    CHECK(posix.locales()[0] == "zh_CN");
+    REQUIRE(get(posix, "zh_CN") != nullptr);
+    CHECK(*get(posix, "zh_CN") == "POSIX");
+    // No separator normalization: "zh-CN" is a different opaque key.
+    CHECK(get(posix, "zh-CN") == nullptr);
+    CHECK(get(posix, "ZH_cn") == nullptr);
+}
+
+TEST_CASE("DisplayText absent keys versus empty values", "[core][displaytext]") {
     auto text = parse(R"({"_": "DEF", "zh-CN": "CN"})");
 
-    CHECK(text.text("ja-JP") == "DEF");
-    CHECK(text.text("") == "DEF");
+    CHECK(get(text, "ja-JP") == nullptr);
 
     // The same holds when the object carries no translations at all.
     auto bare = parse(R"({"_": "DEF"})");
     CHECK(bare.text() == "DEF");
-    CHECK(bare.text("zh-CN") == "DEF");
+    CHECK(get(bare, "zh-CN") == nullptr);
+    CHECK(bare.locales().empty());
 
-    // A translation may be empty, and that is not the same as being absent.
+    // A translation may be empty, and that is not the same as being absent:
+    // the caller must be able to tell the two apart (pointer, not reference).
     auto blank = parse(R"({"_": "DEF", "zh-CN": ""})");
-    CHECK(blank.text("zh-CN").empty());
-    CHECK(blank.text("ja-JP") == "DEF");
+    REQUIRE(get(blank, "zh-CN") != nullptr);
+    CHECK(get(blank, "zh-CN")->empty());
+    CHECK(get(blank, "ja-JP") == nullptr);
 }
 
 TEST_CASE("DisplayText rejects invalid JSON shapes", "[core][displaytext]") {
@@ -148,19 +173,19 @@ TEST_CASE("DisplayText rejects invalid JSON shapes", "[core][displaytext]") {
 }
 
 TEST_CASE("DisplayText value semantics", "[core][displaytext]") {
-    // A default-constructed object is empty and answers every locale with nothing.
+    // A default-constructed object is empty and holds no keys.
     {
         DisplayText text;
         CHECK(text.isEmpty());
         CHECK(text.text().empty());
-        CHECK(text.text("zh-CN").empty());
+        CHECK(get(text, "zh-CN") == nullptr);
     }
     // Constructing from a string sets the default text only.
     {
         DisplayText text("DEF");
         CHECK(!text.isEmpty());
         CHECK(text.text() == "DEF");
-        CHECK(text.text("zh-CN") == "DEF");
+        CHECK(get(text, "zh-CN") == nullptr);
     }
     // Assigning a string replaces the default text and leaves the translations in place.
     {
@@ -168,8 +193,9 @@ TEST_CASE("DisplayText value semantics", "[core][displaytext]") {
         DisplayText text("DEF", map);
         text = std::string("OTHER");
         CHECK(text.text() == "OTHER");
-        CHECK(text.text("zh-CN") == "CN");
-        CHECK(text.text("ja-JP") == "OTHER");
+        REQUIRE(get(text, "zh-CN") != nullptr);
+        CHECK(*get(text, "zh-CN") == "CN");
+        CHECK(get(text, "ja-JP") == nullptr);
     }
     // swap() exchanges the two.
     {
@@ -179,14 +205,16 @@ TEST_CASE("DisplayText value semantics", "[core][displaytext]") {
         CHECK(a.text() == "B");
         CHECK(b.text() == "A");
     }
-    // An empty map is accepted, and every locale then falls back.
+    // An empty map is accepted.
     {
         DisplayText text("DEF", {});
-        CHECK(text.text("zh-CN") == "DEF");
+        CHECK(get(text, "zh-CN") == nullptr);
+        CHECK(text.locales().empty());
     }
 }
 
-// locales() exposes exactly the translated tags, in sorted order.
+// locales() exposes exactly the translated tags (never "_"), verbatim, in
+// sorted order.
 TEST_CASE("DisplayText locales()", "[core][displaytext]") {
     auto text = parse(R"({"_": "DEF", "zh-TW": "TW", "zh-CN": "CN", "ja-JP": "JP"})");
     const auto locales = text.locales();
@@ -196,6 +224,14 @@ TEST_CASE("DisplayText locales()", "[core][displaytext]") {
     CHECK(locales[2] == "zh-TW");
 
     CHECK(parse(R"("DEF")").locales().empty());
+
+    // A "_" entry passed through the map constructor is not a translation key:
+    // the default text comes from the default-text argument only.
+    DisplayText guarded("DEF", {{"_", "SHADOW"}, {"en", "EN"}});
+    CHECK(guarded.text() == "DEF");
+    CHECK(get(guarded, "_") == nullptr);
+    REQUIRE(guarded.locales().size() == 1);
+    CHECK(guarded.locales()[0] == "en");
 }
 
 TEST_CASE("DisplayText tolerant parsing", "[core][displaytext]") {
@@ -211,7 +247,8 @@ TEST_CASE("DisplayText tolerant parsing", "[core][displaytext]") {
     auto noDefault =
         DisplayText::fromJsonValueTolerant(JsonValue::fromJson(R"({"en": "EN", "zh-CN": "CN"})", false));
     CHECK(noDefault.text() == "EN"); // "en" selected as the default text
-    CHECK(noDefault.text("zh-CN") == "CN");
+    REQUIRE(noDefault.text("zh-CN") != nullptr);
+    CHECK(*noDefault.text("zh-CN") == "CN");
     CHECK(noDefault.locales().size() == 2); // ...including the key that fed the default
 
     // Legacy "default" key beats "en".
@@ -228,6 +265,7 @@ TEST_CASE("DisplayText tolerant parsing", "[core][displaytext]") {
     auto mixed = DisplayText::fromJsonValueTolerant(
         JsonValue::fromJson(R"({"_": "DEF", "zh-CN": "CN", "ja-JP": 1})", false));
     CHECK(mixed.text() == "DEF");
-    CHECK(mixed.text("zh-CN") == "CN");
+    REQUIRE(mixed.text("zh-CN") != nullptr);
+    CHECK(*mixed.text("zh-CN") == "CN");
     CHECK(mixed.locales().size() == 1);
 }

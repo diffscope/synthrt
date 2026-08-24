@@ -1,7 +1,5 @@
 #include "DisplayText.h"
 
-#include <cctype>
-
 #include <stdcorelib/adt/vlarray.h>
 #include <stdcorelib/pimpl.h>
 
@@ -23,22 +21,6 @@ namespace srt::core {
         std::map<std::string_view, std::string, std::less<>> texts;
     };
 
-    // BCP 47 language tags are ASCII; case-insensitive comparison per RFC 4647
-    // (matching is case-insensitive). The '-' separator is matched strictly:
-    // POSIX-style "zh_CN" is not a BCP 47 tag and must not match "zh-CN".
-    static bool tagEqualsIgnoreCase(std::string_view a, std::string_view b) {
-        if (a.size() != b.size()) {
-            return false;
-        }
-        for (size_t i = 0; i < a.size(); ++i) {
-            if (std::tolower(static_cast<unsigned char>(a[i])) !=
-                std::tolower(static_cast<unsigned char>(b[i]))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     DisplayText::DisplayText() : _impl(std::make_shared<Impl>()) {
     }
 
@@ -59,6 +41,12 @@ namespace srt::core {
         // can relocate what an earlier key already points at.
         impl.locales.reserve(texts.size());
         for (const auto &item : texts) {
+            // "_" is the default entry of the JSON object form, not a
+            // translation key: keep it out of locales()/text(key) even if a
+            // direct caller passes it in the map.
+            if (item.first == "_") {
+                continue;
+            }
             impl.locales.push_back(item.first);
             impl.texts.emplace(impl.locales.back(), item.second);
         }
@@ -164,32 +152,18 @@ namespace srt::core {
         return impl.defaultText;
     }
 
-    const std::string &DisplayText::text(std::string_view locale) const {
+    const std::string *DisplayText::text(std::string_view key) const {
         stdc_impl_t;
 
-        // RFC 4647 §3.4 Lookup: try the full range, then repeatedly strip the
-        // rightmost subtag, until only the language subtag remains; if nothing
-        // matches, use the default text. Comparisons are case-insensitive.
-        std::string_view range = locale;
-        while (!range.empty()) {
-            for (const auto &item : impl.texts) {
-                // Keys that are not BCP 47 tags (e.g. POSIX-style "zh_CN" with
-                // '_') are kept in the translation table but never matched,
-                // even by an identical non-BCP-47 request (ds-spec 2.4).
-                if (item.first.find('_') != std::string_view::npos) {
-                    continue;
-                }
-                if (tagEqualsIgnoreCase(item.first, range)) {
-                    return item.second;
-                }
-            }
-            const auto pos = range.find_last_of('-');
-            if (pos == std::string_view::npos) {
-                break;
-            }
-            range = range.substr(0, pos);
+        // ds-spec 2.4 多语言文本: keys are opaque and case-sensitive, and the
+        // Runtime performs no matching. This is a plain exact key lookup with
+        // no fallback to the default text; how to map a language preference
+        // onto the available keys is entirely the front-end's business.
+        const auto it = impl.texts.find(key);
+        if (it == impl.texts.end()) {
+            return nullptr;
         }
-        return impl.defaultText;
+        return &it->second;
     }
 
     stdc::array_view<std::string> DisplayText::locales() const {

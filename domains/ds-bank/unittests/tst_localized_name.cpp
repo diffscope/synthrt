@@ -1,11 +1,17 @@
 // Localized singer/language/speaker name tests (ds-spec 2.4 多语言文本).
 //
 // Manifests keep the FULL translation map as srt::core::DisplayText; no locale
-// is threaded through the parser/scanner. Callers resolve with text(locale):
-//   - BCP 47 tags, RFC 4647 Lookup (strip-from-right), case-insensitive;
-//   - POSIX-style "zh_CN" keys are inert (strict '-' separator);
+// is threaded through the parser/scanner, and the Runtime performs NO matching
+// at all:
+//   - text() returns the "_" default entry;
+//   - text(key) is an exact, case-sensitive key lookup (nullptr when absent) —
+//     no Lookup, no case folding, no fallback;
+//   - keys are opaque: POSIX-style "zh_CN" is an ordinary key like any other;
+//   - locales() enumerates every key except "_" verbatim;
 //   - objects without "_" select a default text by the legacy resolution order
 //     ("default" -> "en" -> first entry) and still keep every translation.
+// How a caller maps a UI language onto these keys (candidate list, fallback,
+// case merge) is entirely the front-end's decision and out of scope here.
 
 #include <chrono>
 #include <filesystem>
@@ -33,6 +39,14 @@ namespace {
         std::ofstream file(path);
         file << text;
     }
+
+    std::string getOr(const srt::core::DisplayText &text, std::string_view key,
+                      std::string fallback) {
+        if (const auto *value = text.text(key)) {
+            return *value;
+        }
+        return fallback;
+    }
 } // namespace
 
 using ds::bank::PackageParser;
@@ -48,11 +62,11 @@ std::filesystem::path makeLocalizedPackage(const std::string &name) {
     return dir;
 }
 
-TEST_CASE("Parser keeps full translations; resolution happens at text(locale)",
+TEST_CASE("Parser keeps full translations; the Runtime performs no matching",
           "[ds-bank][localized-name]") {
     const auto dir = makeLocalizedPackage("display-text-full");
 
-    // Parse ONCE. Every locale is served from the same manifest.
+    // Parse ONCE. Every key is served verbatim from the same manifest.
     PackageParser parser;
     auto parsed = parser.parsePackage(dir, PackageParser::ParseMode::Relaxed);
     REQUIRE(parsed.hasValue());
@@ -64,47 +78,39 @@ TEST_CASE("Parser keeps full translations; resolution happens at text(locale)",
 
     // Default ("_") text.
     CHECK(singerName.text() == "Jun Ninghua");
-    CHECK(singerName.text("") == "Jun Ninghua");
     CHECK(langName.text() == "Mandarin");
     CHECK(spkName.text() == "Internal Emb");
 
-    // Exact BCP 47 keys.
-    CHECK(singerName.text("zh-Hans") == "君凝华");
-    CHECK(singerName.text("zh-Hant") == "君凝華");
-    CHECK(singerName.text("ja") == "うろこ音凝華");
-    CHECK(langName.text("zh-CN") == "普通话");
-    CHECK(langName.text("zh-TW") == "普通話");
-    CHECK(spkName.text("zh-CN") == "内置音色");
+    // Exact key lookup.
+    CHECK(getOr(singerName, "zh-Hans", "<null>") == "君凝华");
+    CHECK(getOr(singerName, "zh-Hant", "<null>") == "君凝華");
+    CHECK(getOr(singerName, "ja", "<null>") == "うろこ音凝華");
+    CHECK(getOr(langName, "zh-CN", "<null>") == "普通话");
+    CHECK(getOr(langName, "zh-TW", "<null>") == "普通話");
+    CHECK(getOr(spkName, "zh-CN", "<null>") == "内置音色");
 
-    // RFC 4647 Lookup: strip the rightmost subtag of the preference.
-    CHECK(singerName.text("zh-Hans-CN") == "君凝华");   // zh-Hans-CN -> zh-Hans
-    CHECK(singerName.text("zh-Hant-HK") == "君凝華");   // zh-Hant-HK -> zh-Hant
-    CHECK(langName.text("ja-JP-x-u-ca-japanese") == "中国語"); // ... -> ja-JP
-    // Lookup is case-insensitive.
-    CHECK(singerName.text("ZH-hANS") == "君凝华");
-    std::filesystem::remove_all(dir);
-}
+    // No matching rules: no subtag stripping, no case folding, no fallback.
+    CHECK(singerName.text("zh-Hans-CN") == nullptr);
+    CHECK(singerName.text("zh-Hant-HK") == nullptr);
+    CHECK(singerName.text("ZH-hANS") == nullptr);
+    CHECK(langName.text("ja-JP-x-u-ca-japanese") == nullptr);
+    CHECK(singerName.text("zh-TW") == nullptr);
+    CHECK(singerName.text("zh") == nullptr);
+    CHECK(singerName.text("fr") == nullptr);
 
-TEST_CASE("Lookup falls back without script inference (spec-conformant)",
-          "[ds-bank][localized-name]") {
-    const auto dir = makeLocalizedPackage("lookup-no-script-guess");
-
-    PackageParser parser;
-    auto parsed = parser.parsePackage(dir, PackageParser::ParseMode::Relaxed);
-    REQUIRE(parsed.hasValue());
-    const auto &name = parsed.value().singers().front().name();
-
-    // Keys are zh-Hans / zh-Hant only. A zh-TW preference tries zh-TW, then zh
-    // (absent), then "_": NO Hans/Hant guessing (ds-spec 2.4 RFC 4647 Lookup).
-    CHECK(name.text("zh-TW") == "Jun Ninghua");
-    CHECK(name.text("zh") == "Jun Ninghua");
+    // locales(): every key except "_", verbatim (ja/zh-Hans/zh-Hant sorted).
+    const auto keys = singerName.locales();
+    REQUIRE(keys.size() == 3);
+    CHECK(keys[0] == "ja");
+    CHECK(keys[1] == "zh-Hans");
+    CHECK(keys[2] == "zh-Hant");
 
     std::filesystem::remove_all(dir);
 }
 
-TEST_CASE("POSIX-style keys are inert under strict BCP 47 matching",
+TEST_CASE("POSIX-style keys are ordinary opaque keys",
           "[ds-bank][localized-name]") {
-    const auto dir = makeTempPackageDir("posix-keys-inert");
+    const auto dir = makeTempPackageDir("posix-keys-ordinary");
     writeFile(dir / "desc.json", R"json({"id":"pkg","version":"1.0.0","contributes":{"singers":["characters/demo/config.json"]}})json");
     writeFile(dir / "characters/demo/config.json", R"json({"id":"demo","name":{"_":"Default","zh_CN":"普通话","zh_TW":"普通話"}})json");
 
@@ -113,12 +119,16 @@ TEST_CASE("POSIX-style keys are inert under strict BCP 47 matching",
     REQUIRE(parsed.hasValue());
     const auto &name = parsed.value().singers().front().name();
 
-    // The translations are retained verbatim (visible via locales())...
+    // The translations are retained verbatim and fetchable by exact spelling.
     CHECK(name.locales().size() == 2);
-    // ...but never match a BCP 47 preference: zh_CN is not zh-CN.
-    CHECK(name.text("zh-CN") == "Default");
-    CHECK(name.text("zh_CN") == "Default");
+    CHECK(getOr(name, "zh_CN", "<null>") == "普通话");
+    CHECK(getOr(name, "zh_TW", "<null>") == "普通話");
     CHECK(name.text() == "Default");
+
+    // No separator normalization: "zh-CN" is simply a different key.
+    CHECK(name.text("zh-CN") == nullptr);
+    // Case-sensitive: "ZH_cn" does not hit "zh_CN".
+    CHECK(name.text("ZH_cn") == nullptr);
 
     std::filesystem::remove_all(dir);
 }
@@ -126,7 +136,7 @@ TEST_CASE("POSIX-style keys are inert under strict BCP 47 matching",
 TEST_CASE("Plain-string and legacy default/en names keep working",
           "[ds-bank][localized-name]") {
     {
-        // Plain string name is used verbatim regardless of locale.
+        // Plain string name: default text only, no keys.
         const auto dir = makeTempPackageDir("plain-name");
         writeFile(dir / "desc.json", R"json({"id":"pkg","version":"1.0.0","contributes":{"singers":["characters/demo/config.json"]}})json");
         writeFile(dir / "characters/demo/config.json", R"json({"id":"demo","name":"Solo Name"})json");
@@ -136,7 +146,7 @@ TEST_CASE("Plain-string and legacy default/en names keep working",
         REQUIRE(parsed.hasValue());
         const auto &name = parsed.value().singers().front().name();
         CHECK(name.text() == "Solo Name");
-        CHECK(name.text("zh-CN") == "Solo Name");
+        CHECK(name.text("zh-CN") == nullptr);
         CHECK(name.locales().empty());
 
         std::filesystem::remove_all(dir);
@@ -153,15 +163,17 @@ TEST_CASE("Plain-string and legacy default/en names keep working",
         REQUIRE(parsed.hasValue());
         const auto &name = parsed.value().singers().front().name();
         CHECK(name.text() == "English Name");
-        CHECK(name.text("zh-Hans") == "中文名");
-        CHECK(name.text("en-US") == "English Name"); // en-US -> en via Lookup
+        CHECK(getOr(name, "zh-Hans", "<null>") == "中文名");
+        CHECK(getOr(name, "en", "<null>") == "English Name");
+        // No matching: "en-US" does NOT resolve to the "en" entry.
+        CHECK(name.text("en-US") == nullptr);
         CHECK(name.locales().size() == 2);
 
         std::filesystem::remove_all(dir);
     }
 }
 
-TEST_CASE("Scanner snapshots carry full translations (single scan serves all locales)",
+TEST_CASE("Scanner snapshots carry full translations (single scan serves all keys)",
           "[ds-bank][localized-name]") {
     const auto dir = makeLocalizedPackage("scanner-display-text");
 
@@ -173,12 +185,12 @@ TEST_CASE("Scanner snapshots carry full translations (single scan serves all loc
     REQUIRE(singers.size() == 1);
     const auto &name = singers.front().name;
 
-    // One scan; every UI language resolves from the cached snapshot.
+    // One scan; the host resolves any key set from the cached snapshot.
     CHECK(name.text() == "Jun Ninghua");
-    CHECK(name.text("zh-Hans") == "君凝华");
-    CHECK(name.text("zh-Hant") == "君凝華");
-    CHECK(name.text("ja") == "うろこ音凝華");
-    CHECK(name.text("fr") == "Jun Ninghua"); // unsupported -> default
+    CHECK(getOr(name, "zh-Hans", "<null>") == "君凝华");
+    CHECK(getOr(name, "zh-Hant", "<null>") == "君凝華");
+    CHECK(getOr(name, "ja", "<null>") == "うろこ音凝華");
+    CHECK(name.text("fr") == nullptr); // no fallback: the host decides to use text()
 
     std::filesystem::remove_all(dir);
 }

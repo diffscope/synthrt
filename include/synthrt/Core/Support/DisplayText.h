@@ -16,17 +16,18 @@ namespace srt::core {
     /// DisplayText - Represents a text with multiple translations.
     ///
     /// Migrated from \c srt::DisplayText (synthrt/Support/DisplayText.h) to
-    /// \c srt::core::DisplayText, and upgraded to the ds-spec 2.4 多语言文本
+    /// \c srt::core::DisplayText, and aligned with the ds-spec 2.4 多语言文本
     /// rules:
     ///   - A JSON string is the short form of an object carrying only the
-    ///     default text. An object must contain the default entry \c "_" (the
-    ///     value taken when no language matches); every other key is a BCP 47
-    ///     language tag.
-    ///   - text(locale) performs RFC 4647 Lookup: try the full tag, then
-    ///     repeatedly strip the rightmost subtag until only the language
-    ///     subtag remains, then fall back to the default text. Matching is
-    ///     case-insensitive; the separator is strictly \c '-' (POSIX-style
-    ///     \c zh_CN keys are NOT recognized).
+    ///     default text. An object must contain the default entry \c "_";
+    ///     every other key is an opaque, case-sensitive language tag whose
+    ///     meaning is a private contract between the content author and the
+    ///     front-end (BCP 47 recommended but NOT enforced).
+    ///   - The Runtime performs NO matching: no Lookup, no case folding, no
+    ///     fallback. text(key) is an exact key lookup; locales() exposes the
+    ///     complete key set verbatim. How to match a user's language
+    ///     preference against the keys, and when to use the default text, is
+    ///     entirely the front-end's decision.
     ///
     /// Used by \c InferenceSpec, \c SingerSpec and package metadata to carry
     /// localized display names.
@@ -42,8 +43,10 @@ namespace srt::core {
         /// user-defined conversion so setters accept literals directly).
         DisplayText(const char *text);
 
-        /// Constructs with a default text and a map, where the key is the BCP 47
-        /// language tag and the value is the corresponding text.
+        /// Constructs with a default text and a map, where the key is the
+        /// opaque language tag and the value is the corresponding text. A \c
+        /// "_" entry in \p texts, if any, is ignored (the default text always
+        /// comes from \p defaultText).
         DisplayText(std::string defaultText, const std::map<std::string, std::string> &texts);
 
         ~DisplayText();
@@ -76,11 +79,15 @@ namespace srt::core {
         /// The default text (\c "_" entry).
         const std::string &text() const;
 
-        /// The text for \p locale, resolved by RFC 4647 Lookup.
-        const std::string &text(std::string_view locale) const;
+        /// The text stored under exactly \p key, or \c nullptr if the key is
+        /// absent. The comparison is bytewise (case-sensitive) and there is
+        /// no fallback to the default text; \c "_" never matches here because
+        /// it is the default entry, not a translation key.
+        const std::string *text(std::string_view key) const;
 
-        /// The BCP 47 tags this text has been translated into, not counting
-        /// the default.
+        /// Every translation key this text carries, excluding the \c "_"
+        /// default entry, verbatim (no normalization), in deterministic
+        /// sorted order.
         ///
         /// \note Borrowed. The view lasts as long as this object does.
         stdc::array_view<std::string> locales() const;

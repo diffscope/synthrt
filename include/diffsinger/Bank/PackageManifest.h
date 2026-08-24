@@ -70,8 +70,9 @@ namespace ds::bank {
         void setCompatVersion(std::optional<stdc::VersionNumber> compatVersion);
 
         /// 以下人读字段为多语言文本（ds-spec 2.4 §多语言文本），全部翻译随
-        /// 对象保留；用 text(locale) 按 BCP 47 偏好取词，text() 为默认（"_"）
-        /// 文本。切换 UI 语言无需重新解析 desc.json。
+        /// 对象保留；键对 Runtime 不透明（区分大小写），宿主按自有匹配
+        /// 策略以 locales()/text(key) 精确直取，text() 为默认（"_"）文本。
+        /// 切换 UI 语言无需重新解析 desc.json。
         const srt::core::DisplayText &name() const;
         void setName(srt::core::DisplayText name);
 

@@ -77,8 +77,9 @@ namespace srt::g2p {
         }
 
         // Optional: vendor / copyright / description / url
-        // ds-spec 2.4 多语言文本：BCP 47 键。宽松解析以兼容存量缺 "_" 的包；
-        // 全部翻译随 srt::core::DisplayText 保留，调用方按需 text(locale) 取词。
+        // ds-spec 2.4 多语言文本：键对 Runtime 不透明。宽松解析以兼容存量
+        // 缺 "_" 的包；全部翻译随 srt::core::DisplayText 保留，调用方按自有
+        // 匹配策略以 text(key) 精确直取。
         auto readDisplayText = [&](const std::string &key) -> srt::core::DisplayText {
             auto it = root.find(key);
             if (it == root.end())

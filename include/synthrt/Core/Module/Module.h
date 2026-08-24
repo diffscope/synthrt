@@ -87,7 +87,8 @@ namespace srt::core {
     /// Migrated from LangCore::ModuleSpec. Methods that depend on types not
     /// yet migrated (Package, PackageManager) are stubbed with TODO comments;
     /// see the .cpp for details. Localized texts use DisplayText per
-    /// ds-spec 2.4 (BCP 47 tags, RFC 4647 Lookup on resolution).
+    /// ds-spec 2.4 (opaque keys; the Runtime performs no matching — the
+    /// front-end resolves its preference against locales()/text(key)).
     class SRT_CORE_EXPORT ModuleSpec {
     public:
         enum State {
@@ -105,7 +106,8 @@ namespace srt::core {
         const std::string &className() const;
 
         /// 模块名称（多语言文本，全部翻译随对象携带）。
-        /// 用 text(locale) 按 BCP 47 偏好取词，如 name().text("zh-Hans-CN")。
+        /// 用 text(key) 按原样键名精确直取，如 name().text("zh-Hans")；
+        /// 取不到返回 nullptr，候选键与回退 "_"（即 text()）由前端自决。
         DisplayText name() const;
 
         int apiLevel() const;

@@ -84,11 +84,13 @@ std::string coordinateKey(const PackageCoordinate &coordinate) {
 
 // 多语言显示名整体进指纹：默认文本 + 全部 (tag, text) 对。翻译的任何变更
 // 都算包内容变更；而 UI 语言的切换不再参与指纹（解析结果与 locale 无关）。
+// 直取每个键的原样值（无匹配规则），POSIX 写法键（如 zh_CN）的译文同样覆盖。
 std::string fingerprintDisplayText(const srt::core::DisplayText &text) {
     std::ostringstream stream;
     stream << text.text();
     for (const auto &tag : text.locales()) {
-        stream << '\x1f' << tag << '=' << text.text(tag);
+        const auto *value = text.text(tag); // locales() 枚举的键必然存在
+        stream << '\x1f' << tag << '=' << (value ? *value : std::string_view{});
     }
     return stream.str();
 }

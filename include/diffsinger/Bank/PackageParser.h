@@ -17,8 +17,8 @@ namespace ds::bank {
     /// fields (suitable for scanning untrusted or partially-authored packages).
     /// 多语言字段（name/vendor/description/license 及各 singer/language/speaker
     /// 的 name）按 ds-spec 2.4 解析为 srt::core::DisplayText，保留全部翻译；
-    /// 语言匹配（RFC 4647 Lookup，BCP 47 标签）发生在调用方 text(locale)
-    /// 取词时，解析器本身不再有 locale 概念。
+    /// 解析器不做任何语言匹配——调用方以 text(key) 精确直取，候选键与 "_"
+    /// 回退时机由前端自决。解析器本身没有 locale 概念。
     class DSBANK_EXPORT PackageParser {
     public:
         enum class ParseMode {

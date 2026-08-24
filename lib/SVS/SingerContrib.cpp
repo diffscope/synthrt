@@ -185,7 +185,8 @@ namespace srt::svs {
         }
         // name (string or object) -> displayName (optional)
         // 宽松解析（ds-spec 2.4 宽松路径）：缺 "_" 的包不丢弃名称，按历史
-        // 行为回退默认文本；全部翻译保留，语言匹配在 name().text(locale)。
+        // 行为回退默认文本；全部翻译保留，Runtime 不做语言匹配——调用方用
+        // name().text(key) 精确直取，候选键与回退时机由前端自决。
         {
             auto it = obj.find("name");
             if (it != obj.end()) {

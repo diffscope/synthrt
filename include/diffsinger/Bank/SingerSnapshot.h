@@ -23,7 +23,8 @@ namespace ds::bank {
     struct DSBANK_EXPORT SingerSnapshot {
         SingerRef ref;
         /// 多语言显示名（ds-spec 2.4）：全部翻译随快照保留，宿主持久化后按
-        /// UI 语言 name.text(locale) 取词，切换语言无需重新扫描。
+        /// 自有匹配策略以 name.locales()/name.text(key) 取词（缺键返回
+        /// nullptr，回退 text() 的时机归宿主），切换语言无需重新扫描。
         srt::core::DisplayText name;
         ResolutionState resolutionState = ResolutionState::Pending;
         srt::core::Diagnostic resolutionError;  ///< Reason for Missing/Pending

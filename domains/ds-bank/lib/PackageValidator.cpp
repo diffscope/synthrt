@@ -75,8 +75,8 @@ namespace ds::bank {
         }
 
         std::string displayTextHint() {
-            // ds-spec 2.4 §多语言文本：对象形态必须带 "_" 默认项，其余键为
-            // BCP 47 标签（连字符分隔），POSIX 写法的 zh_CN 永不匹配。
+            // ds-spec 2.4 §多语言文本：对象形态必须带 "_" 默认项；其余键对
+            // Runtime 不透明（不做任何匹配），推荐 BCP 47 写法如 zh-CN。
             return R"(Use a string or localized object such as {"_":"Name","zh-CN":"名称"}.)";
         }
 
@@ -197,9 +197,12 @@ namespace ds::bank {
             }
             // Shape checks above only verified that every value is a string.
             // ds-spec 2.4 §多语言文本 additionally requires the "_" default
-            // entry, and every non-"_" key must be a BCP 47 tag. The scanner
-            // tolerates both violations (legacy packages keep loading), but
-            // they must surface here so authors can fix non-compliant data.
+            // entry. Non-"_" keys are opaque to the Runtime (it performs no
+            // matching), so a POSIX-style separator such as zh_CN is legal
+            // data — but front-ends conventionally resolve BCP 47 names, so
+            // surface it as a Warning pointing at the recommended spelling.
+            // The scanner tolerates all of this (legacy packages keep
+            // loading).
             if (!value->isObject()) {
                 return; // plain string short form: nothing more to check
             }
@@ -216,9 +219,9 @@ namespace ds::bank {
                 if (tag.find('_') != std::string::npos) {
                     auto bcp47 = tag;
                     std::replace(bcp47.begin(), bcp47.end(), '_', '-');
-                    report.add(Error, "language tag is not BCP 47 (POSIX-style separator)",
+                    report.add(Warning, "language tag uses a POSIX-style separator; BCP 47 recommended",
                                jsonPath(file, ptrHere + "/" + tag), actualValue(*value),
-                               stdc::formatN(R"(Rename "%1" to "%2"; '_' keys never match a BCP 47 lookup (ds-spec 2.4).)",
+                               stdc::formatN(R"(Consider renaming "%1" to "%2": the Runtime treats keys as opaque and case-sensitive, and front-ends usually resolve BCP 47 spellings.)",
                                              tag, bcp47));
                 }
             }
