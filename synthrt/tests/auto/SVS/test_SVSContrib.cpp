@@ -60,7 +60,7 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
                   "id":"voice",
                   "version":"1",
                   "runtimeLevel":1,
-                  "contributes":{
+                  "contributions":{
                     "inference":[{"id":"acoustic","path":"modules/inference.json"}],
                     "singer":[{"id":"singer1","path":"modules/singer.json"}]
                   }

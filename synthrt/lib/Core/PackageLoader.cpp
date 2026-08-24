@@ -896,8 +896,10 @@ namespace srt {
         const auto packageVariables = variablesResult.take();
 
         static const std::set<std::string_view> packageFields = {
-            "$version", "compatVersion", "contributes",  "copyright", "dependencies", "description",
-            "id",       "readme",        "runtimeLevel", "url",       "vendor",       "version",
+            "$version",  "compatVersion", "contributions",
+            "copyright", "dependencies",  "description",
+            "id",        "readme",        "runtimeLevel",
+            "url",       "vendor",        "version",
         };
         if (auto result = rejectUnknownFields(desc, packageFields, "desc.json"); !result) {
             return result.takeError();
@@ -992,17 +994,17 @@ namespace srt {
             }
         }
 
-        const auto contributesIt = desc.find("contributes");
-        if (contributesIt == desc.end()) {
+        const auto contributionsIt = desc.find("contributions");
+        if (contributionsIt == desc.end()) {
             return package;
         }
-        if (!contributesIt->second.isObject()) {
-            return Error(Error::InvalidFormat, "contributes must be an object");
+        if (!contributionsIt->second.isObject()) {
+            return Error(Error::InvalidFormat, "contributions must be an object");
         }
 
-        for (const auto &categoryEntry : contributesIt->second.toObject()) {
+        for (const auto &categoryEntry : contributionsIt->second.toObject()) {
             if (!ContribReference::isValidDottedId(categoryEntry.first)) {
-                return Error(Error::InvalidFormat, "contributes contains an invalid category");
+                return Error(Error::InvalidFormat, "contributions contains an invalid category");
             }
             if (!m_synthUnit->category(categoryEntry.first)) {
                 return Error(Error::FeatureNotSupported,
@@ -1016,7 +1018,7 @@ namespace srt {
             return package;
         }
 
-        for (const auto &categoryEntry : contributesIt->second.toObject()) {
+        for (const auto &categoryEntry : contributionsIt->second.toObject()) {
             const auto &categoryName = categoryEntry.first;
             auto *category = m_synthUnit->category(categoryName);
 

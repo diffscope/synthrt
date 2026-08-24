@@ -187,7 +187,7 @@ namespace {
         writeText(root / "desc.json", R"({"$version":"1.0","id":")" + id + R"(","version":")" +
                                           version + '"' + compat + R"(,"runtimeLevel":1)" +
                                           extraDesc + R"(,"dependencies":)" + dependencies +
-                                          R"(,"contributes":{")" + testCategoryName +
+                                          R"(,"contributions":{")" + testCategoryName +
                                           R"(":[{"id":"main","path":"module.json"}]}})");
         writeText(root / "module.json",
                   R"({"interface":")" + std::string(testInterface) +
@@ -224,7 +224,7 @@ BOOST_AUTO_TEST_CASE(test_data_only_expands_variables_without_loading_plugin) {
                   ],
                   "vendor":"${${selector}}",
                   "readme":"${assets}/readme.txt",
-                  "contributes":{"com.example.test":[
+                  "contributions":{"com.example.test":[
                     {"id":"main","path":"${modulePath}"}
                   ]}
               })");
@@ -354,6 +354,13 @@ BOOST_AUTO_TEST_CASE(test_invalid_manifest_profile_is_rejected) {
     opened = unit.openPackage(malformedVariable, srt::SynthUnit::DataOnly);
     BOOST_REQUIRE(!opened);
     BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
+
+    const auto oldField = temporary.path() / "old-field";
+    writeText(oldField / "desc.json",
+              R"({"$version":"1.0","id":"old","version":"1","runtimeLevel":1,"contributes":{}})");
+    opened = unit.openPackage(oldField, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
     BOOST_CHECK(unit.loadedPackages().empty());
 }
 
@@ -437,7 +444,7 @@ BOOST_AUTO_TEST_CASE(test_entry_only_category_loads_without_an_interpreter) {
                   "id":"entries",
                   "version":"1",
                   "runtimeLevel":1,
-                  "contributes":{"com.example.entry":[{"id":"one","value":"data"}]}
+                  "contributions":{"com.example.entry":[{"id":"one","value":"data"}]}
               })");
 
     srt::SynthUnit unit;

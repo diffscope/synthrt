@@ -13,8 +13,8 @@
 
 | | 2.3 | 2.4 |
 |---|---|---|
-| `contributes` 的属性名 | `inferences` / `singers`（复数，固定两种） | 贡献类别名，**集合开放**；第三方类别使用反向域名 |
-| `contributes` 的条目 | 对象，含 `id` `class` `configuration` | 对象，包含`id`与该类别自定的字段；贡献不一定是模块 |
+| 贡献集合根字段 | `contributes` | 改名为`contributions`；其属性名是贡献类别名，**集合开放**；第三方类别使用反向域名 |
+| 贡献集合的条目 | 对象，含 `id` `class` `configuration` | 对象，包含`id`与该类别自定的字段；贡献不一定是模块 |
 | 运行时要求 | 无 | `desc.json`必须用`runtimeLevel`声明本规范统一分配的最低运行时能力等级，当前为 1 |
 | JSON profile | 未规定 | UTF-8，允许注释，拒绝重复 key 与尾随逗号 |
 | 结构标识符 | Package ID 仅列出禁用字符，其他标识符未统一 | 仅限 ASCII，区分大小写并逐字节精确比较 |
@@ -124,7 +124,7 @@ Runtime 为`${root}`和`${dir}`生成的值必须是 fully-qualified、词法规
     "description": "Some package",
     "readme": "${assets}/readme.txt",
     "url": "https://www.example.com",
-    "contributes": {
+    "contributions": {
         "inference": [
             { "id": "acoustic", "path": "./inferences/acoustic/inference.json" },
             { "id": "variance", "path": "./inferences/variance/inference.json" }
@@ -152,14 +152,14 @@ Runtime 为`${root}`和`${dir}`生成的值必须是 fully-qualified、词法规
     + `description`：介绍文字，可为多语言
     + `readme`：多语言路径，指向放置介绍、许可证等信息的文本文件
     + `url`：网站
-    + `contributes`：功能贡献列表，见下节
+    + `contributions`：功能贡献列表，见下节
     + `dependencies`：依赖的库，每个条目均为强制依赖，缺省为空
         + `id`：依赖库 ID
         + `version`：要求依赖 Package 兼容到的版本
 
 `dependencies[].version`表示依赖方要求依赖 Package 兼容到的版本，不表示必须加载该精确版本。
 
-加载器应在解析`contributes`之前先检查`$version`与`runtimeLevel`。遇到不认识的清单格式版本，或当前运行时支持的 Level 低于`runtimeLevel`时，应当整包拒绝，而不是继续解析后面的字段。这也正是它们必须写在`desc.json`而非各模块声明文件里的原因——`desc.json`是最先被读到的文件。写在模块声明文件里的版本号，要等到整个 Package 已被接受、依赖已被解析之后才轮得到检查，那时拒绝已经太晚。
+加载器应在解析`contributions`之前先检查`$version`与`runtimeLevel`。遇到不认识的清单格式版本，或当前运行时支持的 Level 低于`runtimeLevel`时，应当整包拒绝，而不是继续解析后面的字段。这也正是它们必须写在`desc.json`而非各模块声明文件里的原因——`desc.json`是最先被读到的文件。写在模块声明文件里的版本号，要等到整个 Package 已被接受、依赖已被解析之后才轮得到检查，那时拒绝已经太晚。
 
 `dependencies`中的每个 Package 各自携带自己的`$version`，在其被加载时独立检查，不要求与本 Package 一致。
 
@@ -212,10 +212,10 @@ Level 是对某一作用域内能力版本的统称。`runtimeLevel`序列化 Pa
 
 #### 功能贡献
 
-`contributes`的每个属性名是一个**贡献类别**，其值是该类别下的贡献条目数组。
+`contributions`的每个属性名是一个**贡献类别**，其值是该类别下的贡献条目数组。
 
 ```json
-"contributes": {
+"contributions": {
     "inference": [
         { "id": "pitch", "path": "./inferences/pitch/inference.json" }
     ]
@@ -390,7 +390,7 @@ Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名�
 - `id`与 dependency 要求一致
 - `version`与`compatVersion`合法，并且兼容 dependency 要求的目标版本
 - `runtimeLevel`不高于当前运行时支持的 Level
-- `contributes`中列出的所有贡献类别均已注册
+- `contributions`中列出的所有贡献类别均已注册
 
 加载器对上述候选按搜索路径优先、同一路径选择最高版本的规则作出一次选择。选中后，不论后续递归依赖解析、其余清单的`Probe`验证、provider 发现、`configuration`检查、解释器启动或模块初始化在哪一步失败，整条加载都必须失败，不得回退到其他候选版本，也不得重新搜索其他路径。
 
@@ -754,7 +754,7 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 
 - 非 DiffSinger 甚至非 AI 的开发者，如 UTAU、Vocaloid，亦可通过扩展`interface`来支持其他引擎，可以使用混合 Package 将歌手信息与歌声采样放在同一个 Package 中。
 
-- 需要一种全新的模块（而不只是一种新的推理）时，扩展**贡献类别**：链接进宿主的库注册一个新类别，此后`desc.json`就可以在`contributes`下列出它，ModuleReference 文法也自动支持它。本规范不限制类别的集合。
+- 需要一种全新的模块（而不只是一种新的推理）时，扩展**贡献类别**：链接进宿主的库注册一个新类别，此后`desc.json`就可以在`contributions`下列出它，ModuleReference 文法也自动支持它。本规范不限制类别的集合。
 
 ### 推荐目录结构
 
