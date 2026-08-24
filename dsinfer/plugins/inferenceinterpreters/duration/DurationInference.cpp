@@ -7,7 +7,6 @@
 #include <shared_mutex>
 #include <utility>
 
-#include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
@@ -94,41 +93,29 @@ namespace ds {
         }
     }
 
-    class DurationInference::Impl {
-    public:
-        InferenceDriver *driver = nullptr;
-        std::unique_ptr<InferenceSession> encoderSession;
-        std::unique_ptr<InferenceSession> predictorSession;
-        mutable std::shared_mutex mutex;
-    };
-
-    DurationInference::DurationInference(srt::InferenceSpec &spec)
-        : Inference(spec), _impl(std::make_unique<Impl>()) {
+    DurationInference::DurationInference(srt::InferenceSpec &spec) : Inference(spec) {
     }
 
     DurationInference::~DurationInference() = default;
 
     srt::Expected<void> DurationInference::initialize(const srt::TaskInitArgs &args) {
-        stdc_impl_t;
-        // Currently, no args to process. But we still need to enforce callers to pass the correct
-        // args type.
         if (args.type() != Dur::API_INTERFACE || args.version() != Dur::API_LEVEL) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid duration task init args name: expected "%1", got "%2")",
-                              Dur::API_INTERFACE, args.type()));
+                stdc::formatN(
+                    R"(invalid duration initialization payload: expected "%1" level %2, got "%3" level %4)",
+                    Dur::API_INTERFACE, Dur::API_LEVEL, args.type(), args.version()));
         }
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         if (auto res = inferutil::getInferenceDriver(this); res) {
-            impl.driver = res.take();
+            m_driver = res.take();
         } else {
             ITask::setState(ITask::Failed);
             return res.takeError();
         }
 
-        // Get duration config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             ITask::setState(ITask::Failed);
@@ -137,38 +124,33 @@ namespace ds {
         const auto config = expConfig.take();
 
         // Open duration session (encoder)
-        impl.encoderSession = impl.driver->createSession();
+        m_encoderSession = m_driver->createSession();
         Onnx::SessionOpenArgs encoderOpenArgs;
         encoderOpenArgs.useCpu = false;
-        if (auto res = impl.encoderSession->open(config->encoder, encoderOpenArgs); !res) {
+        if (auto res = m_encoderSession->open(config->encoder, encoderOpenArgs); !res) {
             ITask::setState(ITask::Failed);
             return res;
         }
 
         // Open duration session (predictor)
-        impl.predictorSession = impl.driver->createSession();
+        m_predictorSession = m_driver->createSession();
         Onnx::SessionOpenArgs predictorOpenArgs;
         predictorOpenArgs.useCpu = false;
-        if (auto res = impl.predictorSession->open(config->predictor, predictorOpenArgs); !res) {
+        if (auto res = m_predictorSession->open(config->predictor, predictorOpenArgs); !res) {
             ITask::setState(ITask::Failed);
             return res;
         }
 
-        // Initialize inference state
         ITask::setState(ITask::Idle);
-
-        // return success
-        return srt::Expected<void>();
+        return {};
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
         DurationInference::start(const srt::TaskStartInput &input) {
 
-        stdc_impl_t;
-
         {
-            std::shared_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.driver) {
+            std::shared_lock<std::shared_mutex> lock(m_mutex);
+            if (!m_driver) {
                 setState(Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "inference driver not initialized");
@@ -177,7 +159,6 @@ namespace ds {
 
         ITask::setState(ITask::Running);
 
-        // Get duration config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             setState(Failed);
@@ -189,12 +170,12 @@ namespace ds {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid duration task init args name: expected "%1", got "%2")",
-                              Dur::API_INTERFACE, input.type()));
+                stdc::formatN(
+                    R"(invalid duration start payload: expected "%1" level %2, got "%3" level %4)",
+                    Dur::API_INTERFACE, Dur::API_LEVEL, input.type(), input.version()));
         }
 
         const auto &durationInput = *input.as<Dur::DurationStartInput>();
-        // ...
 
         auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
 
@@ -204,21 +185,21 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "frame width must be positive");
         }
 
-        // Part 1: Linguistic Encoder Inference
+        // Run the linguistic encoder.
         if (auto exp = inferutil::preprocessLinguisticWord(durationInput.words, config->phonemes,
                                                            config->languages, config->useLanguageId,
                                                            frameWidth);
             exp) {
             // Run Linguistic Encoder Inference
-            std::unique_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
+            if (!m_encoderSession || !m_encoderSession->isOpen()) {
                 setState(Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "duration linguistic encoder session is not initialized");
             }
             auto linguisticInput = exp.take();
             if (auto encoderSessionExp = inferutil::runEncoder(
-                    impl.encoderSession.get(), *linguisticInput, /* out */ sessionInput);
+                    m_encoderSession.get(), *linguisticInput, /* out */ sessionInput);
                 !encoderSessionExp) {
                 setState(Failed);
                 return encoderSessionExp.takeError().withContext("the linguistic encoder failed");
@@ -228,7 +209,7 @@ namespace ds {
             return exp.takeError().withContext("failed to build the linguistic input");
         }
 
-        // Part 2: Duration Inference
+        // Prepare and run the duration predictor.
         if (auto exp = preprocessPhonemeMidi(durationInput.words); exp) {
             sessionInput->inputs["ph_midi"] = exp.take();
         } else {
@@ -260,9 +241,9 @@ namespace ds {
                                 stdc::formatN("phoneme %1 missing speakers", phone.token));
                         }
                         for (const auto &speaker : phone.speakers) {
-                            if (auto it_speaker = config->speakers.find(speaker.name);
-                                it_speaker != config->speakers.end()) {
-                                const auto &embedding = it_speaker->second;
+                            if (auto speakerIt = config->speakers.find(speaker.name);
+                                speakerIt != config->speakers.end()) {
+                                const auto &embedding = speakerIt->second;
                                 if (embedding.size() != config->hiddenSize) {
                                     setState(Failed);
                                     return srt::Error(ds::ErrorCode::ShapeMismatch,
@@ -283,22 +264,20 @@ namespace ds {
             } else {
                 return exp.takeError().withContext(R"(failed to build the "spk_embed" input)");
             }
-        } else {
-            // Nothing to do: speaker embedding is not supported
         }
 
         constexpr const char *outParamPhDurPred = "ph_dur_pred";
         sessionInput->outputs.emplace(outParamPhDurPred);
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
-        if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        if (!m_predictorSession || !m_predictorSession->isOpen()) {
             setState(Failed);
             return srt::Error(ds::ErrorCode::NotInitialized,
                               "duration predictor session is not initialized");
         }
 
         std::unique_ptr<srt::TaskResult> sessionTaskResult;
-        auto sessionExp = impl.predictorSession->start(*sessionInput);
+        auto sessionExp = m_predictorSession->start(*sessionInput);
         if (!sessionExp) {
             setState(Failed);
             return sessionExp.takeError();
@@ -320,10 +299,10 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
         auto *sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
-        if (auto it_pred = sessionResult->outputs.find(outParamPhDurPred);
-            it_pred != sessionResult->outputs.end()) {
+        if (auto predictionIt = sessionResult->outputs.find(outParamPhDurPred);
+            predictionIt != sessionResult->outputs.end()) {
             // Extract onnx model result and copy to duration final result vector (float -> double)
-            auto output = std::move(it_pred->second);
+            auto output = std::move(predictionIt->second);
             if (output->dataType() != ITensor::Float) {
                 setState(Failed);
                 return srt::Error(ds::ErrorCode::SessionFailed, "model output is not float");
@@ -389,8 +368,7 @@ namespace ds {
     }
 
     srt::Expected<void> DurationInference::stop() {
-        stdc_impl_t;
-        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
+        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
                 if (auto result = session->stop(); !result) {
                     return result;
@@ -402,8 +380,7 @@ namespace ds {
     }
 
     srt::Expected<void> DurationInference::waitForFinished() {
-        stdc_impl_t;
-        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
+        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
                 if (auto result = session->waitForFinished(); !result) {
                     return result;

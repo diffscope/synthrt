@@ -1,9 +1,15 @@
 #ifndef DSINFER_VOCODERINFERENCE_H
 #define DSINFER_VOCODERINFERENCE_H
 
+#include <memory>
+#include <shared_mutex>
+
 #include <synthrt/SVS/Inference.h>
 
 namespace ds {
+
+    class InferenceDriver;
+    class InferenceSession;
 
     class VocoderInference : public srt::Inference {
     public:
@@ -20,9 +26,10 @@ namespace ds {
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
-    protected:
-        class Impl;
-        std::unique_ptr<Impl> _impl;
+    private:
+        InferenceDriver *m_driver = nullptr;
+        std::unique_ptr<InferenceSession> m_session;
+        mutable std::shared_mutex m_mutex;
     };
 
 }

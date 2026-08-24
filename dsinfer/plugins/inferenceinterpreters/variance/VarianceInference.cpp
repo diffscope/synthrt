@@ -7,7 +7,6 @@
 #include <shared_mutex>
 #include <utility>
 
-#include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
@@ -62,42 +61,29 @@ namespace ds {
         return static_cast<const Var::VarianceSchema *>(genericSchema);
     }
 
-    class VarianceInference::Impl {
-    public:
-        InferenceDriver *driver = nullptr;
-        std::unique_ptr<InferenceSession> encoderSession;
-        std::unique_ptr<InferenceSession> predictorSession;
-        mutable std::shared_mutex mutex;
-    };
-
-    VarianceInference::VarianceInference(srt::InferenceSpec &spec)
-        : Inference(spec), _impl(std::make_unique<Impl>()) {
+    VarianceInference::VarianceInference(srt::InferenceSpec &spec) : Inference(spec) {
     }
 
     VarianceInference::~VarianceInference() = default;
 
     srt::Expected<void> VarianceInference::initialize(const srt::TaskInitArgs &args) {
-        stdc_impl_t;
-        // Currently, no args to process. But we still need to enforce callers to pass the correct
-        // args type.
-        if (auto name = args.type(); name != Var::API_INTERFACE) {
+        if (args.type() != Var::API_INTERFACE || args.version() != Var::API_LEVEL) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid variance task init args name: expected "%1", got "%2")",
-                              Var::API_INTERFACE, name));
+                stdc::formatN(
+                    R"(invalid variance initialization payload: expected "%1" level %2, got "%3" level %4)",
+                    Var::API_INTERFACE, Var::API_LEVEL, args.type(), args.version()));
         }
-        const auto &varianceArgs = *args.as<Var::VarianceInitArgs>();
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         if (auto res = inferutil::getInferenceDriver(this); res) {
-            impl.driver = res.take();
+            m_driver = res.take();
         } else {
             ITask::setState(ITask::Failed);
             return res.takeError();
         }
 
-        // Get variance config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             ITask::setState(ITask::Failed);
@@ -106,37 +92,33 @@ namespace ds {
         const auto config = expConfig.take();
 
         // Open variance session (encoder)
-        impl.encoderSession = impl.driver->createSession();
+        m_encoderSession = m_driver->createSession();
         Onnx::SessionOpenArgs encoderOpenArgs;
         encoderOpenArgs.useCpu = false;
-        if (auto res = impl.encoderSession->open(config->encoder, encoderOpenArgs); !res) {
+        if (auto res = m_encoderSession->open(config->encoder, encoderOpenArgs); !res) {
             ITask::setState(ITask::Failed);
             return res;
         }
 
         // Open variance session (predictor)
-        impl.predictorSession = impl.driver->createSession();
+        m_predictorSession = m_driver->createSession();
         Onnx::SessionOpenArgs predictorOpenArgs;
         predictorOpenArgs.useCpu = false;
-        if (auto res = impl.predictorSession->open(config->predictor, predictorOpenArgs); !res) {
+        if (auto res = m_predictorSession->open(config->predictor, predictorOpenArgs); !res) {
             ITask::setState(ITask::Failed);
             return res;
         }
 
-        // Initialize inference state
         ITask::setState(ITask::Idle);
-
-        // return success
-        return srt::Expected<void>();
+        return {};
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
         VarianceInference::start(const srt::TaskStartInput &input) {
-        stdc_impl_t;
 
         {
-            std::shared_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.driver) {
+            std::shared_lock<std::shared_mutex> lock(m_mutex);
+            if (!m_driver) {
                 ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "inference driver not initialized");
@@ -145,7 +127,6 @@ namespace ds {
 
         ITask::setState(ITask::Running);
 
-        // Get variance config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             ITask::setState(ITask::Failed);
@@ -162,16 +143,16 @@ namespace ds {
         const auto schema = expSchema.take();
 
 
-        if (const auto &name = input.type(); name != Var::API_INTERFACE) {
+        if (input.type() != Var::API_INTERFACE || input.version() != Var::API_LEVEL) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid variance task init args name: expected "%1", got "%2")",
-                              Var::API_INTERFACE, name));
+                stdc::formatN(
+                    R"(invalid variance start payload: expected "%1" level %2, got "%3" level %4)",
+                    Var::API_INTERFACE, Var::API_LEVEL, input.type(), input.version()));
         }
 
         const auto &varianceInput = *input.as<Var::VarianceStartInput>();
-        // ...
 
         auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
 
@@ -181,7 +162,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "frame width must be positive");
         }
 
-        // Part 1: Linguistic Encoder Inference
+        // Run the linguistic encoder.
         {
             std::shared_ptr<Onnx::SessionStartInput> linguisticInput;
             switch (config->linguisticMode) {
@@ -215,14 +196,14 @@ namespace ds {
             }
 
             // Run Linguistic Encoder Inference
-            std::unique_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
+            if (!m_encoderSession || !m_encoderSession->isOpen()) {
                 ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "variance linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
-                    inferutil::runEncoder(impl.encoderSession.get(), *linguisticInput,
+                    inferutil::runEncoder(m_encoderSession.get(), *linguisticInput,
                                           /* out */ sessionInput, false);
                 !encoderSessionExp) {
                 ITask::setState(ITask::Failed);
@@ -230,7 +211,7 @@ namespace ds {
             }
         }
 
-        // Part 2: Variance Inference
+        // Prepare and run the variance predictor.
 
         double totalDuration = 0.0;
         for (const auto &word : varianceInput.words) {
@@ -335,7 +316,7 @@ namespace ds {
                     const auto &[start, end] = *param.retake;
 
                     // Compute frame index range for this parameter
-                    /// Note: startIndex is inclusive, endIndex is exclusive
+                    // startIndex is inclusive. endIndex is exclusive.
                     const auto startIndex = static_cast<int64_t>(j * targetLength);
                     const auto endIndex = static_cast<int64_t>((j + 1) * targetLength);
 
@@ -361,22 +342,19 @@ namespace ds {
 
                     // Get iterators pointing to the beginning and end
                     // of this parameter's retake region in the tensor
-                    auto it_begin = retake.begin() + startIndex;
-                    auto it_end = retake.begin() + endIndex;
+                    auto beginIt = retake.begin() + startIndex;
+                    auto endIt = retake.begin() + endIndex;
 
                     if (retakeStartFrame == retakeEndFrame) {
                         // Zero-length retake interval: mark entire region as 'no retake' (false)
-                        std::fill(it_begin, it_end, kRetakeFalse);
+                        std::fill(beginIt, endIt, kRetakeFalse);
                     } else if (retakeStartFrame < retakeEndFrame) {
                         // Mark frames before retake start as "no retake" (false)
-                        std::fill(it_begin, it_begin + retakeStartFrame, kRetakeFalse);
+                        std::fill(beginIt, beginIt + retakeStartFrame, kRetakeFalse);
                         // Frames in [retake start, retake end) remain true
                         // Mark frames after retake end as "no retake" (false)
-                        std::fill(it_begin + retakeEndFrame, it_end, kRetakeFalse);
+                        std::fill(beginIt + retakeEndFrame, endIt, kRetakeFalse);
                     }
-                } else {
-                    // No retake specified: keep full region as true.
-                    // Nothing to do here.
                 }
                 satisfyParams[j] = true;
             }
@@ -431,11 +409,9 @@ namespace ds {
                 ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(R"(failed to build the "spk_embed" input)");
             }
-        } else {
-            // Nothing to do: speaker embedding is not supported
         }
 
-        // input param: steps / speedup
+        // Select the model's acceleration representation.
         int64_t acceleration = varianceInput.steps;
         if (!config->useContinuousAcceleration) {
             acceleration = inferutil::getSpeedupFromSteps(acceleration);
@@ -455,15 +431,15 @@ namespace ds {
             }
         }
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
-        if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        if (!m_predictorSession || !m_predictorSession->isOpen()) {
             ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::NotInitialized,
                               "variance predictor session is not initialized");
         }
 
         std::unique_ptr<srt::TaskResult> sessionTaskResult;
-        auto sessionExp = impl.predictorSession->start(*sessionInput);
+        auto sessionExp = m_predictorSession->start(*sessionInput);
         if (!sessionExp) {
             ITask::setState(ITask::Failed);
             return sessionExp.takeError();
@@ -513,13 +489,11 @@ namespace ds {
 
     srt::Expected<void> VarianceInference::startAsync(std::shared_ptr<const srt::TaskStartInput>,
                                                       AsyncCallback) {
-        // TODO:
         return srt::Error(srt::Error::NotImplemented);
     }
 
     srt::Expected<void> VarianceInference::stop() {
-        stdc_impl_t;
-        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
+        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
                 if (auto result = session->stop(); !result) {
                     return result;
@@ -531,8 +505,7 @@ namespace ds {
     }
 
     srt::Expected<void> VarianceInference::waitForFinished() {
-        stdc_impl_t;
-        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
+        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
                 if (auto result = session->waitForFinished(); !result) {
                     return result;

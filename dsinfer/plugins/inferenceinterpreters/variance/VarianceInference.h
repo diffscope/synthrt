@@ -1,9 +1,15 @@
 #ifndef DSINFER_VARIANCEINFERENCE_H
 #define DSINFER_VARIANCEINFERENCE_H
 
+#include <memory>
+#include <shared_mutex>
+
 #include <synthrt/SVS/Inference.h>
 
 namespace ds {
+
+    class InferenceDriver;
+    class InferenceSession;
 
     class VarianceInference : public srt::Inference {
     public:
@@ -20,9 +26,11 @@ namespace ds {
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
-    protected:
-        class Impl;
-        std::unique_ptr<Impl> _impl;
+    private:
+        InferenceDriver *m_driver = nullptr;
+        std::unique_ptr<InferenceSession> m_encoderSession;
+        std::unique_ptr<InferenceSession> m_predictorSession;
+        mutable std::shared_mutex m_mutex;
     };
 
 }

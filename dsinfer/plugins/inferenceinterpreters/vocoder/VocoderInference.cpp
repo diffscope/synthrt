@@ -5,7 +5,6 @@
 #include <shared_mutex>
 #include <utility>
 
-#include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
 
 #include <dsinfer/Support/ErrorCode.h>
@@ -36,41 +35,29 @@ namespace ds {
         return static_cast<const Vo::VocoderConfiguration *>(genericConfig);
     }
 
-    class VocoderInference::Impl {
-    public:
-        InferenceDriver *driver = nullptr;
-        std::unique_ptr<InferenceSession> session;
-        mutable std::shared_mutex mutex;
-    };
-
-    VocoderInference::VocoderInference(srt::InferenceSpec &spec)
-        : Inference(spec), _impl(std::make_unique<Impl>()) {
+    VocoderInference::VocoderInference(srt::InferenceSpec &spec) : Inference(spec) {
     }
 
     VocoderInference::~VocoderInference() = default;
 
     srt::Expected<void> VocoderInference::initialize(const srt::TaskInitArgs &args) {
-        stdc_impl_t;
-        // Currently, no args to process. But we still need to enforce callers to pass the correct
-        // args type.
-        if (auto name = args.type(); name != Vo::API_INTERFACE) {
+        if (args.type() != Vo::API_INTERFACE || args.version() != Vo::API_LEVEL) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid vocoder task init args name: expected "%1", got "%2")",
-                              Vo::API_INTERFACE, name));
+                stdc::formatN(
+                    R"(invalid vocoder initialization payload: expected "%1" level %2, got "%3" level %4)",
+                    Vo::API_INTERFACE, Vo::API_LEVEL, args.type(), args.version()));
         }
-        const auto &vocoderArgs = *args.as<Vo::VocoderInitArgs>();
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         if (auto res = inferutil::getInferenceDriver(this); res) {
-            impl.driver = res.take();
+            m_driver = res.take();
         } else {
             ITask::setState(ITask::Failed);
             return res.takeError();
         }
 
-        // Get vocoder config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             ITask::setState(ITask::Failed);
@@ -79,24 +66,24 @@ namespace ds {
         const auto config = expConfig.take();
 
         // Open vocoder session
-        impl.session = impl.driver->createSession();
+        m_session = m_driver->createSession();
         Onnx::SessionOpenArgs sessionOpenArgs;
         sessionOpenArgs.useCpu = false;
-        if (auto res = impl.session->open(config->model, sessionOpenArgs); !res) {
+        if (auto res = m_session->open(config->model, sessionOpenArgs); !res) {
             ITask::setState(ITask::Failed);
             return res;
         }
 
-        return srt::Expected<void>();
+        ITask::setState(ITask::Idle);
+        return {};
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
         VocoderInference::start(const srt::TaskStartInput &input) {
-        stdc_impl_t;
 
         {
-            std::shared_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.driver) {
+            std::shared_lock<std::shared_mutex> lock(m_mutex);
+            if (!m_driver) {
                 ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "inference driver not initialized");
@@ -105,7 +92,6 @@ namespace ds {
 
         ITask::setState(ITask::Running);
 
-        // Get vocoder config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             ITask::setState(ITask::Failed);
@@ -114,16 +100,16 @@ namespace ds {
         const auto config = expConfig.take();
 
 
-        if (const auto &name = input.type(); name != Vo::API_INTERFACE) {
+        if (input.type() != Vo::API_INTERFACE || input.version() != Vo::API_LEVEL) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid acoustic task init args name: expected "%1", got "%2")",
-                              Vo::API_INTERFACE, name));
+                stdc::formatN(
+                    R"(invalid vocoder start payload: expected "%1" level %2, got "%3" level %4)",
+                    Vo::API_INTERFACE, Vo::API_LEVEL, input.type(), input.version()));
         }
 
         const auto &vocoderInput = *input.as<Vo::VocoderStartInput>();
-        // ...
 
         auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
         sessionInput->inputs["mel"] = vocoderInput.mel;
@@ -132,14 +118,14 @@ namespace ds {
         constexpr const char *outParamWaveform = "waveform";
         sessionInput->outputs.emplace(outParamWaveform);
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
-        if (!impl.session || !impl.session->isOpen()) {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        if (!m_session || !m_session->isOpen()) {
             ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::NotInitialized, "vocoder session is not initialized");
         }
 
         std::unique_ptr<srt::TaskResult> sessionTaskResult;
-        auto sessionExp = impl.session->start(*sessionInput);
+        auto sessionExp = m_session->start(*sessionInput);
         if (!sessionExp) {
             ITask::setState(ITask::Failed);
             return sessionExp.takeError();
@@ -159,9 +145,9 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
         auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
-        if (auto it_waveform = sessionResult->outputs.find(outParamWaveform);
-            it_waveform != sessionResult->outputs.end()) {
-            const auto &waveformTensor = it_waveform->second;
+        if (auto waveformIt = sessionResult->outputs.find(outParamWaveform);
+            waveformIt != sessionResult->outputs.end()) {
+            const auto &waveformTensor = waveformIt->second;
             const auto size = waveformTensor->byteSize();
             vocoderResult->audioData.resize(size);
             if (auto waveformBuffer = waveformTensor->rawData()) {
@@ -177,13 +163,11 @@ namespace ds {
 
     srt::Expected<void> VocoderInference::startAsync(std::shared_ptr<const srt::TaskStartInput>,
                                                      AsyncCallback) {
-        // TODO:
         return srt::Error(srt::Error::NotImplemented);
     }
 
     srt::Expected<void> VocoderInference::stop() {
-        stdc_impl_t;
-        for (auto *session : {impl.session.get()}) {
+        for (auto *session : {m_session.get()}) {
             if (session) {
                 if (auto result = session->stop(); !result) {
                     return result;
@@ -195,8 +179,7 @@ namespace ds {
     }
 
     srt::Expected<void> VocoderInference::waitForFinished() {
-        stdc_impl_t;
-        for (auto *session : {impl.session.get()}) {
+        for (auto *session : {m_session.get()}) {
             if (session) {
                 if (auto result = session->waitForFinished(); !result) {
                     return result;

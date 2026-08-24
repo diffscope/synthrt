@@ -4,7 +4,6 @@
 #include <shared_mutex>
 #include <utility>
 
-#include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
@@ -45,41 +44,29 @@ namespace ds {
         return static_cast<const Ac::AcousticConfiguration *>(genericConfig);
     }
 
-    class AcousticInference::Impl {
-    public:
-        InferenceDriver *driver = nullptr;
-        std::unique_ptr<InferenceSession> session;
-        mutable std::shared_mutex mutex;
-    };
-
-    AcousticInference::AcousticInference(srt::InferenceSpec &spec)
-        : Inference(spec), _impl(std::make_unique<Impl>()) {
+    AcousticInference::AcousticInference(srt::InferenceSpec &spec) : Inference(spec) {
     }
 
     AcousticInference::~AcousticInference() = default;
 
     srt::Expected<void> AcousticInference::initialize(const srt::TaskInitArgs &args) {
-        stdc_impl_t;
-        // Currently, no args to process. But we still need to enforce callers to pass the correct
-        // args type.
-        if (auto name = args.type(); name != Ac::API_INTERFACE) {
+        if (args.type() != Ac::API_INTERFACE || args.version() != Ac::API_LEVEL) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid acoustic task init args name: expected "%1", got "%2")",
-                              Ac::API_INTERFACE, name));
+                stdc::formatN(
+                    R"(invalid acoustic initialization payload: expected "%1" level %2, got "%3" level %4)",
+                    Ac::API_INTERFACE, Ac::API_LEVEL, args.type(), args.version()));
         }
-        const auto &acousticArgs = *args.as<Ac::AcousticInitArgs>();
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         if (auto res = inferutil::getInferenceDriver(this); res) {
-            impl.driver = res.take();
+            m_driver = res.take();
         } else {
             ITask::setState(ITask::Failed);
             return res.takeError();
         }
 
-        // Get acoustic config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             ITask::setState(ITask::Failed);
@@ -88,29 +75,24 @@ namespace ds {
         const auto config = expConfig.take();
 
         // Open acoustic session
-        impl.session = impl.driver->createSession();
+        m_session = m_driver->createSession();
         Onnx::SessionOpenArgs sessionOpenArgs;
         sessionOpenArgs.useCpu = false;
-        if (auto res = impl.session->open(config->model, sessionOpenArgs); !res) {
+        if (auto res = m_session->open(config->model, sessionOpenArgs); !res) {
             ITask::setState(ITask::Failed);
             return res;
         }
 
-        // Initialize inference state
         ITask::setState(ITask::Idle);
-
-        // return success
-        return srt::Expected<void>();
+        return {};
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
         AcousticInference::start(const srt::TaskStartInput &input) {
 
-        stdc_impl_t;
-
         {
-            std::shared_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.driver) {
+            std::shared_lock<std::shared_mutex> lock(m_mutex);
+            if (!m_driver) {
                 ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "inference driver not initialized");
@@ -119,7 +101,6 @@ namespace ds {
 
         ITask::setState(ITask::Running);
 
-        // Get acoustic config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             ITask::setState(ITask::Failed);
@@ -128,22 +109,22 @@ namespace ds {
         const auto config = expConfig.take();
 
 
-        if (const auto &name = input.type(); name != Ac::API_INTERFACE) {
+        if (input.type() != Ac::API_INTERFACE || input.version() != Ac::API_LEVEL) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid acoustic task init args name: expected "%1", got "%2")",
-                              Ac::API_INTERFACE, name));
+                stdc::formatN(
+                    R"(invalid acoustic start payload: expected "%1" level %2, got "%3" level %4)",
+                    Ac::API_INTERFACE, Ac::API_LEVEL, input.type(), input.version()));
         }
 
         const auto &acousticInput = *input.as<Ac::AcousticStartInput>();
-        // ...
 
         auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
 
         double frameWidth = 1.0 * config->hopSize / config->sampleRate;
 
-        // input param: tokens
+        // Build the phoneme token input.
         if (auto res = inferutil::preprocessPhonemeTokens(acousticInput.words, config->phonemes);
             res) {
             sessionInput->inputs["tokens"] = res.take();
@@ -152,7 +133,7 @@ namespace ds {
             return res.takeError().withContext(R"(failed to build the "tokens" input)");
         }
 
-        // input param: languages
+        // Build the optional language input.
         if (config->useLanguageId) {
             if (auto res =
                     inferutil::preprocessPhonemeLanguages(acousticInput.words, config->languages);
@@ -164,7 +145,7 @@ namespace ds {
             }
         }
 
-        // input param: durations
+        // Build the phoneme duration input.
         int64_t targetLength;
 
         if (auto res = inferutil::preprocessPhonemeDurations(acousticInput.words, frameWidth,
@@ -176,7 +157,7 @@ namespace ds {
             return res.takeError().withContext(R"(failed to build the "durations" input)");
         }
 
-        // input param: steps / speedup
+        // Select the model's acceleration representation.
         int64_t acceleration = acousticInput.steps;
         if (config->useContinuousAcceleration) {
             // Here \a steps reaches the model unchanged, and is also used as a divisor when
@@ -206,7 +187,7 @@ namespace ds {
             }
         }
 
-        // input param: depth
+        // Build the diffusion depth input.
         if (config->useVariableDepth) {
             auto exp = Tensor::createScalar<float>(acousticInput.depth);
             if (!exp) {
@@ -401,11 +382,10 @@ namespace ds {
             }
             if (convertToF0) {
                 // Convert midi note to hz
-                for (const auto midi_note : std::as_const(samples)) {
-                    constexpr double a4_freq_hz = 440.0;
-                    constexpr double midi_a4_note = 69.0;
-                    const auto f0Acoustic =
-                        a4_freq_hz * std::exp2((midi_note - midi_a4_note) / 12.0);
+                for (const auto midiNote : std::as_const(samples)) {
+                    constexpr double a4Frequency = 440.0;
+                    constexpr double midiA4Note = 69.0;
+                    const auto f0Acoustic = a4Frequency * std::exp2((midiNote - midiA4Note) / 12.0);
                     // Buffer guaranteed not to overflow,
                     // given (resampled.size() == targetLength), which has been checked before
                     acousticHelper.writeUnchecked(static_cast<float>(f0Acoustic));
@@ -472,21 +452,19 @@ namespace ds {
                 ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(R"(failed to build the "spk_embed" input)");
             }
-        } else {
-            // Nothing to do: speaker embedding is not supported
         }
 
         constexpr const char *outParamMel = "mel";
         sessionInput->outputs.emplace(outParamMel);
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
-        if (!impl.session || !impl.session->isOpen()) {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        if (!m_session || !m_session->isOpen()) {
             ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::NotInitialized, "acoustic session is not initialized");
         }
 
         std::unique_ptr<srt::TaskResult> sessionTaskResult;
-        auto sessionExp = impl.session->start(*sessionInput);
+        auto sessionExp = m_session->start(*sessionInput);
         if (!sessionExp) {
             ITask::setState(ITask::Failed);
             return sessionExp.takeError();
@@ -506,9 +484,9 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
         auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
-        if (auto it_mel = sessionResult->outputs.find(outParamMel);
-            it_mel != sessionResult->outputs.end()) {
-            acousticResult->mel = it_mel->second;
+        if (auto melIt = sessionResult->outputs.find(outParamMel);
+            melIt != sessionResult->outputs.end()) {
+            acousticResult->mel = melIt->second;
         } else {
             ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::SessionFailed, "invalid result output");
@@ -520,13 +498,11 @@ namespace ds {
 
     srt::Expected<void> AcousticInference::startAsync(std::shared_ptr<const srt::TaskStartInput>,
                                                       AsyncCallback) {
-        // TODO:
         return srt::Error(srt::Error::NotImplemented);
     }
 
     srt::Expected<void> AcousticInference::stop() {
-        stdc_impl_t;
-        for (auto *session : {impl.session.get()}) {
+        for (auto *session : {m_session.get()}) {
             if (session) {
                 if (auto result = session->stop(); !result) {
                     return result;
@@ -538,8 +514,7 @@ namespace ds {
     }
 
     srt::Expected<void> AcousticInference::waitForFinished() {
-        stdc_impl_t;
-        for (auto *session : {impl.session.get()}) {
+        for (auto *session : {m_session.get()}) {
             if (session) {
                 if (auto result = session->waitForFinished(); !result) {
                     return result;

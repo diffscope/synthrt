@@ -6,7 +6,6 @@
 #include <shared_mutex>
 #include <utility>
 
-#include <stdcorelib/pimpl.h>
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
@@ -46,42 +45,29 @@ namespace ds {
         return static_cast<const Pit::PitchConfiguration *>(genericConfig);
     }
 
-    class PitchInference::Impl {
-    public:
-        InferenceDriver *driver = nullptr;
-        std::unique_ptr<InferenceSession> encoderSession;
-        std::unique_ptr<InferenceSession> predictorSession;
-        mutable std::shared_mutex mutex;
-    };
-
-    PitchInference::PitchInference(srt::InferenceSpec &spec)
-        : Inference(spec), _impl(std::make_unique<Impl>()) {
+    PitchInference::PitchInference(srt::InferenceSpec &spec) : Inference(spec) {
     }
 
     PitchInference::~PitchInference() = default;
 
     srt::Expected<void> PitchInference::initialize(const srt::TaskInitArgs &args) {
-        stdc_impl_t;
-        // Currently, no args to process. But we still need to enforce callers to pass the correct
-        // args type.
-        if (auto name = args.type(); name != Pit::API_INTERFACE) {
+        if (args.type() != Pit::API_INTERFACE || args.version() != Pit::API_LEVEL) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid pitch task init args name: expected "%1", got "%2")",
-                              Pit::API_INTERFACE, name));
+                stdc::formatN(
+                    R"(invalid pitch initialization payload: expected "%1" level %2, got "%3" level %4)",
+                    Pit::API_INTERFACE, Pit::API_LEVEL, args.type(), args.version()));
         }
-        const auto &pitchArgs = *args.as<Pit::PitchInitArgs>();
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         if (auto res = inferutil::getInferenceDriver(this); res) {
-            impl.driver = res.take();
+            m_driver = res.take();
         } else {
             ITask::setState(ITask::Failed);
             return res.takeError();
         }
 
-        // Get pitch config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             ITask::setState(ITask::Failed);
@@ -90,37 +76,33 @@ namespace ds {
         const auto config = expConfig.take();
 
         // Open pitch session (encoder)
-        impl.encoderSession = impl.driver->createSession();
+        m_encoderSession = m_driver->createSession();
         Onnx::SessionOpenArgs encoderOpenArgs;
         encoderOpenArgs.useCpu = false;
-        if (auto res = impl.encoderSession->open(config->encoder, encoderOpenArgs); !res) {
+        if (auto res = m_encoderSession->open(config->encoder, encoderOpenArgs); !res) {
             ITask::setState(ITask::Failed);
             return res;
         }
 
         // Open pitch session (predictor)
-        impl.predictorSession = impl.driver->createSession();
+        m_predictorSession = m_driver->createSession();
         Onnx::SessionOpenArgs predictorOpenArgs;
         predictorOpenArgs.useCpu = false;
-        if (auto res = impl.predictorSession->open(config->predictor, predictorOpenArgs); !res) {
+        if (auto res = m_predictorSession->open(config->predictor, predictorOpenArgs); !res) {
             ITask::setState(ITask::Failed);
             return res;
         }
 
-        // Initialize inference state
         ITask::setState(ITask::Idle);
-
-        // return success
-        return srt::Expected<void>();
+        return {};
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
         PitchInference::start(const srt::TaskStartInput &input) {
-        stdc_impl_t;
 
         {
-            std::shared_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.driver) {
+            std::shared_lock<std::shared_mutex> lock(m_mutex);
+            if (!m_driver) {
                 ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "inference driver not initialized");
@@ -129,7 +111,6 @@ namespace ds {
 
         ITask::setState(ITask::Running);
 
-        // Get pitch config
         auto expConfig = getConfig(spec());
         if (!expConfig) {
             ITask::setState(ITask::Failed);
@@ -138,16 +119,16 @@ namespace ds {
         const auto config = expConfig.take();
 
 
-        if (const auto &name = input.type(); name != Pit::API_INTERFACE) {
+        if (input.type() != Pit::API_INTERFACE || input.version() != Pit::API_LEVEL) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(R"(invalid pitch task init args name: expected "%1", got "%2")",
-                              Pit::API_INTERFACE, name));
+                stdc::formatN(
+                    R"(invalid pitch start payload: expected "%1" level %2, got "%3" level %4)",
+                    Pit::API_INTERFACE, Pit::API_LEVEL, input.type(), input.version()));
         }
 
         const auto &pitchInput = *input.as<Pit::PitchStartInput>();
-        // ...
 
         auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
 
@@ -157,7 +138,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "frame width must be positive");
         }
 
-        // Part 1: Linguistic Encoder Inference
+        // Run the linguistic encoder.
         {
             std::shared_ptr<Onnx::SessionStartInput> linguisticInput;
             switch (config->linguisticMode) {
@@ -191,14 +172,14 @@ namespace ds {
             }
 
             // Run Linguistic Encoder Inference
-            std::unique_lock<std::shared_mutex> lock(impl.mutex);
-            if (!impl.encoderSession || !impl.encoderSession->isOpen()) {
+            std::unique_lock<std::shared_mutex> lock(m_mutex);
+            if (!m_encoderSession || !m_encoderSession->isOpen()) {
                 ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::NotInitialized,
                                   "pitch linguistic encoder session is not initialized");
             }
             if (auto encoderSessionExp =
-                    inferutil::runEncoder(impl.encoderSession.get(), *linguisticInput,
+                    inferutil::runEncoder(m_encoderSession.get(), *linguisticInput,
                                           /* out */ sessionInput, false);
                 !encoderSessionExp) {
                 ITask::setState(ITask::Failed);
@@ -206,7 +187,7 @@ namespace ds {
             }
         }
 
-        // Part 2: Pitch Inference
+        // Prepare and run the pitch predictor.
 
         auto noteCount = inferutil::getNoteCount(pitchInput.words);
 
@@ -421,11 +402,9 @@ namespace ds {
                 ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(R"(failed to build the "spk_embed" input)");
             }
-        } else {
-            // Nothing to do: speaker embedding is not supported
         }
 
-        // input param: steps / speedup
+        // Select the model's acceleration representation.
         int64_t acceleration = pitchInput.steps;
         if (!config->useContinuousAcceleration) {
             acceleration = inferutil::getSpeedupFromSteps(acceleration);
@@ -448,15 +427,15 @@ namespace ds {
         constexpr const char *outParamPitchPred = "pitch_pred";
         sessionInput->outputs.emplace(outParamPitchPred);
 
-        std::unique_lock<std::shared_mutex> lock(impl.mutex);
-        if (!impl.predictorSession || !impl.predictorSession->isOpen()) {
+        std::unique_lock<std::shared_mutex> lock(m_mutex);
+        if (!m_predictorSession || !m_predictorSession->isOpen()) {
             ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::NotInitialized,
                               "pitch predictor session is not initialized");
         }
 
         std::unique_ptr<srt::TaskResult> sessionTaskResult;
-        auto sessionExp = impl.predictorSession->start(*sessionInput);
+        auto sessionExp = m_predictorSession->start(*sessionInput);
         if (!sessionExp) {
             ITask::setState(ITask::Failed);
             return sessionExp.takeError();
@@ -477,10 +456,10 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
         auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
-        if (auto it_pred = sessionResult->outputs.find(outParamPitchPred);
-            it_pred != sessionResult->outputs.end()) {
+        if (auto predictionIt = sessionResult->outputs.find(outParamPitchPred);
+            predictionIt != sessionResult->outputs.end()) {
             // Extract onnx model result and copy to pitch final result vector (float -> double)
-            auto output = std::move(it_pred->second);
+            auto output = std::move(predictionIt->second);
             if (output->dataType() != ITensor::Float) {
                 ITask::setState(ITask::Failed);
                 return srt::Error(ds::ErrorCode::SessionFailed, "model output is not float");
@@ -502,13 +481,11 @@ namespace ds {
 
     srt::Expected<void> PitchInference::startAsync(std::shared_ptr<const srt::TaskStartInput>,
                                                    AsyncCallback) {
-        // TODO:
         return srt::Error(srt::Error::NotImplemented);
     }
 
     srt::Expected<void> PitchInference::stop() {
-        stdc_impl_t;
-        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
+        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
                 if (auto result = session->stop(); !result) {
                     return result;
@@ -520,8 +497,7 @@ namespace ds {
     }
 
     srt::Expected<void> PitchInference::waitForFinished() {
-        stdc_impl_t;
-        for (auto *session : {impl.encoderSession.get(), impl.predictorSession.get()}) {
+        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
                 if (auto result = session->waitForFinished(); !result) {
                     return result;
