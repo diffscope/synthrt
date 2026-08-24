@@ -3,12 +3,12 @@
 
 #include <synthrt/Support/Expected.h>
 #include <synthrt/SVS/Inference.h>
+
 #include <dsinfer/Inference/InferenceDriver.h>
 
 namespace ds::inferutil {
 
-    /// Returns the driver registered on the inference category, checked against the arch and
-    /// backend this build expects.
+    /// Returns the driver registered on the inference category with the expected backend.
     ///
     /// \note Borrowed, not owned. The category owns the driver and outlives every inference that
     ///       runs against it.

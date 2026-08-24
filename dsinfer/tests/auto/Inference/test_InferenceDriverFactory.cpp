@@ -29,10 +29,6 @@ namespace {
         explicit TestDriver(const std::string &name) : InferenceDriver(name, name) {
         }
 
-        std::string arch() const override {
-            return "test-arch";
-        }
-
         srt::Expected<void> initialize(const ds::InferenceDriverInitArgs &args) override {
             if (args.type() != "test" || args.version() != 1) {
                 return srt::Error(srt::Error::InvalidArgument, "unexpected test arguments");
@@ -92,8 +88,6 @@ BOOST_AUTO_TEST_CASE(test_DiscoversAndCreatesRuntimeService) {
     BOOST_CHECK_EQUAL(driver->iid(), ds::InferenceDriver::IID);
     BOOST_CHECK_EQUAL(driver->name(), "test");
     BOOST_CHECK_EQUAL(driver->backend(), "test");
-    BOOST_CHECK_EQUAL(driver->arch(), "test-arch");
-
     TestInitArgs args;
     BOOST_REQUIRE(driver->initialize(args));
     BOOST_CHECK(driver->as<TestDriver>()->isInitialized());

@@ -11,10 +11,10 @@
 
 namespace srt {
 
-    /// Interprets one or more module contracts.
+    /// Interprets one module contract implementation.
     ///
-    /// The same interpreter instance may serve more than one contribution and more than one
-    /// interface, variant, and Level triple.
+    /// The same interpreter instance may serve multiple contributions that use the same
+    /// interface, Level, and variant triple.
     class SYNTHRT_EXPORT ContribInterpreter {
     public:
         virtual ~ContribInterpreter();

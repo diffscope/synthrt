@@ -742,8 +742,8 @@ namespace srt {
                 }
                 for (auto *spec : categoryEntry.second) {
                     auto *loader = m_synthUnit->_impl->pluginFactory.findInterpreter(
-                        category->interpreterIid(), spec->interface(), spec->variant(),
-                        spec->level());
+                        category->interpreterIid(), spec->interface(), spec->level(),
+                        spec->variant());
                     if (!loader) {
                         return Error(Error::FeatureNotSupported,
                                      "no interpreter provides the requested module triple");
@@ -798,7 +798,8 @@ namespace srt {
                 }
                 for (auto *spec : categoryEntry.second) {
                     auto interpreterResult = m_synthUnit->_impl->pluginFactory.loadInterpreter(
-                        spec->_impl->pluginLoader);
+                        spec->_impl->pluginLoader, spec->interface(), spec->level(),
+                        spec->variant());
                     if (!interpreterResult) {
                         return interpreterResult.takeError();
                     }

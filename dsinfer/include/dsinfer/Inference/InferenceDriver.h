@@ -68,9 +68,6 @@ namespace ds {
 
         virtual ~InferenceDriver();
 
-        /// Returns the singer architecture supported by this driver.
-        virtual std::string arch() const = 0;
-
         /// Returns the backend contract name.
         const std::string &backend() const noexcept {
             return m_backend;

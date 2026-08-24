@@ -19,7 +19,6 @@
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
-#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
 #include "TestCaseLoader.h"
 
@@ -88,21 +87,11 @@ struct InferenceFixture {
             return srt::Error{ds::ErrorCode::DriverLoadFailed, "Failed to create onnx driver"};
         }
 
-        const auto arch = onnxDriver->arch();
-        constexpr auto expectedArch = ds::Api::DiffSinger::L1::API_NAME;
-        const bool isArchMatch = arch == expectedArch;
-
         const auto backend = onnxDriver->backend();
         constexpr auto expectedBackend = ds::Api::Onnx::API_NAME;
-        const bool isBackendMatch = backend == expectedBackend;
-
-        if (!isArchMatch || !isBackendMatch) {
-            return srt::Error(
-                ds::ErrorCode::DriverMismatch,
-                stdc::formatN(
-                    R"(invalid driver: expected arch "%1", got "%2" (%3); expected backend "%4", got "%5" (%6))",
-                    expectedArch, arch, (isArchMatch ? "match" : "MISMATCH"), expectedBackend,
-                    backend, (isBackendMatch ? "match" : "MISMATCH")));
+        if (backend != expectedBackend) {
+            return srt::Error(ds::ErrorCode::DriverMismatch,
+                              "inference driver does not implement the ONNX backend contract");
         }
 
         auto onnxArgs = srt::NO<ds::Api::Onnx::DriverInitArgs>::create();

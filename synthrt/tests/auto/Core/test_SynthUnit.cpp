@@ -149,7 +149,12 @@ namespace {
 
     class TestInterpreterPlugin final : public srt::ContribInterpreterPlugin {
     public:
-        srt::Expected<std::unique_ptr<srt::ContribInterpreter>> create() override {
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
+            create(std::string_view interfaceName, int level, std::string_view variant) override {
+            if (interfaceName != testInterface || level != 1 || variant != "test") {
+                return srt::Error(srt::Error::InvalidArgument,
+                                  "unexpected test interpreter contract");
+            }
             ++pluginCreateCount;
             return std::unique_ptr<srt::ContribInterpreter>(new TestInterpreter());
         }
@@ -214,8 +219,8 @@ namespace {
                                           {"interpreters",
                                            stdc::json::Array{
                                                stdc::json::Object{{"interface", testInterface},
-                                                                  {"variant", "test"},
-                                                                  {"level", 1}},
+                                                                  {"level", 1},
+                                                                  {"variant", "test"}},
                                            }}},
                                    },
     }))
@@ -685,7 +690,7 @@ BOOST_AUTO_TEST_CASE(test_selected_dependency_failure_does_not_fall_back) {
     writePackage(packages, "dep-1", "dep", "1", "1");
     const auto broken = writePackage(packages, "dep-2", "dep", "2", "1");
     writeText(broken / "module.json",
-              R"({"interface":"bad interface","variant":"test","level":1})");
+              R"({"interface":"bad interface","level":1,"variant":"test"})");
     const auto root =
         writePackage(temporary.path(), "root", "root", "1", {}, R"([{"id":"dep","version":"1"}])");
 

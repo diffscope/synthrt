@@ -562,13 +562,13 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 该字段必填，**没有「默认变体」一说**。每个模块都由某个具体的实现来读取和执行，把那个实现的名字写出来，加载器才能在找不到解释器时说清楚缺的是哪一个。
 
-加载器先根据模块所属 category 取得该类别的 provider factory，再据`interface`、`variant`、`level`三者共同选择 provider。
+加载器先根据模块所属 category 取得该类别的 provider factory，再据`interface`、`level`、`variant`三者共同选择 provider。
 
 #### 模块 provider 发现
 
 每个模块类别拥有各自专用的 provider factory 和有序插件搜索路径。一个类别的 factory 只发现和创建该类别的 provider，不同类别的 provider 不在同一个搜索目录或候选集合中并列比较。category 因此是选择 factory 与搜索路径的外部上下文，不属于 provider 的匹配键。
 
-模块 provider 必须在无需加载插件即可读取的`metadata.interpreters`数组中声明它支持的`interface`、`variant`和`level`。同一插件的数组中不得重复声明相同的 (`interface`, `variant`, `level`) 三元组，重复时整个插件元数据无效。根级`iid`与`name`及完整 envelope 由第 3 节规定。
+模块 provider 必须在无需加载插件即可读取的`metadata.interpreters`数组中声明它支持的`interface`、`level`和`variant`。同一插件的数组中不得重复声明相同的 (`interface`, `level`, `variant`) 三元组，重复时整个插件元数据无效。根级`iid`与`name`及完整 envelope 由第 3 节规定。
 
 一个目录项只有在其元数据能够读取、是合法 JSON、包含全部必选字段及正确类型，并通过包括三元组不得重复在内的全部结构验证后，才被视为 provider plugin。无法读取、解析或通过验证的目录项，以及扫描期间消失的目录项，均视为不是插件并直接跳过，不得进入候选集合，也不使 discovery 失败。普通文件按相同规则自然忽略。
 
@@ -791,7 +791,7 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 
 模块 provider plugin 的清单遵循 stdcorelib plugin manifest envelope。根对象必须提供用于选择扩展点的`iid`、表示插件动态库跨平台中立 basename 的`name`，以及归该 IID 所有的`metadata`对象。JSON 对象的成员顺序不影响语义。`name`必须是非空字符串，不得包含目录部分、平台动态库前缀或扩展名；例如`"name": "diffsinger"`可以解析到 Windows 的`diffsinger.dll`、Unix 的`libdiffsinger.so`或 macOS 的`libdiffsinger.dylib`。它不是插件 ID，也不是面向用户的显示名称。
 
-`metadata.interpreters`是必选的非空数组，每个条目必须包含字符串`interface`、字符串`variant`与正整数`level`。同一插件不得重复声明相同的 (`interface`, `variant`, `level`) 三元组。一个插件可以声明多个三元组，加载后由同一个`ContribInterpreterPlugin`创建能够服务这些声明的`ContribInterpreter`。
+`metadata.interpreters`是必选的非空数组，每个条目必须包含字符串`interface`、正整数`level`与字符串`variant`。同一插件不得重复声明相同的 (`interface`, `level`, `variant`) 三元组。一个插件可以声明多个三元组。选中某个条目并加载插件后，Runtime 必须将该条目的`interface`、`level`、`variant`传给`ContribInterpreterPlugin::create`，由插件为这个三元组创建`ContribInterpreter`。同一插件可以为不同三元组返回不同的解释器实现。
 
 例如一个 Singer provider plugin 可以声明：
 
@@ -803,8 +803,8 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
     "interpreters": [
       {
         "interface": "org.openvpi.svs.Singer",
-        "variant": "diffsinger",
-        "level": 1
+        "level": 1,
+        "variant": "diffsinger"
       }
     ]
   }
@@ -855,11 +855,11 @@ Inference provider 使用`inference`类别专用的插件搜索目录和 factory
 插件必须在`metadata.interpreters`中列出它提供的推理解释器。每个解释器条目包含：
 
 - `interface`：负责的契约，如`org.openvpi.svs.PitchInference`
-- `variant`：负责的变体
 - `level`：负责的那一个 API Level
+- `variant`：负责的变体
 
-插件元数据必须能在不加载插件的情况下读取。同一插件的解释器条目数组不得重复声明相同的 (`interface`, `variant`, `level`) 三元组。Inference factory 按上文规定的目录顺序与目录内文件名顺序扫描元数据，选择第一个与模块的`interface`、`variant`和`level`全部匹配的解释器条目。后续出现的相同三元组不参与选择。
+插件元数据必须能在不加载插件的情况下读取。同一插件的解释器条目数组不得重复声明相同的 (`interface`, `level`, `variant`) 三元组。Inference factory 按上文规定的目录顺序与目录内文件名顺序扫描元数据，选择第一个与模块的`interface`、`level`和`variant`全部匹配的解释器条目。后续出现的相同三元组不参与选择。
 
-选中条目后，加载器才加载对应插件并创建派生于`InferenceInterpreter`的解释器。
+选中条目后，加载器才加载对应插件，并使用该条目的`interface`、`level`、`variant`创建派生于`InferenceInterpreter`的解释器。
 
 具体推理任务的创建、初始化、执行、取消、状态、错误与结果生命周期不属于本规范，由单独的运行时 API 规范定义。

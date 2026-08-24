@@ -18,8 +18,8 @@ namespace srt {
     namespace {
 
         bool manifestProvidesInterpreter(const stdc::json::Value &manifest,
-                                         std::string_view interfaceName, std::string_view variant,
-                                         int level) {
+                                         std::string_view interfaceName, int level,
+                                         std::string_view variant) {
             if (!manifest.isObject()) {
                 return false;
             }
@@ -38,7 +38,7 @@ namespace srt {
                 return false;
             }
 
-            std::set<std::tuple<std::string, std::string, int64_t>> declarations;
+            std::set<std::tuple<std::string, int64_t, std::string>> declarations;
             bool matches = false;
             for (const auto &value : interpreters.toArray()) {
                 if (!value.isObject()) {
@@ -60,8 +60,8 @@ namespace srt {
                     return false;
                 }
 
-                const auto declaration = std::make_tuple(declaredInterface.toString(),
-                                                         declaredVariant.toString(), levelValue);
+                const auto declaration = std::make_tuple(declaredInterface.toString(), levelValue,
+                                                         declaredVariant.toString());
                 if (!declarations.insert(declaration).second) {
                     return false;
                 }
@@ -77,9 +77,9 @@ namespace srt {
 
     stdc::plugin::PluginLoader *
         ContribPluginFactory::findInterpreter(std::string_view iid, std::string_view interfaceName,
-                                              std::string_view variant, int level) const {
+                                              int level, std::string_view variant) const {
         for (auto *loader : plugins(iid)) {
-            if (manifestProvidesInterpreter(loader->manifest(), interfaceName, variant, level)) {
+            if (manifestProvidesInterpreter(loader->manifest(), interfaceName, level, variant)) {
                 return loader;
             }
         }
@@ -87,12 +87,15 @@ namespace srt {
     }
 
     Expected<ContribInterpreter *>
-        ContribPluginFactory::loadInterpreter(stdc::plugin::PluginLoader *loader) {
+        ContribPluginFactory::loadInterpreter(stdc::plugin::PluginLoader *loader,
+                                              std::string_view interfaceName, int level,
+                                              std::string_view variant) {
         if (!loader) {
             return Error(Error::InvalidArgument, "interpreter plugin loader must not be null");
         }
 
-        const auto cached = m_interpreters.find(loader);
+        InterpreterKey key(loader, std::string(interfaceName), level, std::string(variant));
+        const auto cached = m_interpreters.find(key);
         if (cached != m_interpreters.end()) {
             return cached->second.get();
         }
@@ -103,7 +106,7 @@ namespace srt {
         }
 
         auto *plugin = static_cast<ContribInterpreterPlugin *>(loader->plugin());
-        auto result = plugin->create();
+        auto result = plugin->create(interfaceName, level, variant);
         if (!result) {
             return result.takeError().withContext("failed to create contribution interpreter");
         }
@@ -114,7 +117,7 @@ namespace srt {
         }
 
         auto *value = interpreter.get();
-        m_interpreters.emplace(loader, std::move(interpreter));
+        m_interpreters.emplace(std::move(key), std::move(interpreter));
         return value;
     }
 

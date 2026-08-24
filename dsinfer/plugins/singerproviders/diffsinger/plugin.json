@@ -5,8 +5,8 @@
         "interpreters": [
             {
                 "interface": "org.openvpi.svs.Singer",
-                "variant": "diffsinger",
-                "level": 1
+                "level": 1,
+                "variant": "diffsinger"
             }
         ]
     }

@@ -3,7 +3,9 @@
 
 #include <map>
 #include <memory>
+#include <string>
 #include <string_view>
+#include <tuple>
 
 #include <stdcorelib/plugin/pluginfactory.h>
 
@@ -17,14 +19,19 @@ namespace srt {
     public:
         /// Returns the first plugin whose valid metadata declares the requested interpreter.
         stdc::plugin::PluginLoader *findInterpreter(std::string_view iid,
-                                                    std::string_view interfaceName,
-                                                    std::string_view variant, int level) const;
+                                                    std::string_view interfaceName, int level,
+                                                    std::string_view variant) const;
 
-        /// Loads the selected plugin once and returns its retained interpreter.
-        Expected<ContribInterpreter *> loadInterpreter(stdc::plugin::PluginLoader *loader);
+        /// Loads the selected plugin and returns its retained interpreter for one contract.
+        Expected<ContribInterpreter *> loadInterpreter(stdc::plugin::PluginLoader *loader,
+                                                       std::string_view interfaceName, int level,
+                                                       std::string_view variant);
 
     private:
-        std::map<stdc::plugin::PluginLoader *, std::unique_ptr<ContribInterpreter>> m_interpreters;
+        using InterpreterKey =
+            std::tuple<stdc::plugin::PluginLoader *, std::string, int, std::string>;
+
+        std::map<InterpreterKey, std::unique_ptr<ContribInterpreter>> m_interpreters;
     };
 
 }

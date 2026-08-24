@@ -5,8 +5,8 @@
         "interpreters": [
             {
                 "interface": "org.openvpi.svs.VarianceInference",
-                "variant": "onnx",
-                "level": 1
+                "level": 1,
+                "variant": "onnx"
             }
         ]
     }

@@ -27,7 +27,7 @@ namespace ds {
         /// Opened something that already is.
         AlreadyOpen,
 
-        /// The driver found is not the one the inference asked for, by architecture or backend.
+        /// The driver found does not implement the backend contract the inference requires.
         DriverMismatch,
 
         /// The backend's own runtime could not be loaded, or loaded but is unusable.

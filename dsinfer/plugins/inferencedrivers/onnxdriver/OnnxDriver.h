@@ -1,8 +1,6 @@
 #ifndef DSINFER_ONNXDRIVER_H
 #define DSINFER_ONNXDRIVER_H
 
-#include <filesystem>
-
 #include <dsinfer/Inference/InferenceDriver.h>
 
 namespace ds {
@@ -11,9 +9,6 @@ namespace ds {
     public:
         OnnxDriver();
         ~OnnxDriver();
-
-    public:
-        std::string arch() const override;
 
         srt::Expected<void> initialize(const InferenceDriverInitArgs &args) override;
         std::unique_ptr<InferenceSession> createSession() override;

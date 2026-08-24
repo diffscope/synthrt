@@ -150,10 +150,6 @@ namespace ds {
     OnnxDriver::~OnnxDriver() {
     }
 
-    std::string OnnxDriver::arch() const {
-        return "diffsinger";
-    }
-
     srt::Expected<void> OnnxDriver::initialize(const InferenceDriverInitArgs &args) {
         stdc_impl_t;
 

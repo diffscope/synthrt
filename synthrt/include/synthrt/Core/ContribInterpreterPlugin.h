@@ -2,6 +2,7 @@
 #define SYNTHRT_CONTRIBINTERPRETERPLUGIN_H
 
 #include <memory>
+#include <string_view>
 
 #include <stdcorelib/plugin/plugin.h>
 
@@ -16,8 +17,9 @@ namespace srt {
     public:
         ~ContribInterpreterPlugin();
 
-        /// Creates an interpreter implemented by this plugin.
-        virtual Expected<std::unique_ptr<ContribInterpreter>> create() = 0;
+        /// Creates the interpreter for the requested contract implementation.
+        virtual Expected<std::unique_ptr<ContribInterpreter>>
+            create(std::string_view interfaceName, int level, std::string_view variant) = 0;
 
     protected:
         ContribInterpreterPlugin() = default;
