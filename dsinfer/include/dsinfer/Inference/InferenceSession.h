@@ -1,60 +1,69 @@
 #ifndef DSINFER_INFERENCESESSION_H
 #define DSINFER_INFERENCESESSION_H
 
+#include <cstdint>
 #include <filesystem>
 
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Task/ITask.h>
 
+#include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/dsinfer_global.h>
 
 namespace ds {
 
-    class InferenceSessionOpenArgs : public srt::NamedObject {
+    /// Arguments used to open one inference model.
+    class InferenceSessionOpenArgs : public InferenceDriverPayload {
     public:
-        inline InferenceSessionOpenArgs(std::string name, int version)
-            : srt::NamedObject(std::move(name)), version(version) {
-        }
+        virtual ~InferenceSessionOpenArgs() = default;
 
-        int version;
+    protected:
+        using InferenceDriverPayload::InferenceDriverPayload;
     };
 
+    /// Initialization data supplied before session execution.
     class InferenceSessionInitArgs : public srt::TaskInitArgs {
     public:
-        inline InferenceSessionInitArgs(std::string name, int version)
-            : srt::TaskInitArgs(std::move(name)), version(version) {
-        }
+        virtual ~InferenceSessionInitArgs() = default;
 
-        int version;
+    protected:
+        using TaskInitArgs::TaskInitArgs;
     };
 
-
+    /// Input supplied for one session execution.
     class InferenceSessionStartInput : public srt::TaskStartInput {
     public:
-        inline InferenceSessionStartInput(std::string name, int version)
-            : srt::TaskStartInput(std::move(name)), version(version) {
-        }
+        virtual ~InferenceSessionStartInput() = default;
 
-        int version;
+    protected:
+        using TaskStartInput::TaskStartInput;
     };
 
+    /// Successful output produced by one session execution.
     class InferenceSessionResult : public srt::TaskResult {
     public:
-        inline InferenceSessionResult(std::string name, int version)
-            : srt::TaskResult(std::move(name)), version(version) {
-        }
+        virtual ~InferenceSessionResult() = default;
 
-        int version;
+    protected:
+        using TaskResult::TaskResult;
     };
 
-    /// InferenceSession - Provides a basic interface for the memory image of an AI model.
-    class InferenceSession : public srt::ITask {
+    /// A reusable execution session for one inference model.
+    class DSINFER_EXPORT InferenceSession : public srt::ITask {
     public:
+        virtual ~InferenceSession() = default;
+
+        /// Opens the model at \a path using backend specific arguments.
         virtual srt::Expected<void> open(const std::filesystem::path &path,
-                                         const srt::NO<InferenceSessionOpenArgs> &args) = 0;
+                                         const InferenceSessionOpenArgs &args) = 0;
+
+        /// Releases the opened model and its session resources.
         virtual srt::Expected<void> close() = 0;
+
+        /// Returns whether this session currently holds an open model.
         virtual bool isOpen() const = 0;
 
+        /// Returns an identifier unique within the driver runtime.
         virtual int64_t id() const = 0;
     };
 

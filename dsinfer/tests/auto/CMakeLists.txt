@@ -1,3 +1,5 @@
 add_subdirectory(Core)
 
+add_subdirectory(Inference)
+
 add_subdirectory(Support)

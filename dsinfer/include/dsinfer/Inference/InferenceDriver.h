@@ -1,79 +1,96 @@
 #ifndef DSINFER_INFERENCEDRIVER_H
 #define DSINFER_INFERENCEDRIVER_H
 
-#include <synthrt/Support/JSON.h>
+#include <memory>
+#include <string>
+#include <utility>
+
+#include <synthrt/Core/RuntimeService.h>
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Core/NamedObject.h>
+
+#include <dsinfer/dsinfer_global.h>
 
 namespace ds {
 
-    class InferenceDriverInitArgs : public srt::NamedObject {
+    /// A typed value exchanged with an inference driver.
+    class InferenceDriverPayload {
     public:
-        inline InferenceDriverInitArgs(std::string name, int version)
-            : srt::NamedObject(std::move(name)), version(version) {
+        virtual ~InferenceDriverPayload() = default;
+
+        /// Returns the backend contract understood by this value.
+        const std::string &type() const noexcept {
+            return m_type;
         }
 
-        int version;
+        /// Returns the version of the backend contract.
+        int version() const noexcept {
+            return m_version;
+        }
+
+        SYNTHRT_DECLARE_AS_METHODS(InferenceDriverPayload)
+
+    protected:
+        InferenceDriverPayload(std::string type, int version)
+            : m_type(std::move(type)), m_version(version) {
+        }
+
+    private:
+        std::string m_type;
+        int m_version;
+
+        STDC_DISABLE_COPY_MOVE(InferenceDriverPayload)
     };
 
-    /// Extras a driver offers beyond this interface, for a caller that knows which backend it is
-    /// talking to.
-    ///
-    /// Told apart by objectName(), the way the argument and result types are.
-    class InferenceDriverExtension : public srt::NamedObject {
+    /// Initialization data supplied to an inference driver.
+    class InferenceDriverInitArgs : public InferenceDriverPayload {
     public:
-        inline InferenceDriverExtension(std::string name, int version)
-            : srt::NamedObject(std::move(name)), version(version) {
-        }
+        virtual ~InferenceDriverInitArgs() = default;
 
-        int version;
+    protected:
+        using InferenceDriverPayload::InferenceDriverPayload;
+    };
+
+    /// Backend specific state exposed to callers that understand its contract.
+    class InferenceDriverExtension : public InferenceDriverPayload {
+    public:
+        virtual ~InferenceDriverExtension() = default;
+
+    protected:
+        using InferenceDriverPayload::InferenceDriverPayload;
     };
 
     class InferenceSession;
 
-    /// InferenceDriver - DiffSinger inference driver interface.
-    ///
-    /// \note An instance of \c InferenceDriver needs to be added to the \c InferenceCategory with
-    /// the ID "dsdriver" before it can be called by the inference interpreters.
-    ///
-    /// It is used like the following.
-    /// \code
-    ///     void init(srt::SynthUnit &su, srt::UNO<InferenceDriver> driver) {
-    ///         ContribCategory &ic = *su.category("inference");
-    ///         ic.addUniqueObject("dsdriver", std::move(driver));
-    ///     }
-    /// \endcode
-    ///
-    /// The category is the owner, and an interpreter borrows the driver for as long as it runs.
-    class InferenceDriver : public srt::NamedObject {
+    /// A process backend used to execute inference models.
+    class DSINFER_EXPORT InferenceDriver : public srt::RuntimeService {
     public:
+        static constexpr const char *IID = "org.openvpi.InferenceDriver";
+
         virtual ~InferenceDriver() = default;
 
-        /// Related singer arch.
+        /// Returns the singer architecture supported by this driver.
         virtual std::string arch() const = 0;
 
-        /// Driver backend identifier.
-        virtual std::string backend() const = 0;
+        /// Returns the plugin neutral backend name.
+        const std::string &backend() const noexcept {
+            return name();
+        }
 
-        virtual srt::Expected<void> initialize(const srt::NO<InferenceDriverInitArgs> &args) = 0;
+        /// Initializes process resources used by sessions from this driver.
+        virtual srt::Expected<void> initialize(const InferenceDriverInitArgs &args) = 0;
 
-        virtual srt::UNO<InferenceSession> createSession() = 0;
+        /// Creates an unopened session.
+        virtual std::unique_ptr<InferenceSession> createSession() = 0;
 
-        /// What this backend offers on top of the interface, or null when it offers nothing or
-        /// initialize() has not succeeded yet.
-        ///
-        /// \warning Borrowed, and only for as long as this driver lives. What it points into
-        ///          belongs to the backend's runtime, and the driver is what keeps that loaded.
-        ///
-        /// \code
-        ///     if (auto ext = driver->extension();
-        ///         ext && ext->objectName() == Api::Onnx::API_NAME) {
-        ///         auto onnx = static_cast<const Api::Onnx::DriverExtension *>(ext);
-        ///         Ort::InitApi(onnx->ortApi);
-        ///     }
-        /// \endcode
+        /// Returns optional backend specific state after successful initialization.
         virtual const InferenceDriverExtension *extension() const {
             return nullptr;
+        }
+
+        SYNTHRT_DECLARE_AS_METHODS(InferenceDriver)
+
+    protected:
+        explicit InferenceDriver(std::string name) : RuntimeService(IID, std::move(name)) {
         }
     };
 

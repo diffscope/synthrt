@@ -1,0 +1,1 @@
+add_auto_test(test_InferenceDriverFactory.cpp dsinfer)
