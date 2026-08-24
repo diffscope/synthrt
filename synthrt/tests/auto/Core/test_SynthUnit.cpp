@@ -498,6 +498,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     {
         TestExecInstance instance(*rootSpec);
         BOOST_CHECK(&instance.spec() == rootSpec);
+        BOOST_CHECK(&instance.synthUnit() == &unit);
         BOOST_CHECK(instance.lifecycleState() == srt::ContribExecInstance::LifecycleState::Running);
     }
     BOOST_CHECK_EQUAL(exportsCount - oldExports, 2);

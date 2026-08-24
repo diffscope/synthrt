@@ -29,6 +29,11 @@ namespace srt {
         return *m_spec;
     }
 
+    SynthUnit &ContribExecInstance::synthUnit() const {
+        assert(m_package && m_package->synthUnit);
+        return *m_package->synthUnit;
+    }
+
     ContribExecInstance::LifecycleState ContribExecInstance::lifecycleState() const noexcept {
         return m_state.load(std::memory_order_acquire);
     }

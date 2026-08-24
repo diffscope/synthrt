@@ -10,6 +10,7 @@ namespace srt {
 
     class ContribSpec;
     class PackageData;
+    class SynthUnit;
 
     /// A top level execution instance created from one contribution declaration.
     ///
@@ -27,6 +28,9 @@ namespace srt {
 
         /// Returns the declaration from which this instance was created.
         ContribSpec &spec() const;
+
+        /// Returns the SynthUnit that owns this instance and its contribution.
+        SynthUnit &synthUnit() const;
 
         /// Returns whether this instance accepts work, is stopping, or has stopped.
         LifecycleState lifecycleState() const noexcept;
