@@ -17,6 +17,7 @@
 namespace srt {
 
     class ContribCategory;
+    class ContribExecInstance;
     class PackageData;
     class PackageLoader;
 
@@ -82,6 +83,7 @@ namespace srt {
         std::unique_ptr<Impl> _impl;
 
         friend class ContribCategory;
+        friend class ContribExecInstance;
         friend class PackageHandle;
         friend class PackageData;
         friend class PackageLoader;

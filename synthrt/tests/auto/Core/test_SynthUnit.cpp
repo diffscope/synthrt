@@ -10,9 +10,9 @@
 
 #include <synthrt/Core/ContribCategory.h>
 #include <synthrt/Core/ContribCreateContext.h>
+#include <synthrt/Core/ContribExecInstance.h>
 #include <synthrt/Core/ContribInterpreterPlugin.h>
 #include <synthrt/Core/ContribSpec.h>
-#include <synthrt/Core/ContribSpecSubObjects.h>
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Core/SynthUnit.h>
 
@@ -37,10 +37,27 @@ namespace {
     int bindingCloseCount = 0;
     int bindingWaitCount = 0;
     bool rejectImports = false;
+    bool returnWrongPayloadIdentity = false;
 
-    class TestExports final : public srt::ContribExports {};
-    class TestConfiguration final : public srt::ContribConfiguration {};
-    class TestOptions final : public srt::ContribImportOptions {};
+    class TestExports final : public srt::ContribExports {
+    public:
+        TestExports()
+            : ContribExports(returnWrongPayloadIdentity ? "com.example.Wrong" : testInterface,
+                             "test", 1) {
+        }
+    };
+
+    class TestConfiguration final : public srt::ContribConfiguration {
+    public:
+        TestConfiguration() : ContribConfiguration(testInterface, "test", 1) {
+        }
+    };
+
+    class TestOptions final : public srt::ContribImportOptions {
+    public:
+        TestOptions() : ContribImportOptions(testInterface, "test", 1) {
+        }
+    };
 
     class TestBinding final : public srt::ContribImportBinding {
     public:
@@ -60,6 +77,21 @@ namespace {
 
         srt::Expected<void> wait() override {
             ++bindingWaitCount;
+            return {};
+        }
+    };
+
+    class TestExecInstance final : public srt::ContribExecInstance {
+    public:
+        explicit TestExecInstance(srt::ContribSpec &spec) : ContribExecInstance(spec) {
+        }
+
+    private:
+        srt::Expected<void> quit() override {
+            return {};
+        }
+
+        srt::Expected<void> wait() override {
             return {};
         }
     };
@@ -355,9 +387,13 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_REQUIRE(rootSpec);
     BOOST_CHECK(rootSpec->exports());
     BOOST_CHECK(rootSpec->configuration());
+    BOOST_CHECK_EQUAL(rootSpec->exports()->interface(), testInterface);
+    BOOST_CHECK_EQUAL(rootSpec->exports()->variant(), "test");
+    BOOST_CHECK_EQUAL(rootSpec->exports()->level(), 1);
     BOOST_REQUIRE_EQUAL(rootSpec->imports().size(), 2u);
     BOOST_CHECK(rootSpec->imports()[0].options());
     BOOST_CHECK(rootSpec->imports()[1].options());
+    BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->interface(), testInterface);
     BOOST_REQUIRE(rootSpec->imports()[0].binding());
     BOOST_REQUIRE(rootSpec->imports()[1].binding());
     BOOST_CHECK(rootSpec->imports()[0].binding()->state() ==
@@ -373,6 +409,11 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(&rootSpec->imports()[0].binding()->target() == dependencySpec);
     BOOST_CHECK(&rootSpec->imports()[0].binding()->options() == rootSpec->imports()[0].options());
     BOOST_CHECK(dependencySpec->package().version() == stdc::VersionNumber(2));
+    {
+        TestExecInstance instance(*rootSpec);
+        BOOST_CHECK(&instance.spec() == rootSpec);
+        BOOST_CHECK(instance.lifecycleState() == srt::ContribExecInstance::LifecycleState::Running);
+    }
     BOOST_CHECK_EQUAL(exportsCount - oldExports, 2);
     BOOST_CHECK_EQUAL(configurationCount - oldConfiguration, 2);
     BOOST_CHECK_EQUAL(optionsCount - oldOptions, 2);
@@ -502,6 +543,22 @@ BOOST_AUTO_TEST_CASE(test_failed_validation_rolls_back_package_state) {
 
     BOOST_REQUIRE(!opened);
     BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
+    BOOST_CHECK(unit.loadedPackages().empty());
+    BOOST_CHECK(unit.category(testCategoryName)->contributions().empty());
+}
+
+BOOST_AUTO_TEST_CASE(test_wrong_payload_identity_rolls_back_package_state) {
+    TemporaryDirectory temporary;
+    const auto root = writePackage(temporary.path(), "root", "root", "1");
+
+    auto unit = makeUnit();
+    returnWrongPayloadIdentity = true;
+    auto opened = unit.openPackage(root, srt::SynthUnit::Load);
+    returnWrongPayloadIdentity = false;
+
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
+    BOOST_CHECK(opened.error().toString().find("instead of") != std::string::npos);
     BOOST_CHECK(unit.loadedPackages().empty());
     BOOST_CHECK(unit.category(testCategoryName)->contributions().empty());
 }

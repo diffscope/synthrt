@@ -10,7 +10,7 @@ namespace srt {
     public:
         static constexpr const char *IID = "org.openvpi.InferenceInterpreter";
 
-        ~InferenceInterpreterPlugin() override = default;
+        ~InferenceInterpreterPlugin() = default;
 
     protected:
         InferenceInterpreterPlugin() = default;

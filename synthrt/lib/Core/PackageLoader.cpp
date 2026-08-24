@@ -35,6 +35,25 @@ namespace srt {
 
         using Variables = std::map<std::string, std::string, std::less<>>;
 
+        Expected<void> validatePayloadIdentity(const ContribSpecPayload *payload,
+                                               const ContribSpec &spec,
+                                               std::string_view payloadName) {
+            if (!payload) {
+                return Error(Error::InvalidFormat,
+                             std::string("interpreter returned null ") + std::string(payloadName));
+            }
+            if (payload->interface() != spec.interface() || payload->variant() != spec.variant() ||
+                payload->level() != spec.level()) {
+                return Error(Error::InvalidFormat,
+                             stdc::formatN(
+                                 "interpreter returned %1 for contract %2/%3/%4 instead of "
+                                 "%5/%6/%7",
+                                 payloadName, payload->interface(), payload->variant(),
+                                 payload->level(), spec.interface(), spec.variant(), spec.level()));
+            }
+            return {};
+        }
+
         // The JSON parser retains only one value for a repeated key. Scan the source first so the
         // manifest profile can reject duplicates before that information is lost.
         class JsonProfileValidator {
@@ -758,14 +777,25 @@ namespace srt {
                         return exports.takeError().withContext(
                             "failed to interpret module exports");
                     }
-                    spec->_impl->exports = exports.take();
+                    auto typedExports = exports.take();
+                    if (auto result = validatePayloadIdentity(typedExports.get(), *spec, "exports");
+                        !result) {
+                        return result.takeError();
+                    }
+                    spec->_impl->exports = std::move(typedExports);
 
                     auto configuration = spec->_impl->interpreter->createConfiguration(*spec);
                     if (!configuration) {
                         return configuration.takeError().withContext(
                             "failed to interpret module configuration");
                     }
-                    spec->_impl->configuration = configuration.take();
+                    auto typedConfiguration = configuration.take();
+                    if (auto result = validatePayloadIdentity(typedConfiguration.get(), *spec,
+                                                              "configuration");
+                        !result) {
+                        return result.takeError();
+                    }
+                    spec->_impl->configuration = std::move(typedConfiguration);
                 }
             }
         }
@@ -795,6 +825,11 @@ namespace srt {
                         if (!typedOptions) {
                             return Error(Error::InvalidFormat,
                                          "target interpreter returned null import options");
+                        }
+                        if (auto result = validatePayloadIdentity(typedOptions.get(), *target,
+                                                                  "import options");
+                            !result) {
+                            return result.takeError();
                         }
                         import._impl->options = std::move(typedOptions);
                     }

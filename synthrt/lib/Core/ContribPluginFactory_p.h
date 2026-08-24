@@ -16,7 +16,7 @@
 namespace srt {
 
     /// Discovers contribution plugins stored in one directory per plugin.
-    class ContribPluginFactory final : public stdc::plugin::PluginFactory {
+    class ContribPluginFactory : public stdc::plugin::PluginFactory {
     public:
         /// Returns the first plugin whose valid metadata declares the requested interpreter.
         stdc::plugin::PluginLoader *findInterpreter(std::string_view iid,

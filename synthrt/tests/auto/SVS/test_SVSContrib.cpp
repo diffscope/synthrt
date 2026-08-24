@@ -7,6 +7,7 @@
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/SVS/InferenceContrib.h>
+#include <synthrt/SVS/InferenceInterpreter.h>
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 #include <synthrt/SVS/SingerContrib.h>
 #include <synthrt/SVS/SingerProviderPlugin.h>
@@ -17,6 +18,12 @@
 namespace fs = std::filesystem;
 
 namespace {
+
+    class TestRuntimeOptions final : public srt::InferenceRuntimeOptions {
+    public:
+        TestRuntimeOptions() : InferenceRuntimeOptions("org.openvpi.Acoustic", "default", 1) {
+        }
+    };
 
     class TemporaryDirectory {
     public:
@@ -50,6 +57,14 @@ namespace {
 }
 
 BOOST_AUTO_TEST_SUITE(test_SVSContrib)
+
+BOOST_AUTO_TEST_CASE(test_runtime_options_carry_contract_identity) {
+    TestRuntimeOptions options;
+
+    BOOST_CHECK_EQUAL(options.interface(), "org.openvpi.Acoustic");
+    BOOST_CHECK_EQUAL(options.variant(), "default");
+    BOOST_CHECK_EQUAL(options.level(), 1);
+}
 
 BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
     TemporaryDirectory temporary;

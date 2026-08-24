@@ -10,7 +10,7 @@ namespace srt {
     public:
         static constexpr const char *IID = "org.openvpi.SingerProvider";
 
-        ~SingerProviderPlugin() override = default;
+        ~SingerProviderPlugin() = default;
 
     protected:
         SingerProviderPlugin() = default;

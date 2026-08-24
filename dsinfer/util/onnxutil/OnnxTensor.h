@@ -52,9 +52,10 @@ namespace ds {
         /**
          * @brief Destructor of OnnxTensor.
          */
-        ~OnnxTensor() override;
+        ~OnnxTensor();
 
-        static srt::Expected<srt::NO<OnnxTensor>> create(DataType, const std::vector<int64_t> &shape);
+        static srt::Expected<srt::NO<OnnxTensor>> create(DataType,
+                                                         const std::vector<int64_t> &shape);
 
         /**
          * @brief Creates a shared OnnxTensor from data type, shape, and raw bytes.
@@ -63,19 +64,21 @@ namespace ds {
          * @param shape The shape of the tensor.
          * @param data The raw tensor data.
          */
-        static srt::Expected<srt::NO<OnnxTensor>> createFromRawView(DataType dataType,
-                                                         const std::vector<int64_t> &shape,
-                                                         const stdc::array_view<std::byte> &data);
+        static srt::Expected<srt::NO<OnnxTensor>>
+            createFromRawView(DataType dataType, const std::vector<int64_t> &shape,
+                              const stdc::array_view<std::byte> &data);
 
         template <typename T>
         static srt::Expected<srt::NO<OnnxTensor>> createFromView(const std::vector<int64_t> &shape,
-            const stdc::array_view<T> &data);
+                                                                 const stdc::array_view<T> &data);
 
         template <typename T>
-        static srt::Expected<srt::NO<OnnxTensor>> createScalar(T value, bool zeroDimensions = false);
+        static srt::Expected<srt::NO<OnnxTensor>> createScalar(T value,
+                                                               bool zeroDimensions = false);
 
         template <typename T>
-        static srt::Expected<srt::NO<OnnxTensor>> createFilled(const std::vector<int64_t> &shape, T value);
+        static srt::Expected<srt::NO<OnnxTensor>> createFilled(const std::vector<int64_t> &shape,
+                                                               T value);
         /**
          * @brief Constructs an OnnxTensor by taking ownership of an existing Ort::Value.
          *
@@ -96,7 +99,7 @@ namespace ds {
          * @param value The Ort::Value to take ownership of.
          * @return Ort::Value previously held by this OnnxTensor object.
          */
-        Ort::Value takeOrtValue(Ort::Value&& value);
+        Ort::Value takeOrtValue(Ort::Value &&value);
 
         /**
          * @brief Releases ownership of the internal Ort::Value.
@@ -178,8 +181,8 @@ namespace ds {
     }
 
     template <typename T>
-    inline srt::Expected<srt::NO<OnnxTensor>>
-        OnnxTensor::createScalar(T value, bool zeroDimensions) {
+    inline srt::Expected<srt::NO<OnnxTensor>> OnnxTensor::createScalar(T value,
+                                                                       bool zeroDimensions) {
         static_assert(tensor_traits<T>::is_valid, "Unsupported tensor data type");
         static_assert(!std::is_same_v<T, bool> || sizeof(bool) == 1,
                       "sizeof(bool) == 1 does not satisfy");

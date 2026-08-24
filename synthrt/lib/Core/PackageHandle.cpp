@@ -6,6 +6,7 @@
 #include <utility>
 
 #include "ContribCategory_p.h"
+#include "ContribExecInstance.h"
 #include "ContribImportBinding.h"
 #include "ContribSpec_p.h"
 #include "Logging.h"
@@ -18,6 +19,11 @@ namespace srt {
             return;
         }
         std::lock_guard<std::recursive_mutex> lock(synthUnit->_impl->loadMutex);
+        if (!execInstances.empty()) {
+            logCategory().srtFatal(
+                "Package %1 is being released while %2 execution instances still exist", id,
+                execInstances.size());
+        }
         // Close every binding before waiting so independent calls can drain in parallel.
         for (const auto &categoryEntry : contributions) {
             for (auto *spec : categoryEntry.second) {

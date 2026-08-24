@@ -14,7 +14,7 @@ namespace srt {
     /// A plugin factory that creates contribution interpreters.
     class SYNTHRT_EXPORT ContribInterpreterPlugin : public stdc::plugin::Plugin {
     public:
-        ~ContribInterpreterPlugin() override;
+        ~ContribInterpreterPlugin();
 
         /// Creates an interpreter implemented by this plugin.
         virtual Expected<std::unique_ptr<ContribInterpreter>> create() = 0;

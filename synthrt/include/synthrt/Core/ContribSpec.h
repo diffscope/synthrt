@@ -7,15 +7,43 @@
 #include <stdcorelib/adt/array_view.h>
 
 #include <synthrt/Core/ContribLocator.h>
-#include <synthrt/Core/ContribSpecSubObjects.h>
+#include <synthrt/Core/ContribSpecPayload.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/JSON.h>
 #include <synthrt/synthrt_global.h>
 
 namespace srt {
 
+    /// A typed interpretation of one contribution's manifest \c exports value.
+    class ContribExports : public ContribSpecPayload {
+    public:
+        virtual ~ContribExports() = default;
+
+    protected:
+        using ContribSpecPayload::ContribSpecPayload;
+    };
+
+    /// A typed interpretation of one import entry's manifest \c options value.
+    class ContribImportOptions : public ContribSpecPayload {
+    public:
+        virtual ~ContribImportOptions() = default;
+
+    protected:
+        using ContribSpecPayload::ContribSpecPayload;
+    };
+
+    /// A typed interpretation of one contribution's manifest \c configuration value.
+    class ContribConfiguration : public ContribSpecPayload {
+    public:
+        virtual ~ContribConfiguration() = default;
+
+    protected:
+        using ContribSpecPayload::ContribSpecPayload;
+    };
+
     class ContribCategory;
     class ContribCreateContext;
+    class ContribExecInstance;
     class ContribImportBinding;
     class PackageData;
     class PackageHandle;
@@ -126,6 +154,7 @@ namespace srt {
         std::unique_ptr<Impl> _impl;
 
         friend class ContribCategory;
+        friend class ContribExecInstance;
         friend class PackageData;
         friend class PackageLoader;
         friend class SynthUnit;

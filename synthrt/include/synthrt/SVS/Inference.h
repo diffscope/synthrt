@@ -1,6 +1,7 @@
 #ifndef SYNTHRT_INFERENCE_H
 #define SYNTHRT_INFERENCE_H
 
+#include <synthrt/Core/ContribExecInstance.h>
 #include <synthrt/Task/ITask.h>
 
 namespace srt {
@@ -19,13 +20,13 @@ namespace srt {
         NO<ObjectPool> intermediateObjects;
     };
 
-    class SYNTHRT_EXPORT Inference : public ITask {
+    class SYNTHRT_EXPORT Inference : public ITask, public ContribExecInstance {
     public:
-        explicit Inference(const InferenceSpec *spec);
+        explicit Inference(InferenceSpec &spec);
         ~Inference();
 
     public:
-        const InferenceSpec *spec() const;
+        InferenceSpec &spec() const;
         SynthUnit &synthUnit() const;
 
     protected:

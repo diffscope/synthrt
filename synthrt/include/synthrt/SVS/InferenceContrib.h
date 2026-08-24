@@ -14,7 +14,7 @@ namespace srt {
     /// The immutable declaration of one inference contribution.
     class SYNTHRT_EXPORT InferenceSpec : public ContribSpec {
     public:
-        ~InferenceSpec() override;
+        ~InferenceSpec();
 
         /// Returns the module declaration file.
         const std::filesystem::path &declarationPath() const;
@@ -28,10 +28,10 @@ namespace srt {
     };
 
     /// Parses and indexes contributions in the built in \c inference category.
-    class SYNTHRT_EXPORT InferenceCategory final : public ContribCategory {
+    class SYNTHRT_EXPORT InferenceCategory : public ContribCategory {
     public:
         InferenceCategory();
-        ~InferenceCategory() override;
+        ~InferenceCategory();
 
         std::vector<InferenceSpec *> inferences() const;
 

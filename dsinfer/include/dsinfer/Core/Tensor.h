@@ -162,7 +162,7 @@ namespace ds {
         inline Tensor() : ITensor(), _dataType(Undefined), _shape{}, _data{} {
         }
 
-        ~Tensor() override = default;
+        ~Tensor() = default;
 
         Tensor(Tensor &&other) noexcept;
         Tensor &operator=(Tensor &&other) noexcept;

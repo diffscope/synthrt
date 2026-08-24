@@ -8,27 +8,19 @@
 
 namespace srt {
 
-    class Inference::Impl : public ITask::Impl {
-    public:
-        explicit Impl(const InferenceSpec *spec) : spec(spec) {
-        }
+    class Inference::Impl : public ITask::Impl {};
 
-        const InferenceSpec *spec;
-    };
-
-    Inference::Inference(const InferenceSpec *spec) : ITask(*new Impl(spec)) {
+    Inference::Inference(InferenceSpec &spec) : ITask(*new Impl()), ContribExecInstance(spec) {
     }
 
     Inference::~Inference() = default;
 
-    const InferenceSpec *Inference::spec() const {
-        stdc_impl_t;
-        return impl.spec;
+    InferenceSpec &Inference::spec() const {
+        return *ContribExecInstance::spec().as<InferenceSpec>();
     }
 
     SynthUnit &Inference::synthUnit() const {
-        stdc_impl_t;
-        return impl.spec->package().synthUnit();
+        return spec().package().synthUnit();
     }
 
 }

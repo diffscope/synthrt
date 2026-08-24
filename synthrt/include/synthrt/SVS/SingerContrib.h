@@ -15,7 +15,7 @@ namespace srt {
     /// The immutable declaration of one singer contribution.
     class SYNTHRT_EXPORT SingerSpec : public ContribSpec {
     public:
-        ~SingerSpec() override;
+        ~SingerSpec();
 
         const std::filesystem::path &declarationPath() const;
         const DisplayText &avatar() const;
@@ -35,10 +35,10 @@ namespace srt {
     };
 
     /// Parses and indexes contributions in the built in \c singer category.
-    class SYNTHRT_EXPORT SingerCategory final : public ContribCategory {
+    class SYNTHRT_EXPORT SingerCategory : public ContribCategory {
     public:
         SingerCategory();
-        ~SingerCategory() override;
+        ~SingerCategory();
 
         std::vector<SingerSpec *> singers() const;
 

@@ -5,7 +5,6 @@
 
 #include <synthrt/Core/ContribImportBinding.h>
 #include <synthrt/Core/ContribSpec.h>
-#include <synthrt/Core/ContribSpecSubObjects.h>
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 #include <synthrt/synthrt_global.h>

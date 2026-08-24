@@ -12,6 +12,8 @@
 
 namespace srt {
 
+    class ContribExecInstance;
+
     class PackageData : public std::enable_shared_from_this<PackageData> {
     public:
         explicit PackageData(SynthUnit *synthUnit) : synthUnit(synthUnit) {
@@ -38,6 +40,7 @@ namespace srt {
         std::map<std::string, std::vector<ContribSpec *>, std::less<>> contributions;
         std::map<std::string, std::map<std::string, ContribSpec *, std::less<>>, std::less<>>
             contributionIndex;
+        stdc::vlarray<ContribExecInstance *> execInstances;
     };
 
 }

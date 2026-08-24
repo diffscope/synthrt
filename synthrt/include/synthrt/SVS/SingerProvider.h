@@ -8,7 +8,7 @@ namespace srt {
     /// Interprets and executes singer contributions.
     class SingerProvider : public ContribInterpreter {
     public:
-        ~SingerProvider() override = default;
+        ~SingerProvider() = default;
 
     protected:
         SingerProvider() = default;

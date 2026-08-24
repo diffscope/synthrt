@@ -4,7 +4,7 @@
 #include <memory>
 
 #include <synthrt/Core/ContribInterpreter.h>
-#include <synthrt/Core/NamedObject.h>
+#include <synthrt/Core/ContribSpecPayload.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
@@ -13,16 +13,18 @@ namespace srt {
     class InferenceSpec;
 
     /// Runtime options supplied when an inference instance is created.
-    class InferenceRuntimeOptions : public NamedObject {
+    class InferenceRuntimeOptions : public ContribSpecPayload {
     public:
-        using NamedObject::NamedObject;
-        ~InferenceRuntimeOptions() override = default;
+        ~InferenceRuntimeOptions() = default;
+
+    protected:
+        using ContribSpecPayload::ContribSpecPayload;
     };
 
     /// Interprets and executes inference contributions.
     class InferenceInterpreter : public ContribInterpreter {
     public:
-        ~InferenceInterpreter() override = default;
+        ~InferenceInterpreter() = default;
 
         virtual Expected<std::unique_ptr<Inference>>
             createInference(InferenceSpec &spec, const ContribImportOptions &importOptions,
