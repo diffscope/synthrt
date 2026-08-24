@@ -6,7 +6,7 @@
 #include <stdcorelib/path.h>
 
 #include <synthrt/Core/SynthUnit.h>
-#include <synthrt/Core/PackageRef.h>
+#include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Support/JSON.h>
 #include <synthrt/Support/Logging.h>
 #include <synthrt/SVS/SingerContrib.h>
@@ -14,7 +14,7 @@
 #include <synthrt/SVS/Inference.h>
 
 #include <dsinfer/Inference/InferenceDriver.h>
-#include <dsinfer/Inference/InferenceDriverPlugin.h>
+#include <dsinfer/Inference/InferenceDriverFactory.h>
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 #include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
@@ -35,8 +35,6 @@ namespace Var = ds::Api::Variance::L1;
 namespace Vo = ds::Api::Vocoder::L1;
 
 using EP = ds::Api::Onnx::ExecutionProvider;
-
-using srt::NO;
 
 static srt::LogCategory cliLog("cli");
 
@@ -108,50 +106,52 @@ static void log_report_callback(int level, const srt::LogContext &ctx,
     console::println(console::nostyle, foreground, console::nocolor, msg);
 }
 
-static void initializeSU(srt::SynthUnit &su, EP ep, int deviceIndex) {
+static void initializeSU(srt::SynthUnit &su, ds::InferenceDriverFactory &driverFactory, EP ep,
+                         int deviceIndex) {
     // Get basic directories
     auto appDir = stdc::system::application_directory();
     auto defaultPluginDir =
         appDir.parent_path() / STDC_TSTR("lib") / STDC_TSTR("plugins") / STDC_TSTR("dsinfer");
 
     // Set default plugin directories
-    su.addPluginPath("org.openvpi.SingerProvider", defaultPluginDir / STDC_TSTR("singerproviders"));
-    su.addPluginPath("org.openvpi.InferenceDriver", defaultPluginDir / STDC_TSTR("inferencedrivers"));
-    su.addPluginPath("org.openvpi.InferenceInterpreter",
-                     defaultPluginDir / STDC_TSTR("inferenceinterpreters"));
+    su.setPluginPaths("singer", {defaultPluginDir / STDC_TSTR("singerproviders")});
+    su.setPluginPaths("inference", {defaultPluginDir / STDC_TSTR("inferenceinterpreters")});
 
     // Load driver
-    auto plugin = su.plugin<ds::InferenceDriverPlugin>("onnx");
-    if (!plugin) {
-        throw std::runtime_error("failed to load inference driver");
+    driverFactory.addPluginPath(defaultPluginDir / STDC_TSTR("inferencedrivers"));
+    auto driverResult = driverFactory.create("onnx");
+    if (!driverResult) {
+        throw std::runtime_error("failed to load inference driver: " +
+                                 driverResult.error().message());
     }
-
-    auto onnxDriver = plugin->create();
-    auto onnxArgs = NO<ds::Api::Onnx::DriverInitArgs>::create();
+    auto onnxDriver = driverResult.take();
+    ds::Api::Onnx::DriverInitArgs onnxArgs;
 
     // TODO: users should be able to configure these args
-    onnxArgs->ep = ep;
-    auto ortParentPath = plugin->path().parent_path() / STDC_TSTR("runtimes") / STDC_TSTR("onnx");
+    onnxArgs.ep = ep;
+    auto ortParentPath = defaultPluginDir / STDC_TSTR("inferencedrivers") / STDC_TSTR("onnx") /
+                         STDC_TSTR("runtimes") / STDC_TSTR("onnx");
     if (ep == EP::CUDAExecutionProvider) {
-        onnxArgs->runtimePath = ortParentPath / STDC_TSTR("cuda");
+        onnxArgs.runtimePath = ortParentPath / STDC_TSTR("cuda");
     } else {
-        onnxArgs->runtimePath = ortParentPath / STDC_TSTR("default");
+        onnxArgs.runtimePath = ortParentPath / STDC_TSTR("default");
     }
-    onnxArgs->deviceIndex = deviceIndex;
+    onnxArgs.deviceIndex = deviceIndex;
 
     if (auto exp = onnxDriver->initialize(onnxArgs); !exp) {
         throw std::runtime_error(
             stdc::formatN(R"(failed to initialize onnx driver: %1)", exp.error().message()));
     }
 
-    // Add driver, which the category owns from here on.
-    auto &ic = *su.category("inference");
-    ic.addUniqueObject("dsdriver", std::move(onnxDriver));
+    if (auto result = su.addRuntimeService(std::move(onnxDriver)); !result) {
+        throw std::runtime_error("failed to register inference driver: " +
+                                 result.error().message());
+    }
 }
 
 struct InputObject {
     std::string singer;
-    NO<Ac::AcousticStartInput> input;
+    std::unique_ptr<Ac::AcousticStartInput> input;
 
     static srt::Expected<InputObject> load(const fs::path &path) {
         // read all from path to string
@@ -164,10 +164,10 @@ struct InputObject {
                             (std::istreambuf_iterator<char>()));
 
         // parse JSON
-        std::string jsonErrorMessage;
-        srt::JsonValue jsonDoc = srt::JsonValue::fromJson(jsonStr, true, &jsonErrorMessage);
-        if (!jsonErrorMessage.empty()) {
-            return srt::Error(srt::Error::InvalidFormat, std::move(jsonErrorMessage));
+        stdc::json::ParseError jsonError;
+        srt::JsonValue jsonDoc = srt::JsonValue::fromJson(jsonStr, true, &jsonError);
+        if (jsonError) {
+            return srt::Error(srt::Error::InvalidFormat, std::move(jsonError.what));
         }
         if (!jsonDoc.isObject()) {
             return srt::Error(srt::Error::InvalidFormat, "not an object");
@@ -207,32 +207,26 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         input = exp.take();
     }
 
+    ds::InferenceDriverFactory driverFactory;
     srt::SynthUnit su;
-    initializeSU(su, ep, deviceIndex);
+    initializeSU(su, driverFactory, ep, deviceIndex);
 
     // Add package directory to search path
-    su.addPackagePath(packagePath.parent_path());
+    su.setPackagePaths({packagePath.parent_path()});
 
     // Load package
-    srt::ScopedPackageRef pkg;
-    if (auto exp = su.open(packagePath, false); !exp) {
+    srt::PackageHandle pkg;
+    if (auto exp = su.openPackage(packagePath, srt::SynthUnit::Load); !exp) {
         throw std::runtime_error(stdc::formatN(R"(failed to open package "%1": %2)", packagePath,
                                                exp.error().message()));
     } else {
         pkg = exp.take();
     }
-    if (!pkg.isLoaded()) {
-        throw std::runtime_error(stdc::formatN(R"(failed to load package "%1": %2)", packagePath,
-                                               pkg.error().message()));
-    }
-
     // Find singer
-    auto &sc = *su.category("singer")->as<srt::SingerCategory>();
-    const auto &singers = sc.singers();
-    const srt::SingerSpec *singerSpec = nullptr;
-    for (const auto &singer : singers) {
-        if (singer->id() == input.singer) {
-            singerSpec = singer;
+    srt::SingerSpec *singerSpec = nullptr;
+    for (auto *singer : pkg.contributions("singer")) {
+        if (singer->locator().contributionId() == input.singer) {
+            singerSpec = singer->as<srt::SingerSpec>();
             break;
         }
     }
@@ -242,32 +236,34 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
     }
 
     struct ImportData {
-        NO<srt::InferenceImportOptions> options;
+        const srt::ContribImportOptions *options = nullptr;
         srt::InferenceSpec *inference = nullptr;
     };
 
     ImportData importDuration, importPitch, importVariance, importAcoustic, importVocoder;
 
     struct ImportEntry {
-        std::string_view className;
-        std::string_view apiName;
+        std::string_view interface;
         ImportData *data;
     };
 
     ImportEntry imports[] = {
-        {Dur::API_CLASS, Dur::API_NAME, &importDuration},
-        {Pit::API_CLASS, Pit::API_NAME, &importPitch   },
-        {Var::API_CLASS, Var::API_NAME, &importVariance},
-        {Ac::API_CLASS,  Ac::API_NAME,  &importAcoustic},
-        {Vo::API_CLASS,  Vo::API_NAME,  &importVocoder },
+        {Dur::API_INTERFACE, &importDuration},
+        {Pit::API_INTERFACE, &importPitch   },
+        {Var::API_INTERFACE, &importVariance},
+        {Ac::API_INTERFACE,  &importAcoustic},
+        {Vo::API_INTERFACE,  &importVocoder },
     };
 
     // Assign imports
     for (const auto &imp : singerSpec->imports()) {
-        const auto &cls = imp.inference()->className();
+        auto *target = pkg.resolve(imp.locator());
+        if (!target || target->locator().category() != "inference") {
+            continue;
+        }
         for (auto &entry : imports) {
-            if (cls == entry.className) {
-                *entry.data = {imp.options(), imp.inference()};
+            if (target->interface() == entry.interface) {
+                *entry.data = {imp.options(), target->as<srt::InferenceSpec>()};
                 break;
             }
         }
@@ -277,15 +273,15 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
     for (const auto &entry : imports) {
         if (!entry.data->inference) {
             throw std::runtime_error(stdc::formatN(R"(%1 inference not found for singer "%2")",
-                                                   entry.apiName, input.singer));
+                                                   entry.interface, input.singer));
         }
     }
 
     // Check whether acoustic and vocoder config match
     const auto acousticConfig =
-        importAcoustic.inference->configuration().as<Ac::AcousticConfiguration>();
+        importAcoustic.inference->configuration()->as<Ac::AcousticConfiguration>();
     const auto vocoderConfig =
-        importVocoder.inference->configuration().as<Vo::VocoderConfiguration>();
+        importVocoder.inference->configuration()->as<Vo::VocoderConfiguration>();
     std::vector<std::string> unmatchedFields;
     if (acousticConfig->sampleRate != vocoderConfig->sampleRate) {
         unmatchedFields.emplace_back("sampleRate");
@@ -321,9 +317,9 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
 
     // Run duration
     {
-        NO<srt::Inference> inference;
-        if (auto exp = importDuration.inference->createInference(
-                importDuration.options, NO<Dur::DurationRuntimeOptions>::create());
+        std::unique_ptr<srt::Inference> inference;
+        if (auto exp = importDuration.inference->createInference(*importDuration.options,
+                                                                 Dur::DurationRuntimeOptions());
             !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to create duration inference for singer "%1": %2)",
@@ -331,30 +327,27 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         } else {
             inference = exp.take();
         }
-        if (auto exp = inference->initialize(NO<Dur::DurationInitArgs>::create()); !exp) {
+        if (auto exp = inference->initialize(Dur::DurationInitArgs()); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to initialize duration inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         }
 
-        auto durationInput = NO<Dur::DurationStartInput>::create();
+        auto durationInput = std::make_unique<Dur::DurationStartInput>();
         // Copy user inputs into duration model inputs
         durationInput->duration = input.input->duration;
         durationInput->words = input.input->words;
 
         // Start inference
-        NO<Dur::DurationResult> result;
-        if (auto exp = inference->start(durationInput); !exp) {
+        std::unique_ptr<srt::TaskResult> resultOwner;
+        Dur::DurationResult *result = nullptr;
+        if (auto exp = inference->start(*durationInput); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start duration inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         } else {
-            result = exp.take().as<Dur::DurationResult>();
-        }
-        if (inference->state() == srt::ITask::Failed) {
-            throw std::runtime_error(
-                stdc::formatN(R"(failed to run duration inference for singer "%1": %2)",
-                              input.singer, result->error.message()));
+            resultOwner = exp.take();
+            result = resultOwner->as<Dur::DurationResult>();
         }
 
         // Update user inputs in-place with duration model outputs
@@ -379,9 +372,9 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
 
     // Run pitch
     {
-        NO<srt::Inference> inference;
-        if (auto exp = importPitch.inference->createInference(
-                importPitch.options, NO<Pit::PitchRuntimeOptions>::create());
+        std::unique_ptr<srt::Inference> inference;
+        if (auto exp = importPitch.inference->createInference(*importPitch.options,
+                                                              Pit::PitchRuntimeOptions());
             !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to create pitch inference for singer "%1": %2)",
@@ -389,13 +382,13 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         } else {
             inference = exp.take();
         }
-        if (auto exp = inference->initialize(NO<Pit::PitchInitArgs>::create()); !exp) {
+        if (auto exp = inference->initialize(Pit::PitchInitArgs()); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to initialize pitch inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         }
 
-        auto pitchInput = NO<Pit::PitchStartInput>::create();
+        auto pitchInput = std::make_unique<Pit::PitchStartInput>();
         // Copy user inputs into pitch model inputs
         pitchInput->duration = input.input->duration;
         pitchInput->words = input.input->words;
@@ -412,18 +405,15 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         pitchInput->steps = input.input->steps;
 
         // Start inference
-        NO<Pit::PitchResult> result;
-        if (auto exp = inference->start(pitchInput); !exp) {
+        std::unique_ptr<srt::TaskResult> resultOwner;
+        Pit::PitchResult *result = nullptr;
+        if (auto exp = inference->start(*pitchInput); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start pitch inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         } else {
-            result = exp.take().as<Pit::PitchResult>();
-        }
-        if (inference->state() == srt::ITask::Failed) {
-            throw std::runtime_error(
-                stdc::formatN(R"(failed to run pitch inference for singer "%1": %2)", input.singer,
-                              result->error.message()));
+            resultOwner = exp.take();
+            result = resultOwner->as<Pit::PitchResult>();
         }
 
         // Update user inputs in-place with pitch model outputs
@@ -445,10 +435,10 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
 
     // Run variance
     {
-        NO<srt::Inference> inference;
-        const auto schema = importVariance.inference->schema().as<Var::VarianceSchema>();
-        if (auto exp = importVariance.inference->createInference(
-                importVariance.options, NO<Var::VarianceRuntimeOptions>::create());
+        std::unique_ptr<srt::Inference> inference;
+        const auto schema = importVariance.inference->exports()->as<Var::VarianceSchema>();
+        if (auto exp = importVariance.inference->createInference(*importVariance.options,
+                                                                 Var::VarianceRuntimeOptions());
             !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to create variance inference for singer "%1": %2)",
@@ -456,13 +446,13 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         } else {
             inference = exp.take();
         }
-        if (auto exp = inference->initialize(NO<Var::VarianceInitArgs>::create()); !exp) {
+        if (auto exp = inference->initialize(Var::VarianceInitArgs()); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to initialize variance inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         }
 
-        auto varianceInput = NO<Var::VarianceStartInput>::create();
+        auto varianceInput = std::make_unique<Var::VarianceStartInput>();
         // Copy user inputs into variance model inputs
         varianceInput->duration = input.input->duration;
         varianceInput->words = input.input->words;
@@ -484,18 +474,15 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         varianceInput->steps = input.input->steps;
 
         // Start inference
-        NO<Var::VarianceResult> result;
-        if (auto exp = inference->start(varianceInput); !exp) {
+        std::unique_ptr<srt::TaskResult> resultOwner;
+        Var::VarianceResult *result = nullptr;
+        if (auto exp = inference->start(*varianceInput); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start variance inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         } else {
-            result = exp.take().as<Var::VarianceResult>();
-        }
-        if (inference->state() == srt::ITask::Failed) {
-            throw std::runtime_error(
-                stdc::formatN(R"(failed to run variance inference for singer "%1": %2)",
-                              input.singer, result->error.message()));
+            resultOwner = exp.take();
+            result = resultOwner->as<Var::VarianceResult>();
         }
 
         // Update user inputs in-place with variance model outputs
@@ -529,13 +516,13 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
     }
 
     // Run acoustic
-    NO<ds::ITensor> mel;
-    NO<ds::ITensor> f0;
+    std::shared_ptr<ds::ITensor> mel;
+    std::shared_ptr<ds::ITensor> f0;
     {
         // Prepare
-        NO<srt::Inference> inference;
-        if (auto exp = importAcoustic.inference->createInference(
-                importAcoustic.options, NO<Ac::AcousticRuntimeOptions>::create());
+        std::unique_ptr<srt::Inference> inference;
+        if (auto exp = importAcoustic.inference->createInference(*importAcoustic.options,
+                                                                 Ac::AcousticRuntimeOptions());
             !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to create acoustic inference for singer "%1": %2)",
@@ -543,25 +530,22 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         } else {
             inference = exp.take();
         }
-        if (auto exp = inference->initialize(NO<Ac::AcousticInitArgs>::create()); !exp) {
+        if (auto exp = inference->initialize(Ac::AcousticInitArgs()); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to initialize acoustic inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         }
 
         // Start inference
-        NO<Ac::AcousticResult> result;
-        if (auto exp = inference->start(input.input); !exp) {
+        std::unique_ptr<srt::TaskResult> resultOwner;
+        Ac::AcousticResult *result = nullptr;
+        if (auto exp = inference->start(*input.input); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start acoustic inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         } else {
-            result = exp.take().as<Ac::AcousticResult>();
-        }
-        if (inference->state() == srt::ITask::Failed) {
-            throw std::runtime_error(
-                stdc::formatN(R"(failed to run acoustic inference for singer "%1": %2)",
-                              input.singer, result->error.message()));
+            resultOwner = exp.take();
+            result = resultOwner->as<Ac::AcousticResult>();
         }
         mel = result->mel;
         f0 = result->f0;
@@ -571,9 +555,9 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
     std::vector<uint8_t> audioData;
     {
         // Prepare
-        NO<srt::Inference> inference;
-        if (auto exp = importVocoder.inference->createInference(
-                importVocoder.options, NO<Vo::VocoderRuntimeOptions>::create());
+        std::unique_ptr<srt::Inference> inference;
+        if (auto exp = importVocoder.inference->createInference(*importVocoder.options,
+                                                                Vo::VocoderRuntimeOptions());
             !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to create vocoder inference for singer "%1": %2)",
@@ -581,29 +565,26 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
         } else {
             inference = exp.take();
         }
-        if (auto exp = inference->initialize(NO<Vo::VocoderInitArgs>::create()); !exp) {
+        if (auto exp = inference->initialize(Vo::VocoderInitArgs()); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to initialize vocoder inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         }
 
-        auto vocoderInput = NO<Vo::VocoderStartInput>::create();
+        auto vocoderInput = std::make_unique<Vo::VocoderStartInput>();
         vocoderInput->mel = mel;
         vocoderInput->f0 = f0;
 
         // Start inference
-        NO<Vo::VocoderResult> result;
-        if (auto exp = inference->start(vocoderInput); !exp) {
+        std::unique_ptr<srt::TaskResult> resultOwner;
+        Vo::VocoderResult *result = nullptr;
+        if (auto exp = inference->start(*vocoderInput); !exp) {
             throw std::runtime_error(
                 stdc::formatN(R"(failed to start vocoder inference for singer "%1": %2)",
                               input.singer, exp.error().message()));
         } else {
-            result = exp.take().as<Vo::VocoderResult>();
-        }
-        if (inference->state() == srt::ITask::Failed) {
-            throw std::runtime_error(
-                stdc::formatN(R"(failed to run vocoder inference for singer "%1": %2)",
-                              input.singer, result->error.message()));
+            resultOwner = exp.take();
+            result = resultOwner->as<Vo::VocoderResult>();
         }
         audioData = std::move(result->audioData);
     }

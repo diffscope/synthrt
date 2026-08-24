@@ -5,10 +5,10 @@
 namespace ds {
     namespace Ac = Api::Acoustic::L1;
 
-    srt::Expected<srt::NO<Ac::AcousticStartInput>>
+    srt::Expected<std::unique_ptr<Ac::AcousticStartInput>>
         parseAcousticStartInput(const srt::JsonObject &obj) {
 
-        auto input = srt::NO<Ac::AcousticStartInput>::create();
+        auto input = std::make_unique<Ac::AcousticStartInput>();
 
         if (auto it_duration = obj.find("duration"); it_duration != obj.end()) {
             input->duration = it_duration->second.toDouble();

@@ -11,6 +11,9 @@
 
 namespace srt {
 
+    class Inference;
+    class InferenceRuntimeOptions;
+
     /// The immutable declaration of one inference contribution.
     class SYNTHRT_EXPORT InferenceSpec : public ContribSpec {
     public:
@@ -18,6 +21,11 @@ namespace srt {
 
         /// Returns the module declaration file.
         const std::filesystem::path &declarationPath() const;
+
+        /// Creates one execution instance using the interpreter selected during Package load.
+        Expected<std::unique_ptr<Inference>>
+            createInference(const ContribImportOptions &importOptions,
+                            const InferenceRuntimeOptions &runtimeOptions);
 
     private:
         explicit InferenceSpec(const ContribCreateContext &context);

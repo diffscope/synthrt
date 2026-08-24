@@ -5,10 +5,10 @@
 namespace ds {
     namespace Var = Api::Variance::L1;
 
-    srt::Expected<srt::NO<Var::VarianceStartInput>>
+    srt::Expected<std::unique_ptr<Var::VarianceStartInput>>
         parseVarianceStartInput(const srt::JsonObject &obj) {
 
-        auto input = srt::NO<Var::VarianceStartInput>::create();
+        auto input = std::make_unique<Var::VarianceStartInput>();
 
         if (auto it_duration = obj.find("duration"); it_duration != obj.end()) {
             input->duration = it_duration->second.toDouble();

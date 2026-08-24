@@ -45,6 +45,7 @@ namespace srt {
     class ContribCreateContext;
     class ContribExecInstance;
     class ContribImportBinding;
+    class ContribInterpreter;
     class PackageData;
     class PackageHandle;
     class PackageLoader;
@@ -148,6 +149,9 @@ namespace srt {
     protected:
         /// Initializes the common declaration fields already parsed by the framework.
         explicit ContribSpec(const ContribCreateContext &context);
+
+        /// Returns the interpreter selected while loading this contribution.
+        ContribInterpreter *interpreter() const;
 
     private:
         class Impl;

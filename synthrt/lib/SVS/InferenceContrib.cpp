@@ -3,6 +3,7 @@
 #include <set>
 #include <string_view>
 
+#include "InferenceInterpreter.h"
 #include "InferenceInterpreterPlugin.h"
 
 namespace srt {
@@ -43,6 +44,28 @@ namespace srt {
 
     const std::filesystem::path &InferenceSpec::declarationPath() const {
         return m_declarationPath;
+    }
+
+    Expected<std::unique_ptr<Inference>>
+        InferenceSpec::createInference(const ContribImportOptions &importOptions,
+                                       const InferenceRuntimeOptions &runtimeOptions) {
+        auto *value = interpreter();
+        if (!value) {
+            return Error(Error::FeatureNotSupported,
+                         "cannot create inference from a contribution that is not loaded");
+        }
+        if (importOptions.interface() != interface() || importOptions.variant() != variant() ||
+            importOptions.level() != level()) {
+            return Error(Error::InvalidArgument,
+                         "inference import options do not match the contribution contract");
+        }
+        if (runtimeOptions.interface() != interface() || runtimeOptions.variant() != variant() ||
+            runtimeOptions.level() != level()) {
+            return Error(Error::InvalidArgument,
+                         "inference runtime options do not match the contribution contract");
+        }
+        return value->as<InferenceInterpreter>()->createInference(*this, importOptions,
+                                                                  runtimeOptions);
     }
 
     InferenceCategory::InferenceCategory()

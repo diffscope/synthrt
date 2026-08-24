@@ -5,10 +5,10 @@
 namespace ds {
     namespace Pit = Api::Pitch::L1;
 
-    srt::Expected<srt::NO<Pit::PitchStartInput>>
+    srt::Expected<std::unique_ptr<Pit::PitchStartInput>>
         parsePitchStartInput(const srt::JsonObject &obj) {
 
-        auto input = srt::NO<Pit::PitchStartInput>::create();
+        auto input = std::make_unique<Pit::PitchStartInput>();
 
         if (auto it_duration = obj.find("duration"); it_duration != obj.end()) {
             input->duration = it_duration->second.toDouble();
