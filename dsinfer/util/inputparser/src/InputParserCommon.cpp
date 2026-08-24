@@ -12,7 +12,8 @@ namespace ds {
 
     namespace Co = Api::Common::L1;
 
-    static inline std::optional<std::tuple<int, int, bool>> parseLibrosaPitch(const std::string &s) {
+    static inline std::optional<std::tuple<int, int, bool>>
+        parseLibrosaPitch(const std::string &s) {
         int n = (int) s.size();
         int i = 0, j = n - 1;
 
@@ -32,8 +33,7 @@ namespace ds {
 
         // 1. check for rest (case-insensitive)
         if (len == 4 && (stdc::str::to_upper(s[i]) == 'R') &&
-            (stdc::str::to_upper(s[i + 1]) == 'E') &&
-            (stdc::str::to_upper(s[i + 2]) == 'S') &&
+            (stdc::str::to_upper(s[i + 1]) == 'E') && (stdc::str::to_upper(s[i + 2]) == 'S') &&
             (stdc::str::to_upper(s[i + 3]) == 'T')) {
             // rest
             return std::make_optional(std::make_tuple(0, 0, true));
@@ -352,11 +352,11 @@ namespace ds {
                             }
                             const auto glide = stdc::to_lower(it_glide->second.toString());
                             if (glide == "up") {
-                                noteInfo.glide = Co::GlideType::GT_Up;
+                                noteInfo.glide = Co::GlideType::Up;
                             } else if (glide == "down") {
-                                noteInfo.glide = Co::GlideType::GT_Down;
+                                noteInfo.glide = Co::GlideType::Down;
                             } else {
-                                noteInfo.glide = Co::GlideType::GT_None;
+                                noteInfo.glide = Co::GlideType::None;
                             }
                         } // words[].notes[].glide
                         if (auto it_is_rest = note.find("is_rest"); it_is_rest != note.end()) {

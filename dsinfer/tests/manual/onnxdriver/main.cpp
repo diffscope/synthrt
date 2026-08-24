@@ -101,13 +101,13 @@ struct InferenceFixture {
                 ds::ErrorCode::DriverMismatch,
                 stdc::formatN(
                     R"(invalid driver: expected arch "%1", got "%2" (%3); expected backend "%4", got "%5" (%6))",
-                    expectedArch, arch, (isArchMatch ? "match" : "MISMATCH"),
-                    expectedBackend, backend, (isBackendMatch ? "match" : "MISMATCH")));
+                    expectedArch, arch, (isArchMatch ? "match" : "MISMATCH"), expectedBackend,
+                    backend, (isBackendMatch ? "match" : "MISMATCH")));
         }
 
         auto onnxArgs = srt::NO<ds::Api::Onnx::DriverInitArgs>::create();
 
-        onnxArgs->ep = ds::Api::Onnx::CPUExecutionProvider;
+        onnxArgs->ep = ds::Api::Onnx::ExecutionProvider::CPU;
         // The driver appends the library name, so this has to be the directory holding it. The
         // build lays the runtimes out per backend and per provider.
         onnxArgs->runtimePath = plugin->path().parent_path() / STDC_TSTR("runtimes") /
@@ -214,7 +214,7 @@ BOOST_AUTO_TEST_CASE(driver_extension) {
     BOOST_CHECK(onnx->ortApiBase != nullptr);
     BOOST_CHECK(onnx->ortApiVersion > 0);
     BOOST_CHECK(!onnx->runtimePath.empty());
-    BOOST_CHECK(onnx->ep == ds::Api::Onnx::CPUExecutionProvider);
+    BOOST_CHECK(onnx->ep == ds::Api::Onnx::ExecutionProvider::CPU);
     BOOST_TEST_MESSAGE("ORT_API_VERSION the driver asked for: " << onnx->ortApiVersion);
 }
 

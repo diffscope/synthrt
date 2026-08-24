@@ -185,7 +185,7 @@ namespace ds {
         {
             std::shared_ptr<Onnx::SessionStartInput> linguisticInput;
             switch (config->linguisticMode) {
-                case Co::LinguisticMode::LM_Word:
+                case Co::LinguisticMode::Word:
                     if (auto exp = inferutil::preprocessLinguisticWord(
                             varianceInput.words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);
@@ -197,7 +197,7 @@ namespace ds {
                             "failed to build the linguistic word input");
                     }
                     break;
-                case Co::LinguisticMode::LM_Phoneme:
+                case Co::LinguisticMode::Phoneme:
                     if (auto exp = inferutil::preprocessLinguisticPhoneme(
                             varianceInput.words, config->phonemes, config->languages,
                             config->useLanguageId, frameWidth);

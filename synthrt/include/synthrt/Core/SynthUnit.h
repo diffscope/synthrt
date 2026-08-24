@@ -36,10 +36,8 @@ namespace srt {
     public:
         /// Selects how far Package opening may progress.
         enum OpenMode {
-            /// Parses manifests as data without discovering or loading providers.
-            DataOnly,
-            /// Validates, loads, and commits the Package and its dependencies.
-            Load,
+            DataOnly, ///< Parses manifests as data without discovering or loading providers.
+            Load,     ///< Validates, loads, and commits the Package and its dependencies.
         };
 
         ContribCategory *category(std::string_view name);

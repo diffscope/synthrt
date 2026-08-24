@@ -131,7 +131,7 @@ static void initializeSU(srt::SynthUnit &su, ds::InferenceDriverFactory &driverF
     onnxArgs.ep = ep;
     auto ortParentPath = defaultPluginDir / STDC_TSTR("inferencedrivers") / STDC_TSTR("onnx") /
                          STDC_TSTR("runtimes") / STDC_TSTR("onnx");
-    if (ep == EP::CUDAExecutionProvider) {
+    if (ep == EP::CUDA) {
         onnxArgs.runtimePath = ortParentPath / STDC_TSTR("cuda");
     } else {
         onnxArgs.runtimePath = ortParentPath / STDC_TSTR("default");
@@ -644,15 +644,15 @@ int main(int /*argc*/, char * /*argv*/[]) {
     const auto &packagePath = stdc::path::from_utf8(cmdline[1]);
     const auto &inputPath = stdc::path::from_utf8(cmdline[2]);
     const auto &outputWavPath = stdc::path::from_utf8(cmdline[3]);
-    auto ep = EP::CPUExecutionProvider;
+    auto ep = EP::CPU;
     if (cmdline.size() >= 5) {
         const auto epString = stdc::to_lower(cmdline[4]);
         if (epString == "dml" || epString == "directml") {
-            ep = EP::DMLExecutionProvider;
+            ep = EP::DML;
         } else if (epString == "cuda") {
-            ep = EP::CUDAExecutionProvider;
+            ep = EP::CUDA;
         } else if (epString == "coreml") {
-            ep = EP::CoreMLExecutionProvider;
+            ep = EP::CoreML;
         }
     }
     int deviceIndex = 0;

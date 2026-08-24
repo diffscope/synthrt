@@ -13,8 +13,7 @@ namespace ds::onnxdriver {
     using Api::Onnx::ExecutionProvider;
 
     static Ort::Session createOrtSession(const Ort::Env &ortEnv,
-                                         const std::filesystem::path &modelPath,
-                                         bool preferCpu,
+                                         const std::filesystem::path &modelPath, bool preferCpu,
                                          std::string *errorMessage) {
         auto devConfig = Env::getDeviceConfig();
         auto ep = devConfig.ep;
@@ -25,7 +24,7 @@ namespace ds::onnxdriver {
             std::string initEPErrorMsg;
             if (!preferCpu) {
                 switch (ep) {
-                    case ExecutionProvider::DMLExecutionProvider: {
+                    case ExecutionProvider::DML: {
                         if (!initDirectML(sessOpt, deviceIndex, &initEPErrorMsg)) {
                             // log warning: "Could not initialize DirectML: {initEPErrorMsg},
                             // falling back to CPU."
@@ -37,13 +36,12 @@ namespace ds::onnxdriver {
                         }
                         break;
                     }
-                    case ExecutionProvider::CUDAExecutionProvider: {
+                    case ExecutionProvider::CUDA: {
                         if (!initCUDA(sessOpt, deviceIndex, &initEPErrorMsg)) {
                             // log warning: "Could not initialize CUDA: {initEPErrorMsg}, falling
                             // back to CPU."
-                            Log.srtWarning(
-                                "Could not initialize CUDA: %1, falling back to CPU.",
-                                initEPErrorMsg);
+                            Log.srtWarning("Could not initialize CUDA: %1, falling back to CPU.",
+                                           initEPErrorMsg);
                         } else {
                             Log.srtInfo("Use CUDA. Device index: %1", deviceIndex);
                         }

@@ -9,104 +9,110 @@
 
 namespace ds::Api::Vocoder::L1 {
 
+    /// Identifies the vocoder inference contract.
     inline constexpr char API_INTERFACE[] = "org.openvpi.svs.VocoderInference";
 
+    /// Identifies the ONNX implementation variant.
     inline constexpr char API_VARIANT[] = "onnx";
 
+    /// Identifies Level 1 of the vocoder inference contract.
     inline constexpr int API_LEVEL = 1;
 
     using MelBase = Common::L1::MelBase;
 
     using MelScale = Common::L1::MelScale;
 
+    /// Configures one import of a vocoder inference contribution.
     class VocoderImportOptions : public srt::ContribImportOptions {
     public:
         inline VocoderImportOptions()
             : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
-
-        // TODO
     };
 
+    /// Contains runtime options used when creating a vocoder inference instance.
     class VocoderRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline VocoderRuntimeOptions()
             : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
-
-        /// Reserved
     };
 
+    /// Describes the capabilities exported by a vocoder inference contribution.
     class VocoderSchema : public srt::ContribExports {
     public:
         inline VocoderSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
-
-        /// Reserved
     };
 
+    /// Contains the interpreted configuration of an ONNX vocoder model.
     class VocoderConfiguration : public srt::ContribConfiguration {
     public:
         inline VocoderConfiguration()
             : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
         }
 
-        /// 声码器模型文件路径
+        /// Path of the vocoder model.
         std::filesystem::path model;
 
-        /// 音频采样率
+        /// Audio sample rate in hertz.
         int sampleRate = 44100;
 
-        /// 梅尔频谱帧跨度
+        /// Number of audio samples between adjacent mel frames.
         int hopSize = 2048;
 
-        /// 梅尔频谱窗大小
+        /// Analysis window size in audio samples.
         int winSize = 2048;
 
-        /// 梅尔频谱 FFT 维度
+        /// FFT size used to construct the input mel spectrogram.
         int fftSize = 128;
 
-        /// 梅尔频谱通道数
+        /// Number of channels in the input mel spectrogram.
         int melChannels = 128;
 
-        /// 梅尔频谱最小频率（Hz）
+        /// Lower mel filter frequency in hertz.
         int melMinFreq = 0;
 
-        /// 梅尔频谱最大频率（Hz）
+        /// Upper mel filter frequency in hertz.
         int melMaxFreq = 0;
 
-        /// 梅尔频谱底数
-        MelBase melBase = MelBase::MelBase_E;
+        /// Logarithmic base used by the mel transform.
+        MelBase melBase = MelBase::E;
 
-        /// melScale
-        MelScale melScale = MelScale::MelScale_Slaney;
+        /// Frequency scale used by the mel transform.
+        MelScale melScale = MelScale::Slaney;
 
-        /// 是否支持与声学模型不同的音高输入
+        /// Indicates whether the vocoder accepts an independently modified pitch curve.
         bool pitchControllable = false;
     };
 
+    /// Contains arguments used to initialize a vocoder inference instance.
     class VocoderInitArgs : public srt::InferenceInitArgs {
     public:
         inline VocoderInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
         }
-
-        /// Reserved
     };
 
+    /// Supplies acoustic features to a vocoder inference task.
     class VocoderStartInput : public srt::TaskStartInput {
     public:
         inline VocoderStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
         }
 
+        /// Mel spectrogram tensor with shape <tt>(1, frames, melChannels)</tt>.
         std::shared_ptr<ITensor> mel;
+
+        /// Fundamental frequency tensor aligned with \c mel.
         std::shared_ptr<ITensor> f0;
     };
 
+    /// Contains waveform samples produced by the vocoder.
     class VocoderResult : public srt::TaskResult {
     public:
         inline VocoderResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
         }
 
+        /// Native byte representation of contiguous 32 bit floating point waveform samples.
         std::vector<uint8_t> audioData;
     };
 

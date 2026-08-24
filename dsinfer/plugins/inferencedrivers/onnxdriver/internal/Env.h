@@ -3,6 +3,7 @@
 
 #include <atomic>
 #include <shared_mutex>
+
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
 namespace ds::onnxdriver {
@@ -10,7 +11,7 @@ namespace ds::onnxdriver {
     class Env {
     public:
         struct DeviceConfig {
-            DeviceConfig() : ep(Api::Onnx::CPUExecutionProvider), deviceIndex(-1) {
+            DeviceConfig() : ep(Api::Onnx::ExecutionProvider::CPU), deviceIndex(-1) {
             }
             DeviceConfig(Api::Onnx::ExecutionProvider provider, int index)
                 : ep(provider), deviceIndex(index) {
@@ -21,7 +22,7 @@ namespace ds::onnxdriver {
         };
 
         // Set/Get the entire device config atomically
-        static void setDeviceConfig(const DeviceConfig& config);
+        static void setDeviceConfig(const DeviceConfig &config);
         static DeviceConfig getDeviceConfig();
         static int64_t nextId();
 

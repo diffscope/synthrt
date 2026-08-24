@@ -10,90 +10,107 @@
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
 
-/// Declared rather than included, so that a caller uninterested in the extension below does not
-/// pay for the onnxruntime headers.
+/// Forward declarations keep ONNX Runtime headers out of clients that do not use DriverExtension.
 struct OrtApi;
 struct OrtApiBase;
 
 namespace ds::Api::Onnx {
 
+    /// Identifies the ONNX inference driver API.
     inline constexpr char API_NAME[] = "onnx";
 
+    /// Identifies the version of the ONNX inference driver API.
     inline constexpr int API_VERSION = 1;
 
-    enum ExecutionProvider {
-        CPUExecutionProvider = 0,
-        CUDAExecutionProvider,
-        DMLExecutionProvider,
-        CoreMLExecutionProvider,
+    /// Selects the backend used to execute ONNX models.
+    enum class ExecutionProvider {
+        CPU = 0, ///< Executes models with the ONNX Runtime CPU backend.
+        CUDA,    ///< Executes models with the ONNX Runtime CUDA backend.
+        DML,     ///< Executes models with the ONNX Runtime DirectML backend.
+        CoreML,  ///< Executes models with the ONNX Runtime Core ML backend.
     };
 
+    /// Configures initialization of the ONNX inference driver.
     class DriverInitArgs : public InferenceDriverInitArgs {
     public:
         inline DriverInitArgs() : InferenceDriverInitArgs(API_NAME, API_VERSION) {
         }
 
-        /// The execution provider to use.
-        ExecutionProvider ep = CPUExecutionProvider;
+        /// Execution provider used by sessions created by the driver.
+        ExecutionProvider ep = ExecutionProvider::CPU;
 
-        /// The device index to use for CUDAExecutionProvider. (-1 means auto-select)
+        /// Device selected for providers that expose multiple devices.
+        ///
+        /// A negative value requests automatic device selection.
         int deviceIndex = -1;
 
-        /// The onnxruntime library directory. (empty means use the default)
+        /// Directory containing the ONNX Runtime shared library.
+        ///
+        /// An empty path requests the driver's default lookup behavior.
         std::filesystem::path runtimePath;
     };
 
+    /// Configures one ONNX inference session.
     class SessionOpenArgs : public InferenceSessionOpenArgs {
     public:
         inline SessionOpenArgs() : InferenceSessionOpenArgs(API_NAME, API_VERSION) {
         }
 
-        /// Whether to force the use of the CPU for the session.
+        /// Forces this session to use the CPU provider when set.
         bool useCpu = false;
     };
 
+    /// Supplies named tensors and requested outputs for one ONNX Runtime invocation.
     class SessionStartInput : public InferenceSessionStartInput {
     public:
         inline SessionStartInput() : InferenceSessionStartInput(API_NAME, API_VERSION) {
         }
 
-        /// The input port names and the input tensors.
+        /// Maps model input names to their tensors.
         std::map<std::string, std::shared_ptr<ITensor>> inputs;
 
-        /// The output port names.
+        /// Names the model outputs that the session must return.
         std::set<std::string> outputs;
     };
 
+    /// Contains the named tensors produced by an ONNX Runtime invocation.
     class SessionResult : public InferenceSessionResult {
     public:
         inline SessionResult() : InferenceSessionResult(API_NAME, API_VERSION) {
         }
 
+        /// Maps requested model output names to their tensors.
         std::map<std::string, std::shared_ptr<ITensor>> outputs;
     };
 
-    /// What the driver loaded, for a caller that means to use the same runtime.
+    /// Exposes the ONNX Runtime instance loaded by the driver.
     ///
-    /// dsinfer builds against ORT_API_MANUAL_INIT, so every module keeps an API pointer of its
-    /// own. A host or a second plugin wanting the runtime this driver already opened has to hand
-    /// this one to \c Ort::InitApi() rather than open the library a second time.
+    /// dsinfer uses \c ORT_API_MANUAL_INIT, so every module stores its own API pointer. A host or
+    /// another plugin that shares this runtime must pass \c ortApi to \c Ort::InitApi(). It must
+    /// not load a second copy of the shared library.
     class DriverExtension : public InferenceDriverExtension {
     public:
         inline DriverExtension() : InferenceDriverExtension(API_NAME, API_VERSION) {
         }
 
-        /// Null until the driver's initialize() has succeeded.
+        /// ONNX Runtime API table, or null before driver initialization succeeds.
         const OrtApi *ortApi = nullptr;
+
+        /// ONNX Runtime API bootstrap table, or null before driver initialization succeeds.
         const OrtApiBase *ortApiBase = nullptr;
 
-        /// The \c ORT_API_VERSION the driver asked for. A caller compiled against a different one
-        /// must not use \c ortApi.
+        /// Value of \c ORT_API_VERSION requested by the driver.
+        ///
+        /// A client compiled for another API version must not use \c ortApi.
         int ortApiVersion = 0;
 
-        /// The shared library that was opened.
+        /// Path of the ONNX Runtime shared library loaded by the driver.
         std::filesystem::path runtimePath;
 
-        ExecutionProvider ep = CPUExecutionProvider;
+        /// Execution provider selected when the driver was initialized.
+        ExecutionProvider ep = ExecutionProvider::CPU;
+
+        /// Device index selected when the driver was initialized.
         int deviceIndex = -1;
     };
 

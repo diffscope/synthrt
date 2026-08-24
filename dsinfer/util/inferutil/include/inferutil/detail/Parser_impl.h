@@ -286,9 +286,9 @@ namespace ds::inferutil {
             const auto melBase = it->second.toString();
             const auto melBaseLower = stdc::to_lower(melBase);
             if (melBaseLower == "e") {
-                out = MelBase::MelBase_E;
+                out = MelBase::E;
             } else if (melBaseLower == "10") {
-                out = MelBase::MelBase_10;
+                out = MelBase::Base10;
             } else {
                 collectError(stdc::formatN(
                     R"(enum string field "melBase" invalid: expect "e", "10"; got "%1")", melBase));
@@ -305,9 +305,9 @@ namespace ds::inferutil {
             const auto melScale = it->second.toString();
             const auto melScaleLower = stdc::to_lower(melScale);
             if (melScaleLower == "slaney") {
-                out = MelScale::MelScale_Slaney;
+                out = MelScale::Slaney;
             } else if (melScaleLower == "htk") {
-                out = MelScale::MelScale_HTK;
+                out = MelScale::HTK;
             } else {
                 collectError(stdc::format(
                     R"(enum string field "melScale" invalid: expect "slaney", "htk"; got "%1")",
@@ -325,9 +325,9 @@ namespace ds::inferutil {
             const auto linguisticMode = it->second.toString();
             const auto linguisticModeLower = stdc::to_lower(linguisticMode);
             if (linguisticModeLower == "word") {
-                out = LinguisticMode::LM_Word;
+                out = LinguisticMode::Word;
             } else if (linguisticModeLower == "phoneme") {
-                out = LinguisticMode::LM_Phoneme;
+                out = LinguisticMode::Phoneme;
             } else {
                 collectError(stdc::format(R"(enum string field "linguisticMode" invalid: )"
                                           R"(expect "word", "phoneme"; got "%1")",
