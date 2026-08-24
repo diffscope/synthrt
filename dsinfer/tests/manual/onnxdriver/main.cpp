@@ -73,7 +73,7 @@ struct InferenceFixture {
 
         su.addPluginPath("org.openvpi.InferenceDriver", pluginPath);
 
-        const char *pluginKey = "onnx";
+        const char *pluginKey = ds::Api::Onnx::DRIVER_NAME;
         auto plugin = su.plugin<ds::InferenceDriverPlugin>(pluginKey);
         if (!plugin) {
             return srt::Error{

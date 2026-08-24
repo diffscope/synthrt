@@ -143,7 +143,8 @@ namespace ds {
     };
 
     OnnxDriver::OnnxDriver()
-        : InferenceDriver(Api::Onnx::API_NAME), _impl(std::make_unique<Impl>()) {
+        : InferenceDriver(Api::Onnx::DRIVER_NAME, Api::Onnx::API_NAME),
+          _impl(std::make_unique<Impl>()) {
     }
 
     OnnxDriver::~OnnxDriver() {

@@ -9,7 +9,7 @@
 namespace ds::inferutil {
     srt::Expected<InferenceDriver *> getInferenceDriver(const srt::Inference *obj) {
         namespace Onnx = Api::Onnx;
-        auto *service = obj->synthUnit().runtimeService(InferenceDriver::IID, Onnx::API_NAME);
+        auto *service = obj->synthUnit().runtimeService(InferenceDriver::IID, Onnx::DRIVER_NAME);
         if (!service) {
             return srt::Error(ds::ErrorCode::NotInitialized,
                               "could not find the ONNX inference driver");

@@ -27,7 +27,7 @@ set(_onnxdriver_ep_macros ${_onnxdriver_ep_macro_dml} ${_onnxdriver_ep_macro_cud
 find_package(stduuid CONFIG REQUIRED)
 find_package(blake3 CONFIG REQUIRED)
 
-dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/onnx NO_EXPORT
+dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/onnxdriver NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_17
     LINKS dsinfer
@@ -36,18 +36,7 @@ dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/onnx NO_E
     DEFINES ORT_API_MANUAL_INIT ${_onnxdriver_ep_macros}
 )
 
-set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME onnx)
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_CURRENT_SOURCE_DIR}/plugin.json
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>/plugin.json
-)
-
-if(DSINFER_INSTALL)
-    install(FILES plugin.json
-        DESTINATION ${DSINFER_INSTALL_PLUGINS_DIR}/${CURRENT_PLUGIN_CATEGORY}/onnx
-    )
-endif()
+dsinfer_add_plugin_manifest(${PROJECT_NAME})
 
 if(WIN32)
     set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dll)
@@ -58,10 +47,10 @@ else()
 endif()
 
 # Copy onnxruntime shared libraries
-qm_add_copy_command(${PROJECT_NAME} # SKIP_INSTALL
+qm_add_copy_command(${PROJECT_NAME}
     SOURCES ${_ort_default_lib_files}
     DESTINATION runtimes/onnx/default
-    INSTALL_DIR ${CMAKE_INSTALL_PREFIX}
+    INSTALL_DIR .
 )
 
 if(EXISTS ${_onnxruntime_cuda_dir} AND IS_DIRECTORY ${_onnxruntime_cuda_dir})
@@ -72,10 +61,10 @@ if(EXISTS ${_onnxruntime_cuda_dir} AND IS_DIRECTORY ${_onnxruntime_cuda_dir})
     endif()
 
     if(NOT APPLE)
-        qm_add_copy_command(${PROJECT_NAME} # SKIP_INSTALL
+        qm_add_copy_command(${PROJECT_NAME}
             SOURCES ${_ort_cuda_lib_files}
             DESTINATION runtimes/onnx/cuda
-            INSTALL_DIR ${CMAKE_INSTALL_PREFIX}
+            INSTALL_DIR .
         )
     endif()
 endif()

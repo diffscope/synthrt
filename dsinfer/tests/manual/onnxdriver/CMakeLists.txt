@@ -31,12 +31,10 @@ set(_src_res_dir "resources")
 # resources directory name in build dir
 set(_res_dir "${PROJECT_NAME}_resources")
 
-# Copy resources to the build directory after building
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND
-            ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/${_src_res_dir}
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>/${_res_dir}
+qm_add_copy_command(${PROJECT_NAME}
+    SKIP_INSTALL
+    SOURCES "${_src_res_dir}/"
+    DESTINATION ${_res_dir}
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

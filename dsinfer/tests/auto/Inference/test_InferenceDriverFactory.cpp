@@ -26,7 +26,7 @@ namespace {
 
     class TestDriver : public ds::InferenceDriver {
     public:
-        explicit TestDriver(std::string name) : InferenceDriver(std::move(name)) {
+        explicit TestDriver(const std::string &name) : InferenceDriver(name, name) {
         }
 
         std::string arch() const override {
@@ -131,21 +131,23 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
 
     const auto names = factory.driverNames();
     BOOST_REQUIRE_EQUAL(names.size(), 1u);
-    BOOST_CHECK_EQUAL(names.front(), "onnx");
+    BOOST_CHECK_EQUAL(names.front(), ds::Api::Onnx::DRIVER_NAME);
 
-    auto result = factory.create("onnx");
+    auto result = factory.create(ds::Api::Onnx::DRIVER_NAME);
     BOOST_REQUIRE(result);
     auto driver = result.take();
     BOOST_CHECK_EQUAL(driver->backend(), "onnx");
 
     ds::Api::Onnx::DriverInitArgs initArgs;
-    initArgs.runtimePath = pluginPaths.front() / "onnx" / "runtimes" / "onnx" / "default";
+    initArgs.runtimePath =
+        pluginPaths.front() / ds::Api::Onnx::DRIVER_NAME / "runtimes" / "onnx" / "default";
     BOOST_REQUIRE(driver->initialize(initArgs));
 
     auto *driverPointer = driver.get();
     srt::SynthUnit unit;
     BOOST_REQUIRE(unit.addRuntimeService(std::move(driver)));
-    BOOST_CHECK(unit.runtimeService(ds::InferenceDriver::IID, "onnx") == driverPointer);
+    BOOST_CHECK(unit.runtimeService(ds::InferenceDriver::IID, ds::Api::Onnx::DRIVER_NAME) ==
+                driverPointer);
 
     auto session = driverPointer->createSession();
     BOOST_REQUIRE(session);

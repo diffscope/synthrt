@@ -15,14 +15,4 @@ dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/vocoder N
     INCLUDE_PRIVATE *
 )
 
-add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        ${CMAKE_CURRENT_SOURCE_DIR}/plugin.json
-        $<TARGET_FILE_DIR:${PROJECT_NAME}>/plugin.json
-)
-
-if(DSINFER_INSTALL)
-    install(FILES plugin.json
-        DESTINATION ${DSINFER_INSTALL_PLUGINS_DIR}/${CURRENT_PLUGIN_CATEGORY}/vocoder
-    )
-endif()
+dsinfer_add_plugin_manifest(${PROJECT_NAME})

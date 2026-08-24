@@ -71,9 +71,9 @@ namespace ds {
         /// Returns the singer architecture supported by this driver.
         virtual std::string arch() const = 0;
 
-        /// Returns the plugin neutral backend name.
+        /// Returns the backend contract name.
         const std::string &backend() const noexcept {
-            return name();
+            return m_backend;
         }
 
         /// Initializes process resources used by sessions from this driver.
@@ -90,7 +90,10 @@ namespace ds {
         SYNTHRT_DECLARE_AS_METHODS(InferenceDriver)
 
     protected:
-        explicit InferenceDriver(std::string name);
+        InferenceDriver(std::string name, std::string backend);
+
+    private:
+        std::string m_backend;
     };
 
 }

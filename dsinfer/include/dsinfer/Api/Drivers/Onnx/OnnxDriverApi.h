@@ -16,6 +16,9 @@ struct OrtApiBase;
 
 namespace ds::Api::Onnx {
 
+    /// Identifies the ONNX inference driver implementation.
+    inline constexpr char DRIVER_NAME[] = "onnxdriver";
+
     /// Identifies the ONNX inference driver API.
     inline constexpr char API_NAME[] = "onnx";
 
