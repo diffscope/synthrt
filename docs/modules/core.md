@@ -14,7 +14,7 @@ Core 是 synthrt 的基础设施层，提供：
 - `ITask` — 任务基类（推理任务的抽象）
 - `Expected<T>` / `Error` / `Diagnostic` — 错误处理
 - `DependencyGraph` / `VersionUtils` — 依赖解析与版本管理
-- `DisplayText` / `DisplayPath` — 多语言文本/路径（BCP 47 + RFC 4647 Lookup）
+- `DisplayText` / `DisplayPath` — 多语言文本/路径（ds-spec 2.4 透传模型：键原样保留、Runtime 不做匹配）
 
 ---
 
@@ -148,7 +148,7 @@ public:
     const std::string &id() const;
     const std::string &category() const;
     const std::string &className() const;
-    DisplayText name() const;   // 多语言名称（BCP 47 键），不再返回 std::string
+    DisplayText name() const;   // 多语言名称（全部翻译随对象携带），不再返回 std::string
     int apiLevel() const;
     const JsonObject &manifestConfiguration() const;
     NO<TaskConfiguration> configuration() const;
@@ -182,21 +182,29 @@ public:
     // 首个字符串条目（按旧无 locale 键顺序）选定默认文本；非字符串条目跳过
     static DisplayText fromJsonValueTolerant(const JsonValue &value);
 
-    std::string text() const;                        // 默认文本（"_" 键）
-    std::string text(const std::string &locale) const; // 按 locale 取词
-    std::vector<std::string> locales() const;        // 全部 locale 键（有序）
+    const std::string &text() const;                   // 默认文本（"_" 键）
+    const std::string *text(std::string_view key) const; // 按键直取；缺键返 nullptr
+    stdc::array_view<std::string> locales() const;     // "_" 以外的全部键（原样、有序）
     bool isEmpty() const;
 };
 
 // include/synthrt/Core/Support/DisplayPath.h
-class DisplayPath { /* 同语义的文件路径版本，每个本地化值各自相对声明文件解析 */ };
+class DisplayPath { /* 与 DisplayText 同契约的文件路径版本：path()/path(key)/locales() */ };
 ```
 
-**匹配语义（本地实现，docs/ds-spec-2.4.md §多语言文本 + RFC 4647 Lookup）**：
+**透传语义（docs/ds-spec-2.4.md §多语言文本）**：
 
-- 语言键一律为 **BCP 47 标签**，分隔符严格为 `-`（POSIX 的 `zh_CN` 不进 lookup 链，只能由 `_` 兜底）；
-- `text(locale)` 对请求标签做 RFC 4647 Lookup：大小写不敏感、逐段右截（`zh-Hans-CN` → `zh-Hans` → `zh`），全部未命中返回 `_`；**不做脚本推断**（`zh-TW` 不会命中 `zh-Hant` 键）；
-- 全库唯一实现为 `srt::core::DisplayText`（原 `srt::g2p::DisplayText` 副本已删除）；`ModuleSpec::name()/configurationDisplayName()`、ds-bank 的所有人读字段均改用它（详见 ds-bank.md / ds-session.md）。
+- 语言键是**不透明且区分大小写**的 map key（推荐 BCP 47，但 Runtime 不验证）；Runtime 不执行
+  Lookup、大小写折叠、规范化或回退——POSIX 写法 `zh_CN` 只是一个普通键，与原样键名精确相等才命中。
+- `text(key)` 是**纯查询**：键存在返回其值（值可为空串），不存在返回 `nullptr`；**不会**自动回退
+  到 `_`。如何用偏好语言生成候选键序列、何时取 `text()`（`_`）、是否归并大小写，全部由前端决定；
+  前端需要枚举时用 `locales()` 取得全部键的原样拼写。
+- 全库唯一实现为 `srt::core::DisplayText`（原 `srt::g2p::DisplayText` 副本已删除）；
+  `ModuleSpec::name()/configurationDisplayName()`、ds-bank 的所有人读字段均改用它
+  （详见 ds-bank.md / ds-session.md）。
+- 构造/解析路径：`fromJsonValue` 严格要求 `_`；`fromJsonValueTolerant` 缺 `_` 时按
+  `default` → `en` → 首个字符串条目选定默认文本（解析容错，不是匹配）；构造函数会忽略
+  翻译 map 里混入的 `_` 键。
 
 ---
 

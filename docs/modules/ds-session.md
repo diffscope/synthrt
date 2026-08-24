@@ -6,7 +6,7 @@ namespace: `ds::session` | target: `srt-ds::session` | 头文件: `include/diffs
 
 `VoicebankSession` 是宿主使用声库、G2P/S2P 和模型集的统一入口。它组合 `VoicebankScanner`、`LanguageService`、`Runtime`、依赖解析、快照切换和旧资源排空。Lite 不直接持有 route、Runtime 或 G2P manager。
 
-**本地化（本轮改造）**：`VoicebankSession::setDisplayLocale()` 及内部 locale 传播链已整条移除。snapshot 中的  `SingerSnapshot::name` / `PackageManifest` 各文本字段均为 `srt::core::DisplayText`，携带 BCP 47 全翻译；宿主切 UI 语言时对缓存值 `text(locale)` 重新取词即可，**不需要再调用 refresh() 重扫声库**（指纹也不受显示语言影响，见下 §VoicebankSnapshot）。
+**本地化（本轮改造）**：`VoicebankSession::setDisplayLocale()` 及内部 locale 传播链已整条移除。snapshot 中的  `SingerSnapshot::name` / `PackageManifest` 各文本字段均为 `srt::core::DisplayText`，携带全部翻译（键原样保留，Runtime 不做任何匹配）；宿主切 UI 语言时对缓存值按自有匹配策略（`locales()` + `text(key)` 精确直取，落空取 `text()`）重新取词即可，**不需要再调用 refresh() 重扫声库**（指纹也不受显示语言影响，见下 §VoicebankSnapshot）。
 
 D-26 ~ D-36 / V3 重构落地后，Session 采用 Discovery/On-demand 两阶段加载：discovery 阶段只扫描目录、解析清单、校验完整性（仅元数据）；on-demand 阶段由 `ensureLanguageReady()` / `ensureModelSet()` 同步加载 G2P 字典与模型权重（D-27/D-34）。Session **借入** Runtime 和 LanguageService（不拥有其生命周期），bare `setRuntime()` / `setLanguageService()` 已标记 `[[deprecated]]`，由 `VoicebankSession(SessionResources)` 构造函数取代（D-27/K-01）。
 
@@ -101,13 +101,10 @@ struct VoicebankSnapshot {
     // V3-07 fingerprint (D-33 / WP2)
     std::string catalogFingerprint;    // 全量目录哈希，匹配 Lite PackageCatalog::generation
     std::string languageFingerprint;   // G2P/S2P 路由元数据哈希
-    // 注：SingerSnapshot.name 现为 DisplayText，其 fingerprint 序列化默认文本 + 全部
-    // "locale=text" 对；因此编辑任意翻译会改变指纹（→ 包 changed），而切换 UI 显示语言
-    // 不再改变指纹（→ 不触发重扫/重建缓存）。
-    // 已知限制：指纹经 DisplayText::text(tag) 取值，POSIX 写法键（含 '_'，如 zh_CN）
-    // 的译文不参与 Lookup、会序列化为默认文本——不合规键的译文变更检测不到。由于该类
-    // 键本就无效（PackageValidator 报 Error），不修 DisplayText；数据作者应迁移为
-    // BCP 47 键。
+    // 注：SingerSnapshot.name 为 DisplayText，其 fingerprint 序列化默认文本 + 全部
+    // (键, 译文) 对——经 text(key) 对每个 locales() 键原样直取，POSIX 写法键（如 zh_CN）
+    // 的译文同样覆盖；因此编辑任意翻译（无论键写法是否合规）都会改变指纹（→ 包 changed），
+    // 而切换 UI 显示语言不改变指纹（→ 不触发重扫/重建缓存）。
 };
 
 struct ChangeSummary {

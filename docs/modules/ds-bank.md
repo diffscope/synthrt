@@ -91,7 +91,7 @@ struct SingerRef {
 // include/diffsinger/Bank/SingerSnapshot.h
 struct SingerSnapshot {
     SingerRef ref;
-    srt::core::DisplayText name;   // 多语言名称（BCP 47 键），不再是拍扁后的 std::string
+    srt::core::DisplayText name;   // 多语言名称（全部翻译随对象携带），不再是拍扁后的 std::string
     ResolutionState resolutionState = ResolutionState::Pending;
     srt::core::Diagnostic resolutionError;
     double phonemeLength = 48.0;  // 固定 48，不可修改
@@ -161,31 +161,33 @@ enum class ResolutionState {
 
 ---
 
-## 多语言字段（DisplayText + BCP 47）
+## 多语言字段（DisplayText 透传）
 
 自本次本地化改造起，ds-bank 的所有人读字段（`LanguageInfo::name()`、`SpeakerInfo::name()`、
 `SingerManifest::name()`、`PackageManifest::name()/description()/author()/license()`、
 `SingerSnapshot::name`）返回 **`srt::core::DisplayText`**，保存 desc.json / singer config
-中的**全部翻译**（BCP 47 键，含 `_` 默认值）。
+中的**全部翻译**（键原样保留，含 `_` 默认值）。
 
 变更要点：
 
 - **解析期不再拍扁**：旧 `PackageParser::nameField()`（按 `m_displayLocale` 当场解析出唯一
   字符串并丢弃翻译表）已删除，改为 `displayTextField()` 调用
   `DisplayText::fromJsonValueTolerant` 整表保留。这是宿主（ds-editor-lite）切换 UI 语言
-  无需重扫声库的前提——宿主对缓存的 DisplayText 调 `text(locale)` 随取随用即可，
-  locale 建议用 `QLocale::bcp47Name()`（BCP 47），不要再用 POSIX 的 `QLocale::name()`。
+  无需重扫声库的前提——宿主对缓存的 DisplayText 按自有匹配策略随取随用。
+- **Runtime 不做任何匹配（透传模型）**：`text(key)` 按键原样精确直取、区分大小写，缺键返回
+  `nullptr`；不做 Lookup 截断、不做大小写折叠、不自动回退 `_`。宿主的典型取词：
+  遍历 `locales()` 或按自有候选键链逐个 `text(key)`，全部落空时取 `text()`（`_`）。
+  细节见 core.md §DisplayText/DisplayPath。
 - **`setDisplayLocale()` 整条链移除**：`PackageParser::setDisplayLocale` 与
   `VoicebankScanner::setDisplayLocale/displayLocale` 已删除，无 no-op 兼容层。
-- **匹配语义**：RFC 4647 Lookup（大小写不敏感、逐段右截），无脚本推断（`zh-TW` 不命中
-  `zh-Hant` 键）；POSIX 键（`zh_CN`）惰性、只能命中 `_`。细节见 core.md §DisplayText。
 - **字段名以 spec 2.4 为准**：desc.json 的许可字段只认 `copyright`（解析进
   `PackageManifest::license()`）；历史写法 `license` 不再读取，PackageValidator 按
   extra key 出 Warning 提示迁移。
-- **Validator 合规检查（Error 级）**：多语言对象缺 `_` 默认项、或非 `_` 键含 `_`
-  （POSIX 写法如 `zh_CN`）均报 Error 并给出修正建议；扫描端仍宽松载入（
-  `fromJsonValueTolerant`），但校验端不对不合规数据保持沉默。
-- `name()` 返回值用于拼接字符串/比较时，用 `.text()`（默认）或 `.text(locale)`；空判定用
+- **Validator 合规检查**：多语言对象缺 `_` 默认项报 **Error**（spec 仍规定 `_` 必选）；
+  非 `_` 键含 `_`（POSIX 写法如 `zh_CN`）报 **Warning** 并建议改用 BCP 47 写法——键对
+  Runtime 不透明，POSIX 键是合法数据，仅为兼容性引导。扫描端仍宽松载入
+  （`fromJsonValueTolerant`）。
+- `name()` 返回值用于拼接字符串/比较时，用 `.text()`（默认）或按自有策略 `.text(key)`；空判定用
   `.isEmpty()`；构造/赋值接受 `std::string`（作为默认文本隐式转换）；`DisplayText` 没有
   字符串比较重载，旧断言 `name == "..."` 需改为 `name().text() == "..."`。
 
