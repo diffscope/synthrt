@@ -28,8 +28,8 @@ namespace srt {
         for (const auto &categoryEntry : contributions) {
             for (auto *spec : categoryEntry.second) {
                 for (auto &import : spec->_impl->imports) {
-                    if (import.m_data->binding) {
-                        import.m_data->binding->closeForUnload();
+                    if (import.binding()) {
+                        import.binding()->closeForUnload();
                     }
                 }
             }
@@ -37,10 +37,10 @@ namespace srt {
         for (const auto &categoryEntry : contributions) {
             for (auto *spec : categoryEntry.second) {
                 for (auto &import : spec->_impl->imports) {
-                    if (!import.m_data->binding) {
+                    if (!import.binding()) {
                         continue;
                     }
-                    const auto result = import.m_data->binding->waitForUnload();
+                    const auto result = import.binding()->waitForUnload();
                     if (!result) {
                         logCategory().srtFatal(
                             "an import binding failed to stop during Package unload: %1",

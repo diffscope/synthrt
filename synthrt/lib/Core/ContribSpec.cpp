@@ -9,48 +9,32 @@
 
 namespace srt {
 
-    ContribImport::ContribImport(ContribImport &&other) noexcept = default;
-
-    ContribImport &ContribImport::operator=(ContribImport &&other) noexcept = default;
-
-    ContribImport::~ContribImport() = default;
-
     const std::string &ContribImport::role() const {
-        assert(m_data);
         return m_data->role;
     }
 
     const ContribLocator &ContribImport::locator() const {
-        assert(m_data);
         return m_data->locator;
     }
 
     const JsonValue &ContribImport::manifestOptions() const {
-        assert(m_data);
         return m_data->manifestOptions;
     }
 
     const ContribImportOptions *ContribImport::options() const {
-        assert(m_data);
         return m_data->binding ? &m_data->binding->options() : m_data->options.get();
     }
 
     ContribImportBinding *ContribImport::binding() const {
-        assert(m_data);
         return m_data->binding.get();
     }
 
     ContribExecFactory *ContribImport::execFactory() const {
-        assert(m_data);
         return m_data->execFactory.get();
     }
 
-    ContribImport::ContribImport(std::string role, ContribLocator locator, JsonValue options)
-        : m_data(std::make_shared<ContribImportData>(std::move(role), std::move(locator),
-                                                     std::move(options))) {
+    ContribImport::ContribImport(const Data &data) : m_data(&data) {
     }
-
-    ContribImport::ContribImport(const ContribImport &other) = default;
 
     ContribSpec::~ContribSpec() = default;
 
@@ -113,6 +97,15 @@ namespace srt {
         return _impl->imports;
     }
 
+    std::optional<ContribImport> ContribSpec::findImport(std::string_view role) const {
+        assert(_impl->hasModuleDeclaration);
+        const auto it = _impl->importData.find(role);
+        if (it == _impl->importData.end()) {
+            return std::nullopt;
+        }
+        return ContribImport(it->second);
+    }
+
     ContribSpec::ContribSpec(const ContribCreateContext &context)
         : _impl(std::make_unique<Impl>()) {
         _impl->package = context.m_data->package;
@@ -131,7 +124,12 @@ namespace srt {
         _impl->manifestConfiguration = context.m_data->manifestConfiguration;
         _impl->imports.reserve(context.m_data->imports.size());
         for (const auto &item : context.m_data->imports) {
-            _impl->imports.push_back(ContribImport(item));
+            auto role = item.role();
+            auto key = role;
+            const auto [it, inserted] = _impl->importData.try_emplace(
+                std::move(key), std::move(role), item.locator(), item.manifestOptions());
+            assert(inserted);
+            _impl->imports.push_back(ContribImport(it->second));
         }
     }
 

@@ -864,7 +864,7 @@ namespace srt {
                             !result) {
                             return result.takeError();
                         }
-                        import.m_data->options = std::move(typedOptions);
+                        spec->_impl->importData.at(import.role()).options = std::move(typedOptions);
                     }
                     auto validation = spec->_impl->interpreter->validateImports(*spec);
                     if (!validation) {
@@ -873,8 +873,9 @@ namespace srt {
                     }
                     for (auto &import : spec->_impl->imports) {
                         auto *target = resolveTarget(package, import.locator());
+                        auto &importData = spec->_impl->importData.at(import.role());
                         auto binding = spec->_impl->interpreter->createImportBinding(
-                            *spec, import, *target, std::move(import.m_data->options));
+                            *spec, import, *target, std::move(importData.options));
                         if (!binding) {
                             return binding.takeError().withContext(
                                 "failed to create module import binding");
@@ -890,8 +891,8 @@ namespace srt {
                             return factory.takeError().withContext(
                                 "target category failed to create import execution factory");
                         }
-                        import.m_data->execFactory = factory.take();
-                        import.m_data->binding = std::move(preparedBinding);
+                        importData.binding = std::move(preparedBinding);
+                        importData.execFactory = factory.take();
                     }
                 }
             }
@@ -922,8 +923,8 @@ namespace srt {
             for (const auto &categoryEntry : package->contributions) {
                 for (auto *spec : categoryEntry.second) {
                     for (auto &import : spec->_impl->imports) {
-                        if (import.m_data->binding) {
-                            import.m_data->binding->activateForCommit();
+                        if (import.binding()) {
+                            import.binding()->activateForCommit();
                         }
                     }
                 }
@@ -1213,7 +1214,7 @@ namespace srt {
                         if (!importsIt->second.isArray()) {
                             return Error(Error::InvalidFormat, "module imports must be an array");
                         }
-                        std::set<std::string> importRoles;
+                        context.imports.reserve(importsIt->second.toArray().size());
                         for (const auto &importValue : importsIt->second.toArray()) {
                             if (!importValue.isObject()) {
                                 return Error(Error::InvalidFormat,
@@ -1227,10 +1228,6 @@ namespace srt {
                                              "module import requires a valid string role field");
                             }
                             auto importRole = roleIt->second.toString();
-                            if (!importRoles.insert(importRole).second) {
-                                return Error(Error::InvalidFormat,
-                                             "module import role must be unique");
-                            }
                             const auto refIt = importObject.find("ref");
                             if (refIt == importObject.end() || !refIt->second.isString()) {
                                 return Error(Error::InvalidFormat,
@@ -1257,8 +1254,13 @@ namespace srt {
                             }
                             // Repeated locators are distinct import instances and array order is
                             // part of the importing contract.
-                            context.imports.push_back(ContribImport(
-                                std::move(importRole), std::move(locator), std::move(options)));
+                            auto import = context.addImport(std::move(importRole),
+                                                            std::move(locator), std::move(options));
+                            if (!import) {
+                                return Error(Error::InvalidFormat,
+                                             "module import role must be unique");
+                            }
+                            context.imports.push_back(*import);
                         }
                     }
                 }

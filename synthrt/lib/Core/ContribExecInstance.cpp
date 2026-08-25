@@ -117,21 +117,19 @@ namespace srt {
             return Error(Error::InvalidArgument,
                          "a stopping execution instance cannot create children");
         }
-        for (const auto &import : m_spec->_impl->imports) {
-            if (import.role() != role) {
-                continue;
-            }
-            if (!import.m_data->execFactory) {
-                return Error(Error::FeatureNotSupported,
-                             "import role does not provide an execution instance");
-            }
-            auto child = import.m_data->execFactory->create(runtimeOptions);
-            if (!child) {
-                return child.takeError();
-            }
-            return adoptChild(child.take());
+        auto import = m_spec->findImport(role);
+        if (!import) {
+            return Error(Error::InvalidArgument, "execution instance import role does not exist");
         }
-        return Error(Error::InvalidArgument, "execution instance import role does not exist");
+        if (!import->execFactory()) {
+            return Error(Error::FeatureNotSupported,
+                         "import role does not provide an execution instance");
+        }
+        auto child = import->execFactory()->create(runtimeOptions);
+        if (!child) {
+            return child.takeError();
+        }
+        return adoptChild(child.take());
     }
 
     Expected<void> ContribExecInstance::quitForUnload() {

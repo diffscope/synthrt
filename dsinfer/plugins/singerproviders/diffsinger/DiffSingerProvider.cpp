@@ -15,50 +15,55 @@ namespace ds {
 
     namespace {
 
-        srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec) {
-            for (const auto &import : spec.imports()) {
-                const auto &role = import.role();
-                std::string_view expectedInterface;
-                std::string_view expectedVariant;
-                int expectedLevel;
-                if (role == "duration") {
-                    expectedInterface = Api::Duration::L1::API_INTERFACE;
-                    expectedVariant = Api::Duration::L1::API_VARIANT;
-                    expectedLevel = Api::Duration::L1::API_LEVEL;
-                } else if (role == "pitch") {
-                    expectedInterface = Api::Pitch::L1::API_INTERFACE;
-                    expectedVariant = Api::Pitch::L1::API_VARIANT;
-                    expectedLevel = Api::Pitch::L1::API_LEVEL;
-                } else if (role == "variance") {
-                    expectedInterface = Api::Variance::L1::API_INTERFACE;
-                    expectedVariant = Api::Variance::L1::API_VARIANT;
-                    expectedLevel = Api::Variance::L1::API_LEVEL;
-                } else if (role == "acoustic") {
-                    expectedInterface = Api::Acoustic::L1::API_INTERFACE;
-                    expectedVariant = Api::Acoustic::L1::API_VARIANT;
-                    expectedLevel = Api::Acoustic::L1::API_LEVEL;
-                } else if (role == "vocoder") {
-                    expectedInterface = Api::Vocoder::L1::API_INTERFACE;
-                    expectedVariant = Api::Vocoder::L1::API_VARIANT;
-                    expectedLevel = Api::Vocoder::L1::API_LEVEL;
-                } else {
-                    continue;
-                }
-
-                auto package = spec.package();
-                auto *target = package.resolve(import.locator());
-                if (!target) {
-                    return srt::Error(srt::Error::FileNotFound,
-                                      "DiffSinger inference import target is unavailable");
-                }
-                if (target->interface() != expectedInterface ||
-                    target->variant() != expectedVariant || target->level() != expectedLevel) {
-                    return srt::Error(
-                        srt::Error::InvalidFormat,
-                        "DiffSinger inference import has an incompatible contract identity");
-                }
+        srt::Expected<void>
+            validateKnownImport(const srt::ContribSpec &spec, const srt::PackageHandle &package,
+                                std::string_view role, std::string_view expectedInterface,
+                                std::string_view expectedVariant, int expectedLevel) {
+            const auto import = spec.findImport(role);
+            if (!import) {
+                return {};
+            }
+            auto *target = package.resolve(import->locator());
+            if (!target) {
+                return srt::Error(srt::Error::FileNotFound,
+                                  "DiffSinger inference import target is unavailable");
+            }
+            if (target->interface() != expectedInterface || target->variant() != expectedVariant ||
+                target->level() != expectedLevel) {
+                return srt::Error(
+                    srt::Error::InvalidFormat,
+                    "DiffSinger inference import has an incompatible contract identity");
             }
             return {};
+        }
+
+        srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec) {
+            const auto package = spec.package();
+            auto result =
+                validateKnownImport(spec, package, "duration", Api::Duration::L1::API_INTERFACE,
+                                    Api::Duration::L1::API_VARIANT, Api::Duration::L1::API_LEVEL);
+            if (!result) {
+                return result;
+            }
+            result = validateKnownImport(spec, package, "pitch", Api::Pitch::L1::API_INTERFACE,
+                                         Api::Pitch::L1::API_VARIANT, Api::Pitch::L1::API_LEVEL);
+            if (!result) {
+                return result;
+            }
+            result =
+                validateKnownImport(spec, package, "variance", Api::Variance::L1::API_INTERFACE,
+                                    Api::Variance::L1::API_VARIANT, Api::Variance::L1::API_LEVEL);
+            if (!result) {
+                return result;
+            }
+            result =
+                validateKnownImport(spec, package, "acoustic", Api::Acoustic::L1::API_INTERFACE,
+                                    Api::Acoustic::L1::API_VARIANT, Api::Acoustic::L1::API_LEVEL);
+            if (!result) {
+                return result;
+            }
+            return validateKnownImport(spec, package, "vocoder", Api::Vocoder::L1::API_INTERFACE,
+                                       Api::Vocoder::L1::API_VARIANT, Api::Vocoder::L1::API_LEVEL);
         }
 
     }
