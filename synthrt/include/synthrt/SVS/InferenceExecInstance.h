@@ -2,7 +2,6 @@
 #define SYNTHRT_INFERENCEEXECINSTANCE_H
 
 #include <synthrt/Core/ContribExecInstance.h>
-#include <synthrt/Core/ContribSpecPayload.h>
 #include <synthrt/Task/ITask.h>
 
 namespace srt {
@@ -10,12 +9,12 @@ namespace srt {
     class InferenceSpec;
 
     /// Runtime options supplied when an inference instance is created.
-    class InferenceRuntimeOptions : public ContribSpecPayload {
+    class InferenceRuntimeOptions : public ContribRuntimeOptions {
     public:
         ~InferenceRuntimeOptions() = default;
 
     protected:
-        using ContribSpecPayload::ContribSpecPayload;
+        using ContribRuntimeOptions::ContribRuntimeOptions;
     };
 
     class InferenceInitArgs : public TaskInitArgs {

@@ -44,6 +44,7 @@ namespace srt {
     class ContribCategory;
     class ContribCreateContext;
     class ContribExecInstance;
+    class ContribExecFactory;
     class ContribImportBinding;
     class ContribInterpreter;
     class PackageData;
@@ -61,6 +62,9 @@ namespace srt {
             Import &operator=(Import &&other) noexcept;
             ~Import();
 
+            /// Returns the role unique within the importing contribution.
+            const std::string &role() const;
+
             const ContribLocator &locator() const;
 
             /// Returns the options value read from the manifest.
@@ -76,8 +80,11 @@ namespace srt {
             /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
             ContribImportBinding *binding() const;
 
+            /// Returns the target category's execution factory for this import.
+            ContribExecFactory *execFactory() const;
+
         private:
-            Import(ContribLocator locator, JsonValue options);
+            Import(std::string role, ContribLocator locator, JsonValue options);
 
             class Impl;
             std::unique_ptr<Impl> _impl;
@@ -88,6 +95,7 @@ namespace srt {
             friend class PackageData;
             friend class PackageLoader;
             friend class ContribSpec;
+            friend class ContribExecInstance;
         };
 
         virtual ~ContribSpec();

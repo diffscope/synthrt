@@ -5,10 +5,38 @@
 
 #include "InferenceInterpreter.h"
 #include "InferenceInterpreterPlugin.h"
+#include "ContribExecInstance.h"
+#include "ContribImportBinding.h"
 
 namespace srt {
 
     namespace {
+
+        class InferenceExecFactory : public ContribExecFactory {
+        public:
+            explicit InferenceExecFactory(ContribImportBinding &binding) : m_binding(&binding) {
+            }
+
+            Expected<std::unique_ptr<ContribExecInstance>>
+                create(const ContribRuntimeOptions &runtimeOptions) override {
+                auto &target = m_binding->target();
+                if (runtimeOptions.interface() != target.interface() ||
+                    runtimeOptions.variant() != target.variant() ||
+                    runtimeOptions.level() != target.level()) {
+                    return Error(Error::InvalidArgument,
+                                 "inference runtime options do not match the target contract");
+                }
+                auto result = target.as<InferenceSpec>()->createInference(
+                    m_binding->options(), *runtimeOptions.as<InferenceRuntimeOptions>());
+                if (!result) {
+                    return result.takeError();
+                }
+                return std::unique_ptr<ContribExecInstance>(result.take());
+            }
+
+        private:
+            ContribImportBinding *m_binding;
+        };
 
         Expected<void> validateEntry(const JsonObject &entry) {
             static const std::set<std::string_view> fields = {"id", "path"};
@@ -96,6 +124,11 @@ namespace srt {
             return result.takeError();
         }
         return std::unique_ptr<ContribSpec>(new InferenceSpec(context));
+    }
+
+    Expected<std::unique_ptr<ContribExecFactory>>
+        InferenceCategory::createExecFactory(ContribImportBinding &binding) const {
+        return std::unique_ptr<ContribExecFactory>(new InferenceExecFactory(binding));
     }
 
 }

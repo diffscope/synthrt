@@ -4,6 +4,7 @@
 #include <mutex>
 #include <utility>
 
+#include "ContribExecInstance.h"
 #include "SynthUnit_p.h"
 
 STDC_INSTANTIATE_STATIC_REGISTRY_EXPORT(srt::ContribCategory, SYNTHRT_EXPORT)
@@ -90,6 +91,11 @@ namespace srt {
         }
         std::lock_guard<std::recursive_mutex> lock(_impl->synthUnit->_impl->loadMutex);
         return _impl->contributions;
+    }
+
+    Expected<std::unique_ptr<ContribExecFactory>>
+        ContribCategory::createExecFactory(ContribImportBinding &) const {
+        return std::unique_ptr<ContribExecFactory>();
     }
 
     ContribCategory::ContribCategory(std::string name, DeclarationMode declarationMode,

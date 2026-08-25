@@ -32,7 +32,7 @@
 | `configuration`的语法 | 未区分契约与实现 | 完全由`variant`规定，契约不规定其中的公共字段 |
 | 多语言值 | Runtime 按语言代码选择文字 | Runtime 忠实提供完整 map，不解释语言代码；路径 value 在返回前完成解析与规范化 |
 | 多语言路径 | 未明确落到具体字段 | `readme`、`avatar`、`background`与`demoAudio`均为多语言路径 |
-| `imports` 条目 | `id` + `inferenceId` + `version` 三个字段，或一个裸字符串简写 | 一个 `ref` 引用串，**类别是其中一格**，不设简写 |
+| `imports` 条目 | `id` + `inferenceId` + `version` 三个字段，或一个裸字符串简写 | `role` + `ref`，其中引用串包含类别，不设简写 |
 | `imports`集合语义 | 未规定 | 有序数组，重复引用是独立导入实例，不自动去重 |
 | 模块引用 | `lib[version]/id`，Package、版本与模块混在一起 | ModuleReference 只定位已解析依赖中的模块，版本要求只写在`dependencies`中 |
 | 可选依赖 | `dependencies[].required`，默认 `true` | **不支持**，所有依赖均为强制依赖 |
@@ -626,15 +626,18 @@ Runtime 整体销毁前，必须先关闭所有 provider execution domain 的运
 每个条目：
 
 + 必选字段
+    + `role`：该 import 在当前模块内唯一的用途名称，使用 contrib-id 的单段语法
     + `ref`：被引用模块的 ModuleReference，见上文文法
 + 可选字段
     + `options`：提供给被引用模块的选项，其语法由**被引用模块**的`interface`与`level`规定
 
-`imports`是由零至多个条目组成的有序数组。加载器必须保持声明顺序，不得排序或重排。每个条目都是独立的导入实例，相同`ref`可以重复出现，加载器不得自动合并或去重。
+`imports`是由零至多个条目组成的有序数组。加载器必须保持声明顺序，不得排序或重排。每个条目的`role`在当前模块内必须唯一。每个条目都是独立的导入实例，相同`ref`可以重复出现，但必须使用不同的`role`，加载器不得自动合并或去重。
 
 每个`imports`数组项必须恰好产生一个独立的 ImportBinding，由 importing module 拥有。ImportBinding 保存该条目的`ref`、`options`及其到目标模块的运行时连接；多个条目即使引用同一个目标模块，也不得共享或覆盖彼此的 binding 状态。目标模块实例可以共享，但不得将某一 import 的`options`作为目标模块的全局配置写入。
 
-公共格式不提供本地 slot。导入项的用途通过被引用模块契约规定的`options`表达。导入模块需要多少项、某类导入是否必选，以及某种重复是否符合具体实现要求，由导入模块的`variant`验证。
+`role`是导入方为该条目指定的本地 slot。导入模块通过`role`区分各项用途，并由自己的`variant`规定哪些 role 必须存在以及每个 role 接受哪一种目标契约。`options`只描述目标契约规定的导入参数，不承担标识本地用途的职责。
+
+每个 import 最多关联一个由目标 category 提供的执行实例 factory。该 factory 的目标契约由对应`ref`唯一确定，一次调用只创建该契约的一种执行实例，但可以被调用多次以创建多个实例。没有运行时对象的 category 可以不提供 factory。其他已注册 category 可以通过这一机制为新的 role 提供执行实例，因此 Singer 等导入方不得仅因遇到自身不认识的 role 而拒绝整个模块；导入方仍可严格要求自己契约规定的 role 存在且只指向规定的目标契约。
 
 **被引用的可以是任何模块类别中的模块，不限于 `inference`。** 类别写在`ref`里：`:inference/pitch`引用一个推理模块，`:com.vendor.language/cmn`引用一个第三方语言模块。非模块类别的贡献不能作为`imports[].ref`的目标。这也是为什么这里用一个引用串而不是拆成几个字段——拆开就没有类别的位置了。
 
@@ -690,12 +693,14 @@ Singer 模块负责定义一个歌手的信息，以及它需要使用的其他�
     "background": "${singerAssets}/sprite.png",
     "demoAudio": "${singerAssets}/demo.wav",
     "imports": [
-        { "ref": ":inference/acoustic" },
+        { "role": "acoustic", "ref": ":inference/acoustic" },
         {
+            "role": "pitch",
             "ref": "bar:inference/pitch",
             "options": { "roles": ["pitch"] }
         },
         {
+            "role": "variance",
             "ref": ":inference/variance",
             "options": { "roles": ["tension", "energy"] }
         }

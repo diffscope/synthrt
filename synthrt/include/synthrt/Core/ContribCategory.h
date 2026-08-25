@@ -19,6 +19,8 @@
 namespace srt {
 
     class ContribCategory;
+    class ContribExecFactory;
+    class ContribImportBinding;
     class PackageData;
     class PackageLoader;
     class SynthUnit;
@@ -123,6 +125,13 @@ namespace srt {
         /// ContribSpec derived type.
         virtual Expected<std::unique_ptr<ContribSpec>>
             createSpec(const ContribCreateContext &context) const = 0;
+
+        /// Creates the execution factory attached to an import targeting this category.
+        ///
+        /// Returning a null factory means that contributions in this category have no execution
+        /// instance. The Loader stores a nonnull factory on the corresponding import.
+        virtual Expected<std::unique_ptr<ContribExecFactory>>
+            createExecFactory(ContribImportBinding &binding) const;
 
         /// Constructs a contribution category implemented by the derived class.
         ///

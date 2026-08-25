@@ -59,6 +59,12 @@ namespace {
         }
     };
 
+    class TestRuntimeOptions final : public srt::ContribRuntimeOptions {
+    public:
+        TestRuntimeOptions() : ContribRuntimeOptions(testInterface, "test", 1) {
+        }
+    };
+
     class TestBinding final : public srt::ContribImportBinding {
     public:
         TestBinding(srt::ContribSpec &importer, const srt::ContribSpec::Import &declaration,
@@ -83,7 +89,31 @@ namespace {
 
     class TestExecInstance final : public srt::ContribExecInstance {
     public:
-        explicit TestExecInstance(srt::ContribSpec &spec) : ContribExecInstance(spec) {
+        explicit TestExecInstance(srt::ContribSpec &spec, int *destroyCount = nullptr)
+            : ContribExecInstance(spec), m_destroyCount(destroyCount) {
+        }
+
+        ~TestExecInstance() {
+            if (m_destroyCount) {
+                ++*m_destroyCount;
+            }
+        }
+
+        srt::Expected<TestExecInstance *> adopt(std::unique_ptr<TestExecInstance> child) {
+            auto adopted = adoptChild(std::move(child));
+            if (!adopted) {
+                return adopted.takeError();
+            }
+            return static_cast<TestExecInstance *>(*adopted);
+        }
+
+        srt::Expected<TestExecInstance *> create(std::string_view role,
+                                                 const TestRuntimeOptions &runtimeOptions) {
+            auto created = createChild(role, runtimeOptions);
+            if (!created) {
+                return created.takeError();
+            }
+            return static_cast<TestExecInstance *>(*created);
         }
 
     private:
@@ -94,6 +124,23 @@ namespace {
         srt::Expected<void> wait() override {
             return {};
         }
+
+        int *m_destroyCount;
+    };
+
+    class TestExecFactory final : public srt::ContribExecFactory {
+    public:
+        explicit TestExecFactory(srt::ContribImportBinding &binding) : m_binding(&binding) {
+        }
+
+        srt::Expected<std::unique_ptr<srt::ContribExecInstance>>
+            create(const srt::ContribRuntimeOptions &) override {
+            return std::unique_ptr<srt::ContribExecInstance>(
+                new TestExecInstance(m_binding->target()));
+        }
+
+    private:
+        srt::ContribImportBinding *m_binding;
     };
 
     class TestRuntimeService final : public srt::RuntimeService {
@@ -175,6 +222,11 @@ namespace {
         srt::Expected<std::unique_ptr<srt::ContribSpec>>
             createSpec(const srt::ContribCreateContext &context) const override {
             return std::unique_ptr<srt::ContribSpec>(new TestSpec(context));
+        }
+
+        srt::Expected<std::unique_ptr<srt::ContribExecFactory>>
+            createExecFactory(srt::ContribImportBinding &binding) const override {
+            return std::unique_ptr<srt::ContribExecFactory>(new TestExecFactory(binding));
         }
     };
 
@@ -464,7 +516,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     writePackage(secondPath, "dep-3", "dep", "3", "1");
     const auto root = writePackage(
         temporary.path(), "root", "root", "1", {}, R"([{"id":"dep","version":"1"}])",
-        R"([{"ref":"dep:com.example.test/main"},{"ref":"dep:com.example.test/main"}])");
+        R"([{"role":"first","ref":"dep:com.example.test/main"},{"role":"second","ref":"dep:com.example.test/main"}])");
 
     auto unit = makeUnit();
     const std::vector<fs::path> paths = {firstPath, secondPath};
@@ -492,6 +544,8 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK_EQUAL(rootSpec->exports()->variant(), "test");
     BOOST_CHECK_EQUAL(rootSpec->exports()->level(), 1);
     BOOST_REQUIRE_EQUAL(rootSpec->imports().size(), 2u);
+    BOOST_CHECK_EQUAL(rootSpec->imports()[0].role(), "first");
+    BOOST_CHECK_EQUAL(rootSpec->imports()[1].role(), "second");
     BOOST_CHECK(rootSpec->imports()[0].options());
     BOOST_CHECK(rootSpec->imports()[1].options());
     BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->interface(), testInterface);
@@ -510,12 +564,35 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(&rootSpec->imports()[0].binding()->target() == dependencySpec);
     BOOST_CHECK(&rootSpec->imports()[0].binding()->options() == rootSpec->imports()[0].options());
     BOOST_CHECK(dependencySpec->package().version() == stdc::VersionNumber(2));
+    int childDestroyCount = 0;
     {
-        TestExecInstance instance(*rootSpec);
-        BOOST_CHECK(&instance.spec() == rootSpec);
-        BOOST_CHECK(&instance.synthUnit() == &unit);
-        BOOST_CHECK(instance.lifecycleState() == srt::ContribExecInstance::LifecycleState::Running);
+        TestExecInstance parent(*rootSpec);
+        BOOST_CHECK(&parent.spec() == rootSpec);
+        BOOST_CHECK(&parent.synthUnit() == &unit);
+        BOOST_CHECK(parent.lifecycleState() == srt::ContribExecInstance::LifecycleState::Running);
+        TestRuntimeOptions runtimeOptions;
+        auto created = parent.create("first", runtimeOptions);
+        BOOST_REQUIRE(created);
+        BOOST_CHECK(&(*created)->spec() == dependencySpec);
+        BOOST_CHECK((*created)->parent() == &parent);
+        delete *created;
+        BOOST_CHECK(parent.children().empty());
+        {
+            auto adopted = parent.adopt(std::make_unique<TestExecInstance>(*dependencySpec));
+            BOOST_REQUIRE(adopted);
+            auto *child = *adopted;
+            BOOST_CHECK(child->parent() == &parent);
+            BOOST_REQUIRE_EQUAL(parent.children().size(), 1u);
+            BOOST_CHECK(parent.children().front() == child);
+
+            delete child;
+            BOOST_CHECK(parent.children().empty());
+        }
+        BOOST_REQUIRE(
+            parent.adopt(std::make_unique<TestExecInstance>(*dependencySpec, &childDestroyCount)));
+        BOOST_CHECK_EQUAL(childDestroyCount, 0);
     }
+    BOOST_CHECK_EQUAL(childDestroyCount, 1);
     BOOST_CHECK_EQUAL(exportsCount - oldExports, 2);
     BOOST_CHECK_EQUAL(configurationCount - oldConfiguration, 2);
     BOOST_CHECK_EQUAL(optionsCount - oldOptions, 2);
@@ -569,7 +646,7 @@ BOOST_AUTO_TEST_CASE(test_missing_dependency_reports_not_found) {
 BOOST_AUTO_TEST_CASE(test_missing_import_target_reports_not_found) {
     TemporaryDirectory temporary;
     const auto root = writePackage(temporary.path(), "root", "root", "1", {}, "[]",
-                                   R"([{"ref":":com.example.test/missing"}])");
+                                   R"([{"role":"missing","ref":":com.example.test/missing"}])");
 
     auto unit = makeUnit();
     auto opened = unit.openPackage(root, srt::SynthUnit::Load);
@@ -634,7 +711,7 @@ BOOST_AUTO_TEST_CASE(test_failed_validation_rolls_back_package_state) {
     writePackage(packages, "dep", "dep", "1", "1");
     const auto root =
         writePackage(temporary.path(), "root", "root", "1", {}, R"([{"id":"dep","version":"1"}])",
-                     R"([{"ref":"dep:com.example.test/main"}])");
+                     R"([{"role":"main","ref":"dep:com.example.test/main"}])");
 
     auto unit = makeUnit();
     const std::vector<fs::path> paths = {packages};

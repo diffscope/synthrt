@@ -46,6 +46,9 @@ namespace srt {
     protected:
         Expected<std::unique_ptr<ContribSpec>>
             createSpec(const ContribCreateContext &context) const override;
+
+        Expected<std::unique_ptr<ContribExecFactory>>
+            createExecFactory(ContribImportBinding &binding) const override;
     };
 
 }

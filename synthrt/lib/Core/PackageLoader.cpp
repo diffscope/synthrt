@@ -884,6 +884,13 @@ namespace srt {
                             return Error(Error::InvalidFormat,
                                          "importer interpreter returned a null import binding");
                         }
+                        auto *targetCategory = m_synthUnit->category(target->locator().category());
+                        auto factory = targetCategory->createExecFactory(*preparedBinding);
+                        if (!factory) {
+                            return factory.takeError().withContext(
+                                "target category failed to create import execution factory");
+                        }
+                        import._impl->execFactory = factory.take();
                         import._impl->binding = std::move(preparedBinding);
                     }
                 }
@@ -1206,12 +1213,24 @@ namespace srt {
                         if (!importsIt->second.isArray()) {
                             return Error(Error::InvalidFormat, "module imports must be an array");
                         }
+                        std::set<std::string> importRoles;
                         for (const auto &importValue : importsIt->second.toArray()) {
                             if (!importValue.isObject()) {
                                 return Error(Error::InvalidFormat,
                                              "module import must be an object");
                             }
                             const auto &importObject = importValue.toObject();
+                            const auto roleIt = importObject.find("role");
+                            if (roleIt == importObject.end() || !roleIt->second.isString() ||
+                                !ContribLocator::isValidSegment(roleIt->second.toString())) {
+                                return Error(Error::InvalidFormat,
+                                             "module import requires a valid string role field");
+                            }
+                            auto importRole = roleIt->second.toString();
+                            if (!importRoles.insert(importRole).second) {
+                                return Error(Error::InvalidFormat,
+                                             "module import role must be unique");
+                            }
                             const auto refIt = importObject.find("ref");
                             if (refIt == importObject.end() || !refIt->second.isString()) {
                                 return Error(Error::InvalidFormat,
@@ -1238,8 +1257,8 @@ namespace srt {
                             }
                             // Repeated locators are distinct import instances and array order is
                             // part of the importing contract.
-                            context.imports.push_back(
-                                ContribSpec::Import(std::move(locator), std::move(options)));
+                            context.imports.push_back(ContribSpec::Import(
+                                std::move(importRole), std::move(locator), std::move(options)));
                         }
                     }
                 }

@@ -13,6 +13,12 @@ namespace ds {
     public:
         srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
             createConfiguration(const srt::ContribSpec &spec) const override;
+
+        srt::Expected<void> validateImports(const srt::ContribSpec &spec) const override;
+
+        srt::Expected<std::unique_ptr<srt::SingerPipelineExecInstance>>
+            createPipeline(srt::SingerSpec &spec,
+                           const srt::SingerPipelineRuntimeOptions &runtimeOptions) override;
     };
 
 }

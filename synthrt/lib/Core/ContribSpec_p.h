@@ -7,6 +7,7 @@
 
 #include <stdcorelib/adt/vlarray.h>
 
+#include "ContribExecInstance.h"
 #include "ContribImportBinding.h"
 
 namespace srt {
@@ -26,14 +27,17 @@ namespace srt {
 
     class ContribSpec::Import::Impl {
     public:
-        Impl(ContribLocator locator, JsonValue manifestOptions)
-            : locator(std::move(locator)), manifestOptions(std::move(manifestOptions)) {
+        Impl(std::string role, ContribLocator locator, JsonValue manifestOptions)
+            : role(std::move(role)), locator(std::move(locator)),
+              manifestOptions(std::move(manifestOptions)) {
         }
 
+        std::string role;
         ContribLocator locator;
         JsonValue manifestOptions;
         std::unique_ptr<ContribImportOptions> options;
         std::unique_ptr<ContribImportBinding> binding;
+        std::unique_ptr<ContribExecFactory> execFactory;
     };
 
     class ContribSpec::Impl {

@@ -5,6 +5,10 @@
 
 namespace srt {
 
+    class SingerPipelineExecInstance;
+    class SingerPipelineRuntimeOptions;
+    class SingerSpec;
+
     /// Interprets and executes singer contributions.
     class SYNTHRT_EXPORT SingerProvider : public ContribInterpreter {
     public:
@@ -23,6 +27,11 @@ namespace srt {
             createImportBinding(ContribSpec &importer, const ContribSpec::Import &declaration,
                                 ContribSpec &target,
                                 std::unique_ptr<ContribImportOptions> options) const override;
+
+        /// Creates the provider-defined synthesis pipeline for a loaded singer contribution.
+        virtual Expected<std::unique_ptr<SingerPipelineExecInstance>>
+            createPipeline(SingerSpec &spec,
+                           const SingerPipelineRuntimeOptions &runtimeOptions) = 0;
 
     protected:
         SingerProvider() = default;
