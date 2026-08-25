@@ -24,7 +24,7 @@
 | 模块 ID | 写在模块自己的声明文件里 | **写在 `desc.json` 里，由 Package 赋予** |
 | `class` | 推理类型 + 解释器选择，一词两义 | 改名 `interface`，只表示「这份声明遵循哪套契约」 |
 | 实现变体 | 无，只能另起一个 `class` | 新增 `variant`，表示同一契约的不同实现；不同变体不保证可互换 |
-| DiffSinger Singer 标识 | `class`为`diffsinger` | `interface`为`org.openvpi.svs.singer.DiffSinger`，`variant`为`openvpi` |
+| DiffSinger Singer 标识 | `class`为`diffsinger` | `interface`为`org.openvpi.dsinfer.singer.DiffSinger`，`variant`为`openvpi` |
 | 术语 | Library（亦称 Package） | 统一用 **Package**，不再用 Library / lib |
 | `$version` | 每份模块声明文件各写一份，`desc.json` 反而没有 | **只写在 `desc.json`**，全 Package 共用一个 |
 | 模块声明文件的公共字段 | 各类别各自定义、各自解析 | 提取为《公共字段》，由框架统一解析 |
@@ -551,7 +551,7 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 | `interface` | **别人能对我做什么** | 本规范或第三方 | 少、稳 |
 | `variant` | **谁来读我、谁来跑我** | 实现方 | 可随时增加 |
 
-`interface`是一个反向域名形式的标识符，例如`org.openvpi.svs.inference.Acoustic`。它回答的是**「这份声明该按谁的语法读」**，也是导入方唯一应当据以分辨模块种类的东西。
+`interface`是一个反向域名形式的标识符，例如`org.openvpi.dsinfer.inference.Acoustic`。它回答的是**「这份声明该按谁的语法读」**，也是导入方唯一应当据以分辨模块种类的东西。
 
 > 2.3 中这个字段叫`class`，并被描述为「推理类型」。改名的原因是它命名的不是一个类，而是一份契约：`org.openvpi.*`是本规范定义的公共契约，第三方定义的新契约使用自己的命名空间（如`com.vendor.*`）。
 
@@ -655,7 +655,7 @@ Inference 模块负责执行某一项参数的推理任务，承担了最底层�
 
 ```json
 {
-    "interface": "org.openvpi.svs.inference.Variance",
+    "interface": "org.openvpi.dsinfer.inference.Variance",
     "level": 1,
     "variant": "onnx",
     "name": "Zhibin - Variance",
@@ -682,7 +682,7 @@ Singer 模块负责定义一个歌手的信息，以及它需要使用的其他�
 
 ```json
 {
-    "interface": "org.openvpi.svs.singer.DiffSinger",
+    "interface": "org.openvpi.dsinfer.singer.DiffSinger",
     "level": 1,
     "variant": "openvpi",
     "name": "Zhibin",
@@ -803,12 +803,12 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 
 ```json
 {
-  "iid": "org.openvpi.synthrt.interp.SingerProvider",
+  "iid": "org.openvpi.synthrt.plugin.SingerProvider",
   "name": "diffsinger",
   "metadata": {
     "interpreters": [
       {
-        "interface": "org.openvpi.svs.singer.DiffSinger",
+        "interface": "org.openvpi.dsinfer.singer.DiffSinger",
         "level": 1,
         "variant": "openvpi"
       }
@@ -817,7 +817,7 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 }
 ```
 
-Inference interpreter plugin 使用`org.openvpi.synthrt.interp.InferenceInterpreter`作为 IID，并使用相同的`metadata.interpreters`结构。
+Inference interpreter plugin 使用`org.openvpi.synthrt.plugin.InferenceInterpreter`作为 IID，并使用相同的`metadata.interpreters`结构。
 
 例如，某个宿主可以配置：
 
@@ -860,7 +860,7 @@ Inference provider 使用`inference`类别专用的插件搜索目录和 factory
 
 插件必须在`metadata.interpreters`中列出它提供的推理解释器。每个解释器条目包含：
 
-- `interface`：负责的契约，如`org.openvpi.svs.inference.Pitch`
+- `interface`：负责的契约，如`org.openvpi.dsinfer.inference.Pitch`
 - `level`：负责的那一个 API Level
 - `variant`：负责的变体
 

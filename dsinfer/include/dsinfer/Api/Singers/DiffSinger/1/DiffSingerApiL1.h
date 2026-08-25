@@ -13,7 +13,7 @@
 namespace ds::Api::DiffSinger::L1 {
 
     /// Identifies the DiffSinger contribution contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.singer.DiffSinger";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.dsinfer.singer.DiffSinger";
 
     /// Identifies the OpenVPI DiffSinger implementation variant.
     inline constexpr char API_VARIANT[] = "openvpi";
@@ -77,7 +77,7 @@ namespace srt {
     template <>
     struct ContribSpecExtensionTraits<SingerSpec,
                                       ds::Api::DiffSinger::L1::DiffSingerPipelineExecInstance> {
-        inline static constexpr char ID[] = "org.openvpi.svs.inference.Pipeline";
+        inline static constexpr char ID[] = "org.openvpi.dsinfer.extension.DiffSingerPipeline";
     };
 
 }

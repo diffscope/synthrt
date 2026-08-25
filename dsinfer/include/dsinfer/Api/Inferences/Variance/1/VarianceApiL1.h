@@ -23,7 +23,7 @@ namespace ds::Api::Variance::L1 {
     using LinguisticMode = Common::L1::LinguisticMode;
 
     /// Identifies the variance inference contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.inference.Variance";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.dsinfer.inference.Variance";
 
     /// Identifies the ONNX implementation variant.
     inline constexpr char API_VARIANT[] = "onnx";

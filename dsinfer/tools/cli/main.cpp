@@ -350,7 +350,7 @@ static int execute(const fs::path &packagePath, const fs::path &inputPath,
     }
 
     // The root Pipeline owns every inference instance created through its Import roles.
-    auto *extension =
+    auto extension =
         srt::ContribSpecExtension::findFromSpec<DiffSinger::DiffSingerPipelineExecInstance>(
             *singerSpec);
     if (!extension) {

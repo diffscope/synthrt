@@ -1,10 +1,10 @@
 {
-    "iid": "org.openvpi.synthrt.interp.InferenceInterpreter",
+    "iid": "org.openvpi.synthrt.plugin.InferenceInterpreter",
     "name": "variance",
     "metadata": {
         "interpreters": [
             {
-                "interface": "org.openvpi.svs.inference.Variance",
+                "interface": "org.openvpi.dsinfer.inference.Variance",
                 "level": 1,
                 "variant": "onnx"
             }

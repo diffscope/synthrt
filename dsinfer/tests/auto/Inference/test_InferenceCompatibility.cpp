@@ -64,7 +64,7 @@ namespace {
         writeText(root / "phonemes.json", R"({"SP":0})");
         writeText(root / "acoustic.json",
                   R"({
-                      "interface":"org.openvpi.svs.inference.Acoustic",
+                      "interface":"org.openvpi.dsinfer.inference.Acoustic",
                       "variant":"onnx",
                       "level":1,
                       "exports":{},
@@ -77,7 +77,7 @@ namespace {
                   })");
         writeText(root / "vocoder.json",
                   R"({
-                      "interface":"org.openvpi.svs.inference.Vocoder",
+                      "interface":"org.openvpi.dsinfer.inference.Vocoder",
                       "variant":"onnx",
                       "level":1,
                       "exports":{},
@@ -100,7 +100,7 @@ namespace {
         }
         writeText(root / "singer.json",
                   R"({
-                      "interface":"org.openvpi.svs.singer.DiffSinger",
+                      "interface":"org.openvpi.dsinfer.singer.DiffSinger",
                       "variant":"openvpi",
                       "level":1,
                       "exports":{},

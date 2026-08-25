@@ -19,7 +19,7 @@
 namespace ds::Api::Acoustic::L1 {
 
     /// Identifies the acoustic inference contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.inference.Acoustic";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.dsinfer.inference.Acoustic";
 
     /// Identifies the ONNX implementation variant.
     inline constexpr char API_VARIANT[] = "onnx";
