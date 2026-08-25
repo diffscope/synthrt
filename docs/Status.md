@@ -48,24 +48,23 @@ SynthRT 的 Package 基础设施目前已经实现：
 - Duration、Pitch、Variance、Acoustic 和 Vocoder Interpreter 均已迁移为类型化 Exec Instance，并将模型执行拆分为独立 Task
 - Singer 使用 `SingerPipelineExecInstance` 表达已知推理流水线，并通过开放的 Import role 与 `ContribExecFactory` 创建子执行实例
 - DiffSinger Provider 已接入新的 Pipeline、role 查询和目标契约校验
+- `InferenceSpec`兼容性检查由目标 Interpreter 实现，默认接受任意组合。DiffSinger 在 Commit 前强制检查 Acoustic 与 Vocoder 的配置兼容性
 - 修订后的 level 1 推理契约和已经迁移到 2.4 的示例 Package 结构
 - 基于 `stdc::cli` 的命令行示例与手动测试运行器，通过 Singer Pipeline 和 Import role 驱动完整同步推理链
 
 仍待完成的迁移包括：
 
 - 五类 Inference Task 的异步执行路径仍返回 `NotImplemented`
-- Inference Spec 之间尚无可复用的契约兼容性检查，CLI 暂时直接检查 Acoustic 输出与 Vocoder 输入配置
-- 真实插件参与的 Package 加载、Pipeline 创建、子实例执行与 Package 卸载还缺少一条端到端自动化测试
+- 真实插件的 Package 加载和兼容性拒绝已有自动化覆盖，Pipeline 创建、子实例执行与 Package 卸载仍缺少端到端测试
 - 部分 Utility 仍保留旧模型和兼容代码，需要在 Interpreter 迁移后继续清理
 
-当前完整 `all` 构建可以通过，14 个自动测试均已通过。
+当前完整 `all` 构建可以通过，15 个自动测试均已通过。
 
 ## 后续工作
 
-1. 为 `InferenceSpec` 增加可重写的契约兼容性检查，并将 Acoustic 与 Vocoder 的配置匹配从 CLI 下沉。
-2. 增加真实 2.4 Package 的端到端自动化测试，覆盖插件发现、Pipeline 执行、父子实例释放、Binding 关闭和 Package 卸载。
-3. 完成仍返回 `NotImplemented` 的异步执行路径，并补充停止、等待和回调销毁测试。
-4. 从 Utility 中移除剩余的过时 API，并把仍有价值的手动场景迁移到自动化测试。
-5. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
-6. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
-7. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。
+1. 增加真实 2.4 Package 的端到端自动化测试，覆盖 Pipeline 执行、父子实例释放、Binding 关闭和 Package 卸载。
+2. 完成仍返回 `NotImplemented` 的异步执行路径，并补充停止、等待和回调销毁测试。
+3. 从 Utility 中移除剩余的过时 API，并把仍有价值的手动场景迁移到自动化测试。
+4. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
+5. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
+6. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。

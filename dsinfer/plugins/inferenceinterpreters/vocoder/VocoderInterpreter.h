@@ -18,6 +18,8 @@ namespace ds {
         srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
             createImportOptions(const srt::ContribSpec &target,
                                 const srt::JsonValue &options) const override;
+        srt::Expected<void> validateCompatibility(const srt::InferenceSpec &spec,
+                                                  const srt::InferenceSpec &other) const override;
         srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
             createInference(srt::InferenceSpec &spec,
                             const srt::ContribImportOptions &importOptions,

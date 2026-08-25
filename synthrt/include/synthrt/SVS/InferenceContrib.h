@@ -19,6 +19,11 @@ namespace srt {
         /// Returns the module declaration file.
         const std::filesystem::path &declarationPath() const;
 
+        /// Validates whether this inference can consume output from \a other.
+        ///
+        /// Compatibility is directional. The interpreter of this inference defines the check.
+        Expected<void> validateCompatibilityWith(const InferenceSpec &other) const;
+
         /// Creates one execution instance using the interpreter selected during Package load.
         Expected<std::unique_ptr<InferenceExecInstance>>
             createInference(const ContribImportOptions &importOptions,

@@ -80,6 +80,15 @@ namespace srt {
         return m_declarationPath;
     }
 
+    Expected<void> InferenceSpec::validateCompatibilityWith(const InferenceSpec &other) const {
+        auto *value = interpreter();
+        if (!value || !other.interpreter()) {
+            return Error(Error::FeatureNotSupported,
+                         "cannot validate compatibility for an inference that is not loaded");
+        }
+        return value->as<InferenceInterpreter>()->validateCompatibility(*this, other);
+    }
+
     Expected<std::unique_ptr<InferenceExecInstance>>
         InferenceSpec::createInference(const ContribImportOptions &importOptions,
                                        const InferenceRuntimeOptions &runtimeOptions) {

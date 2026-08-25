@@ -23,6 +23,13 @@ namespace srt {
                                 ContribSpec &target,
                                 std::unique_ptr<ContribImportOptions> options) const override;
 
+        /// Validates whether \a spec can consume output from \a other.
+        ///
+        /// The default implementation accepts every other inference. Interpreters override this
+        /// function only when their contract imposes restrictions between inference contracts.
+        virtual Expected<void> validateCompatibility(const InferenceSpec &spec,
+                                                     const InferenceSpec &other) const;
+
         virtual Expected<std::unique_ptr<InferenceExecInstance>>
             createInference(InferenceSpec &spec, const ContribImportOptions &importOptions,
                             const InferenceRuntimeOptions &runtimeOptions) = 0;

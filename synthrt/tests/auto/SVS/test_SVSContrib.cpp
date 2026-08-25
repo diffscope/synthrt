@@ -20,6 +20,79 @@ namespace fs = std::filesystem;
 
 namespace {
 
+    constexpr char testInferenceInterface[] = "com.example.Inference";
+    constexpr char testInferenceVariant[] = "test";
+
+    class TestInferenceExports : public srt::ContribExports {
+    public:
+        TestInferenceExports() : ContribExports(testInferenceInterface, testInferenceVariant, 1) {
+        }
+    };
+
+    class TestInferenceConfiguration : public srt::ContribConfiguration {
+    public:
+        TestInferenceConfiguration()
+            : ContribConfiguration(testInferenceInterface, testInferenceVariant, 1) {
+        }
+    };
+
+    class TestInferenceImportOptions : public srt::ContribImportOptions {
+    public:
+        TestInferenceImportOptions()
+            : ContribImportOptions(testInferenceInterface, testInferenceVariant, 1) {
+        }
+    };
+
+    class TestInferenceInterpreter : public srt::InferenceInterpreter {
+    public:
+        srt::Expected<std::unique_ptr<srt::ContribExports>>
+            createExports(const srt::ContribSpec &) const override {
+            return std::make_unique<TestInferenceExports>();
+        }
+
+        srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
+            createConfiguration(const srt::ContribSpec &) const override {
+            return std::make_unique<TestInferenceConfiguration>();
+        }
+
+        srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
+            createImportOptions(const srt::ContribSpec &, const srt::JsonValue &) const override {
+            return std::make_unique<TestInferenceImportOptions>();
+        }
+
+        srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
+            createInference(srt::InferenceSpec &, const srt::ContribImportOptions &,
+                            const srt::InferenceRuntimeOptions &) override {
+            return srt::Error(srt::Error::FeatureNotSupported,
+                              "test interpreter does not create execution instances");
+        }
+    };
+
+    class TestInferenceInterpreterPlugin : public srt::InferenceInterpreterPlugin {
+    public:
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
+            create(std::string_view interfaceName, int level, std::string_view variant) override {
+            if (interfaceName != testInferenceInterface || variant != testInferenceVariant ||
+                level != 1) {
+                return srt::Error(srt::Error::InvalidArgument,
+                                  "unexpected test inference contract");
+            }
+            return std::make_unique<TestInferenceInterpreter>();
+        }
+    };
+
+    STDC_EXPORT_STATIC_PLUGIN(TestInferenceInterpreterPlugin, srt::InferenceInterpreterPlugin::IID,
+                              (stdc::json::Object{
+                                  {"iid",      srt::InferenceInterpreterPlugin::IID              },
+                                  {"name",     "test-inference-interpreter"                      },
+                                  {"metadata",
+                                   stdc::json::Object{
+                                       {"interpreters", stdc::json::Array{stdc::json::Object{
+                                                            {"interface", testInferenceInterface},
+                                                            {"level", 1},
+                                                            {"variant", testInferenceVariant}}}}}},
+    }))
+
     class TestRuntimeOptions final : public srt::InferenceRuntimeOptions {
     public:
         TestRuntimeOptions() : InferenceRuntimeOptions("org.openvpi.Acoustic", "default", 1) {
@@ -138,6 +211,41 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
     BOOST_CHECK_EQUAL(unit.category("inference")->interpreterIid(),
                       srt::InferenceInterpreterPlugin::IID);
     BOOST_CHECK_EQUAL(unit.category("singer")->interpreterIid(), srt::SingerProviderPlugin::IID);
+}
+
+BOOST_AUTO_TEST_CASE(test_inference_compatibility_defaults_to_supported) {
+    TemporaryDirectory temporary;
+    const auto root = temporary.path();
+    writeText(root / "desc.json",
+              R"({
+                  "$version":"1.0",
+                  "id":"compatibility-test",
+                  "version":"1",
+                  "runtimeLevel":1,
+                  "contributions":{
+                    "inference":[
+                      {"id":"consumer","path":"consumer.json"},
+                      {"id":"producer","path":"producer.json"}
+                    ]
+                  }
+              })");
+    const std::string declaration = R"({"interface":")" + std::string(testInferenceInterface) +
+                                    R"(","variant":")" + testInferenceVariant +
+                                    R"(","level":1,"exports":{},"configuration":{}})";
+    writeText(root / "consumer.json", declaration);
+    writeText(root / "producer.json", declaration);
+
+    srt::SynthUnit unit;
+    auto opened = unit.openPackage(root, srt::SynthUnit::Load);
+    BOOST_REQUIRE(opened);
+    auto package = opened.take();
+    auto *consumer = package.contribution("inference", "consumer")->as<srt::InferenceSpec>();
+    auto *producer = package.contribution("inference", "producer")->as<srt::InferenceSpec>();
+
+    auto compatibility = consumer->validateCompatibilityWith(*producer);
+    const auto compatibilityMessage =
+        compatibility ? std::string() : compatibility.error().toString();
+    BOOST_CHECK_MESSAGE(static_cast<bool>(compatibility), compatibilityMessage);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

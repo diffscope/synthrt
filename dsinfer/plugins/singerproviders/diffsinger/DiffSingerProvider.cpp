@@ -2,10 +2,12 @@
 
 #include <string_view>
 
+#include <stdcorelib/adt/vlarray.h>
 #include <stdcorelib/path.h>
 
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 #include <synthrt/Core/PackageHandle.h>
+#include <synthrt/SVS/InferenceContrib.h>
 
 #include "DiffSingerPipelineExecInstance.h"
 
@@ -15,61 +17,78 @@ namespace ds {
 
     namespace {
 
-        srt::Expected<void>
-            validateKnownImport(const srt::ContribSpec &spec, const srt::PackageHandle &package,
-                                std::string_view role, std::string_view expectedInterface,
-                                std::string_view expectedVariant, int expectedLevel) {
+        srt::Expected<srt::InferenceSpec *>
+            resolveKnownImport(const srt::ContribSpec &spec, const srt::PackageHandle &package,
+                               std::string_view role, std::string_view expectedInterface,
+                               std::string_view expectedVariant, int expectedLevel, bool required) {
             const auto import = spec.findImport(role);
             if (!import) {
-                return {};
+                if (required) {
+                    return srt::Error(srt::Error::InvalidFormat, "DiffSinger requires the " +
+                                                                     std::string(role) +
+                                                                     " inference import");
+                }
+                return static_cast<srt::InferenceSpec *>(nullptr);
             }
             auto *target = package.resolve(import->locator());
             if (!target) {
                 return srt::Error(srt::Error::FileNotFound,
                                   "DiffSinger inference import target is unavailable");
             }
-            if (target->interface() != expectedInterface || target->variant() != expectedVariant ||
+            if (target->locator().category() != "inference" ||
+                target->interface() != expectedInterface || target->variant() != expectedVariant ||
                 target->level() != expectedLevel) {
                 return srt::Error(
                     srt::Error::InvalidFormat,
                     "DiffSinger inference import has an incompatible contract identity");
             }
-            return {};
+            return target->as<srt::InferenceSpec>();
         }
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec) {
             const auto package = spec.package();
-            auto result =
-                validateKnownImport(spec, package, "duration", Api::Duration::L1::API_INTERFACE,
-                                    Api::Duration::L1::API_VARIANT, Api::Duration::L1::API_LEVEL);
-            if (!result) {
-                return result;
+            auto duration = resolveKnownImport(
+                spec, package, "duration", Api::Duration::L1::API_INTERFACE,
+                Api::Duration::L1::API_VARIANT, Api::Duration::L1::API_LEVEL, false);
+            if (!duration) {
+                return duration.takeError();
             }
-            result = validateKnownImport(spec, package, "pitch", Api::Pitch::L1::API_INTERFACE,
-                                         Api::Pitch::L1::API_VARIANT, Api::Pitch::L1::API_LEVEL);
-            if (!result) {
-                return result;
+            auto pitch =
+                resolveKnownImport(spec, package, "pitch", Api::Pitch::L1::API_INTERFACE,
+                                   Api::Pitch::L1::API_VARIANT, Api::Pitch::L1::API_LEVEL, false);
+            if (!pitch) {
+                return pitch.takeError();
             }
-            result =
-                validateKnownImport(spec, package, "variance", Api::Variance::L1::API_INTERFACE,
-                                    Api::Variance::L1::API_VARIANT, Api::Variance::L1::API_LEVEL);
-            if (!result) {
-                return result;
+            auto variance = resolveKnownImport(
+                spec, package, "variance", Api::Variance::L1::API_INTERFACE,
+                Api::Variance::L1::API_VARIANT, Api::Variance::L1::API_LEVEL, false);
+            if (!variance) {
+                return variance.takeError();
             }
-            result =
-                validateKnownImport(spec, package, "acoustic", Api::Acoustic::L1::API_INTERFACE,
-                                    Api::Acoustic::L1::API_VARIANT, Api::Acoustic::L1::API_LEVEL);
-            if (!result) {
-                return result;
+            auto acoustic = resolveKnownImport(
+                spec, package, "acoustic", Api::Acoustic::L1::API_INTERFACE,
+                Api::Acoustic::L1::API_VARIANT, Api::Acoustic::L1::API_LEVEL, true);
+            if (!acoustic) {
+                return acoustic.takeError();
             }
-            return validateKnownImport(spec, package, "vocoder", Api::Vocoder::L1::API_INTERFACE,
-                                       Api::Vocoder::L1::API_VARIANT, Api::Vocoder::L1::API_LEVEL);
+            auto vocoder = resolveKnownImport(
+                spec, package, "vocoder", Api::Vocoder::L1::API_INTERFACE,
+                Api::Vocoder::L1::API_VARIANT, Api::Vocoder::L1::API_LEVEL, true);
+            if (!vocoder) {
+                return vocoder.takeError();
+            }
+            auto compatibility = (*vocoder)->validateCompatibilityWith(**acoustic);
+            if (!compatibility) {
+                return compatibility.takeError().withContext(
+                    "DiffSinger vocoder import is incompatible with its acoustic import");
+            }
+            return {};
         }
 
     }
 
     static inline std::string formatErrorMessage(const std::string &msgPrefix,
-                                                 const std::vector<std::string> &errorList);
+                                                 const stdc::vlarray<std::string> &errorList);
 
     DiffSingerProvider::DiffSingerProvider() = default;
 
@@ -83,7 +102,7 @@ namespace ds {
 
         // Collect all the errors and return to user
         bool hasErrors = false;
-        std::vector<std::string> errorList;
+        stdc::vlarray<std::string> errorList;
 
         auto collectError = [&](auto &&msg) {
             hasErrors = true;
@@ -127,7 +146,7 @@ namespace ds {
     }
 
     static inline std::string formatErrorMessage(const std::string &msgPrefix,
-                                                 const std::vector<std::string> &errorList) {
+                                                 const stdc::vlarray<std::string> &errorList) {
         const std::string middlePart = " (";
         const std::string countSuffix = " errors found):\n";
 

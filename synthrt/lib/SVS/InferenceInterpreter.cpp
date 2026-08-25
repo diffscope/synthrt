@@ -32,6 +32,11 @@ namespace srt {
         return {};
     }
 
+    Expected<void> InferenceInterpreter::validateCompatibility(const InferenceSpec &,
+                                                               const InferenceSpec &) const {
+        return {};
+    }
+
     Expected<std::unique_ptr<ContribImportBinding>> InferenceInterpreter::createImportBinding(
         ContribSpec &importer, const ContribImport &declaration, ContribSpec &target,
         std::unique_ptr<ContribImportOptions> options) const {

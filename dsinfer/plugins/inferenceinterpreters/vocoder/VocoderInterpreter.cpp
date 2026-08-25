@@ -1,8 +1,13 @@
 #include "VocoderInterpreter.h"
 
+#include <string>
+
+#include <stdcorelib/adt/vlarray.h>
+#include <stdcorelib/str.h>
+
+#include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
-#include <stdcorelib/str.h>
 
 #include <inferutil/ErrorCollector.h>
 #include <inferutil/Parser.h>
@@ -11,13 +16,13 @@
 
 namespace ds {
 
+    namespace Ac = Api::Acoustic::L1;
     namespace Co = Api::Common::L1;
     namespace Vo = Api::Vocoder::L1;
 
     VocoderInterpreter::VocoderInterpreter() = default;
 
     VocoderInterpreter::~VocoderInterpreter() = default;
-
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         VocoderInterpreter::createExports(const srt::ContribSpec &spec) const {
@@ -113,6 +118,53 @@ namespace ds {
         VocoderInterpreter::createImportOptions(const srt::ContribSpec &target,
                                                 const srt::JsonValue &options) const {
         return std::make_unique<Vo::VocoderImportOptions>();
+    }
+
+    srt::Expected<void>
+        VocoderInterpreter::validateCompatibility(const srt::InferenceSpec &spec,
+                                                  const srt::InferenceSpec &other) const {
+        if (other.interface() != Ac::API_INTERFACE || other.variant() != Ac::API_VARIANT ||
+            other.level() != Ac::API_LEVEL) {
+            return {};
+        }
+
+        const auto *acoustic = other.configuration()->as<Ac::AcousticConfiguration>();
+        const auto *vocoder = spec.configuration()->as<Vo::VocoderConfiguration>();
+        stdc::vlarray<std::string> mismatches;
+
+        if (acoustic->sampleRate != vocoder->sampleRate) {
+            mismatches.emplace_back("sampleRate");
+        }
+        if (acoustic->hopSize != vocoder->hopSize) {
+            mismatches.emplace_back("hopSize");
+        }
+        if (acoustic->winSize != vocoder->winSize) {
+            mismatches.emplace_back("winSize");
+        }
+        if (acoustic->fftSize != vocoder->fftSize) {
+            mismatches.emplace_back("fftSize");
+        }
+        if (acoustic->melChannels != vocoder->melChannels) {
+            mismatches.emplace_back("melChannels");
+        }
+        if (acoustic->melMinFreq != vocoder->melMinFreq) {
+            mismatches.emplace_back("melMinFreq");
+        }
+        if (acoustic->melMaxFreq != vocoder->melMaxFreq) {
+            mismatches.emplace_back("melMaxFreq");
+        }
+        if (acoustic->melBase != vocoder->melBase) {
+            mismatches.emplace_back("melBase");
+        }
+        if (acoustic->melScale != vocoder->melScale) {
+            mismatches.emplace_back("melScale");
+        }
+        if (mismatches.empty()) {
+            return {};
+        }
+        return srt::Error(srt::Error::InvalidFormat,
+                          "vocoder configuration is incompatible with acoustic configuration: " +
+                              stdc::join(mismatches, ", "));
     }
 
     srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
