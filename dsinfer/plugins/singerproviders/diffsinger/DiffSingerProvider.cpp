@@ -15,90 +15,50 @@ namespace ds {
 
     namespace {
 
-        struct InferenceBindings {
-            srt::ContribImportBinding *duration = nullptr;
-            srt::ContribImportBinding *pitch = nullptr;
-            srt::ContribImportBinding *variance = nullptr;
-            srt::ContribImportBinding *acoustic = nullptr;
-            srt::ContribImportBinding *vocoder = nullptr;
-            bool hasDuration = false;
-            bool hasPitch = false;
-            bool hasVariance = false;
-            bool hasAcoustic = false;
-            bool hasVocoder = false;
-        };
-
-        srt::Expected<InferenceBindings> collectInferenceBindings(const srt::ContribSpec &spec,
-                                                                  bool requireBindings) {
-            InferenceBindings result;
-            const auto assign =
-                [](const srt::ContribSpec &target, srt::ContribImportBinding *binding,
-                   srt::ContribImportBinding **destination, bool *found,
-                   std::string_view expectedInterface, std::string_view expectedVariant,
-                   int expectedLevel) -> srt::Expected<void> {
-                if (*found) {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "DiffSinger declares a duplicate inference import");
-                }
-                if (target.interface() != expectedInterface ||
-                    target.variant() != expectedVariant || target.level() != expectedLevel) {
-                    return srt::Error(
-                        srt::Error::InvalidFormat,
-                        "DiffSinger inference import has an incompatible contract identity");
-                }
-                *found = true;
-                *destination = binding;
-                return {};
-            };
-
+        srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec) {
             for (const auto &import : spec.imports()) {
-                auto *binding = import.binding();
-                if (requireBindings && !binding) {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "DiffSinger import has no active runtime binding");
+                const auto &role = import.role();
+                std::string_view expectedInterface;
+                std::string_view expectedVariant;
+                int expectedLevel;
+                if (role == "duration") {
+                    expectedInterface = Api::Duration::L1::API_INTERFACE;
+                    expectedVariant = Api::Duration::L1::API_VARIANT;
+                    expectedLevel = Api::Duration::L1::API_LEVEL;
+                } else if (role == "pitch") {
+                    expectedInterface = Api::Pitch::L1::API_INTERFACE;
+                    expectedVariant = Api::Pitch::L1::API_VARIANT;
+                    expectedLevel = Api::Pitch::L1::API_LEVEL;
+                } else if (role == "variance") {
+                    expectedInterface = Api::Variance::L1::API_INTERFACE;
+                    expectedVariant = Api::Variance::L1::API_VARIANT;
+                    expectedLevel = Api::Variance::L1::API_LEVEL;
+                } else if (role == "acoustic") {
+                    expectedInterface = Api::Acoustic::L1::API_INTERFACE;
+                    expectedVariant = Api::Acoustic::L1::API_VARIANT;
+                    expectedLevel = Api::Acoustic::L1::API_LEVEL;
+                } else if (role == "vocoder") {
+                    expectedInterface = Api::Vocoder::L1::API_INTERFACE;
+                    expectedVariant = Api::Vocoder::L1::API_VARIANT;
+                    expectedLevel = Api::Vocoder::L1::API_LEVEL;
+                } else {
+                    continue;
                 }
+
                 auto package = spec.package();
-                auto *target = binding ? &binding->target() : package.resolve(import.locator());
+                auto *target = package.resolve(import.locator());
                 if (!target) {
                     return srt::Error(srt::Error::FileNotFound,
                                       "DiffSinger inference import target is unavailable");
                 }
-                const auto &role = import.role();
-                srt::Expected<void> assigned;
-                if (role == "duration") {
-                    assigned = assign(*target, binding, &result.duration, &result.hasDuration,
-                                      Api::Duration::L1::API_INTERFACE,
-                                      Api::Duration::L1::API_VARIANT, Api::Duration::L1::API_LEVEL);
-                } else if (role == "pitch") {
-                    assigned = assign(*target, binding, &result.pitch, &result.hasPitch,
-                                      Api::Pitch::L1::API_INTERFACE, Api::Pitch::L1::API_VARIANT,
-                                      Api::Pitch::L1::API_LEVEL);
-                } else if (role == "variance") {
-                    assigned = assign(*target, binding, &result.variance, &result.hasVariance,
-                                      Api::Variance::L1::API_INTERFACE,
-                                      Api::Variance::L1::API_VARIANT, Api::Variance::L1::API_LEVEL);
-                } else if (role == "acoustic") {
-                    assigned = assign(*target, binding, &result.acoustic, &result.hasAcoustic,
-                                      Api::Acoustic::L1::API_INTERFACE,
-                                      Api::Acoustic::L1::API_VARIANT, Api::Acoustic::L1::API_LEVEL);
-                } else if (role == "vocoder") {
-                    assigned = assign(*target, binding, &result.vocoder, &result.hasVocoder,
-                                      Api::Vocoder::L1::API_INTERFACE,
-                                      Api::Vocoder::L1::API_VARIANT, Api::Vocoder::L1::API_LEVEL);
-                } else {
-                    continue;
-                }
-                if (!assigned) {
-                    return assigned.takeError();
+                if (target->interface() != expectedInterface ||
+                    target->variant() != expectedVariant || target->level() != expectedLevel) {
+                    return srt::Error(
+                        srt::Error::InvalidFormat,
+                        "DiffSinger inference import has an incompatible contract identity");
                 }
             }
-            if (!result.hasDuration || !result.hasPitch || !result.hasVariance ||
-                !result.hasAcoustic || !result.hasVocoder) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "DiffSinger requires duration, pitch, variance, acoustic, and "
-                                  "vocoder inference imports");
-            }
-            return result;
+            return {};
         }
 
     }
@@ -151,20 +111,12 @@ namespace ds {
     }
 
     srt::Expected<void> DiffSingerProvider::validateImports(const srt::ContribSpec &spec) const {
-        auto result = collectInferenceBindings(spec, false);
-        if (!result) {
-            return result.takeError();
-        }
-        return {};
+        return validateKnownImports(spec);
     }
 
     srt::Expected<std::unique_ptr<srt::SingerPipelineExecInstance>>
         DiffSingerProvider::createPipeline(srt::SingerSpec &spec,
                                            const srt::SingerPipelineRuntimeOptions &) {
-        auto bindings = collectInferenceBindings(spec, true);
-        if (!bindings) {
-            return bindings.takeError();
-        }
         return std::unique_ptr<srt::SingerPipelineExecInstance>(
             new DiffSingerPipelineExecInstance(spec));
     }

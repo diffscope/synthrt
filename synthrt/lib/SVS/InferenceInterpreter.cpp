@@ -8,8 +8,8 @@ namespace srt {
 
         class InferenceImportBinding : public ContribImportBinding {
         public:
-            InferenceImportBinding(ContribSpec &importer,
-                                   const ContribSpec::Import &declaration, ContribSpec &target,
+            InferenceImportBinding(ContribSpec &importer, const ContribImport &declaration,
+                                   ContribSpec &target,
                                    std::unique_ptr<ContribImportOptions> options)
                 : ContribImportBinding(importer, declaration, target, std::move(options)) {
             }
@@ -33,7 +33,7 @@ namespace srt {
     }
 
     Expected<std::unique_ptr<ContribImportBinding>> InferenceInterpreter::createImportBinding(
-        ContribSpec &importer, const ContribSpec::Import &declaration, ContribSpec &target,
+        ContribSpec &importer, const ContribImport &declaration, ContribSpec &target,
         std::unique_ptr<ContribImportOptions> options) const {
         return std::unique_ptr<ContribImportBinding>(
             new InferenceImportBinding(importer, declaration, target, std::move(options)));

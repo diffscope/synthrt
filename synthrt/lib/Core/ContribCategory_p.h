@@ -28,7 +28,7 @@ namespace srt {
         int level = 0;
         JsonValue manifestExports;
         JsonValue manifestConfiguration;
-        stdc::vlarray<ContribSpec::Import> imports;
+        stdc::vlarray<ContribImport> imports;
     };
 
     class ContribCategory::Impl {

@@ -25,9 +25,9 @@ namespace stdc::plugin {
 
 namespace srt {
 
-    class ContribSpec::Import::Impl {
+    class ContribImportData {
     public:
-        Impl(std::string role, ContribLocator locator, JsonValue manifestOptions)
+        ContribImportData(std::string role, ContribLocator locator, JsonValue manifestOptions)
             : role(std::move(role)), locator(std::move(locator)),
               manifestOptions(std::move(manifestOptions)) {
         }
@@ -56,7 +56,7 @@ namespace srt {
         std::unique_ptr<ContribExports> exports;
         JsonValue manifestConfiguration;
         std::unique_ptr<ContribConfiguration> configuration;
-        stdc::vlarray<Import> imports;
+        stdc::vlarray<ContribImport> imports;
     };
 
 }

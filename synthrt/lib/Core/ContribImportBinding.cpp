@@ -9,21 +9,21 @@ namespace srt {
 
     class ContribImportBinding::Impl {
     public:
-        Impl(ContribSpec &importer, const ContribSpec::Import &declaration, ContribSpec &target,
+        Impl(ContribSpec &importer, const ContribImport &declaration, ContribSpec &target,
              std::unique_ptr<ContribImportOptions> options)
             : importer(&importer), declaration(&declaration), target(&target),
               options(std::move(options)) {
         }
 
         ContribSpec *importer;
-        const ContribSpec::Import *declaration;
+        const ContribImport *declaration;
         ContribSpec *target;
         std::unique_ptr<ContribImportOptions> options;
         State state = State::Prepared;
     };
 
     ContribImportBinding::ContribImportBinding(ContribSpec &importer,
-                                               const ContribSpec::Import &declaration,
+                                               const ContribImport &declaration,
                                                ContribSpec &target,
                                                std::unique_ptr<ContribImportOptions> options)
         : _impl(std::make_unique<Impl>(importer, declaration, target, std::move(options))) {
@@ -36,7 +36,7 @@ namespace srt {
         return *_impl->importer;
     }
 
-    const ContribSpec::Import &ContribImportBinding::declaration() const {
+    const ContribImport &ContribImportBinding::declaration() const {
         return *_impl->declaration;
     }
 
