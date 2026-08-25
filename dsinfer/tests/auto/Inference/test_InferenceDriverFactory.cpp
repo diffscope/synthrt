@@ -77,7 +77,10 @@ namespace {
         };
     }
 
-#ifdef DSINFER_TEST_ONNX_MODEL_PATH
+#ifdef TEST_RESOURCE_DIRECTORY
+    const auto testOnnxModelPath =
+        std::filesystem::path(TEST_RESOURCE_DIRECTORY) / "mixed_type_ops.onnx";
+
     template <typename T, size_t Size>
     std::shared_ptr<ds::Tensor> makeTensor(std::array<T, Size> values) {
         auto result = ds::Tensor::createFromView<T>(
@@ -288,7 +291,7 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     BOOST_CHECK(coreMlInitialization.error().code() == srt::Error::FeatureNotSupported);
 }
 
-#  ifdef DSINFER_TEST_ONNX_MODEL_PATH
+#  ifdef TEST_RESOURCE_DIRECTORY
 BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
     ds::InferenceDriverFactory factory;
     const std::array<std::filesystem::path, 1> pluginPaths{DSINFER_TEST_DRIVER_PLUGIN_PATH};
@@ -308,10 +311,10 @@ BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
     BOOST_REQUIRE(firstConcurrentSession);
     BOOST_REQUIRE(secondConcurrentSession);
     auto firstOpen = std::async(std::launch::async, [&] {
-        return firstConcurrentSession->open(DSINFER_TEST_ONNX_MODEL_PATH, openArgs);
+        return firstConcurrentSession->open(testOnnxModelPath, openArgs);
     });
     auto secondOpen = std::async(std::launch::async, [&] {
-        return secondConcurrentSession->open(DSINFER_TEST_ONNX_MODEL_PATH, openArgs);
+        return secondConcurrentSession->open(testOnnxModelPath, openArgs);
     });
     BOOST_REQUIRE(firstOpen.get());
     BOOST_REQUIRE(secondOpen.get());
@@ -320,7 +323,7 @@ BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
 
     auto session = driver->createSession();
     BOOST_REQUIRE(session);
-    BOOST_REQUIRE(session->open(DSINFER_TEST_ONNX_MODEL_PATH, openArgs));
+    BOOST_REQUIRE(session->open(testOnnxModelPath, openArgs));
 
     auto missingInput = makeSessionInput();
     missingInput->inputs.erase("input_f1");
@@ -384,7 +387,7 @@ BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
 
     auto selfDestroyingSession = driver->createSession();
     BOOST_REQUIRE(selfDestroyingSession);
-    BOOST_REQUIRE(selfDestroyingSession->open(DSINFER_TEST_ONNX_MODEL_PATH, openArgs));
+    BOOST_REQUIRE(selfDestroyingSession->open(testOnnxModelPath, openArgs));
     std::promise<srt::Expected<std::unique_ptr<srt::TaskResult>>> destroyedPromise;
     auto destroyedFuture = destroyedPromise.get_future();
     BOOST_REQUIRE(selfDestroyingSession->startAsync(

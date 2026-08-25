@@ -1,4 +1,6 @@
-add_auto_test(test_InferenceDriverFactory.cpp dsinfer)
+add_auto_test(test_InferenceDriverFactory.cpp dsinfer
+    RESOURCES resources/models/mixed_type_ops.onnx
+)
 add_auto_test(test_InferenceCompatibility.cpp dsinfer)
 
 if(TARGET test_InferenceDriverFactory AND TARGET onnxdriver)
@@ -7,7 +9,6 @@ if(TARGET test_InferenceDriverFactory AND TARGET onnxdriver)
     target_compile_definitions(test_InferenceDriverFactory PRIVATE ORT_API_MANUAL_INIT)
     target_compile_definitions(test_InferenceDriverFactory PRIVATE
         DSINFER_TEST_DRIVER_PLUGIN_PATH="$<TARGET_FILE_DIR:onnxdriver>/.."
-        DSINFER_TEST_ONNX_MODEL_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../manual/onnxdriver/resources/models/mixed_type_ops.onnx"
     )
 endif()
 
