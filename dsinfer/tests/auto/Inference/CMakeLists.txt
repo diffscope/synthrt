@@ -1,7 +1,13 @@
 add_auto_test(test_InferenceDriverFactory.cpp dsinfer
-    RESOURCES resources/models/mixed_type_ops.onnx
+    RESOURCES
+        resources/cases/mixed_type_ops.json
+        resources/models/mixed_type_ops.onnx
 )
 add_auto_test(test_InferenceCompatibility.cpp dsinfer)
+
+if(TARGET test_InferenceDriverFactory)
+    target_sources(test_InferenceDriverFactory PRIVATE TestCaseLoader.cpp)
+endif()
 
 if(TARGET test_InferenceDriverFactory AND TARGET onnxdriver)
     add_dependencies(test_InferenceDriverFactory onnxdriver)

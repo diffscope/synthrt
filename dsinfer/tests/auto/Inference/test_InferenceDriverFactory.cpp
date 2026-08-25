@@ -1,9 +1,11 @@
+#include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstddef>
+#include <cstring>
 #include <filesystem>
 #include <future>
 #include <memory>
-#include <stdexcept>
 #include <string>
 
 #include <stdcorelib/plugin/plugin.h>
@@ -19,6 +21,7 @@
 #include <dsinfer/Support/ErrorCode.h>
 
 #include "OnnxTensor.h"
+#include "TestCaseLoader.h"
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
@@ -78,65 +81,52 @@ namespace {
     }
 
 #ifdef TEST_RESOURCE_DIRECTORY
-    const auto testOnnxModelPath =
-        std::filesystem::path(TEST_RESOURCE_DIRECTORY) / "mixed_type_ops.onnx";
+    const auto testResourceDirectory = std::filesystem::path(TEST_RESOURCE_DIRECTORY);
+    const auto testCasePath = testResourceDirectory / "mixed_type_ops.json";
 
-    template <typename T, size_t Size>
-    std::shared_ptr<ds::Tensor> makeTensor(std::array<T, Size> values) {
-        auto result = ds::Tensor::createFromView<T>(
-            {1, static_cast<int64_t>(Size)}, stdc::array_view<T>(values.data(), values.size()));
-        if (!result) {
-            throw std::runtime_error(result.error().toString());
-        }
-        return result.take();
+    test::TestCaseData loadTestCase() {
+        return test::TestCaseLoader::load(testCasePath);
     }
 
     std::shared_ptr<ds::Api::Onnx::SessionStartInput> makeSessionInput() {
-        auto input = std::make_shared<ds::Api::Onnx::SessionStartInput>();
-        input->inputs.emplace("input_f1", makeTensor(std::array{3.14f, -2.7f, 0.0f, 11.4f}));
-        input->inputs.emplace("input_f2", makeTensor(std::array{1.85f, 2.7f, -5.5f, 5.14f}));
-        input->inputs.emplace("input_i1", makeTensor(std::array<int64_t, 4>{7, -3, 0, 100}));
-        input->inputs.emplace("input_i2", makeTensor(std::array<int64_t, 4>{-2, 9, 5, -50}));
-        input->inputs.emplace("input_b1",
-                              makeTensor(std::array<bool, 4>{true, true, false, false}));
-        input->inputs.emplace("input_b2",
-                              makeTensor(std::array<bool, 4>{false, true, true, false}));
-        input->outputs = {"output_f", "output_i", "output_b"};
-        return input;
+        return loadTestCase().input;
     }
 
-    void checkSessionResult(const ds::Api::Onnx::SessionResult &result) {
-        BOOST_REQUIRE_EQUAL(result.outputs.size(), 3u);
+    void checkTensor(const ds::ITensor &actual, const ds::ITensor &expected) {
+        BOOST_REQUIRE(actual.dataType() == expected.dataType());
+        const auto actualShape = actual.shape();
+        const auto expectedShape = expected.shape();
+        BOOST_CHECK_EQUAL_COLLECTIONS(actualShape.begin(), actualShape.end(), expectedShape.begin(),
+                                      expectedShape.end());
+        BOOST_REQUIRE_EQUAL(actual.byteSize(), expected.byteSize());
 
-        const auto &floats = result.outputs.at("output_f");
-        BOOST_REQUIRE(floats);
-        BOOST_CHECK(floats->dataType() == ds::ITensor::Float);
-        BOOST_REQUIRE_EQUAL(floats->elementCount(), 4u);
-        const auto *floatData = floats->constData<float>();
-        BOOST_REQUIRE(floatData);
-        BOOST_CHECK_CLOSE(floatData[0], 4.99f, 0.001);
-        BOOST_CHECK_SMALL(floatData[1], 0.0001f);
-        BOOST_CHECK_CLOSE(floatData[2], -5.5f, 0.001);
-        BOOST_CHECK_CLOSE(floatData[3], 16.54f, 0.001);
+        if (actual.dataType() == ds::ITensor::Float) {
+            const auto *actualData = actual.constData<float>();
+            const auto *expectedData = expected.constData<float>();
+            BOOST_REQUIRE(actualData);
+            BOOST_REQUIRE(expectedData);
+            for (size_t i = 0; i < actual.elementCount(); ++i) {
+                const auto difference = std::fabs(actualData[i] - expectedData[i]);
+                const auto scale =
+                    std::max({1.0f, std::fabs(actualData[i]), std::fabs(expectedData[i])});
+                BOOST_CHECK_LE(difference, 1e-6f * scale);
+            }
+            return;
+        }
 
-        const auto &integers = result.outputs.at("output_i");
-        BOOST_REQUIRE(integers);
-        BOOST_CHECK(integers->dataType() == ds::ITensor::Int64);
-        const auto *integerData = integers->constData<int64_t>();
-        BOOST_REQUIRE(integerData);
-        const std::array<int64_t, 4> expectedIntegers{5, 6, 5, 50};
-        BOOST_CHECK_EQUAL_COLLECTIONS(integerData, integerData + 4, expectedIntegers.begin(),
-                                      expectedIntegers.end());
+        BOOST_CHECK_EQUAL(std::memcmp(actual.rawData(), expected.rawData(), actual.byteSize()), 0);
+    }
 
-        const auto &booleans = result.outputs.at("output_b");
-        BOOST_REQUIRE(booleans);
-        BOOST_CHECK(booleans->dataType() == ds::ITensor::Bool);
-        const auto *booleanData = booleans->constData<bool>();
-        BOOST_REQUIRE(booleanData);
-        BOOST_CHECK(booleanData[0]);
-        BOOST_CHECK(!booleanData[1]);
-        BOOST_CHECK(booleanData[2]);
-        BOOST_CHECK(!booleanData[3]);
+    void checkSessionResult(const ds::Api::Onnx::SessionResult &actual,
+                            const ds::Api::Onnx::SessionResult &expected) {
+        BOOST_REQUIRE_EQUAL(actual.outputs.size(), expected.outputs.size());
+        for (const auto &[name, expectedTensor] : expected.outputs) {
+            const auto it = actual.outputs.find(name);
+            BOOST_REQUIRE_MESSAGE(it != actual.outputs.end(), "missing output " << name);
+            BOOST_REQUIRE(it->second);
+            BOOST_REQUIRE(expectedTensor);
+            checkTensor(*it->second, *expectedTensor);
+        }
     }
 #endif
 
@@ -293,6 +283,9 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
 
 #  ifdef TEST_RESOURCE_DIRECTORY
 BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
+    const auto testCase = loadTestCase();
+    const auto testOnnxModelPath = testResourceDirectory / testCase.modelPath;
+
     ds::InferenceDriverFactory factory;
     const std::array<std::filesystem::path, 1> pluginPaths{DSINFER_TEST_DRIVER_PLUGIN_PATH};
     factory.setPluginPaths(pluginPaths);
@@ -350,7 +343,8 @@ BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
     auto input = makeSessionInput();
     auto syncResult = session->start(*input);
     BOOST_REQUIRE(syncResult);
-    checkSessionResult(*syncResult.take()->as<ds::Api::Onnx::SessionResult>());
+    checkSessionResult(*syncResult.take()->as<ds::Api::Onnx::SessionResult>(),
+                       *testCase.expectedResult);
     BOOST_CHECK(session->state() == srt::ITask::Succeeded);
 
     std::promise<srt::Expected<std::unique_ptr<srt::TaskResult>>> promise;
@@ -361,7 +355,8 @@ BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
     auto asyncResult = future.get();
     BOOST_REQUIRE(session->waitForFinished());
     BOOST_REQUIRE(asyncResult);
-    checkSessionResult(*asyncResult.take()->as<ds::Api::Onnx::SessionResult>());
+    checkSessionResult(*asyncResult.take()->as<ds::Api::Onnx::SessionResult>(),
+                       *testCase.expectedResult);
     BOOST_CHECK(session->state() == srt::ITask::Succeeded);
 
     std::promise<void> callbackEntered;
