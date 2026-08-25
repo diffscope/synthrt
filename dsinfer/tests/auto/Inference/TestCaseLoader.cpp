@@ -80,7 +80,7 @@ namespace test {
         switch (dataType) {
             case ds::ITensor::Float: {
                 data.resize(values.size() * sizeof(float));
-                auto *output = reinterpret_cast<float *>(data.data());
+                auto output = reinterpret_cast<float *>(data.data());
                 for (const auto &item : values) {
                     if (!item.isNumber()) {
                         throw TestCaseError("tensor " + name + " data must contain numbers");
@@ -91,7 +91,7 @@ namespace test {
             }
             case ds::ITensor::Int64: {
                 data.resize(values.size() * sizeof(int64_t));
-                auto *output = reinterpret_cast<int64_t *>(data.data());
+                auto output = reinterpret_cast<int64_t *>(data.data());
                 for (const auto &item : values) {
                     if (!item.isInt()) {
                         throw TestCaseError("tensor " + name + " data must contain integers");

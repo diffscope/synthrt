@@ -423,7 +423,7 @@ namespace ds::onnxdriver {
         try {
             // ORT may invoke the callback before RunAsync returns. Transfer ownership before
             // entering ORT so only the callback can destroy a successful invocation.
-            auto *runPointer = run.release();
+            auto runPointer = run.release();
             Ort::Status statusRun(Ort::GetApi().RunAsync(
                 m_image->session(), m_runOptions, context.inputNames.data(),
                 context.inputValuePtrs.data(), inputCount, context.outputNames.data(), outputCount,

@@ -125,7 +125,7 @@ namespace ds::inferutil {
             sessionTaskResult->version() != Api::Onnx::API_VERSION) {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto *encoderResult = sessionTaskResult->as<Api::Onnx::SessionResult>();
+        auto encoderResult = sessionTaskResult->as<Api::Onnx::SessionResult>();
         for (auto &&[name, value] : encoderResult->outputs) {
             if (name == "encoder_out") {
                 out->inputs.emplace("encoder_out", std::move(value));

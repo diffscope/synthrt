@@ -336,7 +336,7 @@ namespace srt {
         }
 
         Expected<void> expandJson(JsonValue &value, const Variables &variables) {
-            if (auto *string = value.asString()) {
+            if (auto string = value.asString()) {
                 auto expanded = expandString(*string, variables);
                 if (!expanded) {
                     return expanded.takeError();
@@ -344,7 +344,7 @@ namespace srt {
                 *string = expanded.take();
                 return {};
             }
-            if (auto *array = value.asArray()) {
+            if (auto array = value.asArray()) {
                 for (auto &item : *array) {
                     auto result = expandJson(item, variables);
                     if (!result) {
@@ -353,7 +353,7 @@ namespace srt {
                 }
                 return {};
             }
-            if (auto *object = value.asObject()) {
+            if (auto object = value.asObject()) {
                 for (auto &item : *object) {
                     auto result = expandJson(item.second, variables);
                     if (!result) {
@@ -732,7 +732,7 @@ namespace srt {
             }
 
             for (const auto &categoryEntry : package->contributions) {
-                auto *category = m_synthUnit->category(categoryEntry.first);
+                auto category = m_synthUnit->category(categoryEntry.first);
                 if (!category) {
                     return Error(Error::FeatureNotSupported,
                                  "contribution category disappeared during Probe");
@@ -740,8 +740,8 @@ namespace srt {
                 if (category->declarationMode() != ContribCategory::ModuleDeclaration) {
                     continue;
                 }
-                for (auto *spec : categoryEntry.second) {
-                    auto *loader = m_synthUnit->_impl->pluginFactory.findInterpreter(
+                for (auto spec : categoryEntry.second) {
+                    auto loader = m_synthUnit->_impl->pluginFactory.findInterpreter(
                         category->interpreterIid(), spec->interface(), spec->level(),
                         spec->variant());
                     if (!loader) {
@@ -753,12 +753,12 @@ namespace srt {
                     spec->_impl->pluginLoader = loader;
 
                     for (const auto &import : spec->_impl->imports) {
-                        auto *target = resolveTarget(package, import.locator());
+                        auto target = resolveTarget(package, import.locator());
                         if (!target) {
                             return Error(Error::FileNotFound,
                                          "module import target does not exist");
                         }
-                        auto *targetCategory = m_synthUnit->category(target->locator().category());
+                        auto targetCategory = m_synthUnit->category(target->locator().category());
                         if (!targetCategory || targetCategory->declarationMode() !=
                                                    ContribCategory::ModuleDeclaration) {
                             return Error(Error::InvalidFormat,
@@ -792,11 +792,11 @@ namespace srt {
                 continue;
             }
             for (const auto &categoryEntry : package->contributions) {
-                auto *category = m_synthUnit->category(categoryEntry.first);
+                auto category = m_synthUnit->category(categoryEntry.first);
                 if (category->declarationMode() != ContribCategory::ModuleDeclaration) {
                     continue;
                 }
-                for (auto *spec : categoryEntry.second) {
+                for (auto spec : categoryEntry.second) {
                     auto interpreterResult = m_synthUnit->_impl->pluginFactory.loadInterpreter(
                         spec->_impl->pluginLoader, spec->interface(), spec->level(),
                         spec->variant());
@@ -840,13 +840,13 @@ namespace srt {
                     continue;
                 }
                 for (const auto &categoryEntry : package->contributions) {
-                    auto *category = m_synthUnit->category(categoryEntry.first);
+                    auto category = m_synthUnit->category(categoryEntry.first);
                     if (category->declarationMode() != ContribCategory::ModuleDeclaration) {
                         continue;
                     }
-                    for (auto *spec : categoryEntry.second) {
+                    for (auto spec : categoryEntry.second) {
                         for (auto &import : spec->_impl->imports) {
-                            auto *target = resolveTarget(package, import.locator());
+                            auto target = resolveTarget(package, import.locator());
                             auto options = target->_impl->interpreter->createImportOptions(
                                 *target, import.manifestOptions());
                             if (!options) {
@@ -867,7 +867,7 @@ namespace srt {
                                 std::move(typedOptions);
                         }
                         for (auto &import : spec->_impl->imports) {
-                            auto *target = resolveTarget(package, import.locator());
+                            auto target = resolveTarget(package, import.locator());
                             auto &importData = spec->_impl->importData.at(import.role());
                             auto binding = spec->_impl->interpreter->createImportBinding(
                                 *spec, import, *target, std::move(importData.options));
@@ -880,7 +880,7 @@ namespace srt {
                                 return Error(Error::InvalidFormat,
                                              "importer interpreter returned a null import binding");
                             }
-                            auto *targetCategory =
+                            auto targetCategory =
                                 m_synthUnit->category(target->locator().category());
                             auto factory = targetCategory->createExecutiveFactory(*preparedBinding);
                             if (!factory) {
@@ -903,8 +903,8 @@ namespace srt {
                     continue;
                 }
                 for (const auto &categoryEntry : package->contributions) {
-                    for (auto *spec : categoryEntry.second) {
-                        for (auto *validator :
+                    for (auto spec : categoryEntry.second) {
+                        for (auto validator :
                              m_synthUnit->_impl->pluginFactory.importValidators()) {
                             auto validation = validator->validateImports(*spec);
                             if (!validation) {
@@ -925,8 +925,8 @@ namespace srt {
                     continue;
                 }
                 for (const auto &categoryEntry : package->contributions) {
-                    for (auto *spec : categoryEntry.second) {
-                        for (auto *interpreter : m_synthUnit->_impl->pluginFactory.interpreters()) {
+                    for (auto spec : categoryEntry.second) {
+                        for (auto interpreter : m_synthUnit->_impl->pluginFactory.interpreters()) {
                             auto extensions = interpreter->createExtensions(*spec);
                             if (!extensions) {
                                 return extensions.takeError().withContext(
@@ -950,7 +950,7 @@ namespace srt {
                                         "contribution extension has an invalid identifier");
                                 }
                                 auto id = preparedExtension->id();
-                                auto *extensionPointer = preparedExtension.get();
+                                auto extensionPointer = preparedExtension.get();
                                 if (!spec->_impl->extensionData
                                          .emplace(std::move(id), std::move(preparedExtension))
                                          .second) {
@@ -990,7 +990,7 @@ namespace srt {
             }
             m_synthUnit->_impl->packages[package->id].insert_or_assign(package->version, package);
             for (const auto &categoryEntry : package->contributions) {
-                auto *category = m_synthUnit->category(categoryEntry.first);
+                auto category = m_synthUnit->category(categoryEntry.first);
                 category->_impl->contributions.insert(category->_impl->contributions.end(),
                                                       categoryEntry.second.begin(),
                                                       categoryEntry.second.end());
@@ -1004,7 +1004,7 @@ namespace srt {
                 continue;
             }
             for (const auto &categoryEntry : package->contributions) {
-                for (auto *spec : categoryEntry.second) {
+                for (auto spec : categoryEntry.second) {
                     for (auto &import : spec->_impl->imports) {
                         if (import.binding()) {
                             import.binding()->activateForCommit();
@@ -1197,7 +1197,7 @@ namespace srt {
 
         for (const auto &categoryEntry : contributionsIt->second.toObject()) {
             const auto &categoryName = categoryEntry.first;
-            auto *category = m_synthUnit->category(categoryName);
+            auto category = m_synthUnit->category(categoryName);
 
             std::set<std::string, std::less<>> contributionIds;
             for (const auto &entryValue : categoryEntry.second.toArray()) {
@@ -1358,7 +1358,7 @@ namespace srt {
                 if (!spec) {
                     return Error(Error::InvalidFormat, "category returned a null contribution");
                 }
-                auto *specPointer = spec.get();
+                auto specPointer = spec.get();
                 package->contributions[categoryName].push_back(specPointer);
                 package->contributionIndex[categoryName].emplace(contributionId, specPointer);
                 package->ownedContributions.push_back(std::move(spec));

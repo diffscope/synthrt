@@ -168,7 +168,7 @@ namespace srt {
         }
 
         auto name = service->name();
-        auto *registered = service.get();
+        auto registered = service.get();
         services.emplace(std::move(name), std::move(service));
         registered->m_synthUnit = this;
         return {};

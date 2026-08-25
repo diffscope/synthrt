@@ -128,8 +128,8 @@ namespace ds {
             return {};
         }
 
-        const auto *acoustic = other.configuration()->as<Ac::AcousticConfiguration>();
-        const auto *vocoder = spec.configuration()->as<Vo::VocoderConfiguration>();
+        const auto acoustic = other.configuration()->as<Ac::AcousticConfiguration>();
+        const auto vocoder = spec.configuration()->as<Vo::VocoderConfiguration>();
         stdc::vlarray<std::string> mismatches;
 
         if (acoustic->sampleRate != vocoder->sampleRate) {

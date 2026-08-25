@@ -103,7 +103,7 @@ BOOST_AUTO_TEST_CASE(test_Tensor_CreateFromView) {
 
     // The tensor holds its own copy, so the caller's buffer going away or changing does not reach
     // it.
-    auto *mutableData = t->data<float>();
+    auto mutableData = t->data<float>();
     mutableData[0] = 99.0f;
     BOOST_CHECK(source[0] == 1.0f);
 
@@ -114,7 +114,7 @@ BOOST_AUTO_TEST_CASE(test_Tensor_CreateFromView) {
 
 BOOST_AUTO_TEST_CASE(test_Tensor_CreateFromRawData) {
     Tensor::Container bytes(4 * sizeof(int64_t));
-    auto *values = reinterpret_cast<int64_t *>(bytes.data());
+    auto values = reinterpret_cast<int64_t *>(bytes.data());
     for (int i = 0; i < 4; ++i) {
         values[i] = i + 1;
     }

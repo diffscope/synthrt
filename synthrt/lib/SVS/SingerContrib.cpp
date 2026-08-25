@@ -131,7 +131,7 @@ namespace srt {
         std::vector<SingerSpec *> result;
         const auto values = contributions();
         result.reserve(values.size());
-        for (auto *value : values) {
+        for (auto value : values) {
             result.push_back(value->as<SingerSpec>());
         }
         return result;

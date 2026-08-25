@@ -78,7 +78,7 @@ namespace srt {
     stdc::plugin::PluginLoader *
         ContribPluginFactory::findInterpreter(std::string_view iid, std::string_view interfaceName,
                                               int level, std::string_view variant) const {
-        for (auto *loader : plugins(iid)) {
+        for (auto loader : plugins(iid)) {
             if (manifestProvidesInterpreter(loader->manifest(), interfaceName, level, variant)) {
                 return loader;
             }
@@ -105,7 +105,7 @@ namespace srt {
                                                  loader->errorMessage());
         }
 
-        auto *plugin = static_cast<ContribInterpreterPlugin *>(loader->plugin());
+        auto plugin = static_cast<ContribInterpreterPlugin *>(loader->plugin());
         auto result = plugin->create(interfaceName, level, variant);
         if (!result) {
             return result.takeError().withContext("failed to create contribution interpreter");
@@ -134,7 +134,7 @@ namespace srt {
             m_importValidatorData.push_back(std::move(validator));
         }
 
-        auto *value = interpreter.get();
+        auto value = interpreter.get();
         m_interpreterViews.push_back(value);
         m_interpreters.emplace(std::move(key), std::move(interpreter));
         return value;

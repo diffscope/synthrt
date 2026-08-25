@@ -422,7 +422,7 @@ if (spec.interface() != MyApi::Interface || spec.variant() != MyApi::Variant ||
     return srt::Error(srt::Error::InvalidArgument, "unexpected contract");
 }
 
-auto *configuration = spec.configuration()->as<MyConfiguration>();
+auto configuration = spec.configuration()->as<MyConfiguration>();
 ```
 
 Category 名称确定 `ContribSpec` 的派生类型，三元组确定 payload、解释器和 Executive 的派生类型。身份未验证时调用 `as<T>()` 是调用方错误。
@@ -452,7 +452,7 @@ srt::Expected<MyExecutive *> MyPipeline::createLanguage(
         return result.takeError();
     }
 
-    auto *executive = *result;
+    auto executive = *result;
     const auto &target = executive->spec();
     if (target.interface() != MyApi::Interface || target.variant() != MyApi::Variant ||
         target.level() != MyApi::Level) {
@@ -513,19 +513,19 @@ DiffSinger Level 1 的类型化 Pipeline 当前公开 duration、pitch、varianc
 典型调用为：
 
 ```cpp
-auto *base = package.contribution("singer", "alice");
+auto base = package.contribution("singer", "alice");
 if (!base) {
     // 未找到 singer
 }
 
-auto *singer = base->as<srt::SingerSpec>();
+auto singer = base->as<srt::SingerSpec>();
 if (singer->interface() != ds::Api::DiffSinger::L1::API_INTERFACE ||
     singer->variant() != ds::Api::DiffSinger::L1::API_VARIANT ||
     singer->level() != ds::Api::DiffSinger::L1::API_LEVEL) {
     // 不是调用方理解的契约
 }
 
-auto *extension = srt::ContribSpecExtension::findFromSpec<
+auto extension = srt::ContribSpecExtension::findFromSpec<
     ds::Api::DiffSinger::L1::DiffSingerPipelineExecutive>(*singer);
 if (!extension) {
     // 当前 Singer 没有 DiffSinger Pipeline
@@ -537,7 +537,7 @@ if (!pipelineResult) {
     return pipelineResult.takeError();
 }
 auto pipeline = pipelineResult.take();
-auto *typedPipeline =
+auto typedPipeline =
     pipeline->as<ds::Api::DiffSinger::L1::DiffSingerPipelineExecutive>();
 
 auto acousticResult = typedPipeline->createAcoustic(
@@ -545,7 +545,7 @@ auto acousticResult = typedPipeline->createAcoustic(
 if (!acousticResult) {
     return acousticResult.takeError();
 }
-auto *acoustic = *acousticResult; // 由 pipeline 持有
+auto acoustic = *acousticResult; // 由 pipeline 持有
 ```
 
 调用者持有 `pipeline`，但不持有 `acoustic`。销毁 Pipeline 会销毁所有仍被监督的子 Executive。

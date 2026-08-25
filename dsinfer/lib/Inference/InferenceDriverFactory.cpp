@@ -59,7 +59,7 @@ namespace ds {
     std::vector<std::string> InferenceDriverFactory::backends() const {
         std::vector<std::string> result;
         std::set<std::string> visited;
-        for (auto *loader : plugins(InferenceDriverPlugin::IID)) {
+        for (auto loader : plugins(InferenceDriverPlugin::IID)) {
             auto backend = driverBackend(loader->manifest());
             if (backend && visited.insert(*backend).second) {
                 result.push_back(std::move(*backend));
@@ -74,7 +74,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "driver backend is invalid");
         }
 
-        for (auto *loader : plugins(InferenceDriverPlugin::IID)) {
+        for (auto loader : plugins(InferenceDriverPlugin::IID)) {
             const auto candidateBackend = driverBackend(loader->manifest());
             if (!candidateBackend || *candidateBackend != backend) {
                 continue;
@@ -85,7 +85,7 @@ namespace ds {
                                       loader->errorMessage());
             }
 
-            auto *plugin = static_cast<InferenceDriverPlugin *>(loader->plugin());
+            auto plugin = static_cast<InferenceDriverPlugin *>(loader->plugin());
             auto result = plugin->create();
             if (!result) {
                 return result.takeError().withContext("failed to create inference driver");

@@ -24,7 +24,7 @@ BOOST_AUTO_TEST_CASE(test_parse_and_render) {
 }
 
 BOOST_AUTO_TEST_CASE(test_rejects_incomplete_and_non_ascii_locators) {
-    for (const auto *value : {"", "singer/main", ":singer", ":/main", ":singer/",
+    for (const auto value : {"", "singer/main", ":singer", ":/main", ":singer/",
                               ":singer/main/extra", "foo::singer/main", ":singer/声音"}) {
         BOOST_CHECK_MESSAGE(!ContribLocator::fromString(value).isValid(), value);
     }

@@ -77,7 +77,7 @@ namespace srt {
     InferenceSpec::~InferenceSpec() = default;
 
     Expected<void> InferenceSpec::validateCompatibilityWith(const InferenceSpec &other) const {
-        auto *value = interpreter();
+        auto value = interpreter();
         if (!value || !other.interpreter()) {
             return Error(Error::FeatureNotSupported,
                          "cannot validate compatibility for an inference that is not loaded");
@@ -88,7 +88,7 @@ namespace srt {
     Expected<std::unique_ptr<InferenceExecutive>>
         InferenceSpec::createInference(const ContribImportOptions &importOptions,
                                        const InferenceRuntimeOptions &runtimeOptions) {
-        auto *value = interpreter();
+        auto value = interpreter();
         if (!value) {
             return Error(Error::FeatureNotSupported,
                          "cannot create inference from a contribution that is not loaded");
@@ -117,7 +117,7 @@ namespace srt {
         std::vector<InferenceSpec *> result;
         const auto values = contributions();
         result.reserve(values.size());
-        for (auto *value : values) {
+        for (auto value : values) {
             result.push_back(value->as<InferenceSpec>());
         }
         return result;

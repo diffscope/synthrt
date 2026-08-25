@@ -68,7 +68,7 @@ namespace ds {
         if (!result) {
             return result.takeError();
         }
-        auto *executive = *result;
+        auto executive = *result;
         const auto &executiveSpec = executive->spec();
         if (executiveSpec.interface() != expectedInterface ||
             executiveSpec.variant() != expectedVariant || executiveSpec.level() != expectedLevel) {

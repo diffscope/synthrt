@@ -413,7 +413,7 @@ BOOST_AUTO_TEST_CASE(test_runtime_services_are_owned_and_indexed_by_synth_unit) 
     auto unit = makeUnit();
 
     auto onnx = std::make_unique<TestRuntimeService>("com.example.InferenceDriver", "onnx");
-    auto *onnxPointer = onnx.get();
+    auto onnxPointer = onnx.get();
     BOOST_REQUIRE(unit.addRuntimeService(std::move(onnx)));
     BOOST_REQUIRE(unit.addRuntimeService(
         std::make_unique<TestRuntimeService>("com.example.InferenceDriver", "remote")));
@@ -460,7 +460,7 @@ BOOST_AUTO_TEST_CASE(test_data_only_reads_and_validates_dependencies) {
     BOOST_CHECK(opened->dependencies()[0].version == stdc::VersionNumber(1, 2, 3));
 
     std::size_t sequence = 0;
-    for (const auto *dependencies : {
+    for (const auto dependencies : {
              R"([{"id":"sample","version":"1","required":true}])",
              R"([{"id":"sample","version":"01"}])",
              R"([{"id":"sample"}])",
@@ -532,7 +532,7 @@ BOOST_AUTO_TEST_CASE(test_data_only_expands_variables_without_loading_plugin) {
                       root.lexically_normal().string() + "/assets");
     BOOST_CHECK(package.manifestDeclaration().find("vars") == package.manifestDeclaration().end());
 
-    auto *spec = package.contribution(testCategoryName, "main");
+    auto spec = package.contribution(testCategoryName, "main");
     BOOST_REQUIRE(spec);
     BOOST_CHECK_EQUAL(spec->name().text(), "${target}");
     BOOST_CHECK_EQUAL(spec->manifestDeclaration().at("extensionData")["assetRoot"].toString(),
@@ -584,12 +584,12 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(package.isLoaded());
     BOOST_CHECK_EQUAL(unit.loadedPackages().size(), 2u);
 
-    auto *rootSpec = package.contribution(testCategoryName, "main");
+    auto rootSpec = package.contribution(testCategoryName, "main");
     BOOST_REQUIRE(rootSpec);
     BOOST_CHECK(rootSpec->exports());
     BOOST_CHECK(rootSpec->configuration());
     BOOST_REQUIRE_EQUAL(rootSpec->extensions().size(), 2u);
-    auto *extension = rootSpec->findExtension(testExtensionId);
+    auto extension = rootSpec->findExtension(testExtensionId);
     BOOST_REQUIRE(extension);
     BOOST_CHECK(&extension->spec() == rootSpec);
     BOOST_CHECK_EQUAL(extension->id(), testExtensionId);
@@ -618,7 +618,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
                 srt::ContribImportBinding::State::Active);
 
     const auto dependencyLocator = srt::ContribLocator::fromString("dep:com.example.test/main");
-    auto *dependencySpec = package.resolve(dependencyLocator);
+    auto dependencySpec = package.resolve(dependencyLocator);
     BOOST_REQUIRE(dependencySpec);
     BOOST_CHECK(&rootSpec->imports()[0].binding()->importer() == rootSpec);
     BOOST_CHECK(&rootSpec->imports()[0].binding()->declaration() == &rootSpec->imports()[0]);
@@ -641,7 +641,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
         {
             auto adopted = parent.adopt(std::make_unique<TestExecutive>(*dependencySpec));
             BOOST_REQUIRE(adopted);
-            auto *child = *adopted;
+            auto child = *adopted;
             BOOST_CHECK(child->parent() == &parent);
             BOOST_REQUIRE_EQUAL(parent.children().size(), 1u);
             BOOST_CHECK(parent.children().front() == child);
@@ -867,9 +867,9 @@ BOOST_AUTO_TEST_CASE(test_entry_only_category_loads_without_an_interpreter) {
     auto opened = unit.openPackage(root, srt::SynthUnit::Load);
     BOOST_REQUIRE(opened);
     auto package = opened.take();
-    auto *contribution = package.contribution("com.example.entry", "one");
+    auto contribution = package.contribution("com.example.entry", "one");
     BOOST_REQUIRE(contribution);
-    auto *entry = contribution->as<EntrySpec>();
+    auto entry = contribution->as<EntrySpec>();
     BOOST_REQUIRE(entry);
     BOOST_CHECK_EQUAL(entry->value(), "data");
     BOOST_CHECK_EQUAL(unit.category("com.example.entry")->contributions().size(), 1u);

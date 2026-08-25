@@ -101,8 +101,8 @@ namespace {
         BOOST_REQUIRE_EQUAL(actual.byteSize(), expected.byteSize());
 
         if (actual.dataType() == ds::ITensor::Float) {
-            const auto *actualData = actual.constData<float>();
-            const auto *expectedData = expected.constData<float>();
+            const auto actualData = actual.constData<float>();
+            const auto expectedData = expected.constData<float>();
             BOOST_REQUIRE(actualData);
             BOOST_REQUIRE(expectedData);
             for (size_t i = 0; i < actual.elementCount(); ++i) {
@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE(test_DiscoversAndCreatesRuntimeService) {
     BOOST_REQUIRE(driver->initialize(args));
     BOOST_CHECK(driver->as<TestDriver>()->isInitialized());
 
-    auto *driverPointer = driver.get();
+    auto driverPointer = driver.get();
     srt::SynthUnit unit;
     BOOST_REQUIRE(unit.addRuntimeService(std::move(driver)));
     BOOST_CHECK(unit.runtimeService(ds::InferenceDriver::IID, "test") == driverPointer);
@@ -212,13 +212,13 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     BOOST_REQUIRE(!duplicateInitialization);
     BOOST_CHECK(duplicateInitialization.error().code() == srt::Error::FileDuplicated);
 
-    auto *driverPointer = driver.get();
+    auto driverPointer = driver.get();
     srt::SynthUnit unit;
     BOOST_REQUIRE(unit.addRuntimeService(std::move(driver)));
     BOOST_CHECK(unit.runtimeService(ds::InferenceDriver::IID, ds::Api::Onnx::API_NAME) ==
                 driverPointer);
 
-    auto *extension = driverPointer->extension()->as<ds::Api::Onnx::DriverExtension>();
+    auto extension = driverPointer->extension()->as<ds::Api::Onnx::DriverExtension>();
     Ort::InitApi(extension->runtimeApi.ortApi);
     auto scalarResult = ds::OnnxTensor::createScalar<float>(2.5f, true);
     BOOST_REQUIRE(scalarResult);
@@ -240,7 +240,7 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     ds::Api::Onnx::DriverInitArgs externalArgs;
     externalArgs.runtimeApi = extension->runtimeApi;
     BOOST_REQUIRE(externalDriver->initialize(externalArgs));
-    auto *externalExtension = externalDriver->extension()->as<ds::Api::Onnx::DriverExtension>();
+    auto externalExtension = externalDriver->extension()->as<ds::Api::Onnx::DriverExtension>();
     BOOST_CHECK(externalExtension->runtimeApi.ortApiBase == extension->runtimeApi.ortApiBase);
     BOOST_CHECK(externalExtension->runtimeApi.ortApi == extension->runtimeApi.ortApi);
     BOOST_CHECK_EQUAL(externalExtension->runtimeApi.ortApiVersion,

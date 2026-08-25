@@ -20,7 +20,7 @@ namespace srt {
         assert(m_package && m_package->synthUnit);
         std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
         m_destroyingChildren = true;
-        for (auto *child : m_children) {
+        for (auto child : m_children) {
             delete child;
         }
         m_children.clear();
@@ -28,7 +28,7 @@ namespace srt {
             auto &siblings = m_parent->m_children;
             const auto childIt =
                 std::find_if(siblings.begin(), siblings.end(),
-                             [this](const auto *sibling) { return sibling == this; });
+                             [this](const auto sibling) { return sibling == this; });
             assert(childIt != siblings.end());
             // Leave a tombstone because the child is still executing its destructor.
             *childIt = nullptr;
@@ -60,7 +60,7 @@ namespace srt {
         std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
         std::vector<ContribExecutive *> result;
         result.reserve(m_children.size());
-        for (auto *child : m_children) {
+        for (auto child : m_children) {
             if (child) {
                 result.push_back(child);
             }
@@ -90,16 +90,16 @@ namespace srt {
         if (child->m_parent) {
             return Error(Error::InvalidArgument, "executive already has a supervising parent");
         }
-        for (auto *ancestor = this; ancestor; ancestor = ancestor->m_parent) {
+        for (auto ancestor = this; ancestor; ancestor = ancestor->m_parent) {
             if (ancestor == child.get()) {
                 return Error(Error::RecursiveDependency,
                              "executive supervision relation would form a cycle");
             }
         }
-        auto *result = child.get();
+        auto result = child.get();
         child->m_parent = this;
         const auto emptyIt = std::find_if(m_children.begin(), m_children.end(),
-                                          [](const auto *item) { return !item; });
+                                          [](const auto item) { return !item; });
         if (emptyIt != m_children.end()) {
             *emptyIt = child.release();
             return result;
@@ -137,7 +137,7 @@ namespace srt {
             return {};
         }
         auto firstResult = quit();
-        for (auto *child : m_children) {
+        for (auto child : m_children) {
             if (!child) {
                 continue;
             }
@@ -157,7 +157,7 @@ namespace srt {
             return {};
         }
         Expected<void> firstResult;
-        for (auto *child : m_children) {
+        for (auto child : m_children) {
             if (!child) {
                 continue;
             }

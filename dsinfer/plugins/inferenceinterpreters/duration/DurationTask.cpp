@@ -340,7 +340,7 @@ namespace ds {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
-        auto *sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
+        auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
         if (auto predictionIt = sessionResult->outputs.find(outParamPhDurPred);
             predictionIt != sessionResult->outputs.end()) {
             // Extract onnx model result and copy to duration final result vector (float -> double)
@@ -416,7 +416,7 @@ namespace ds {
     srt::Expected<void> DurationTask::stop() {
         requestAsyncCancellation();
         srt::Error stopError;
-        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
+        for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session && session->state() == Running) {
                 if (auto result = session->stop(); !result && stopError.ok()) {
                     stopError = result.takeError();
@@ -432,7 +432,7 @@ namespace ds {
 
     srt::Expected<void> DurationTask::waitForFinished() {
         srt::Error waitError;
-        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
+        for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
                 if (auto result = session->waitForFinished(); !result && waitError.ok()) {
                     waitError = result.takeError();

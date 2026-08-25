@@ -78,7 +78,7 @@ namespace ds {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "DiffSinger inference import has no execution factory");
             }
-            auto *target = &import->binding()->target();
+            auto target = &import->binding()->target();
             if (target->locator().category() != "inference" ||
                 target->interface() != expectedInterface || target->variant() != expectedVariant ||
                 target->level() != expectedLevel) {

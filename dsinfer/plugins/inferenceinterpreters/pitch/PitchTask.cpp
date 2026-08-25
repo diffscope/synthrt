@@ -532,7 +532,7 @@ namespace ds {
     srt::Expected<void> PitchTask::stop() {
         requestAsyncCancellation();
         srt::Error stopError;
-        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
+        for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session && session->state() == Running) {
                 if (auto result = session->stop(); !result && stopError.ok()) {
                     stopError = result.takeError();
@@ -548,7 +548,7 @@ namespace ds {
 
     srt::Expected<void> PitchTask::waitForFinished() {
         srt::Error waitError;
-        for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
+        for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
                 if (auto result = session->waitForFinished(); !result && waitError.ok()) {
                     waitError = result.takeError();

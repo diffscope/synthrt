@@ -148,8 +148,8 @@ namespace ds::onnxdriver {
                                             library->errorMessage(), path));
         }
 
-        const auto *apiBase = getApiBase();
-        const auto *api = apiBase ? apiBase->GetApi(ORT_API_VERSION) : nullptr;
+        const auto apiBase = getApiBase();
+        const auto api = apiBase ? apiBase->GetApi(ORT_API_VERSION) : nullptr;
         if (!api) {
             return srt::Error(ds::ErrorCode::DriverLoadFailed,
                               stdc::formatN("ONNX Runtime does not provide API version %1 [%2]",

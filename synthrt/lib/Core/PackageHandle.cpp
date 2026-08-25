@@ -25,7 +25,7 @@ namespace srt {
         }
         // Close every binding before waiting so independent calls can drain in parallel.
         for (const auto &categoryEntry : contributions) {
-            for (auto *spec : categoryEntry.second) {
+            for (auto spec : categoryEntry.second) {
                 for (auto &import : spec->_impl->imports) {
                     if (import.binding()) {
                         import.binding()->closeForUnload();
@@ -34,7 +34,7 @@ namespace srt {
             }
         }
         for (const auto &categoryEntry : contributions) {
-            for (auto *spec : categoryEntry.second) {
+            for (auto spec : categoryEntry.second) {
                 for (auto &import : spec->_impl->imports) {
                     if (!import.binding()) {
                         continue;
@@ -49,12 +49,12 @@ namespace srt {
             }
         }
         for (const auto &categoryEntry : contributions) {
-            auto *category = synthUnit->category(categoryEntry.first);
+            auto category = synthUnit->category(categoryEntry.first);
             if (!category) {
                 continue;
             }
             auto &registered = category->_impl->contributions;
-            for (auto *contribution : categoryEntry.second) {
+            for (auto contribution : categoryEntry.second) {
                 registered.erase(std::remove(registered.begin(), registered.end(), contribution),
                                  registered.end());
             }

@@ -193,17 +193,17 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
     BOOST_REQUIRE(opened);
     auto package = opened.take();
 
-    auto *inferenceContribution = package.contribution("inference", "acoustic");
+    auto inferenceContribution = package.contribution("inference", "acoustic");
     BOOST_REQUIRE(inferenceContribution);
-    auto *inference = inferenceContribution->as<srt::InferenceSpec>();
+    auto inference = inferenceContribution->as<srt::InferenceSpec>();
     BOOST_REQUIRE(inference);
     BOOST_CHECK(inferenceContribution->declarationPath() == root / "modules" / "inference.json");
     BOOST_CHECK(inference->declarationPath() == root / "modules" / "inference.json");
     BOOST_CHECK_EQUAL(inference->interface(), "com.example.svs.Acoustic");
 
-    auto *singerContribution = package.contribution("singer", "singer1");
+    auto singerContribution = package.contribution("singer", "singer1");
     BOOST_REQUIRE(singerContribution);
-    auto *singer = singerContribution->as<srt::SingerSpec>();
+    auto singer = singerContribution->as<srt::SingerSpec>();
     BOOST_REQUIRE(singer);
     BOOST_CHECK(singer->declarationPath() == root / "modules" / "singer.json");
     BOOST_CHECK_EQUAL(singer->avatar().text(),
@@ -241,8 +241,8 @@ BOOST_AUTO_TEST_CASE(test_inference_compatibility_defaults_to_supported) {
     auto opened = unit.openPackage(root, srt::SynthUnit::Load);
     BOOST_REQUIRE(opened);
     auto package = opened.take();
-    auto *consumer = package.contribution("inference", "consumer")->as<srt::InferenceSpec>();
-    auto *producer = package.contribution("inference", "producer")->as<srt::InferenceSpec>();
+    auto consumer = package.contribution("inference", "consumer")->as<srt::InferenceSpec>();
+    auto producer = package.contribution("inference", "producer")->as<srt::InferenceSpec>();
 
     auto compatibility = consumer->validateCompatibilityWith(*producer);
     const auto compatibilityMessage =
