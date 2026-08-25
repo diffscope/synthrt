@@ -29,8 +29,8 @@ namespace srt {
         return m_data->binding.get();
     }
 
-    ContribExecFactory *ContribImport::execFactory() const {
-        return m_data->execFactory.get();
+    ContribExecutiveFactory *ContribImport::executiveFactory() const {
+        return m_data->executiveFactory.get();
     }
 
     ContribImport::ContribImport(const Data &data) : m_data(&data) {

@@ -7,7 +7,7 @@ namespace ds {
     namespace Var = Api::Variance::L1;
 
     VarianceInference::VarianceInference(srt::InferenceSpec &spec)
-        : VarianceExecInstance(spec), m_task(*this) {
+        : VarianceExecutive(spec), m_task(*this) {
     }
 
     VarianceInference::~VarianceInference() = default;

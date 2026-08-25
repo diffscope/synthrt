@@ -4,7 +4,7 @@
 #include <mutex>
 #include <utility>
 
-#include "ContribExecInstance.h"
+#include "ContribExecutive.h"
 #include "SynthUnit_p.h"
 
 STDC_INSTANTIATE_STATIC_REGISTRY_EXPORT(srt::ContribCategory, SYNTHRT_EXPORT)
@@ -93,9 +93,9 @@ namespace srt {
         return _impl->contributions;
     }
 
-    Expected<std::unique_ptr<ContribExecFactory>>
-        ContribCategory::createExecFactory(ContribImportBinding &binding) const {
-        return std::unique_ptr<ContribExecFactory>();
+    Expected<std::unique_ptr<ContribExecutiveFactory>>
+        ContribCategory::createExecutiveFactory(ContribImportBinding &binding) const {
+        return std::unique_ptr<ContribExecutiveFactory>();
     }
 
     ContribCategory::ContribCategory(std::string name, DeclarationMode declarationMode,

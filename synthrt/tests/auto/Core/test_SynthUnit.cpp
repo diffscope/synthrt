@@ -9,7 +9,7 @@
 #include <stdcorelib/plugin/plugin.h>
 
 #include <synthrt/Core/ContribCategory.h>
-#include <synthrt/Core/ContribExecInstance.h>
+#include <synthrt/Core/ContribExecutive.h>
 #include <synthrt/Core/ContribInterpreterPlugin.h>
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Core/ContribSpecExtension.h>
@@ -92,33 +92,33 @@ namespace {
         }
     };
 
-    class TestExecInstance final : public srt::ContribExecInstance {
+    class TestExecutive final : public srt::ContribExecutive {
     public:
-        explicit TestExecInstance(srt::ContribSpec &spec, int *destroyCount = nullptr)
-            : ContribExecInstance(spec), m_destroyCount(destroyCount) {
+        explicit TestExecutive(srt::ContribSpec &spec, int *destroyCount = nullptr)
+            : ContribExecutive(spec), m_destroyCount(destroyCount) {
         }
 
-        ~TestExecInstance() {
+        ~TestExecutive() {
             if (m_destroyCount) {
                 ++*m_destroyCount;
             }
         }
 
-        srt::Expected<TestExecInstance *> adopt(std::unique_ptr<TestExecInstance> child) {
+        srt::Expected<TestExecutive *> adopt(std::unique_ptr<TestExecutive> child) {
             auto adopted = adoptChild(std::move(child));
             if (!adopted) {
                 return adopted.takeError();
             }
-            return static_cast<TestExecInstance *>(*adopted);
+            return static_cast<TestExecutive *>(*adopted);
         }
 
-        srt::Expected<TestExecInstance *> create(std::string_view role,
-                                                 const TestRuntimeOptions &runtimeOptions) {
+        srt::Expected<TestExecutive *> create(std::string_view role,
+                                              const TestRuntimeOptions &runtimeOptions) {
             auto created = createChild(role, runtimeOptions);
             if (!created) {
                 return created.takeError();
             }
-            return static_cast<TestExecInstance *>(*created);
+            return static_cast<TestExecutive *>(*created);
         }
 
     private:
@@ -133,15 +133,14 @@ namespace {
         int *m_destroyCount;
     };
 
-    class TestExecFactory final : public srt::ContribExecFactory {
+    class TestExecutiveFactory final : public srt::ContribExecutiveFactory {
     public:
-        explicit TestExecFactory(srt::ContribImportBinding &binding) : m_binding(&binding) {
+        explicit TestExecutiveFactory(srt::ContribImportBinding &binding) : m_binding(&binding) {
         }
 
-        srt::Expected<std::unique_ptr<srt::ContribExecInstance>>
+        srt::Expected<std::unique_ptr<srt::ContribExecutive>>
             create(const srt::ContribRuntimeOptions &) override {
-            return std::unique_ptr<srt::ContribExecInstance>(
-                new TestExecInstance(m_binding->target()));
+            return std::unique_ptr<srt::ContribExecutive>(new TestExecutive(m_binding->target()));
         }
 
     private:
@@ -225,7 +224,7 @@ namespace {
             }
             ++preparedImportValidationCount;
             for (const auto &item : spec.imports()) {
-                if (!item.options() || !item.binding() || !item.execFactory()) {
+                if (!item.options() || !item.binding() || !item.executiveFactory()) {
                     return srt::Error(srt::Error::InvalidFormat,
                                       "test import was not fully prepared");
                 }
@@ -269,9 +268,9 @@ namespace {
             return std::unique_ptr<srt::ContribSpec>(new TestSpec(context));
         }
 
-        srt::Expected<std::unique_ptr<srt::ContribExecFactory>>
-            createExecFactory(srt::ContribImportBinding &binding) const override {
-            return std::unique_ptr<srt::ContribExecFactory>(new TestExecFactory(binding));
+        srt::Expected<std::unique_ptr<srt::ContribExecutiveFactory>>
+            createExecutiveFactory(srt::ContribImportBinding &binding) const override {
+            return std::unique_ptr<srt::ContribExecutiveFactory>(new TestExecutiveFactory(binding));
         }
     };
 
@@ -628,10 +627,10 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(dependencySpec->package().version() == stdc::VersionNumber(2));
     int childDestroyCount = 0;
     {
-        TestExecInstance parent(*rootSpec);
+        TestExecutive parent(*rootSpec);
         BOOST_CHECK(&parent.spec() == rootSpec);
         BOOST_CHECK(&parent.synthUnit() == &unit);
-        BOOST_CHECK(parent.lifecycleState() == srt::ContribExecInstance::LifecycleState::Running);
+        BOOST_CHECK(parent.lifecycleState() == srt::ContribExecutive::LifecycleState::Running);
         TestRuntimeOptions runtimeOptions;
         auto created = parent.create("first", runtimeOptions);
         BOOST_REQUIRE(created);
@@ -640,7 +639,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
         delete *created;
         BOOST_CHECK(parent.children().empty());
         {
-            auto adopted = parent.adopt(std::make_unique<TestExecInstance>(*dependencySpec));
+            auto adopted = parent.adopt(std::make_unique<TestExecutive>(*dependencySpec));
             BOOST_REQUIRE(adopted);
             auto *child = *adopted;
             BOOST_CHECK(child->parent() == &parent);
@@ -651,7 +650,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
             BOOST_CHECK(parent.children().empty());
         }
         BOOST_REQUIRE(
-            parent.adopt(std::make_unique<TestExecInstance>(*dependencySpec, &childDestroyCount)));
+            parent.adopt(std::make_unique<TestExecutive>(*dependencySpec, &childDestroyCount)));
         BOOST_CHECK_EQUAL(childDestroyCount, 0);
     }
     BOOST_CHECK_EQUAL(childDestroyCount, 1);

@@ -10,7 +10,7 @@
 #include <filesystem>
 
 #include <synthrt/SVS/InferenceContrib.h>
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <synthrt/SVS/InferenceExecutive.h>
 
 #include <dsinfer/Core/Tensor.h>
 #include <dsinfer/Core/ParamTag.h>
@@ -128,7 +128,7 @@ namespace ds::Api::Acoustic::L1 {
         std::map<std::string, std::string> speakerMapping;
     };
 
-    /// Contains runtime options used when creating an acoustic inference instance.
+    /// Contains runtime options used when creating an acoustic inference executive.
     class AcousticRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline AcousticRuntimeOptions()
@@ -136,7 +136,7 @@ namespace ds::Api::Acoustic::L1 {
         }
     };
 
-    /// Contains arguments used to initialize an acoustic inference instance.
+    /// Contains arguments used to initialize an acoustic inference executive.
     class AcousticInitArgs : public srt::InferenceInitArgs {
     public:
         inline AcousticInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
@@ -183,8 +183,8 @@ namespace ds::Api::Acoustic::L1 {
 
     /// Executes one acoustic model using Level 1 typed payloads.
     ///
-    /// An interpreter implementing this contract must create instances derived from this class.
-    class AcousticExecInstance : public srt::InferenceExecInstance {
+    /// An interpreter implementing this contract must create executives derived from this class.
+    class AcousticExecutive : public srt::InferenceExecutive {
     public:
         using AsyncCallback =
             std::function<void(srt::Expected<std::unique_ptr<AcousticResult>> result)>;
@@ -201,7 +201,7 @@ namespace ds::Api::Acoustic::L1 {
                                                AsyncCallback callback) = 0;
 
     protected:
-        using InferenceExecInstance::InferenceExecInstance;
+        using InferenceExecutive::InferenceExecutive;
     };
 
 }

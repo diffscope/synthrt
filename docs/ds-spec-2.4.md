@@ -637,7 +637,7 @@ Runtime 整体销毁前，必须先关闭所有 provider execution domain 的运
 
 `role`是导入方为该条目指定的本地 slot。导入模块通过`role`区分各项用途，并由自己的`variant`规定哪些 role 必须存在以及每个 role 接受哪一种目标契约。`options`只描述目标契约规定的导入参数，不承担标识本地用途的职责。
 
-每个 import 最多关联一个由目标 category 提供的执行实例 factory。该 factory 的目标契约由对应`ref`唯一确定，一次调用只创建该契约的一种执行实例，但可以被调用多次以创建多个实例。没有运行时对象的 category 可以不提供 factory。其他已注册 category 可以通过这一机制为新的 role 提供执行实例，因此 Singer 等导入方不得仅因遇到自身不认识的 role 而拒绝整个模块；导入方仍可严格要求自己契约规定的 role 存在且只指向规定的目标契约。
+每个 import 最多关联一个由目标 category 提供的 Executive Factory。该 Factory 的目标契约由对应`ref`唯一确定，一次调用只创建该契约的一种 Executive，但可以被调用多次以创建多个 Executive。没有运行时对象的 category 可以不提供 Factory。其他已注册 category 可以通过这一机制为新的 role 提供 Executive，因此 Singer 等导入方不得仅因遇到自身不认识的 role 而拒绝整个模块；导入方仍可严格要求自己契约规定的 role 存在且只指向规定的目标契约。
 
 **被引用的可以是任何模块类别中的模块，不限于 `inference`。** 类别写在`ref`里：`:inference/pitch`引用一个推理模块，`:com.vendor.language/cmn`引用一个第三方语言模块。非模块类别的贡献不能作为`imports[].ref`的目标。这也是为什么这里用一个引用串而不是拆成几个字段——拆开就没有类别的位置了。
 

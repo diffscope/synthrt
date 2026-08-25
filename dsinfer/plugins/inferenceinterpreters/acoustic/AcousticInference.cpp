@@ -7,7 +7,7 @@ namespace ds {
     namespace Ac = Api::Acoustic::L1;
 
     AcousticInference::AcousticInference(srt::InferenceSpec &spec)
-        : AcousticExecInstance(spec), m_task(*this) {
+        : AcousticExecutive(spec), m_task(*this) {
     }
 
     AcousticInference::~AcousticInference() = default;

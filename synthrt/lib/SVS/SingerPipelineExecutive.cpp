@@ -1,4 +1,4 @@
-#include "SingerPipelineExecInstance.h"
+#include "SingerPipelineExecutive.h"
 
 #include <utility>
 
@@ -12,17 +12,16 @@ namespace srt {
 
     SingerPipelineExtension::~SingerPipelineExtension() = default;
 
-    SingerPipelineExecInstance::SingerPipelineExecInstance(SingerSpec &spec)
-        : ContribExecInstance(spec) {
+    SingerPipelineExecutive::SingerPipelineExecutive(SingerSpec &spec) : ContribExecutive(spec) {
     }
 
-    SingerPipelineExecInstance::~SingerPipelineExecInstance() = default;
+    SingerPipelineExecutive::~SingerPipelineExecutive() = default;
 
-    Expected<void> SingerPipelineExecInstance::quit() {
+    Expected<void> SingerPipelineExecutive::quit() {
         return {};
     }
 
-    Expected<void> SingerPipelineExecInstance::wait() {
+    Expected<void> SingerPipelineExecutive::wait() {
         return {};
     }
 

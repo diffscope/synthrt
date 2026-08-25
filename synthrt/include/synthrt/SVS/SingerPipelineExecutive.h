@@ -1,12 +1,12 @@
-#ifndef SYNTHRT_SINGERPIPELINEEXECINSTANCE_H
-#define SYNTHRT_SINGERPIPELINEEXECINSTANCE_H
+#ifndef SYNTHRT_SINGERPIPELINEEXECUTIVE_H
+#define SYNTHRT_SINGERPIPELINEEXECUTIVE_H
 
-#include <synthrt/Core/ContribExecInstance.h>
+#include <synthrt/Core/ContribExecutive.h>
 #include <synthrt/SVS/SingerContrib.h>
 
 namespace srt {
 
-    class SingerPipelineExecInstance;
+    class SingerPipelineExecutive;
 
     /// Runtime options supplied when a singer pipeline is created.
     class SingerPipelineRuntimeOptions : public ContribRuntimeOptions {
@@ -28,7 +28,7 @@ namespace srt {
         }
 
         /// Creates this extension's synthesis pipeline.
-        virtual Expected<std::unique_ptr<SingerPipelineExecInstance>>
+        virtual Expected<std::unique_ptr<SingerPipelineExecutive>>
             createPipeline(const SingerPipelineRuntimeOptions &runtimeOptions) = 0;
 
     protected:
@@ -38,31 +38,31 @@ namespace srt {
     /// The provider-defined synthesis pipeline of one loaded singer contribution.
     ///
     /// Contract-specific derived classes expose typed functions that create the inference
-    /// instances selected by the singer declaration.
-    class SYNTHRT_EXPORT SingerPipelineExecInstance : public ContribExecInstance {
+    /// executives selected by the singer declaration.
+    class SYNTHRT_EXPORT SingerPipelineExecutive : public ContribExecutive {
     public:
-        explicit SingerPipelineExecInstance(SingerSpec &spec);
-        ~SingerPipelineExecInstance();
+        explicit SingerPipelineExecutive(SingerSpec &spec);
+        ~SingerPipelineExecutive();
 
     public:
         inline SingerSpec &spec() const {
-            return *ContribExecInstance::spec().as<SingerSpec>();
+            return *ContribExecutive::spec().as<SingerSpec>();
         }
 
     protected:
         /// Stops runtime activity retained by the singer pipeline.
         ///
-        /// The default implementation succeeds because child inference instances are stopped by
-        /// the execution instance supervision tree.
+        /// The default implementation succeeds because child inference executives are stopped by
+        /// the executive supervision tree.
         Expected<void> quit() override;
 
         /// Waits for runtime activity retained by the singer pipeline.
         ///
-        /// The default implementation succeeds because child inference instances are waited by
-        /// the execution instance supervision tree.
+        /// The default implementation succeeds because child inference executives are waited by
+        /// the executive supervision tree.
         Expected<void> wait() override;
     };
 
 }
 
-#endif // SYNTHRT_SINGERPIPELINEEXECINSTANCE_H
+#endif // SYNTHRT_SINGERPIPELINEEXECUTIVE_H

@@ -9,7 +9,7 @@
 #include <synthrt/Core/ContribImportBinding.h>
 #include <synthrt/SVS/InferenceContrib.h>
 
-#include "DiffSingerPipelineExecInstance.h"
+#include "DiffSingerPipelineExecutive.h"
 
 namespace ds {
 
@@ -38,12 +38,11 @@ namespace ds {
         public:
             explicit DiffSingerPipelineExtension(srt::SingerSpec &spec)
                 : SingerPipelineExtension(
-                      spec,
-                      srt::ContribSpecExtensionTraits<srt::SingerSpec,
-                                                      Ds::DiffSingerPipelineExecInstance>::ID) {
+                      spec, srt::ContribSpecExtensionTraits<srt::SingerSpec,
+                                                            Ds::DiffSingerPipelineExecutive>::ID) {
             }
 
-            srt::Expected<std::unique_ptr<srt::SingerPipelineExecInstance>>
+            srt::Expected<std::unique_ptr<srt::SingerPipelineExecutive>>
                 createPipeline(const srt::SingerPipelineRuntimeOptions &runtimeOptions) override {
                 if (runtimeOptions.interface() != Ds::API_INTERFACE ||
                     runtimeOptions.variant() != Ds::API_VARIANT ||
@@ -52,8 +51,8 @@ namespace ds {
                         srt::Error::InvalidArgument,
                         "DiffSinger pipeline options have an incompatible contract identity");
                 }
-                return std::unique_ptr<srt::SingerPipelineExecInstance>(
-                    new DiffSingerPipelineExecInstance(spec()));
+                return std::unique_ptr<srt::SingerPipelineExecutive>(
+                    new DiffSingerPipelineExecutive(spec()));
             }
         };
 
@@ -75,7 +74,7 @@ namespace ds {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "DiffSinger inference import has no prepared binding");
             }
-            if (!import->execFactory()) {
+            if (!import->executiveFactory()) {
                 return srt::Error(srt::Error::FeatureNotSupported,
                                   "DiffSinger inference import has no execution factory");
             }

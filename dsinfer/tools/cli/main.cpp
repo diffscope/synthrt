@@ -26,7 +26,7 @@
 #include <synthrt/Support/Logging.h>
 #include <synthrt/SVS/SingerContrib.h>
 #include <synthrt/SVS/InferenceContrib.h>
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <synthrt/SVS/InferenceExecutive.h>
 
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverFactory.h>
@@ -349,15 +349,15 @@ static int execute(const fs::path &packagePath, const fs::path &inputPath,
             R"(singer "%1" does not implement the DiffSinger Level 1 contract)", input.singer));
     }
 
-    // The root Pipeline owns every inference instance created through its Import roles.
+    // The root Pipeline owns every inference executive created through its Import roles.
     auto extension =
-        srt::ContribSpecExtension::findFromSpec<DiffSinger::DiffSingerPipelineExecInstance>(
+        srt::ContribSpecExtension::findFromSpec<DiffSinger::DiffSingerPipelineExecutive>(
             *singerSpec);
     if (!extension) {
         throw std::runtime_error(stdc::formatN(
             R"(singer "%1" does not provide the DiffSinger synthesis pipeline)", input.singer));
     }
-    std::unique_ptr<srt::SingerPipelineExecInstance> pipelineOwner;
+    std::unique_ptr<srt::SingerPipelineExecutive> pipelineOwner;
     if (auto result = extension->as<srt::SingerPipelineExtension>()->createPipeline(
             DiffSinger::DiffSingerPipelineRuntimeOptions());
         !result) {
@@ -367,7 +367,7 @@ static int execute(const fs::path &packagePath, const fs::path &inputPath,
     } else {
         pipelineOwner = result.take();
     }
-    auto pipeline = pipelineOwner->as<DiffSinger::DiffSingerPipelineExecInstance>();
+    auto pipeline = pipelineOwner->as<DiffSinger::DiffSingerPipelineExecutive>();
 
     // Create every required stage before any model starts running. This exposes an incomplete
     // singer declaration without leaving a partially executed synthesis request.

@@ -7,7 +7,7 @@ namespace ds {
     namespace Voc = Api::Vocoder::L1;
 
     VocoderInference::VocoderInference(srt::InferenceSpec &spec)
-        : VocoderExecInstance(spec), m_task(*this) {
+        : VocoderExecutive(spec), m_task(*this) {
     }
 
     VocoderInference::~VocoderInference() = default;

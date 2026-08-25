@@ -11,7 +11,7 @@ namespace srt {
 
     class SynthUnit;
 
-    /// A process resource or backend shared by execution instances in one SynthUnit.
+    /// A process resource or backend shared by executives in one SynthUnit.
     class RuntimeService {
     public:
         virtual ~RuntimeService() = default;

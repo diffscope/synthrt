@@ -1,5 +1,5 @@
-#ifndef DSINFER_DIFFSINGERPIPELINEEXECINSTANCE_H
-#define DSINFER_DIFFSINGERPIPELINEEXECINSTANCE_H
+#ifndef DSINFER_DIFFSINGERPIPELINEEXECUTIVE_H
+#define DSINFER_DIFFSINGERPIPELINEEXECUTIVE_H
 
 #include <string_view>
 
@@ -7,30 +7,29 @@
 
 namespace ds {
 
-    class DiffSingerPipelineExecInstance
-        : public Api::DiffSinger::L1::DiffSingerPipelineExecInstance {
+    class DiffSingerPipelineExecutive : public Api::DiffSinger::L1::DiffSingerPipelineExecutive {
     public:
-        explicit DiffSingerPipelineExecInstance(srt::SingerSpec &spec);
-        ~DiffSingerPipelineExecInstance();
+        explicit DiffSingerPipelineExecutive(srt::SingerSpec &spec);
+        ~DiffSingerPipelineExecutive();
 
     public:
-        srt::Expected<Api::Duration::L1::DurationExecInstance *>
+        srt::Expected<Api::Duration::L1::DurationExecutive *>
             createDuration(const Api::Duration::L1::DurationRuntimeOptions &options) override;
 
-        srt::Expected<Api::Pitch::L1::PitchExecInstance *>
+        srt::Expected<Api::Pitch::L1::PitchExecutive *>
             createPitch(const Api::Pitch::L1::PitchRuntimeOptions &options) override;
 
-        srt::Expected<Api::Variance::L1::VarianceExecInstance *>
+        srt::Expected<Api::Variance::L1::VarianceExecutive *>
             createVariance(const Api::Variance::L1::VarianceRuntimeOptions &options) override;
 
-        srt::Expected<Api::Acoustic::L1::AcousticExecInstance *>
+        srt::Expected<Api::Acoustic::L1::AcousticExecutive *>
             createAcoustic(const Api::Acoustic::L1::AcousticRuntimeOptions &options) override;
 
-        srt::Expected<Api::Vocoder::L1::VocoderExecInstance *>
+        srt::Expected<Api::Vocoder::L1::VocoderExecutive *>
             createVocoder(const Api::Vocoder::L1::VocoderRuntimeOptions &options) override;
 
     private:
-        srt::Expected<srt::InferenceExecInstance *>
+        srt::Expected<srt::InferenceExecutive *>
             createInference(std::string_view role, const srt::InferenceRuntimeOptions &options,
                             std::string_view expectedInterface, std::string_view expectedVariant,
                             int expectedLevel);
@@ -38,4 +37,4 @@ namespace ds {
 
 }
 
-#endif // DSINFER_DIFFSINGERPIPELINEEXECINSTANCE_H
+#endif // DSINFER_DIFFSINGERPIPELINEEXECUTIVE_H

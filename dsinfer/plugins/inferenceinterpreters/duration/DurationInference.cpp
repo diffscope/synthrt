@@ -7,7 +7,7 @@ namespace ds {
     namespace Dur = Api::Duration::L1;
 
     DurationInference::DurationInference(srt::InferenceSpec &spec)
-        : DurationExecInstance(spec), m_task(*this) {
+        : DurationExecutive(spec), m_task(*this) {
     }
 
     DurationInference::~DurationInference() = default;

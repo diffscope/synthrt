@@ -2,7 +2,7 @@
 #define DSINFER_INFERUTIL_DRIVER_H
 
 #include <synthrt/Support/Expected.h>
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <synthrt/SVS/InferenceExecutive.h>
 
 #include <dsinfer/Inference/InferenceDriver.h>
 
@@ -12,7 +12,7 @@ namespace ds::inferutil {
     ///
     /// \note Borrowed, not owned. The category owns the driver and outlives every inference that
     ///       runs against it.
-    srt::Expected<InferenceDriver *> getInferenceDriver(const srt::InferenceExecInstance *obj);
+    srt::Expected<InferenceDriver *> getInferenceDriver(const srt::InferenceExecutive *obj);
 
 }
 

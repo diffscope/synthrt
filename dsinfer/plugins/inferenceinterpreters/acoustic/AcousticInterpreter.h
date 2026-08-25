@@ -18,7 +18,7 @@ namespace ds {
         srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
             createImportOptions(const srt::ContribSpec &target,
                                 const srt::JsonValue &options) const override;
-        srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
+        srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
             createInference(srt::InferenceSpec &spec,
                             const srt::ContribImportOptions &importOptions,
                             const srt::InferenceRuntimeOptions &runtimeOptions) override;

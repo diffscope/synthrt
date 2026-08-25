@@ -167,11 +167,11 @@ namespace ds {
                               stdc::join(mismatches, ", "));
     }
 
-    srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
+    srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
         VocoderInterpreter::createInference(srt::InferenceSpec &spec,
                                             const srt::ContribImportOptions &,
                                             const srt::InferenceRuntimeOptions &) {
-        return std::unique_ptr<srt::InferenceExecInstance>(new VocoderInference(spec));
+        return std::unique_ptr<srt::InferenceExecutive>(new VocoderInference(spec));
     }
 
 }

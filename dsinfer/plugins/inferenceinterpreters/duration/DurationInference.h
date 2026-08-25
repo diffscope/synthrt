@@ -9,7 +9,7 @@
 
 namespace ds {
 
-    class DurationInference : public Api::Duration::L1::DurationExecInstance {
+    class DurationInference : public Api::Duration::L1::DurationExecutive {
     public:
         explicit DurationInference(srt::InferenceSpec &spec);
         ~DurationInference();

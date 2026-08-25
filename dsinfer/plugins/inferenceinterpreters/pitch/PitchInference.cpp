@@ -6,8 +6,7 @@ namespace ds {
 
     namespace Pit = Api::Pitch::L1;
 
-    PitchInference::PitchInference(srt::InferenceSpec &spec)
-        : PitchExecInstance(spec), m_task(*this) {
+    PitchInference::PitchInference(srt::InferenceSpec &spec) : PitchExecutive(spec), m_task(*this) {
     }
 
     PitchInference::~PitchInference() = default;

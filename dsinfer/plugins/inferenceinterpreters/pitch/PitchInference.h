@@ -9,7 +9,7 @@
 
 namespace ds {
 
-    class PitchInference : public Api::Pitch::L1::PitchExecInstance {
+    class PitchInference : public Api::Pitch::L1::PitchExecutive {
     public:
         explicit PitchInference(srt::InferenceSpec &spec);
         ~PitchInference();

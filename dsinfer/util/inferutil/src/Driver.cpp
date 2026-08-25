@@ -6,7 +6,7 @@
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
 namespace ds::inferutil {
-    srt::Expected<InferenceDriver *> getInferenceDriver(const srt::InferenceExecInstance *obj) {
+    srt::Expected<InferenceDriver *> getInferenceDriver(const srt::InferenceExecutive *obj) {
         namespace Onnx = Api::Onnx;
         auto *service = obj->synthUnit().runtimeService(InferenceDriver::IID, Onnx::API_NAME);
         if (!service) {

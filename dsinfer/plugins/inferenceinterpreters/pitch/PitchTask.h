@@ -12,7 +12,7 @@ namespace ds {
     class InferenceSession;
     class PitchInference;
 
-    /// Executes one pitch inference model behind its typed execution instance.
+    /// Executes one pitch inference model behind its typed executive.
     class PitchTask : public srt::ITask {
     public:
         explicit PitchTask(PitchInference &inference);
@@ -30,7 +30,7 @@ namespace ds {
         srt::Expected<std::unique_ptr<Api::Pitch::L1::PitchResult>>
             start(const Api::Pitch::L1::PitchStartInput &input);
         srt::Expected<void> startAsync(std::shared_ptr<const Api::Pitch::L1::PitchStartInput> input,
-                                       Api::Pitch::L1::PitchExecInstance::AsyncCallback callback);
+                                       Api::Pitch::L1::PitchExecutive::AsyncCallback callback);
 
     private:
         PitchInference *m_inference;

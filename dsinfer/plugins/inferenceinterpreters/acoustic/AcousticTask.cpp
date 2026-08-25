@@ -561,7 +561,7 @@ namespace ds {
 
     srt::Expected<void>
         AcousticTask::startAsync(std::shared_ptr<const Ac::AcousticStartInput> input,
-                                 Ac::AcousticExecInstance::AsyncCallback callback) {
+                                 Ac::AcousticExecutive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "acoustic asynchronous callback must not be empty");

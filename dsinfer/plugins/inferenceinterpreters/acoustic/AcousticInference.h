@@ -9,7 +9,7 @@
 
 namespace ds {
 
-    class AcousticInference : public Api::Acoustic::L1::AcousticExecInstance {
+    class AcousticInference : public Api::Acoustic::L1::AcousticExecutive {
     public:
         explicit AcousticInference(srt::InferenceSpec &spec);
         ~AcousticInference();

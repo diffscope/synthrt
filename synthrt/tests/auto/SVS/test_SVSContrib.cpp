@@ -10,7 +10,7 @@
 #include <synthrt/SVS/InferenceInterpreter.h>
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 #include <synthrt/SVS/SingerContrib.h>
-#include <synthrt/SVS/SingerPipelineExecInstance.h>
+#include <synthrt/SVS/SingerPipelineExecutive.h>
 #include <synthrt/SVS/SingerProviderPlugin.h>
 
 #define BOOST_TEST_MAIN
@@ -60,11 +60,11 @@ namespace {
             return std::make_unique<TestInferenceImportOptions>();
         }
 
-        srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
+        srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
             createInference(srt::InferenceSpec &, const srt::ContribImportOptions &,
                             const srt::InferenceRuntimeOptions &) override {
             return srt::Error(srt::Error::FeatureNotSupported,
-                              "test interpreter does not create execution instances");
+                              "test interpreter does not create executives");
         }
     };
 

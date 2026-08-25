@@ -9,7 +9,7 @@
 
 #include <stdcorelib/path.h>
 
-#include "SingerPipelineExecInstance.h"
+#include "SingerPipelineExecutive.h"
 #include "SingerProviderPlugin.h"
 
 namespace fs = std::filesystem;

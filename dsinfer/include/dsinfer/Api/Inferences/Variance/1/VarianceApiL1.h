@@ -10,7 +10,7 @@
 #include <filesystem>
 
 #include <synthrt/SVS/InferenceContrib.h>
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <synthrt/SVS/InferenceExecutive.h>
 
 #include <dsinfer/Core/ParamTag.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
@@ -99,7 +99,7 @@ namespace ds::Api::Variance::L1 {
         std::set<ParamTag> predictions;
     };
 
-    /// Contains runtime options used when creating a variance inference instance.
+    /// Contains runtime options used when creating a variance inference executive.
     class VarianceRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline VarianceRuntimeOptions()
@@ -107,7 +107,7 @@ namespace ds::Api::Variance::L1 {
         }
     };
 
-    /// Contains arguments used to initialize a variance inference instance.
+    /// Contains arguments used to initialize a variance inference executive.
     class VarianceInitArgs : public srt::InferenceInitArgs {
     public:
         inline VarianceInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
@@ -150,8 +150,8 @@ namespace ds::Api::Variance::L1 {
 
     /// Executes one variance model using Level 1 typed payloads.
     ///
-    /// An interpreter implementing this contract must create instances derived from this class.
-    class VarianceExecInstance : public srt::InferenceExecInstance {
+    /// An interpreter implementing this contract must create executives derived from this class.
+    class VarianceExecutive : public srt::InferenceExecutive {
     public:
         using AsyncCallback =
             std::function<void(srt::Expected<std::unique_ptr<VarianceResult>> result)>;
@@ -168,7 +168,7 @@ namespace ds::Api::Variance::L1 {
                                                AsyncCallback callback) = 0;
 
     protected:
-        using InferenceExecInstance::InferenceExecInstance;
+        using InferenceExecutive::InferenceExecutive;
     };
 
 }

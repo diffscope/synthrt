@@ -6,7 +6,7 @@
 #include <synthrt/Core/ContribInterpreter.h>
 #include <synthrt/Core/ContribSpecPayload.h>
 #include <synthrt/SVS/InferenceContrib.h>
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <synthrt/SVS/InferenceExecutive.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
@@ -28,7 +28,7 @@ namespace srt {
         virtual Expected<void> validateCompatibility(const InferenceSpec &spec,
                                                      const InferenceSpec &other) const;
 
-        virtual Expected<std::unique_ptr<InferenceExecInstance>>
+        virtual Expected<std::unique_ptr<InferenceExecutive>>
             createInference(InferenceSpec &spec, const ContribImportOptions &importOptions,
                             const InferenceRuntimeOptions &runtimeOptions) = 0;
 

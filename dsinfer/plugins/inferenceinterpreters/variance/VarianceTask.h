@@ -12,7 +12,7 @@ namespace ds {
     class InferenceSession;
     class VarianceInference;
 
-    /// Executes one variance inference model behind its typed execution instance.
+    /// Executes one variance inference model behind its typed executive.
     class VarianceTask : public srt::ITask {
     public:
         explicit VarianceTask(VarianceInference &inference);
@@ -31,7 +31,7 @@ namespace ds {
             start(const Api::Variance::L1::VarianceStartInput &input);
         srt::Expected<void>
             startAsync(std::shared_ptr<const Api::Variance::L1::VarianceStartInput> input,
-                       Api::Variance::L1::VarianceExecInstance::AsyncCallback callback);
+                       Api::Variance::L1::VarianceExecutive::AsyncCallback callback);
 
     private:
         VarianceInference *m_inference;

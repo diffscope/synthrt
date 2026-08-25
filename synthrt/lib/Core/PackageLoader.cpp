@@ -882,13 +882,13 @@ namespace srt {
                             }
                             auto *targetCategory =
                                 m_synthUnit->category(target->locator().category());
-                            auto factory = targetCategory->createExecFactory(*preparedBinding);
+                            auto factory = targetCategory->createExecutiveFactory(*preparedBinding);
                             if (!factory) {
                                 return factory.takeError().withContext(
                                     "target category failed to create import execution factory");
                             }
                             importData.binding = std::move(preparedBinding);
-                            importData.execFactory = factory.take();
+                            importData.executiveFactory = factory.take();
                         }
                     }
                 }

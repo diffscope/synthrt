@@ -6,7 +6,7 @@
 
 #include <synthrt/Core/ContribCategory.h>
 #include <synthrt/Core/ContribSpec.h>
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <synthrt/SVS/InferenceExecutive.h>
 
 namespace srt {
 
@@ -20,8 +20,8 @@ namespace srt {
         /// Compatibility is directional. The interpreter of this inference defines the check.
         Expected<void> validateCompatibilityWith(const InferenceSpec &other) const;
 
-        /// Creates one execution instance using the interpreter selected during Package load.
-        Expected<std::unique_ptr<InferenceExecInstance>>
+        /// Creates one executive using the interpreter selected during Package load.
+        Expected<std::unique_ptr<InferenceExecutive>>
             createInference(const ContribImportOptions &importOptions,
                             const InferenceRuntimeOptions &runtimeOptions);
 
@@ -43,8 +43,8 @@ namespace srt {
         Expected<std::unique_ptr<ContribSpec>>
             createSpec(const ContribCreateContext &context) const override;
 
-        Expected<std::unique_ptr<ContribExecFactory>>
-            createExecFactory(ContribImportBinding &binding) const override;
+        Expected<std::unique_ptr<ContribExecutiveFactory>>
+            createExecutiveFactory(ContribImportBinding &binding) const override;
     };
 
 }

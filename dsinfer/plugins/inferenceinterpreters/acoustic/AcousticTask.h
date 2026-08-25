@@ -12,7 +12,7 @@ namespace ds {
     class InferenceDriver;
     class InferenceSession;
 
-    /// Executes one acoustic inference model behind its typed execution instance.
+    /// Executes one acoustic inference model behind its typed executive.
     class AcousticTask : public srt::ITask {
     public:
         explicit AcousticTask(AcousticInference &inference);
@@ -31,7 +31,7 @@ namespace ds {
             start(const Api::Acoustic::L1::AcousticStartInput &input);
         srt::Expected<void>
             startAsync(std::shared_ptr<const Api::Acoustic::L1::AcousticStartInput> input,
-                       Api::Acoustic::L1::AcousticExecInstance::AsyncCallback callback);
+                       Api::Acoustic::L1::AcousticExecutive::AsyncCallback callback);
 
         void updateState(State state) noexcept;
 

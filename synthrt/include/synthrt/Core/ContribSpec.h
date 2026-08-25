@@ -47,8 +47,8 @@ namespace srt {
     };
 
     class ContribCreateContext;
-    class ContribExecInstance;
-    class ContribExecFactory;
+    class ContribExecutive;
+    class ContribExecutiveFactory;
     class ContribImportBinding;
     class ContribInterpreter;
     class PackageData;
@@ -102,7 +102,7 @@ namespace srt {
         ContribImportBinding *binding() const;
 
         /// Returns the target category's execution factory for this import.
-        ContribExecFactory *execFactory() const;
+        ContribExecutiveFactory *executiveFactory() const;
 
     private:
         class Data;
@@ -201,7 +201,7 @@ namespace srt {
         class Impl;
         std::unique_ptr<Impl> _impl;
 
-        friend class ContribExecInstance;
+        friend class ContribExecutive;
         friend class PackageData;
         friend class PackageLoader;
     };

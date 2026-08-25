@@ -63,7 +63,7 @@ namespace ds {
     }
 
     srt::Expected<void> VocoderTask::startAsync(std::shared_ptr<const Vo::VocoderStartInput> input,
-                                                Vo::VocoderExecInstance::AsyncCallback callback) {
+                                                Vo::VocoderExecutive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "vocoder asynchronous callback must not be empty");

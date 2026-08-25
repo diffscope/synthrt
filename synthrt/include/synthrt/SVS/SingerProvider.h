@@ -3,7 +3,7 @@
 
 #include <synthrt/Core/ContribInterpreter.h>
 #include <synthrt/SVS/SingerContrib.h>
-#include <synthrt/SVS/SingerPipelineExecInstance.h>
+#include <synthrt/SVS/SingerPipelineExecutive.h>
 
 namespace srt {
 

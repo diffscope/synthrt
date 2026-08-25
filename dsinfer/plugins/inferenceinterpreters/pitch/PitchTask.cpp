@@ -73,7 +73,7 @@ namespace ds {
     }
 
     srt::Expected<void> PitchTask::startAsync(std::shared_ptr<const Pit::PitchStartInput> input,
-                                              Pit::PitchExecInstance::AsyncCallback callback) {
+                                              Pit::PitchExecutive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "pitch asynchronous callback must not be empty");

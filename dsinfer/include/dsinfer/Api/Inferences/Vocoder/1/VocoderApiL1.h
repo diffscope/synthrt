@@ -5,7 +5,7 @@
 #include <memory>
 
 #include <synthrt/SVS/InferenceContrib.h>
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <synthrt/SVS/InferenceExecutive.h>
 
 #include <dsinfer/Core/Tensor.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
@@ -33,7 +33,7 @@ namespace ds::Api::Vocoder::L1 {
         }
     };
 
-    /// Contains runtime options used when creating a vocoder inference instance.
+    /// Contains runtime options used when creating a vocoder inference executive.
     class VocoderRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline VocoderRuntimeOptions()
@@ -89,7 +89,7 @@ namespace ds::Api::Vocoder::L1 {
         bool pitchControllable = false;
     };
 
-    /// Contains arguments used to initialize a vocoder inference instance.
+    /// Contains arguments used to initialize a vocoder inference executive.
     class VocoderInitArgs : public srt::InferenceInitArgs {
     public:
         inline VocoderInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
@@ -121,8 +121,8 @@ namespace ds::Api::Vocoder::L1 {
 
     /// Executes one vocoder model using Level 1 typed payloads.
     ///
-    /// An interpreter implementing this contract must create instances derived from this class.
-    class VocoderExecInstance : public srt::InferenceExecInstance {
+    /// An interpreter implementing this contract must create executives derived from this class.
+    class VocoderExecutive : public srt::InferenceExecutive {
     public:
         using AsyncCallback =
             std::function<void(srt::Expected<std::unique_ptr<VocoderResult>> result)>;
@@ -139,7 +139,7 @@ namespace ds::Api::Vocoder::L1 {
                                                AsyncCallback callback) = 0;
 
     protected:
-        using InferenceExecInstance::InferenceExecInstance;
+        using InferenceExecutive::InferenceExecutive;
     };
 
 }

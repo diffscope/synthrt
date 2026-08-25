@@ -10,7 +10,7 @@
 
 #include <stdcorelib/adt/vlarray.h>
 
-#include "ContribExecInstance.h"
+#include "ContribExecutive.h"
 
 namespace srt {
 
@@ -40,7 +40,7 @@ namespace srt {
         std::map<std::string, std::vector<ContribSpec *>, std::less<>> contributions;
         std::map<std::string, std::map<std::string, ContribSpec *, std::less<>>, std::less<>>
             contributionIndex;
-        stdc::vlarray<ContribExecInstance *> execInstances;
+        stdc::vlarray<ContribExecutive *> executives;
     };
 
 }

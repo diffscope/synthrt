@@ -20,7 +20,7 @@ namespace ds {
                                 const srt::JsonValue &options) const override;
         srt::Expected<void> validateCompatibility(const srt::InferenceSpec &spec,
                                                   const srt::InferenceSpec &other) const override;
-        srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
+        srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
             createInference(srt::InferenceSpec &spec,
                             const srt::ContribImportOptions &importOptions,
                             const srt::InferenceRuntimeOptions &runtimeOptions) override;

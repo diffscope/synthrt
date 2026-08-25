@@ -10,7 +10,7 @@ SynthRT 把“声明是什么”和“运行它”分成两层：
 2. Contribution 是 Package 提供的一项能力。它由 category 和 Package 内局部 ID 标识。
 3. `ContribSpec` 是 Contribution 声明的不可变内存对象。
 4. Module Category 的 Contribution 还具有 `interface`、`level`、`variant` 三元组，并由解释器把 JSON 解释成类型化对象。
-5. `ContribExecInstance` 是由已加载 Contribution 创建的运行时执行实例，简称 EI。
+5. `ContribExecutive` 是由已加载 Contribution 创建的运行时执行对象。
 6. `RuntimeService` 是 SynthUnit 级别的共享后端，例如 dsinfer 的 ONNX Inference Driver。它不是 Contribution。
 
 主要关系如下：
@@ -19,13 +19,13 @@ SynthRT 把“声明是什么”和“运行它”分成两层：
 |---|---|---|---|
 | `SynthUnit` | Category、Package、解释器和 Runtime Service 的运行时边界 | 宿主 | 最长 |
 | `ContribCategory` | 解析和索引一种 Contribution | `SynthUnit` | 不得晚于任何 Package |
-| `RuntimeService` | 为多个 EI 提供共享进程资源 | `SynthUnit` | 不得晚于使用它的 EI |
+| `RuntimeService` | 为多个 Executive 提供共享进程资源 | `SynthUnit` | 不得晚于使用它的 Executive |
 | `PackageHandle` | 对 Package 的共享强引用 | 调用者和 dependency edge | 短于 `SynthUnit` |
 | `ContribSpec` | 一个 Contribution 的不可变声明 | Package | 与 Package 相同 |
 | `ContribInterpreter` | 解释一个三元组的清单并创建运行时对象 | `SynthUnit` 内部插件工厂 | 插件加载后常驻 |
 | `ContribImportBinding` | 一个 import role 到目标 Contribution 的连接 | importing `ContribSpec` | 与 importing Package 相同 |
-| `ContribExecFactory` | 经某个 import 创建目标 EI | 对应 `ContribImport` | 与 importing Package 相同 |
-| `ContribExecInstance` | 实际运行工作并监督子 EI | 根 EI 由调用者持有，子 EI 由父 EI 持有 | 短于所属 Package |
+| `ContribExecutiveFactory` | 经某个 import 创建目标 Executive | 对应 `ContribImport` | 与 importing Package 相同 |
+| `ContribExecutive` | 实际运行工作并监督子 Executive | 根 Executive 由调用者持有，子 Executive 由父 Executive 持有 | 短于所属 Package |
 
 `SynthUnit` 不是全局单例。一个进程可以创建多个 SynthUnit，它们具有各自的 Category 实例、搜索路径、已加载 Package、Runtime Service 和解释器缓存。
 
@@ -107,7 +107,7 @@ org.example.models:inference/acoustic
 
 第一种形式引用当前 Package，第二种形式引用 `dependencies` 已经选定的直接依赖。Locator 不包含版本，也不会触发第二次依赖搜索。
 
-每个 import 使用唯一 `role` 标识自己的职责。相同 `ref` 可以在多个 role 中重复出现，每个条目仍有独立的 options、binding 和 EI factory。代码应使用 `ContribSpec::findImport(role)` 定位 import，不依赖数组位置。
+每个 import 使用唯一 `role` 标识自己的职责。相同 `ref` 可以在多个 role 中重复出现，每个条目仍有独立的 options、binding 和 Executive factory。代码应使用 `ContribSpec::findImport(role)` 定位 import，不依赖数组位置。
 
 ### 2.4 版本、变量、路径和多语言字段
 
@@ -214,7 +214,7 @@ if (auto result = unit.addRuntimeService(std::move(driver)); !result) {
 
 `InferenceDriverFactory` 持有已加载 Driver 插件的代码，必须比它创建的 Driver 活得久。上例中应先构造 Factory，再构造 SynthUnit，使销毁顺序为 SynthUnit 在前、Factory 在后。SynthUnit 接管 Driver 的对象所有权。
 
-EI 可以通过 `synthUnit().runtimeService(InferenceDriver::IID, backend)` 找到共享 Driver。Driver 再创建 `InferenceSession`，Session 是 `ITask`，负责打开一个模型并执行同步或异步推理。
+Executive 可以通过 `synthUnit().runtimeService(InferenceDriver::IID, backend)` 找到共享 Driver。Driver 再创建 `InferenceSession`，Session 是 `ITask`，负责打开一个模型并执行同步或异步推理。
 
 ## 4. 打开模式
 
@@ -226,7 +226,7 @@ auto result = unit.openPackage(packageDirectory, srt::SynthUnit::DataOnly);
 
 DataOnly 会读取 `desc.json` 和 Category 所需的声明文件，执行变量展开，并调用 Category 的 `createSpec()` 生成类型化 Spec。它不会发现插件、加载插件、创建解释器、解析契约 payload、创建 binding，也不会把 Package 发布到 `SynthUnit::loadedPackages()`。
 
-DataOnly 返回的 `PackageHandle::isLoaded()` 为 false。Module Spec 的 `exports()`、`configuration()`、`ContribImport::options()`、`binding()` 和 `execFactory()` 都为空。原始 manifest 访问器仍可使用。
+DataOnly 返回的 `PackageHandle::isLoaded()` 为 false。Module Spec 的 `exports()`、`configuration()`、`ContribImport::options()`、`binding()` 和 `executiveFactory()` 都为空。原始 manifest 访问器仍可使用。
 
 DataOnly 仍然要求清单里出现的 Category 已经注册，因为 Category 决定 Contribution entry 和声明如何构造成 Spec。
 
@@ -291,15 +291,15 @@ Acquire 才真正加载 Provider 插件。一个已加载插件中的同一个�
 1. 用目标 Module 的解释器调用 `createImportOptions(target, manifestOptions)`。
 2. 校验 options payload 的三元组与目标 Module 一致。
 3. 用 importing Module 的解释器调用 `createImportBinding(importer, declaration, target, options)`。
-4. 用目标 Category 调用 `createExecFactory(binding)`，把目标 Category 的运行时创建能力挂到该 role。
+4. 用目标 Category 调用 `createExecutiveFactory(binding)`，把目标 Category 的运行时创建能力挂到该 role。
 
-这里有意把职责分开：目标解释器最懂自己的 options 契约，importing 解释器最懂多个 role 如何组合，目标 Category 最懂如何从目标 Spec 创建哪种 EI。
+这里有意把职责分开：目标解释器最懂自己的 options 契约，importing 解释器最懂多个 role 如何组合，目标 Category 最懂如何从目标 Spec 创建哪种 Executive。
 
 Ready 产生的 Binding 处于 `Prepared`，不得开始业务执行。所有可能失败、分配或执行 I/O 的准备工作都必须在 Commit 前完成。
 
-Ready 内部明确分为三个 pass。解释器首次创建时可以通过 `createImportValidators()` 向当前 SynthUnit 提供零个或多个 Import Validator。第一遍为整个事务中的全部 import 创建 Binding 和 EI Factory。第二遍让每个 `ContribImportValidator` 检查所有 Spec 已经准备好的 options、Binding、EI Factory 以及跨 import 兼容性。第三遍对每个 Spec 调用每个已选中解释器的 `createExtensions(spec)`，解释器不扩展该 Spec 时返回空 vector，适用时可以一次返回一个或多个 Extension。Import Validator 与 Extension 创建是相互独立的职责，一个验证器不必创建 Extension。每个 Extension 均由对应 Spec 持有，其 ID 在同一 Spec 内必须唯一。验证失败、创建失败、返回空指针、ID 非法或重复都会使整个 Load 失败。
+Ready 内部明确分为三个 pass。解释器首次创建时可以通过 `createImportValidators()` 向当前 SynthUnit 提供零个或多个 Import Validator。第一遍为整个事务中的全部 import 创建 Binding 和 Executive Factory。第二遍让每个 `ContribImportValidator` 检查所有 Spec 已经准备好的 options、Binding、Executive Factory 以及跨 import 兼容性。第三遍对每个 Spec 调用每个已选中解释器的 `createExtensions(spec)`，解释器不扩展该 Spec 时返回空 vector，适用时可以一次返回一个或多个 Extension。Import Validator 与 Extension 创建是相互独立的职责，一个验证器不必创建 Extension。每个 Extension 均由对应 Spec 持有，其 ID 在同一 Spec 内必须唯一。验证失败、创建失败、返回空指针、ID 非法或重复都会使整个 Load 失败。
 
-Extension 是加载后附加到 Spec 的类型化能力，不是新的 Contribution，也不改变原 Spec 的清单身份。DataOnly 不创建 Extension。Extension 可以保存对 Spec、Binding 和 EI Factory 的非拥有引用，但不能在 Commit 前启动业务执行。Extension 在其引用的 import 数据之前销毁。
+Extension 是加载后附加到 Spec 的类型化能力，不是新的 Contribution，也不改变原 Spec 的清单身份。DataOnly 不创建 Extension。Extension 可以保存对 Spec、Binding 和 Executive Factory 的非拥有引用，但不能在 Commit 前启动业务执行。Extension 在其引用的 import 数据之前销毁。
 
 ### 5.5 Commit
 
@@ -334,29 +334,29 @@ Provider 插件一旦成功加载便由 SynthUnit 内部插件 Factory 常驻持
 
 再次打开一个仍被引用的已 Commit Package，只取得新 Handle，不会重复加载。
 
-### 6.2 EI 必须先销毁
+### 6.2 Executive 必须先销毁
 
-当前实现不会在最后一个 PackageHandle 析构时替调用者保存并销毁根 EI。每个 `ContribExecInstance` 构造时都会登记到所属 Package。若 Package 析构时仍存在任何 EI，运行时会 fatal，而不是留下悬空 Spec 或继续卸载。
+当前实现不会在最后一个 PackageHandle 析构时替调用者保存并销毁根 Executive。每个 `ContribExecutive` 构造时都会登记到所属 Package。若 Package 析构时仍存在任何 Executive，运行时会 fatal，而不是留下悬空 Spec 或继续卸载。
 
 正确顺序为：
 
 ```cpp
-pipeline.reset(); // 同时销毁其监督的全部子 EI
+pipeline.reset(); // 同时销毁其监督的全部子 Executive
 package.reset();
 // 最后才销毁 SynthUnit
 ```
 
 所有从 `PackageHandle::contribution()`、`contributions()`、`resolve()` 或 `ContribCategory::contributions()` 得到的裸指针也必须在保活该 Package 的 Handle 释放前停止使用。
 
-### 6.3 EI 监督树
+### 6.3 Executive 监督树
 
-根 EI 通常由调用者持有 `std::unique_ptr`。父 EI 使用 `adoptChild()` 接管子 EI，或者使用 `createChild(role, runtimeOptions)` 经 import 上的 Factory 创建并接管子 EI。
+根 Executive 通常由调用者持有 `std::unique_ptr`。父 Executive 使用 `adoptChild()` 接管子 Executive，或者使用 `createChild(role, runtimeOptions)` 经 import 上的 Factory 创建并接管子 Executive。
 
-父 EI 析构时会删除全部子 EI。调用者也可以提前 `delete` 一个由父 EI 返回的子指针，子对象会先从父对象的 children 列表中脱离。不得把子指针包装进第二个 owning smart pointer。
+父 Executive 析构时会删除全部子 Executive。调用者也可以提前 `delete` 一个由父 Executive 返回的子指针，子对象会先从父对象的 children 列表中脱离。不得把子指针包装进第二个 owning smart pointer。
 
-EI 具有 `Running`、`Stopping`、`Stopped` 生命周期状态。卸载协议要求先 quit 所有入口，再 wait 到静止。当前顶层 Package API 通过“所有 EI 必须先由调用者销毁”保证这一点，具体 EI 和其中 Task 的析构函数必须停止并等待自己的执行活动。
+Executive 具有 `Running`、`Stopping`、`Stopped` 生命周期状态。卸载协议要求先 quit 所有入口，再 wait 到静止。当前顶层 Package API 通过“所有 Executive 必须先由调用者销毁”保证这一点，具体 Executive 和其中 Task 的析构函数必须停止并等待自己的执行活动。
 
-`ContribExecInstance` 基类析构函数不会调用虚 `quit()` 或 `wait()`。C++ 基类析构期间也不能再安全分派到派生实现。因此具体 EI 必须在自己的析构过程或成员对象析构过程中完成停止和等待。当前 dsinfer EI 由内部 Task 析构函数完成这道屏障。
+`ContribExecutive` 基类析构函数不会调用虚 `quit()` 或 `wait()`。C++ 基类析构期间也不能再安全分派到派生实现。因此具体 Executive 必须在自己的析构过程或成员对象析构过程中完成停止和等待。当前 dsinfer Executive 由内部 Task 析构函数完成这道屏障。
 
 ### 6.4 Binding 生命周期
 
@@ -408,7 +408,7 @@ Prepared -> Active -> Closed
 - `createImportOptions()`：为一个指向该契约的 import 解析 options。
 - `createImportValidators()`：创建在 Ready 第二遍检查完整 Prepared import 图的验证器。
 - `createImportBinding()`：建立 importing Spec 到目标 Spec 的 Prepared 连接。
-- Category 或更具体的解释器接口提供实际 EI 创建入口。
+- Category 或更具体的解释器接口提供实际 Executive 创建入口。
 
 解释器可能被多个 Package 和 Spec 共享。不要在解释器对象里存放“当前 Spec”一类单实例状态。每次调用都以参数中的 Spec 为准，共享缓存必须明确同步并且不能破坏 Package 生命周期。
 
@@ -425,58 +425,58 @@ if (spec.interface() != MyApi::Interface || spec.variant() != MyApi::Variant ||
 auto *configuration = spec.configuration()->as<MyConfiguration>();
 ```
 
-Category 名称确定 `ContribSpec` 的派生类型，三元组确定 payload、解释器和 EI 的派生类型。身份未验证时调用 `as<T>()` 是调用方错误。
+Category 名称确定 `ContribSpec` 的派生类型，三元组确定 payload、解释器和 Executive 的派生类型。身份未验证时调用 `as<T>()` 是调用方错误。
 
-## 8. ImportBinding、EI Factory 与开放 role
+## 8. ImportBinding、Executive Factory 与开放 role
 
 ### 8.1 为什么 Factory 挂在 import 上
 
-一个 singer 的 imports 不限于固定的五种 inference。未来第三方 Category 可以增加 language、dictionary 或其他 role。因而 SynthRT 不在 Singer 基类中硬编码所有可创建对象，而是在 Ready 时让每个 import 保存目标 Category 创建的 `ContribExecFactory`。
+一个 singer 的 imports 不限于固定的五种 inference。未来第三方 Category 可以增加 language、dictionary 或其他 role。因而 SynthRT 不在 Singer 基类中硬编码所有可创建对象，而是在 Ready 时让每个 import 保存目标 Category 创建的 `ContribExecutiveFactory`。
 
 运行时调用：
 
 ```cpp
 auto import = spec.findImport("acoustic");
-if (!import || !import->execFactory()) {
+if (!import || !import->executiveFactory()) {
     // role 不存在，或者目标 Category 没有运行时实例
 }
 ```
 
-EI 派生类通常不直接暴露通用 Factory，而是提供契约类型化方法，内部调用受保护的 `createChild()`：
+Executive 派生类通常不直接暴露通用 Factory，而是提供契约类型化方法，内部调用受保护的 `createChild()`：
 
 ```cpp
-srt::Expected<MyExecInstance *> MyPipeline::createLanguage(
+srt::Expected<MyExecutive *> MyPipeline::createLanguage(
     const MyRuntimeOptions &options) {
     auto result = createChild("language", options);
     if (!result) {
         return result.takeError();
     }
 
-    auto *instance = *result;
-    const auto &target = instance->spec();
+    auto *executive = *result;
+    const auto &target = executive->spec();
     if (target.interface() != MyApi::Interface || target.variant() != MyApi::Variant ||
         target.level() != MyApi::Level) {
-        delete instance;
-        return srt::Error(srt::Error::InvalidFormat, "factory returned an incompatible EI");
+        delete executive;
+        return srt::Error(srt::Error::InvalidFormat, "factory returned an incompatible Executive");
     }
-    return instance->as<MyExecInstance>();
+    return executive->as<MyExecutive>();
 }
 ```
 
-`createChild()` 会查 role、调用 Factory、检查父子属于同一个 SynthUnit、防止监督环，并把成功创建的 EI 所有权交给父 EI。
+`createChild()` 会查 role、调用 Factory、检查父子属于同一个 SynthUnit、防止监督环，并把成功创建的 Executive 所有权交给父 Executive。
 
 ### 8.2 谁创建 Factory
 
-Loader 对每个 import 调用目标 Category 的 `createExecFactory(binding)`。Factory 因而可以使用：
+Loader 对每个 import 调用目标 Category 的 `createExecutiveFactory(binding)`。Factory 因而可以使用：
 
 - `binding.target()` 获取目标 Spec。
 - `binding.options()` 获取目标解释器解析后的 options。
 - `binding.importer()` 获取发起导入的 Spec。
 - `binding.declaration().role()` 获取 role。
 
-Factory 的 `create(runtimeOptions)` 必须验证 runtime options 的三元组，并返回属于 binding target 的 EI。内置 `InferenceCategory` 的 Factory 会调用 `InferenceSpec::createInference()`，然后确认返回 EI 的 `spec()` 正是目标 Spec。
+Factory 的 `create(runtimeOptions)` 必须验证 runtime options 的三元组，并返回属于 binding target 的 Executive。内置 `InferenceCategory` 的 Factory 会调用 `InferenceSpec::createInference()`，然后确认返回 Executive 的 `spec()` 正是目标 Spec。
 
-如果一种 Category 没有运行时对象，保持 `createExecFactory()` 的默认实现即可。此时 Factory 为空，调用该 role 创建子 EI 会返回 `FeatureNotSupported`。
+如果一种 Category 没有运行时对象，保持 `createExecutiveFactory()` 的默认实现即可。此时 Factory 为空，调用该 role 创建子 Executive 会返回 `FeatureNotSupported`。
 
 ## 9. dsinfer 的内置执行模型
 
@@ -492,21 +492,21 @@ Factory 的 `create(runtimeOptions)` 必须验证 runtime options 的三元组�
 - import options 类型
 - runtime options 类型
 - init、start 和 result payload
-- 派生自 `InferenceExecInstance` 的类型化 EI 接口
+- 派生自 `InferenceExecutive` 的类型化 Executive 接口
 
-`InferenceExecInstance` 不公开一个通用 `ITask&`。它只公开通用状态、停止和等待。Acoustic、Duration、Pitch、Variance 和 Vocoder EI 各自公开类型化 `initialize()`、`start()` 和 `startAsync()`，调用者不能绕过契约传入任意 `TaskPayload`。
+`InferenceExecutive` 不公开一个通用 `ITask&`。它只公开通用状态、停止和等待。Acoustic、Duration、Pitch、Variance 和 Vocoder Executive 各自公开类型化 `initialize()`、`start()` 和 `startAsync()`，调用者不能绕过契约传入任意 `TaskPayload`。
 
-解释器创建具体 EI，具体 EI 可以在内部组合一个或多个 `ITask`。当前 dsinfer 的每种 inference EI 组合一个契约专用 Task，Task 再通过 SynthUnit 的 Inference Driver Runtime Service 创建模型 Session。
+解释器创建具体 Executive，具体 Executive 可以在内部组合一个或多个 `ITask`。当前 dsinfer 的每种 inference Executive 组合一个契约专用 Task，Task 再通过 SynthUnit 的 Inference Driver Runtime Service 创建模型 Session。
 
 ### 9.2 Inference 兼容性
 
 `InferenceSpec::validateCompatibilityWith(other)` 是有方向的检查，由当前 Spec 的解释器执行。默认 `InferenceInterpreter::validateCompatibility()` 接受所有组合，只有存在跨模型约束的契约需要覆盖。
 
-当前 DiffSinger Import Validator 要求 acoustic 和 vocoder role 存在，并调用 vocoder 的兼容性检查验证其能否消费 acoustic 输出。该检查发生在 Ready 第二遍，此时所有 import 已经具有 Binding 和 EI Factory。因此不兼容 Package 会在 Load 阶段失败，而不是运行到一半才失败。
+当前 DiffSinger Import Validator 要求 acoustic 和 vocoder role 存在，并调用 vocoder 的兼容性检查验证其能否消费 acoustic 输出。该检查发生在 Ready 第二遍，此时所有 import 已经具有 Binding 和 Executive Factory。因此不兼容 Package 会在 Load 阶段失败，而不是运行到一半才失败。
 
 ### 9.3 Singer Pipeline
 
-Singer Pipeline 由 `SingerPipelineExtension` 创建，不再由 `SingerSpec` 独占创建。Loader 在 Ready 的最后一遍调用每个已选中 Interpreter 的 `createExtensions(spec)`。例如 DiffSinger Provider 可以为自身契约的 Singer 提供 Pipeline，Wolf Language Provider 也可以为导入语言 Contribution 的 Singer 提供独立 Pipeline。解释器不适用时返回空 vector，适用时按需附加一个或多个 Pipeline Extension。返回的 `SingerPipelineExecInstance` 是根 EI，它通过已经聚合的 import role 创建子 EI。
+Singer Pipeline 由 `SingerPipelineExtension` 创建，不再由 `SingerSpec` 独占创建。Loader 在 Ready 的最后一遍调用每个已选中 Interpreter 的 `createExtensions(spec)`。例如 DiffSinger Provider 可以为自身契约的 Singer 提供 Pipeline，Wolf Language Provider 也可以为导入语言 Contribution 的 Singer 提供独立 Pipeline。解释器不适用时返回空 vector，适用时按需附加一个或多个 Pipeline Extension。返回的 `SingerPipelineExecutive` 是根 Executive，它通过已经聚合的 import role 创建子 Executive。
 
 DiffSinger Level 1 的类型化 Pipeline 当前公开 duration、pitch、variance、acoustic 和 vocoder 创建函数。`DiffSingerImportValidator` 将 acoustic 和 vocoder 视为必需 role，其他三个可以省略。调用一个清单未声明的可选 role 时，创建函数会返回错误，调用者必须按自己的工作流决定是否需要它。
 
@@ -526,7 +526,7 @@ if (singer->interface() != ds::Api::DiffSinger::L1::API_INTERFACE ||
 }
 
 auto *extension = srt::ContribSpecExtension::findFromSpec<
-    ds::Api::DiffSinger::L1::DiffSingerPipelineExecInstance>(*singer);
+    ds::Api::DiffSinger::L1::DiffSingerPipelineExecutive>(*singer);
 if (!extension) {
     // 当前 Singer 没有 DiffSinger Pipeline
 }
@@ -538,7 +538,7 @@ if (!pipelineResult) {
 }
 auto pipeline = pipelineResult.take();
 auto *typedPipeline =
-    pipeline->as<ds::Api::DiffSinger::L1::DiffSingerPipelineExecInstance>();
+    pipeline->as<ds::Api::DiffSinger::L1::DiffSingerPipelineExecutive>();
 
 auto acousticResult = typedPipeline->createAcoustic(
     ds::Api::Acoustic::L1::AcousticRuntimeOptions());
@@ -548,7 +548,7 @@ if (!acousticResult) {
 auto *acoustic = *acousticResult; // 由 pipeline 持有
 ```
 
-调用者持有 `pipeline`，但不持有 `acoustic`。销毁 Pipeline 会销毁所有仍被监督的子 EI。
+调用者持有 `pipeline`，但不持有 `acoustic`。销毁 Pipeline 会销毁所有仍被监督的子 Executive。
 
 ## 10. 扩展新的 Module Category
 
@@ -577,14 +577,14 @@ protected:
     srt::Expected<std::unique_ptr<srt::ContribSpec>>
         createSpec(const srt::ContribCreateContext &context) const override;
 
-    srt::Expected<std::unique_ptr<srt::ContribExecFactory>>
-        createExecFactory(srt::ContribImportBinding &binding) const override;
+    srt::Expected<std::unique_ptr<srt::ContribExecutiveFactory>>
+        createExecutiveFactory(srt::ContribImportBinding &binding) const override;
 };
 ```
 
 `createSpec()` 在插件发现前执行，只能解析 Category 自己拥有的 entry 字段和公共 Module envelope。不要在这里加载插件、模型或设备。返回的 Spec 必须以收到的 `ContribCreateContext` 构造，不能保存 Context 指针，因为 Context 只在本次调用期间有效。
 
-### 10.2 定义契约 payload 和 EI
+### 10.2 定义契约 payload 和 Executive
 
 为每个公开契约定义固定三元组，并让所有类型化 payload 调用对应基类构造函数：
 
@@ -619,20 +619,20 @@ public:
     }
 };
 
-class ExecInstance : public srt::ContribExecInstance {
+class Executive : public srt::ContribExecutive {
 public:
     virtual srt::Expected<std::string> process(std::string_view text) = 0;
 
 protected:
-    using ContribExecInstance::ContribExecInstance;
+    using ContribExecutive::ContribExecutive;
 };
 
 }
 ```
 
-如果 EI 内部有异步执行，必须实现 `quit()` 和 `wait()`，保证停止后不再访问 Package、Spec、Binding 或 Runtime Service。若只做同步工作，两者可以立即成功。
+如果 Executive 内部有异步执行，必须实现 `quit()` 和 `wait()`，保证停止后不再访问 Package、Spec、Binding 或 Runtime Service。若只做同步工作，两者可以立即成功。
 
-当前实现要求调用者在 Package 释放前主动销毁根 EI，所以具体 EI 的析构函数仍必须自行触发停止和等待。不能只实现两个虚函数却假设基类析构会调用它们。
+当前实现要求调用者在 Package 释放前主动销毁根 Executive，所以具体 Executive 的析构函数仍必须自行触发停止和等待。不能只实现两个虚函数却假设基类析构会调用它们。
 
 ### 10.3 定义 Binding 和 Factory
 
@@ -656,12 +656,12 @@ protected:
     }
 };
 
-class LanguageExecFactory : public srt::ContribExecFactory {
+class LanguageExecutiveFactory : public srt::ContribExecutiveFactory {
 public:
-    explicit LanguageExecFactory(srt::ContribImportBinding &binding) : m_binding(&binding) {
+    explicit LanguageExecutiveFactory(srt::ContribImportBinding &binding) : m_binding(&binding) {
     }
 
-    srt::Expected<std::unique_ptr<srt::ContribExecInstance>>
+    srt::Expected<std::unique_ptr<srt::ContribExecutive>>
         create(const srt::ContribRuntimeOptions &options) override;
 
 private:
@@ -669,7 +669,7 @@ private:
 };
 ```
 
-Category 的 `createExecFactory()` 返回 `LanguageExecFactory`。Factory 使用 binding target 和类型化 options 创建 EI，并检查 runtime options 以及返回 EI 的 Spec 身份。
+Category 的 `createExecutiveFactory()` 返回 `LanguageExecutiveFactory`。Factory 使用 binding target 和类型化 options 创建 Executive，并检查 runtime options 以及返回 Executive 的 Spec 身份。
 
 ### 10.4 定义解释器和插件
 
@@ -730,7 +730,7 @@ unit.setPluginPaths("com.example.language", {pluginRoot / "languageinterpreters"
 
 ## 11. 扩展 EntryOnly Category
 
-如果 Contribution 只是索引数据，没有公共 Module 声明、解释器、Binding 或 EI，则使用 EntryOnly：
+如果 Contribution 只是索引数据，没有公共 Module 声明、解释器、Binding 或 Executive，则使用 EntryOnly：
 
 ```cpp
 class DictionaryCategory : public srt::ContribCategory {
@@ -746,7 +746,7 @@ protected:
 
 EntryOnly Category 的 interpreter IID 必须为空。`ContribCreateContext::manifestEntry()` 是它的主要输入，`declarationPath()` 和 `manifestDeclaration()` 返回空。Module 公共字段访问器对这种 Spec 没有意义，不得调用。非 Module Contribution 也不能成为 Module import 的 ref 目标。
 
-如果一种 Contribution 需要 Provider、Binding、EI 或运行时资源，它应建模为 Module Category，而不是在 EntryOnly Category 中私自绕过加载事务。
+如果一种 Contribution 需要 Provider、Binding、Executive 或运行时资源，它应建模为 Module Category，而不是在 EntryOnly Category 中私自绕过加载事务。
 
 ## 12. 新增既有 Category 的实现变体
 
@@ -755,7 +755,7 @@ EntryOnly Category 的 interpreter IID 必须为空。`ContribCreateContext::man
 1. 沿用现有 `interface` 和 `level` 的 exports、options 与运行时契约。
 2. 选择新的 `variant`。
 3. 定义该 variant 自己的 configuration 格式和类型化对象。
-4. 实现解释器及 EI。
+4. 实现解释器及 Executive。
 5. 在插件 metadata 中加入新三元组。
 
 Provider 选择要求三元组精确匹配。若 configuration 内部还需要格式版本，应由 variant 自己定义字段并在 `createConfiguration()` 中检查，不要改变 Runtime Level。
@@ -764,9 +764,9 @@ Provider 选择要求三元组精确匹配。若 configuration 内部还需要�
 
 公开的可失败操作使用 `Expected<T>`。错误应保留最贴近失败点的 code，并在跨层传播时使用 context 说明当前 Package、Module 或阶段。不要返回空的成功 `unique_ptr`，Loader 会把它视为非法 Provider。
 
-Load 和 release 由 SynthUnit 串行化，但解释器实例会被缓存并服务多个 Spec。运行期的 EI、Task、Driver 和 Session 仍可能并发执行，扩展实现必须自行同步共享状态。
+Load 和 release 由 SynthUnit 串行化，但解释器实例会被缓存并服务多个 Spec。运行期的 Executive、Task、Driver 和 Session 仍可能并发执行，扩展实现必须自行同步共享状态。
 
-管理调用必须同步返回。Acquire 和 Ready 期间不得启动业务线程、异步任务或对事务外可见的 callback。运行时执行只能发生在 Commit 后创建的 EI 中。
+管理调用必须同步返回。Acquire 和 Ready 期间不得启动业务线程、异步任务或对事务外可见的 callback。运行时执行只能发生在 Commit 后创建的 Executive 中。
 
 ## 14. 常见错误
 
@@ -775,8 +775,8 @@ Load 和 release 由 SynthUnit 串行化，但解释器实例会被缓存并服�
 - 把 Driver 当作 Contribution，或把解释器当作 Runtime Service。
 - 未检查 category 或三元组便调用 `as<T>()`。
 - 保存 `ContribCreateContext`，或在 PackageHandle 释放后继续使用 Spec 裸指针。
-- 把父 EI 返回的子指针交给第二个 owning smart pointer。
-- 在 PackageHandle 之前没有销毁根 EI。
+- 把父 Executive 返回的子指针交给第二个 owning smart pointer。
+- 在 PackageHandle 之前没有销毁根 Executive。
 - 在 Binding `activate()` 中执行可能失败、分配或 I/O 的工作。
 - 在解释器中保存单一“当前 Spec”状态，忽略解释器可跨 Package 复用。
 - 让 runtime options、exports、configuration 或 import options 返回错误的三元组。
@@ -787,8 +787,8 @@ Load 和 release 由 SynthUnit 串行化，但解释器实例会被缓存并服�
 1. [ds-spec-2.4.md](ds-spec-2.4.md)：清单格式和规范行为。
 2. `synthrt/include/synthrt/Core/SynthUnit.h`：宿主入口。
 3. `synthrt/include/synthrt/Core/PackageHandle.h` 与 `ContribSpec.h`：加载结果和声明查询。
-4. `ContribCategory.h`、`ContribInterpreter.h`、`ContribImportBinding.h` 与 `ContribExecInstance.h`：扩展点。
+4. `ContribCategory.h`、`ContribInterpreter.h`、`ContribImportBinding.h` 与 `ContribExecutive.h`：扩展点。
 5. `synthrt/include/synthrt/SVS`：内置 singer 和 inference Category。
 6. `dsinfer/include/dsinfer/Api`：Level 1 类型化契约。
-7. `dsinfer/plugins/inferenceinterpreters` 与 `dsinfer/plugins/singerproviders/diffsinger`：可运行的解释器、Provider、Binding Factory 和 EI 示例。
+7. `dsinfer/plugins/inferenceinterpreters` 与 `dsinfer/plugins/singerproviders/diffsinger`：可运行的解释器、Provider、Binding Factory 和 Executive 示例。
 8. `dsinfer/tools/cli/main.cpp`：从 Driver 初始化、Package Load、Singer Pipeline 到各推理阶段执行的完整宿主示例。

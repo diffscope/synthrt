@@ -6,19 +6,20 @@
 
 #include "InferenceInterpreter.h"
 #include "InferenceInterpreterPlugin.h"
-#include "ContribExecInstance.h"
+#include "ContribExecutive.h"
 #include "ContribImportBinding.h"
 
 namespace srt {
 
     namespace {
 
-        class InferenceExecFactory : public ContribExecFactory {
+        class InferenceExecutiveFactory : public ContribExecutiveFactory {
         public:
-            explicit InferenceExecFactory(ContribImportBinding &binding) : m_binding(&binding) {
+            explicit InferenceExecutiveFactory(ContribImportBinding &binding)
+                : m_binding(&binding) {
             }
 
-            Expected<std::unique_ptr<ContribExecInstance>>
+            Expected<std::unique_ptr<ContribExecutive>>
                 create(const ContribRuntimeOptions &runtimeOptions) override {
                 auto &target = m_binding->target();
                 if (runtimeOptions.interface() != target.interface() ||
@@ -32,12 +33,12 @@ namespace srt {
                 if (!result) {
                     return result.takeError();
                 }
-                auto instance = result.take();
-                if (&instance->spec() != &target) {
+                auto executive = result.take();
+                if (&executive->spec() != &target) {
                     return Error(Error::InvalidFormat,
-                                 "inference provider returned an instance for another target");
+                                 "inference provider returned an executive for another target");
                 }
-                return std::unique_ptr<ContribExecInstance>(std::move(instance));
+                return std::unique_ptr<ContribExecutive>(std::move(executive));
             }
 
         private:
@@ -84,7 +85,7 @@ namespace srt {
         return value->as<InferenceInterpreter>()->validateCompatibility(*this, other);
     }
 
-    Expected<std::unique_ptr<InferenceExecInstance>>
+    Expected<std::unique_ptr<InferenceExecutive>>
         InferenceSpec::createInference(const ContribImportOptions &importOptions,
                                        const InferenceRuntimeOptions &runtimeOptions) {
         auto *value = interpreter();
@@ -136,9 +137,9 @@ namespace srt {
         return std::unique_ptr<ContribSpec>(new InferenceSpec(context));
     }
 
-    Expected<std::unique_ptr<ContribExecFactory>>
-        InferenceCategory::createExecFactory(ContribImportBinding &binding) const {
-        return std::unique_ptr<ContribExecFactory>(new InferenceExecFactory(binding));
+    Expected<std::unique_ptr<ContribExecutiveFactory>>
+        InferenceCategory::createExecutiveFactory(ContribImportBinding &binding) const {
+        return std::unique_ptr<ContribExecutiveFactory>(new InferenceExecutiveFactory(binding));
     }
 
 }

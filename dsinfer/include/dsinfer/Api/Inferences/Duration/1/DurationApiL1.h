@@ -9,7 +9,7 @@
 #include <filesystem>
 
 #include <synthrt/SVS/InferenceContrib.h>
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <synthrt/SVS/InferenceExecutive.h>
 
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
@@ -82,7 +82,7 @@ namespace ds::Api::Duration::L1 {
         std::map<std::string, std::string> speakerMapping;
     };
 
-    /// Contains runtime options used when creating a duration inference instance.
+    /// Contains runtime options used when creating a duration inference executive.
     class DurationRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline DurationRuntimeOptions()
@@ -90,7 +90,7 @@ namespace ds::Api::Duration::L1 {
         }
     };
 
-    /// Contains arguments used to initialize a duration inference instance.
+    /// Contains arguments used to initialize a duration inference executive.
     class DurationInitArgs : public srt::InferenceInitArgs {
     public:
         inline DurationInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
@@ -122,8 +122,8 @@ namespace ds::Api::Duration::L1 {
 
     /// Executes one duration model using Level 1 typed payloads.
     ///
-    /// An interpreter implementing this contract must create instances derived from this class.
-    class DurationExecInstance : public srt::InferenceExecInstance {
+    /// An interpreter implementing this contract must create executives derived from this class.
+    class DurationExecutive : public srt::InferenceExecutive {
     public:
         using AsyncCallback =
             std::function<void(srt::Expected<std::unique_ptr<DurationResult>> result)>;
@@ -140,7 +140,7 @@ namespace ds::Api::Duration::L1 {
                                                AsyncCallback callback) = 0;
 
     protected:
-        using InferenceExecInstance::InferenceExecInstance;
+        using InferenceExecutive::InferenceExecutive;
     };
 
 }

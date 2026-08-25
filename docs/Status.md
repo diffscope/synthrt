@@ -13,7 +13,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - 内部 Probe、依赖选择、Contribution 绑定和有序 Interpreter 发现
 - Acquire 与 Ready 验证，以及随后的原子 Commit 可见性
 - 共享 Package 身份、稳定的插件选择和基于强引用的 Package 释放
-- `ContribExecInstance` 父子所有权、Package 级实例计数，以及由 `quit`、`wait` 和 Import Binding 共同构成的卸载流程
+- `ContribExecutive` 父子所有权、Package 级实例计数，以及由 `quit`、`wait` 和 Import Binding 共同构成的卸载流程
 - 用于非 Package Contribution 设施的 Runtime Service，包括 Inference Driver
 
 当前目录 Loader 负责读取已经安装的 Package 目录树。`.dspk` 归档安装仍将由独立组件实现。
@@ -29,7 +29,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - 将 Inference Driver 作为 Runtime Service 发现，并通过 `metadata.backend` 选择
 - 按 Category 专用目录部署插件 Bundle
 
-插件发现、Package 加载、Import Binding 和执行实例生命周期的 Core 机制已经可用。dsinfer Interpreter 与 CLI 已迁移到类型化 Exec Instance 和 Singer Pipeline。
+插件发现、Package 加载、Import Binding 和 Executive 生命周期的 Core 机制已经可用。dsinfer Interpreter 与 CLI 已迁移到类型化 Executive 和 Singer Pipeline。
 
 ## dsinfer 迁移
 
@@ -45,8 +45,8 @@ SynthRT 的 Package 基础设施目前已经实现：
 - ONNX Session 的同步与异步执行、终止与等待、输入输出 Tensor 转换，以及回调期间销毁 Session 的安全边界
 - 使用真实 ONNX 模型覆盖内部与外部 Runtime API、并发打开、同步与异步推理、错误输入和无效模型的自动化测试
 - 已迁移到当前 Driver、Task 和 Tensor API 的 ONNX Driver 手动测试
-- Duration、Pitch、Variance、Acoustic 和 Vocoder Interpreter 均已迁移为类型化 Exec Instance，并将模型执行拆分为独立 Task
-- Singer 使用 `SingerPipelineExecInstance` 表达已知推理流水线，并通过开放的 Import role 与 `ContribExecFactory` 创建子执行实例
+- Duration、Pitch、Variance、Acoustic 和 Vocoder Interpreter 均已迁移为类型化 Executive，并将模型执行拆分为独立 Task
+- Singer 使用 `SingerPipelineExecutive` 表达已知推理流水线，并通过开放的 Import role 与 `ContribExecutiveFactory` 创建子 Executive
 - DiffSinger Provider 已接入新的 Pipeline、role 查询和目标契约校验
 - `InferenceSpec`兼容性检查由目标 Interpreter 实现，默认接受任意组合。DiffSinger 在 Commit 前强制检查 Acoustic 与 Vocoder 的配置兼容性
 - 修订后的 level 1 推理契约和已经迁移到 2.4 的示例 Package 结构

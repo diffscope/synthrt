@@ -122,7 +122,7 @@ namespace ds {
 
     srt::Expected<void>
         DurationTask::startAsync(std::shared_ptr<const Dur::DurationStartInput> input,
-                                 Dur::DurationExecInstance::AsyncCallback callback) {
+                                 Dur::DurationExecutive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "duration asynchronous callback must not be empty");

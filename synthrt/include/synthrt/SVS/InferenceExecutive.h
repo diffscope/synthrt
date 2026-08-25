@@ -1,14 +1,14 @@
-#ifndef SYNTHRT_INFERENCEEXECINSTANCE_H
-#define SYNTHRT_INFERENCEEXECINSTANCE_H
+#ifndef SYNTHRT_INFERENCEEXECUTIVE_H
+#define SYNTHRT_INFERENCEEXECUTIVE_H
 
-#include <synthrt/Core/ContribExecInstance.h>
+#include <synthrt/Core/ContribExecutive.h>
 #include <synthrt/Task/ITask.h>
 
 namespace srt {
 
     class InferenceSpec;
 
-    /// Runtime options supplied when an inference instance is created.
+    /// Runtime options supplied when an inference executive is created.
     class InferenceRuntimeOptions : public ContribRuntimeOptions {
     public:
         ~InferenceRuntimeOptions() = default;
@@ -23,14 +23,14 @@ namespace srt {
         }
     };
 
-    /// A loaded runtime instance of one inference contribution.
+    /// A loaded runtime executive of one inference contribution.
     ///
-    /// Each concrete instance exposes one contract-specific inference Task. The untyped Task is
+    /// Each concrete executive exposes one contract-specific inference Task. The untyped Task is
     /// available only to derived classes so callers cannot bypass the contract-specific API.
-    class SYNTHRT_EXPORT InferenceExecInstance : public ContribExecInstance {
+    class SYNTHRT_EXPORT InferenceExecutive : public ContribExecutive {
     public:
-        explicit InferenceExecInstance(InferenceSpec &spec);
-        ~InferenceExecInstance();
+        explicit InferenceExecutive(InferenceSpec &spec);
+        ~InferenceExecutive();
 
     public:
         InferenceSpec &spec() const;
@@ -51,4 +51,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_INFERENCEEXECINSTANCE_H
+#endif // SYNTHRT_INFERENCEEXECUTIVE_H

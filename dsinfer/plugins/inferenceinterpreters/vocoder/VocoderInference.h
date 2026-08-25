@@ -9,7 +9,7 @@
 
 namespace ds {
 
-    class VocoderInference : public Api::Vocoder::L1::VocoderExecInstance {
+    class VocoderInference : public Api::Vocoder::L1::VocoderExecutive {
     public:
         explicit VocoderInference(srt::InferenceSpec &spec);
         ~VocoderInference();

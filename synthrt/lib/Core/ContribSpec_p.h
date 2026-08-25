@@ -9,7 +9,7 @@
 #include <stdcorelib/adt/vlarray.h>
 #include <stdcorelib/plugin/pluginloader.h>
 
-#include "ContribExecInstance.h"
+#include "ContribExecutive.h"
 #include "ContribImportBinding.h"
 #include "ContribInterpreter.h"
 #include "PackageHandle_p.h"
@@ -28,7 +28,7 @@ namespace srt {
         JsonValue manifestOptions;
         std::unique_ptr<ContribImportOptions> options;
         std::unique_ptr<ContribImportBinding> binding;
-        std::unique_ptr<ContribExecFactory> execFactory;
+        std::unique_ptr<ContribExecutiveFactory> executiveFactory;
     };
 
     class ContribSpec::Impl {

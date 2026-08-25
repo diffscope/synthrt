@@ -12,7 +12,7 @@ namespace ds {
     class InferenceDriver;
     class InferenceSession;
 
-    /// Executes one duration inference model behind its typed execution instance.
+    /// Executes one duration inference model behind its typed executive.
     class DurationTask : public srt::ITask {
     public:
         explicit DurationTask(DurationInference &inference);
@@ -31,7 +31,7 @@ namespace ds {
             start(const Api::Duration::L1::DurationStartInput &input);
         srt::Expected<void>
             startAsync(std::shared_ptr<const Api::Duration::L1::DurationStartInput> input,
-                       Api::Duration::L1::DurationExecInstance::AsyncCallback callback);
+                       Api::Duration::L1::DurationExecutive::AsyncCallback callback);
 
     private:
         DurationInference *m_inference;

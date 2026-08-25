@@ -90,7 +90,7 @@ namespace ds {
 
     srt::Expected<void>
         VarianceTask::startAsync(std::shared_ptr<const Var::VarianceStartInput> input,
-                                 Var::VarianceExecInstance::AsyncCallback callback) {
+                                 Var::VarianceExecutive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "variance asynchronous callback must not be empty");

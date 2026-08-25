@@ -9,8 +9,8 @@ namespace srt {
 
     class ContribSpec;
 
-    /// Maps a contribution declaration type and an execution instance type to an extension ID.
-    template <class Spec, class ExecInstance>
+    /// Maps a contribution declaration type and an executive type to an extension ID.
+    template <class Spec, class Executive>
     struct ContribSpecExtensionTraits;
 
     /// Adds library defined behavior to one loaded contribution declaration.
@@ -27,10 +27,10 @@ namespace srt {
         /// Returns the contribution extended by this object.
         ContribSpec &spec() const;
 
-        /// Finds the extension associated with an execution instance type in a spec.
-        template <class ExecInstance, class Spec>
+        /// Finds the extension associated with an executive type in a spec.
+        template <class Executive, class Spec>
         static ContribSpecExtension *findFromSpec(const Spec &spec) {
-            using Traits = ContribSpecExtensionTraits<Spec, ExecInstance>;
+            using Traits = ContribSpecExtensionTraits<Spec, Executive>;
             return spec.findExtension(Traits::ID);
         }
 

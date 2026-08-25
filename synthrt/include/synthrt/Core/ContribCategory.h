@@ -9,7 +9,7 @@
 #include <stdcorelib/adt/array_view.h>
 #include <stdcorelib/support/staticregistry.h>
 
-#include <synthrt/Core/ContribExecInstance.h>
+#include <synthrt/Core/ContribExecutive.h>
 #include <synthrt/Core/ContribImportBinding.h>
 #include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpec.h>
@@ -127,9 +127,9 @@ namespace srt {
         /// Creates the execution factory attached to an import targeting this category.
         ///
         /// Returning a null factory means that contributions in this category have no execution
-        /// instance. The Loader stores a nonnull factory on the corresponding import.
-        virtual Expected<std::unique_ptr<ContribExecFactory>>
-            createExecFactory(ContribImportBinding &binding) const;
+        /// executive. The Loader stores a nonnull factory on the corresponding import.
+        virtual Expected<std::unique_ptr<ContribExecutiveFactory>>
+            createExecutiveFactory(ContribImportBinding &binding) const;
 
         /// Constructs a contribution category implemented by the derived class.
         ///

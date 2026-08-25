@@ -9,7 +9,7 @@
 
 namespace ds {
 
-    class VarianceInference : public Api::Variance::L1::VarianceExecInstance {
+    class VarianceInference : public Api::Variance::L1::VarianceExecutive {
     public:
         explicit VarianceInference(srt::InferenceSpec &spec);
         ~VarianceInference();

@@ -11,7 +11,7 @@
 #include <stdcorelib/support/versionnumber.h>
 
 #include <synthrt/Core/ContribCategory.h>
-#include <synthrt/Core/ContribExecInstance.h>
+#include <synthrt/Core/ContribExecutive.h>
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Core/RuntimeService.h>
 #include <synthrt/Support/Expected.h>
@@ -93,7 +93,7 @@ namespace srt {
         std::unique_ptr<Impl> _impl;
 
         friend class ContribCategory;
-        friend class ContribExecInstance;
+        friend class ContribExecutive;
         friend class PackageHandle;
         friend class PackageData;
         friend class PackageLoader;

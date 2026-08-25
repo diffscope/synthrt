@@ -12,7 +12,7 @@ namespace ds {
     class InferenceSession;
     class VocoderInference;
 
-    /// Executes one vocoder inference model behind its typed execution instance.
+    /// Executes one vocoder inference model behind its typed executive.
     class VocoderTask : public srt::ITask {
     public:
         explicit VocoderTask(VocoderInference &inference);
@@ -31,7 +31,7 @@ namespace ds {
             start(const Api::Vocoder::L1::VocoderStartInput &input);
         srt::Expected<void>
             startAsync(std::shared_ptr<const Api::Vocoder::L1::VocoderStartInput> input,
-                       Api::Vocoder::L1::VocoderExecInstance::AsyncCallback callback);
+                       Api::Vocoder::L1::VocoderExecutive::AsyncCallback callback);
 
     private:
         VocoderInference *m_inference;
