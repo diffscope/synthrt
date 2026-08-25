@@ -29,7 +29,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - 将 Inference Driver 作为 Runtime Service 发现，并通过 `metadata.backend` 选择
 - 按 Category 专用目录部署插件 Bundle
 
-插件发现、Package 加载、Import Binding 和执行实例生命周期的 Core 机制已经可用。dsinfer Interpreter 已迁移到类型化 Exec Instance，但 CLI Pipeline 和异步执行仍未闭合。
+插件发现、Package 加载、Import Binding 和执行实例生命周期的 Core 机制已经可用。dsinfer Interpreter 与 CLI 已迁移到类型化 Exec Instance 和 Singer Pipeline，异步执行仍未闭合。
 
 ## dsinfer 迁移
 
@@ -49,12 +49,12 @@ SynthRT 的 Package 基础设施目前已经实现：
 - Singer 使用 `SingerPipelineExecInstance` 表达已知推理流水线，并通过开放的 Import role 与 `ContribExecFactory` 创建子执行实例
 - DiffSinger Provider 已接入新的 Pipeline、role 查询和目标契约校验
 - 修订后的 level 1 推理契约和已经迁移到 2.4 的示例 Package 结构
-- 主要基于公开 Runtime API 的命令行集成
+- 基于 `stdc::cli` 的命令行示例与手动测试运行器，通过 Singer Pipeline 和 Import role 驱动完整同步推理链
 
 仍待完成的迁移包括：
 
 - 五类 Inference Task 的异步执行路径仍返回 `NotImplemented`
-- CLI 仍由前端逐项创建推理对象，尚未改为通过 Singer Pipeline 和 role factory 驱动完整执行链
+- Inference Spec 之间尚无可复用的契约兼容性检查，CLI 暂时直接检查 Acoustic 输出与 Vocoder 输入配置
 - 真实插件参与的 Package 加载、Pipeline 创建、子实例执行与 Package 卸载还缺少一条端到端自动化测试
 - 部分 Utility 仍保留旧模型和兼容代码，需要在 Interpreter 迁移后继续清理
 
@@ -62,7 +62,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 
 ## 后续工作
 
-1. 将 CLI 改为创建 Singer Pipeline，并通过 Import role 创建和调用类型化推理执行实例。
+1. 为 `InferenceSpec` 增加可重写的契约兼容性检查，并将 Acoustic 与 Vocoder 的配置匹配从 CLI 下沉。
 2. 增加真实 2.4 Package 的端到端自动化测试，覆盖插件发现、Pipeline 执行、父子实例释放、Binding 关闭和 Package 卸载。
 3. 完成仍返回 `NotImplemented` 的异步执行路径，并补充停止、等待和回调销毁测试。
 4. 从 Utility 中移除剩余的过时 API，并把仍有价值的手动场景迁移到自动化测试。

@@ -18,4 +18,4 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     TOOL_VERSION="${PROJECT_VERSION}"
 )
 
-add_dependencies(${PROJECT_NAME} onnxdriver duration pitch variance acoustic vocoder)
+add_dependencies(${PROJECT_NAME} onnxdriver diffsinger duration pitch variance acoustic vocoder)
