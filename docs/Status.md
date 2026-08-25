@@ -29,7 +29,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - 将 Inference Driver 作为 Runtime Service 发现，并通过 `metadata.backend` 选择
 - 按 Category 专用目录部署插件 Bundle
 
-插件发现、Package 加载、Import Binding 和执行实例生命周期的 Core 机制已经可用。dsinfer Interpreter 与 CLI 已迁移到类型化 Exec Instance 和 Singer Pipeline，异步执行仍未闭合。
+插件发现、Package 加载、Import Binding 和执行实例生命周期的 Core 机制已经可用。dsinfer Interpreter 与 CLI 已迁移到类型化 Exec Instance 和 Singer Pipeline。
 
 ## dsinfer 迁移
 
@@ -51,10 +51,10 @@ SynthRT 的 Package 基础设施目前已经实现：
 - `InferenceSpec`兼容性检查由目标 Interpreter 实现，默认接受任意组合。DiffSinger 在 Commit 前强制检查 Acoustic 与 Vocoder 的配置兼容性
 - 修订后的 level 1 推理契约和已经迁移到 2.4 的示例 Package 结构
 - 基于 `stdc::cli` 的命令行示例与手动测试运行器，通过 Singer Pipeline 和 Import role 驱动完整同步推理链
+- Duration、Pitch、Variance、Acoustic 和 Vocoder Task 通过通用 Task 异步执行器支持异步调用，并覆盖停止、等待、回调执行和回调内销毁
 
 仍待完成的迁移包括：
 
-- 五类 Inference Task 的异步执行路径仍返回 `NotImplemented`
 - 真实插件的 Package 加载和兼容性拒绝已有自动化覆盖，Pipeline 创建、子实例执行与 Package 卸载仍缺少端到端测试
 - 部分 Utility 仍保留旧模型和兼容代码，需要在 Interpreter 迁移后继续清理
 
@@ -63,8 +63,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 ## 后续工作
 
 1. 增加真实 2.4 Package 的端到端自动化测试，覆盖 Pipeline 执行、父子实例释放、Binding 关闭和 Package 卸载。
-2. 完成仍返回 `NotImplemented` 的异步执行路径，并补充停止、等待和回调销毁测试。
-3. 从 Utility 中移除剩余的过时 API，并把仍有价值的手动场景迁移到自动化测试。
-4. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
-5. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
-6. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。
+2. 从 Utility 中移除剩余的过时 API，并把仍有价值的手动场景迁移到自动化测试。
+3. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
+4. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
+5. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。

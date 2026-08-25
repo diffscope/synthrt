@@ -2,6 +2,7 @@
 
 #include <mutex>
 #include <shared_mutex>
+#include <tuple>
 #include <utility>
 
 #include <stdcorelib/str.h>
@@ -49,7 +50,12 @@ namespace ds {
     AcousticTask::AcousticTask(AcousticInference &inference) : m_inference(&inference) {
     }
 
-    AcousticTask::~AcousticTask() = default;
+    AcousticTask::~AcousticTask() {
+        if (state() == Running) {
+            std::ignore = stop();
+        }
+        std::ignore = waitForFinished();
+    }
 
     srt::Expected<void> AcousticTask::initialize(const srt::TaskInitArgs &args) {
         if (args.type() != Ac::API_INTERFACE || args.version() != Ac::API_LEVEL) {
@@ -84,37 +90,38 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument,
                               "invalid acoustic asynchronous input payload");
         }
-        auto typedInput = std::static_pointer_cast<const Ac::AcousticStartInput>(std::move(input));
-        return startAsync(std::move(typedInput),
-                          [callback = std::move(callback)](
-                              srt::Expected<std::unique_ptr<Ac::AcousticResult>> result) mutable {
-                              if (!result) {
-                                  callback(result.takeError());
-                                  return;
-                              }
-                              callback(std::unique_ptr<srt::TaskResult>(result.take().release()));
-                          });
+        return ITask::startAsync(std::move(input), std::move(callback));
     }
 
     srt::Expected<void> AcousticTask::stop() {
+        requestAsyncCancellation();
+        srt::Error stopError;
         for (auto *session : {m_session.get()}) {
-            if (session) {
-                if (auto result = session->stop(); !result) {
-                    return result;
+            if (session && session->state() == Running) {
+                if (auto result = session->stop(); !result && stopError.ok()) {
+                    stopError = result.takeError();
                 }
             }
         }
         setState(Canceled);
+        if (!stopError.ok()) {
+            return stopError;
+        }
         return {};
     }
 
     srt::Expected<void> AcousticTask::waitForFinished() {
+        srt::Error waitError;
         for (auto *session : {m_session.get()}) {
             if (session) {
-                if (auto result = session->waitForFinished(); !result) {
-                    return result;
+                if (auto result = session->waitForFinished(); !result && waitError.ok()) {
+                    waitError = result.takeError();
                 }
             }
+        }
+        waitForAsyncExecution();
+        if (!waitError.ok()) {
+            return waitError;
         }
         return {};
     }
@@ -548,13 +555,28 @@ namespace ds {
             return srt::Error(ds::ErrorCode::SessionFailed, "invalid result output");
         }
         acousticResult->f0 = f0TensorForVocoder;
-        updateState(srt::ITask::Idle);
+        updateState(srt::ITask::Succeeded);
         return std::move(acousticResult);
     }
 
-    srt::Expected<void> AcousticTask::startAsync(std::shared_ptr<const Ac::AcousticStartInput>,
-                                                 Ac::AcousticExecInstance::AsyncCallback) {
-        return srt::Error(srt::Error::NotImplemented);
+    srt::Expected<void>
+        AcousticTask::startAsync(std::shared_ptr<const Ac::AcousticStartInput> input,
+                                 Ac::AcousticExecInstance::AsyncCallback callback) {
+        if (!callback) {
+            return srt::Error(srt::Error::InvalidArgument,
+                              "acoustic asynchronous callback must not be empty");
+        }
+        auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
+        return startAsync(std::move(genericInput),
+                          [callback = std::move(callback)](
+                              srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                              if (!result) {
+                                  callback(result.takeError());
+                                  return;
+                              }
+                              callback(std::unique_ptr<Ac::AcousticResult>(
+                                  static_cast<Ac::AcousticResult *>(result.take().release())));
+                          });
     }
 
 }

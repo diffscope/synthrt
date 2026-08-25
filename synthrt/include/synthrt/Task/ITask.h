@@ -2,9 +2,12 @@
 #define SYNTHRT_ITASK_H
 
 #include <atomic>
+#include <condition_variable>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
+#include <thread>
 #include <utility>
 
 #include <synthrt/Support/Expected.h>
@@ -92,7 +95,8 @@ namespace srt {
         /// Starts one asynchronous execution.
         ///
         /// Shared ownership keeps \a input alive until the implementation no longer needs it. The
-        /// callback receives either sole ownership of the result or the execution \c Error.
+        /// callback receives either sole ownership of the result or the execution \c Error. The
+        /// default implementation executes start() on a worker thread.
         virtual Expected<void> startAsync(std::shared_ptr<const TaskStartInput> input,
                                           AsyncCallback callback);
 
@@ -115,9 +119,27 @@ namespace srt {
             m_state = state;
         }
 
+        /// Records a cancellation request for the default asynchronous execution.
+        void requestAsyncCancellation() noexcept;
+
+        /// Waits for the default asynchronous execution and its callback to finish.
+        ///
+        /// Returns immediately when called by that execution's callback.
+        void waitForAsyncExecution() noexcept;
+
         std::atomic<State> m_state = State::Idle;
 
     private:
+        struct AsyncState {
+            std::mutex mutex;
+            std::condition_variable finished;
+            bool running = false;
+            bool cancellationRequested = false;
+            std::thread::id workerId;
+        };
+
+        std::shared_ptr<AsyncState> m_asyncState;
+
         STDC_DISABLE_COPY(ITask)
     };
 

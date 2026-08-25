@@ -5,6 +5,7 @@
 #include <mutex>
 #include <numeric>
 #include <shared_mutex>
+#include <tuple>
 #include <utility>
 
 #include <stdcorelib/str.h>
@@ -66,7 +67,12 @@ namespace ds {
     VarianceTask::VarianceTask(VarianceInference &inference) : m_inference(&inference) {
     }
 
-    VarianceTask::~VarianceTask() = default;
+    VarianceTask::~VarianceTask() {
+        if (state() == Running) {
+            std::ignore = stop();
+        }
+        std::ignore = waitForFinished();
+    }
 
     srt::Expected<void> VarianceTask::initialize(const Var::VarianceInitArgs &args) {
         return initialize(static_cast<const srt::TaskInitArgs &>(args));
@@ -85,6 +91,10 @@ namespace ds {
     srt::Expected<void>
         VarianceTask::startAsync(std::shared_ptr<const Var::VarianceStartInput> input,
                                  Var::VarianceExecInstance::AsyncCallback callback) {
+        if (!callback) {
+            return srt::Error(srt::Error::InvalidArgument,
+                              "variance asynchronous callback must not be empty");
+        }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
         return startAsync(std::move(genericInput),
                           [callback = std::move(callback)](
@@ -515,34 +525,48 @@ namespace ds {
                 stdc::formatN("predicted parameter count mismatch: expected %1, got %2",
                               expectedCount, actualCount));
         }
-        ITask::setState(ITask::Idle);
+        ITask::setState(ITask::Succeeded);
         return std::unique_ptr<srt::TaskResult>(std::move(varianceResult));
     }
 
-    srt::Expected<void> VarianceTask::startAsync(std::shared_ptr<const srt::TaskStartInput>,
-                                                 AsyncCallback) {
-        return srt::Error(srt::Error::NotImplemented);
+    srt::Expected<void> VarianceTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
+                                                 AsyncCallback callback) {
+        if (!input || input->type() != Var::API_INTERFACE || input->version() != Var::API_LEVEL) {
+            return srt::Error(srt::Error::InvalidArgument,
+                              "invalid variance asynchronous input payload");
+        }
+        return ITask::startAsync(std::move(input), std::move(callback));
     }
 
     srt::Expected<void> VarianceTask::stop() {
+        requestAsyncCancellation();
+        srt::Error stopError;
         for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
-            if (session) {
-                if (auto result = session->stop(); !result) {
-                    return result;
+            if (session && session->state() == Running) {
+                if (auto result = session->stop(); !result && stopError.ok()) {
+                    stopError = result.takeError();
                 }
             }
         }
         ITask::setState(ITask::Canceled);
+        if (!stopError.ok()) {
+            return stopError;
+        }
         return {};
     }
 
     srt::Expected<void> VarianceTask::waitForFinished() {
+        srt::Error waitError;
         for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
-                if (auto result = session->waitForFinished(); !result) {
-                    return result;
+                if (auto result = session->waitForFinished(); !result && waitError.ok()) {
+                    waitError = result.takeError();
                 }
             }
+        }
+        waitForAsyncExecution();
+        if (!waitError.ok()) {
+            return waitError;
         }
         return {};
     }

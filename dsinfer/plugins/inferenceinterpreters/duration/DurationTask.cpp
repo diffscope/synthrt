@@ -5,6 +5,7 @@
 #include <mutex>
 #include <numeric>
 #include <shared_mutex>
+#include <tuple>
 #include <utility>
 
 #include <stdcorelib/str.h>
@@ -98,7 +99,12 @@ namespace ds {
     DurationTask::DurationTask(DurationInference &inference) : m_inference(&inference) {
     }
 
-    DurationTask::~DurationTask() = default;
+    DurationTask::~DurationTask() {
+        if (state() == Running) {
+            std::ignore = stop();
+        }
+        std::ignore = waitForFinished();
+    }
 
     srt::Expected<void> DurationTask::initialize(const Dur::DurationInitArgs &args) {
         return initialize(static_cast<const srt::TaskInitArgs &>(args));
@@ -117,6 +123,10 @@ namespace ds {
     srt::Expected<void>
         DurationTask::startAsync(std::shared_ptr<const Dur::DurationStartInput> input,
                                  Dur::DurationExecInstance::AsyncCallback callback) {
+        if (!callback) {
+            return srt::Error(srt::Error::InvalidArgument,
+                              "duration asynchronous callback must not be empty");
+        }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
         return startAsync(std::move(genericInput),
                           [callback = std::move(callback)](
@@ -394,30 +404,44 @@ namespace ds {
         return std::unique_ptr<srt::TaskResult>(std::move(durationResult));
     }
 
-    srt::Expected<void> DurationTask::startAsync(std::shared_ptr<const srt::TaskStartInput>,
-                                                 AsyncCallback) {
-        return srt::Error(srt::Error::NotImplemented);
+    srt::Expected<void> DurationTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
+                                                 AsyncCallback callback) {
+        if (!input || input->type() != Dur::API_INTERFACE || input->version() != Dur::API_LEVEL) {
+            return srt::Error(srt::Error::InvalidArgument,
+                              "invalid duration asynchronous input payload");
+        }
+        return ITask::startAsync(std::move(input), std::move(callback));
     }
 
     srt::Expected<void> DurationTask::stop() {
+        requestAsyncCancellation();
+        srt::Error stopError;
         for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
-            if (session) {
-                if (auto result = session->stop(); !result) {
-                    return result;
+            if (session && session->state() == Running) {
+                if (auto result = session->stop(); !result && stopError.ok()) {
+                    stopError = result.takeError();
                 }
             }
         }
         ITask::setState(ITask::Canceled);
+        if (!stopError.ok()) {
+            return stopError;
+        }
         return {};
     }
 
     srt::Expected<void> DurationTask::waitForFinished() {
+        srt::Error waitError;
         for (auto *session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
-                if (auto result = session->waitForFinished(); !result) {
-                    return result;
+                if (auto result = session->waitForFinished(); !result && waitError.ok()) {
+                    waitError = result.takeError();
                 }
             }
+        }
+        waitForAsyncExecution();
+        if (!waitError.ok()) {
+            return waitError;
         }
         return {};
     }

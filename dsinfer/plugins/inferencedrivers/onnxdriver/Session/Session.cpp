@@ -13,6 +13,7 @@
 #include <string>
 #include <system_error>
 #include <thread>
+#include <tuple>
 #include <unordered_set>
 #include <utility>
 
@@ -449,7 +450,7 @@ namespace ds::onnxdriver {
 
     Session::~Session() {
         // Nothing useful can be done with a close failure while unwinding.
-        static_cast<void>(close());
+        std::ignore = close();
     }
 
     struct ModelFileInfo {
