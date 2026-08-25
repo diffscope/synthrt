@@ -3,6 +3,7 @@
 #include "InputParserCommon_p.h"
 
 namespace ds {
+
     namespace Dur = Api::Duration::L1;
 
     srt::Expected<std::unique_ptr<Dur::DurationStartInput>>
@@ -10,14 +11,15 @@ namespace ds {
 
         auto input = std::make_unique<Dur::DurationStartInput>();
 
-        if (auto it_duration = obj.find("duration"); it_duration != obj.end()) {
-            input->duration = it_duration->second.toDouble();
+        if (auto result = parseOptionalNumber(obj, "duration", input->duration); !result) {
+            return result.takeError();
         }
 
-        if (auto exp = parseWords(obj, input->words); !exp) {
-            return exp.takeError();
+        if (auto result = parseWords(obj, input->words); !result) {
+            return result.takeError();
         }
 
         return input;
     }
+
 }

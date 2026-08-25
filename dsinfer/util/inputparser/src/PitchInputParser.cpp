@@ -3,6 +3,7 @@
 #include "InputParserCommon_p.h"
 
 namespace ds {
+
     namespace Pit = Api::Pitch::L1;
 
     srt::Expected<std::unique_ptr<Pit::PitchStartInput>>
@@ -10,29 +11,27 @@ namespace ds {
 
         auto input = std::make_unique<Pit::PitchStartInput>();
 
-        if (auto it_duration = obj.find("duration"); it_duration != obj.end()) {
-            input->duration = it_duration->second.toDouble();
+        if (auto result = parseOptionalNumber(obj, "duration", input->duration); !result) {
+            return result.takeError();
         }
 
-        if (auto it_steps = obj.find("steps"); it_steps != obj.end()) {
-            if (!it_steps->second.isNumber()) {
-                return srt::Error(srt::Error::InvalidFormat, "steps must be a number");
-            }
-            input->steps = it_steps->second.toInt();
+        if (auto result = parseOptionalInteger(obj, "steps", input->steps); !result) {
+            return result.takeError();
         }
 
-        if (auto exp = parseWords(obj, input->words); !exp) {
-            return exp.takeError();
+        if (auto result = parseWords(obj, input->words); !result) {
+            return result.takeError();
         }
 
-        if (auto exp = parseParameters(obj, true, input->parameters); !exp) {
-            return exp.takeError();
+        if (auto result = parseParameters(obj, true, input->parameters); !result) {
+            return result.takeError();
         }
 
-        if (auto exp = parseSpeakers(obj, input->speakers); !exp) {
-            return exp.takeError();
+        if (auto result = parseSpeakers(obj, input->speakers); !result) {
+            return result.takeError();
         }
 
         return input;
     }
+
 }

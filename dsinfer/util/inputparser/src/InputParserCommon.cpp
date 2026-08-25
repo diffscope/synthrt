@@ -1,9 +1,12 @@
 #include "InputParserCommon_p.h"
 
+#include <array>
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <string>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 #include <stdcorelib/str.h>
@@ -12,508 +15,554 @@ namespace ds {
 
     namespace Co = Api::Common::L1;
 
+    srt::Expected<void> parseOptionalNumber(const srt::JsonObject &obj, std::string_view fieldName,
+                                            double &out) {
+        const std::string field(fieldName);
+        const auto it = obj.find(field);
+        if (it == obj.end()) {
+            return {};
+        }
+        if (!it->second.isNumber()) {
+            return srt::Error(srt::Error::InvalidFormat, field + " must be a number");
+        }
+        out = it->second.toDouble();
+        return {};
+    }
+
+    srt::Expected<void> parseOptionalInteger(const srt::JsonObject &obj, std::string_view fieldName,
+                                             int64_t &out) {
+        const std::string field(fieldName);
+        const auto it = obj.find(field);
+        if (it == obj.end()) {
+            return {};
+        }
+        if (!it->second.isNumber()) {
+            return srt::Error(srt::Error::InvalidFormat, field + " must be a number");
+        }
+        out = it->second.toInt();
+        return {};
+    }
+
     static inline std::optional<std::tuple<int, int, bool>>
-        parseLibrosaPitch(const std::string &s) {
-        int n = (int) s.size();
-        int i = 0, j = n - 1;
+        parseLibrosaPitch(const std::string &text) {
+        const auto size = static_cast<int>(text.size());
+        int begin = 0;
+        int end = size - 1;
 
-        // 0. skip leading and trailing spaces
-        while (i < n && stdc::str::is_space(s[i])) {
-            ++i;
+        while (begin < size && stdc::str::is_space(text[begin])) {
+            ++begin;
         }
-        while (j >= 0 && stdc::str::is_space(s[j])) {
-            --j;
+        while (end >= 0 && stdc::str::is_space(text[end])) {
+            --end;
         }
-        if (i > j) {
-            // spaces only
-            return std::nullopt;
-        }
-        // extract trimmed substring range [i..j]
-        int len = j - i + 1;
-
-        // 1. check for rest (case-insensitive)
-        if (len == 4 && (stdc::str::to_upper(s[i]) == 'R') &&
-            (stdc::str::to_upper(s[i + 1]) == 'E') && (stdc::str::to_upper(s[i + 2]) == 'S') &&
-            (stdc::str::to_upper(s[i + 3]) == 'T')) {
-            // rest
-            return std::make_optional(std::make_tuple(0, 0, true));
-        }
-
-        // 2. read key name (case-insensitive)
-        char c = stdc::str::to_upper(s[i]);
-        if (c < 'A' || c > 'G') {
-            // invalid key name
+        if (begin > end) {
             return std::nullopt;
         }
 
-        // C=0, D=2, E=4, F=5, G=7, A=9, B=11
-        static const int baseIdx[7] = {9, 11, 0, 2, 4, 5, 7};
-        int letterIndex = (c - 'A' + 7) % 7;
-        int noteIdx = baseIdx[letterIndex];
-        ++i;
-
-        // 3. any numbers of accidentals (sharps # or flats b)
-        while (i <= j && (s[i] == '#' || s[i] == 'b')) {
-            noteIdx += (s[i] == '#') ? +1 : -1;
-            ++i;
+        const auto length = end - begin + 1;
+        if (length == 4 && stdc::str::to_upper(text[begin]) == 'R' &&
+            stdc::str::to_upper(text[begin + 1]) == 'E' &&
+            stdc::str::to_upper(text[begin + 2]) == 'S' &&
+            stdc::str::to_upper(text[begin + 3]) == 'T') {
+            return std::tuple{0, 0, true};
         }
-        noteIdx = (noteIdx % 12 + 12) % 12;
 
-        // 4. octave (non-negative, multi digits)
-        if (i > j || !stdc::str::is_digit(s[i]))
+        const auto noteName = stdc::str::to_upper(text[begin]);
+        if (noteName < 'A' || noteName > 'G') {
             return std::nullopt;
+        }
+
+        static constexpr std::array<int, 7> noteOffsets{9, 11, 0, 2, 4, 5, 7};
+        const auto noteIndex = static_cast<size_t>((noteName - 'A' + 7) % 7);
+        int semitone = noteOffsets[noteIndex];
+        ++begin;
+
+        while (begin <= end && (text[begin] == '#' || text[begin] == 'b')) {
+            semitone += text[begin] == '#' ? 1 : -1;
+            ++begin;
+        }
+        semitone = (semitone % 12 + 12) % 12;
+
+        if (begin > end || !stdc::str::is_digit(text[begin])) {
+            return std::nullopt;
+        }
         int octave = 0;
-        while (i <= j && stdc::str::is_digit(s[i])) {
-            octave = octave * 10 + (s[i] - '0');
-            ++i;
+        while (begin <= end && stdc::str::is_digit(text[begin])) {
+            const auto digit = text[begin] - '0';
+            if (octave > (std::numeric_limits<int>::max() - digit) / 10) {
+                return std::nullopt;
+            }
+            octave = octave * 10 + digit;
+            ++begin;
         }
 
-        // 5. cents sign (+ or -)
-        if (i > j || (s[i] != '+' && s[i] != '-'))
+        if (begin > end || (text[begin] != '+' && text[begin] != '-')) {
             return std::nullopt;
-        int sign = (s[i] == '-') ? -1 : +1;
-        ++i;
+        }
+        const auto sign = text[begin] == '-' ? -1 : 1;
+        ++begin;
 
-        // 6. cents number
-        if (i > j || !stdc::str::is_digit(s[i]))
+        if (begin > end || !stdc::str::is_digit(text[begin])) {
             return std::nullopt;
+        }
         int cents = 0;
-        while (i <= j && stdc::str::is_digit(s[i])) {
-            cents = cents * 10 + (s[i] - '0');
-            ++i;
+        while (begin <= end && stdc::str::is_digit(text[begin])) {
+            const auto digit = text[begin] - '0';
+            if (cents > (std::numeric_limits<int>::max() - digit) / 10) {
+                return std::nullopt;
+            }
+            cents = cents * 10 + digit;
+            ++begin;
         }
         cents *= sign;
 
-        // 7. no redundant characters
-        if (i <= j) {
-            // redundant characters detected
+        const auto maximumOctave = (std::numeric_limits<int>::max() - semitone) / 12 - 1;
+        if (begin <= end || octave > maximumOctave) {
             return std::nullopt;
         }
 
-        // 8. calculate MIDI key
-        int key = 12 * (octave + 1) + noteIdx;
-        return std::make_optional(std::make_tuple(key, cents, false));
+        const auto key = 12 * (octave + 1) + semitone;
+        return std::tuple{key, cents, false};
     }
 
     srt::Expected<void> parseValueCurve(const srt::JsonObject &parameter,
                                         const std::string &paramName, double &outInterval,
                                         std::vector<double> &outValues) {
-        // parameters[].dynamic optional field, default to false
-        bool isDynamic = false;
-        if (auto it_dynamic = parameter.find("dynamic"); it_dynamic != parameter.end()) {
-            if (!it_dynamic->second.isBool()) {
+        outInterval = 0;
+        outValues.clear();
+
+        bool dynamic = false;
+        if (const auto dynamicIt = parameter.find("dynamic"); dynamicIt != parameter.end()) {
+            if (!dynamicIt->second.isBool()) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   paramName + "[].dynamic must be a bool");
             }
-            isDynamic = it_dynamic->second.toBool();
+            dynamic = dynamicIt->second.toBool();
         }
-        if (isDynamic) {
-            // if dynamic, then look for `values` array of numbers and `interval`
-            if (auto it_value = parameter.find("values"); it_value != parameter.end()) {
-                // for dynamic parameter, populate values array from JSON input
-                if (!it_value->second.isArray()) {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "for dynamic parameter, " + paramName +
-                                          "[].values must be an array of numbers");
-                }
-                const auto &values = it_value->second.toArray();
-                outValues.reserve(values.size());
-                for (const auto &value : values) {
-                    if (!value.isNumber()) {
-                        return srt::Error(srt::Error::InvalidFormat,
-                                          "for dynamic parameter, " + paramName +
-                                              "[].values[] item must be a number");
-                    }
-                    outValues.push_back(value.toDouble());
-                }
-                // for dynamic parameter, `interval` must exist and be a positive number
-                if (auto it_interval = parameter.find("interval"); it_interval != parameter.end()) {
-                    if (!it_interval->second.isNumber()) {
-                        return srt::Error(srt::Error::InvalidFormat,
-                                          "for dynamic parameter, " + paramName +
-                                              "[].interval must be a positive number");
-                    }
-                    outInterval = it_interval->second.toDouble();
-                    if (outInterval <= 0) {
-                        return srt::Error(srt::Error::InvalidFormat,
-                                          "for dynamic parameter, " + paramName +
-                                              "[].interval must be a positive number");
-                    }
-                } else {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "for dynamic parameter, " + paramName +
-                                          "[].interval must exist and be a positive number");
-                } // parameters[].interval
-            } else {
+
+        if (!dynamic) {
+            const auto valueIt = parameter.find("value");
+            if (valueIt == parameter.end() || !valueIt->second.isNumber()) {
                 return srt::Error(srt::Error::InvalidFormat,
-                                  "for dynamic parameter, " + paramName +
-                                      "[].values must be exist and be an array of numbers");
-            } // parameters[].values
-        } else {
-            // if not dynamic, then look for single `value`
-            if (auto it_value = parameter.find("value"); it_value != parameter.end()) {
-                if (!it_value->second.isNumber()) {
-                    return srt::Error(srt::Error::InvalidFormat, "for non-dynamic parameter, " +
-                                                                     paramName +
-                                                                     "[].value must be a number");
-                }
-                outValues.push_back(it_value->second.toDouble());
-            } else {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "for non-dynamic parameter, " + paramName +
-                                      "[].value must be exist and be a number");
+                                  paramName + "[].value must exist and be a number");
             }
-            outInterval = 0; // 0 is reserved for non-dynamic parameter
-        } // isDynamic
-        return srt::Expected<void>();
+            outValues.push_back(valueIt->second.toDouble());
+            return {};
+        }
+
+        const auto valuesIt = parameter.find("values");
+        if (valuesIt == parameter.end() || !valuesIt->second.isArray()) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              paramName + "[].values must exist and be an array of numbers");
+        }
+        const auto &values = valuesIt->second.toArray();
+        std::vector<double> parsedValues;
+        parsedValues.reserve(values.size());
+        for (const auto &value : values) {
+            if (!value.isNumber()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  paramName + "[].values[] must be a number");
+            }
+            parsedValues.push_back(value.toDouble());
+        }
+
+        const auto intervalIt = parameter.find("interval");
+        if (intervalIt == parameter.end() || !intervalIt->second.isNumber()) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              paramName + "[].interval must exist and be a positive number");
+        }
+        outInterval = intervalIt->second.toDouble();
+        if (outInterval <= 0) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              paramName + "[].interval must be a positive number");
+        }
+        outValues = std::move(parsedValues);
+        return {};
     }
 
     static inline int extractCents(double value) {
-        // XX.YYZZZZZZZ -> YY
         double integerPart;
-        double decimalAfter100 = std::modf(value * 100.0, &integerPart);
+        const auto fraction = std::modf(value, &integerPart);
+        return static_cast<int>(std::round(fraction * 100));
+    }
 
-        int digitAfterCents = static_cast<int>((decimalAfter100 * 10.0) + 1e-8);
-
-        int cents = static_cast<int>(integerPart);
-        if (digitAfterCents >= 5) {
-            ++cents;
+    static srt::Expected<Co::InputPhonemeInfo::Speaker>
+        parsePhonemeSpeaker(const srt::JsonValue &value) {
+        if (!value.isObject()) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              "words[].phones[].speakers[] must be an object");
         }
 
-        if (cents >= 100) {
-            cents = 99;
-        } else if (cents < 0) {
-            cents = 0;
+        const auto &obj = value.toObject();
+        const auto nameIt = obj.find("name");
+        if (nameIt == obj.end() || !nameIt->second.isString()) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              "words[].phones[].speakers[].name must be a string");
         }
 
-        return cents;
+        Co::InputPhonemeInfo::Speaker result;
+        result.name = nameIt->second.toString();
+        if (const auto proportionIt = obj.find("proportion"); proportionIt != obj.end()) {
+            if (!proportionIt->second.isNumber()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].phones[].speakers[].proportion must be a number");
+            }
+            result.proportion = proportionIt->second.toDouble();
+        }
+        return result;
+    }
+
+    static srt::Expected<Co::InputPhonemeInfo> parsePhoneme(const srt::JsonValue &value) {
+        if (!value.isObject()) {
+            return srt::Error(srt::Error::InvalidFormat, "words[].phones[] must be an object");
+        }
+
+        const auto &obj = value.toObject();
+        Co::InputPhonemeInfo result;
+        if (const auto tokenIt = obj.find("token"); tokenIt != obj.end()) {
+            if (!tokenIt->second.isString()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].phones[].token must be a string");
+            }
+            result.token = tokenIt->second.toString();
+        }
+        if (const auto languageIt = obj.find("language"); languageIt != obj.end()) {
+            if (!languageIt->second.isString()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].phones[].language must be a string");
+            }
+            result.language = languageIt->second.toString();
+        }
+        if (const auto toneIt = obj.find("tone"); toneIt != obj.end()) {
+            if (!toneIt->second.isInt()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].phones[].tone must be an integer");
+            }
+            result.tone = static_cast<int>(toneIt->second.toInt());
+        }
+        if (const auto startIt = obj.find("start"); startIt != obj.end()) {
+            if (!startIt->second.isNumber()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].phones[].start must be a number");
+            }
+            result.start = startIt->second.toDouble();
+        }
+        if (const auto speakersIt = obj.find("speakers"); speakersIt != obj.end()) {
+            if (!speakersIt->second.isArray()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].phones[].speakers must be an array");
+            }
+            const auto &speakers = speakersIt->second.toArray();
+            result.speakers.reserve(speakers.size());
+            for (const auto &speaker : speakers) {
+                auto parsed = parsePhonemeSpeaker(speaker);
+                if (!parsed) {
+                    return parsed.takeError();
+                }
+                result.speakers.push_back(parsed.take());
+            }
+        }
+        return result;
+    }
+
+    static srt::Expected<Co::InputNoteInfo> parseNote(const srt::JsonValue &value) {
+        if (!value.isObject()) {
+            return srt::Error(srt::Error::InvalidFormat, "words[].notes[] must be an object");
+        }
+
+        const auto &obj = value.toObject();
+        Co::InputNoteInfo result;
+        if (const auto keyIt = obj.find("key"); keyIt != obj.end()) {
+            if (keyIt->second.isInt()) {
+                const auto key = keyIt->second.toInt();
+                if (key < std::numeric_limits<int>::min() ||
+                    key > std::numeric_limits<int>::max()) {
+                    return srt::Error(srt::Error::InvalidFormat,
+                                      "words[].notes[].key is out of range");
+                }
+                result.key = static_cast<int>(key);
+            } else if (keyIt->second.isDouble()) {
+                const auto key = keyIt->second.toDouble();
+                if (!std::isfinite(key) || key < std::numeric_limits<int>::min() ||
+                    key > std::numeric_limits<int>::max()) {
+                    return srt::Error(srt::Error::InvalidFormat,
+                                      "words[].notes[].key is out of range");
+                }
+                result.key = static_cast<int>(key);
+                result.cents = extractCents(key);
+            } else if (keyIt->second.isString()) {
+                const auto parsed = parseLibrosaPitch(keyIt->second.toString());
+                if (!parsed) {
+                    return srt::Error(srt::Error::InvalidFormat,
+                                      "words[].notes[].key has an invalid format");
+                }
+                std::tie(result.key, result.cents, result.is_rest) = *parsed;
+            } else {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].notes[].key must be a number or string");
+            }
+        }
+
+        if (const auto centsIt = obj.find("cents"); centsIt != obj.end()) {
+            if (!centsIt->second.isNumber()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].notes[].cents must be a number");
+            }
+            const auto cents = centsIt->second.toDouble();
+            if (!std::isfinite(cents) || cents < std::numeric_limits<int>::min() ||
+                cents > std::numeric_limits<int>::max()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].notes[].cents is out of range");
+            }
+            const auto combinedCents =
+                static_cast<int64_t>(result.cents) + static_cast<int64_t>(std::round(cents));
+            if (combinedCents < std::numeric_limits<int>::min() ||
+                combinedCents > std::numeric_limits<int>::max()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].notes[].cents is out of range");
+            }
+            result.cents = static_cast<int>(combinedCents);
+        }
+        if (const auto durationIt = obj.find("duration"); durationIt != obj.end()) {
+            if (!durationIt->second.isNumber()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].notes[].duration must be a number");
+            }
+            result.duration = durationIt->second.toDouble();
+        }
+        if (const auto glideIt = obj.find("glide"); glideIt != obj.end()) {
+            if (!glideIt->second.isString()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].notes[].glide must be a string");
+            }
+            const auto glide = stdc::to_lower(glideIt->second.toString());
+            if (glide == "up") {
+                result.glide = Co::GlideType::Up;
+            } else if (glide == "down") {
+                result.glide = Co::GlideType::Down;
+            } else if (glide != "none") {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  R"(words[].notes[].glide must be "up", "down", or "none")");
+            }
+        }
+        if (const auto restIt = obj.find("is_rest"); restIt != obj.end()) {
+            if (!restIt->second.isBool()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "words[].notes[].is_rest must be a bool");
+            }
+            result.is_rest = restIt->second.toBool();
+        }
+
+        const auto shiftedCents = static_cast<int64_t>(result.cents) + 50;
+        const auto keyOffset =
+            shiftedCents >= 0 ? shiftedCents / 100 : -((-shiftedCents + 99) / 100);
+        const auto normalizedKey = static_cast<int64_t>(result.key) + keyOffset;
+        if (normalizedKey < std::numeric_limits<int>::min() ||
+            normalizedKey > std::numeric_limits<int>::max()) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              "words[].notes[].key is out of range after cents normalization");
+        }
+        result.key = static_cast<int>(normalizedKey);
+        result.cents -= static_cast<int>(keyOffset * 100);
+        return result;
+    }
+
+    static srt::Expected<Co::InputWordInfo> parseWord(const srt::JsonValue &value) {
+        if (!value.isObject()) {
+            return srt::Error(srt::Error::InvalidFormat, "words[] must be an object");
+        }
+
+        const auto &obj = value.toObject();
+        Co::InputWordInfo result;
+        if (const auto phonesIt = obj.find("phones"); phonesIt != obj.end()) {
+            if (!phonesIt->second.isArray()) {
+                return srt::Error(srt::Error::InvalidFormat, "words[].phones must be an array");
+            }
+            const auto &phones = phonesIt->second.toArray();
+            result.phones.reserve(phones.size());
+            for (const auto &phone : phones) {
+                auto parsed = parsePhoneme(phone);
+                if (!parsed) {
+                    return parsed.takeError();
+                }
+                result.phones.push_back(parsed.take());
+            }
+        }
+        if (const auto notesIt = obj.find("notes"); notesIt != obj.end()) {
+            if (!notesIt->second.isArray()) {
+                return srt::Error(srt::Error::InvalidFormat, "words[].notes must be an array");
+            }
+            const auto &notes = notesIt->second.toArray();
+            result.notes.reserve(notes.size());
+            for (const auto &note : notes) {
+                auto parsed = parseNote(note);
+                if (!parsed) {
+                    return parsed.takeError();
+                }
+                result.notes.push_back(parsed.take());
+            }
+        }
+        return result;
     }
 
     srt::Expected<void> parseWords(const srt::JsonObject &obj,
                                    std::vector<Co::InputWordInfo> &outWords) {
-        if (auto it_words = obj.find("words"); it_words != obj.end()) {
-            if (!it_words->second.isArray()) {
-                return srt::Error(srt::Error::InvalidFormat, "words must be an array");
+        const auto wordsIt = obj.find("words");
+        if (wordsIt == obj.end()) {
+            return {};
+        }
+        if (!wordsIt->second.isArray()) {
+            return srt::Error(srt::Error::InvalidFormat, "words must be an array");
+        }
+
+        const auto &words = wordsIt->second.toArray();
+        std::vector<Co::InputWordInfo> parsedWords;
+        parsedWords.reserve(words.size());
+        for (const auto &word : words) {
+            auto parsed = parseWord(word);
+            if (!parsed) {
+                return parsed.takeError();
             }
-            const auto &words = it_words->second.toArray();
-            outWords.reserve(words.size());
-            for (const auto &maybeWord : words) {
-                if (!maybeWord.isObject()) {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "words[] array items must be an object");
-                }
-                const auto &word = maybeWord.toObject();
-                Co::InputWordInfo wordInfo;
-                if (auto it_phones = word.find("phones"); it_phones != word.end()) {
-                    if (!it_phones->second.isArray()) {
-                        return srt::Error(srt::Error::InvalidFormat,
-                                          "words[].phones must be an array");
-                    }
-                    const auto &phones = it_phones->second.toArray();
-                    wordInfo.phones.reserve(phones.size());
-                    for (const auto &maybePhone : phones) {
-                        if (!maybePhone.isObject()) {
-                            return srt::Error(srt::Error::InvalidFormat,
-                                              "words[].phones[] array items must be an object");
-                        }
-                        const auto &phone = maybePhone.toObject();
-
-                        Co::InputPhonemeInfo phoneInfo;
-                        if (auto it_token = phone.find("token"); it_token != phone.end()) {
-                            if (!it_token->second.isString()) {
-                                return srt::Error(srt::Error::InvalidFormat,
-                                                  "words[].phones[].token must be a string");
-                            }
-                            phoneInfo.token = it_token->second.toString();
-                        } // words[].phones[].token
-                        if (auto it_language = phone.find("language"); it_language != phone.end()) {
-                            if (!it_language->second.isString()) {
-                                return srt::Error(srt::Error::InvalidFormat,
-                                                  "words[].phones[].language must be a string");
-                            }
-                            phoneInfo.language = it_language->second.toString();
-                        } // words[].phones[].language
-                        if (auto it_tone = phone.find("tone"); it_tone != phone.end()) {
-                            if (!it_tone->second.isInt()) {
-                                return srt::Error(srt::Error::InvalidFormat,
-                                                  "words[].phones[].tone must be an integer");
-                            }
-                            phoneInfo.tone = static_cast<int>(it_tone->second.toInt());
-                        } // words[].phones[].tone
-                        if (auto it_start = phone.find("start"); it_start != phone.end()) {
-                            if (!it_start->second.isNumber()) {
-                                return srt::Error(srt::Error::InvalidFormat,
-                                                  "words[].phones[].start must be a number");
-                            }
-                            phoneInfo.start = it_start->second.toDouble();
-                        } // words[].phones[].start
-                        if (auto it_speakers = phone.find("speakers"); it_speakers != phone.end()) {
-                            if (!it_speakers->second.isArray()) {
-                                return srt::Error(srt::Error::InvalidFormat,
-                                                  "words[].phones[].speakers must be an array");
-                            }
-                            const auto &speakers = it_speakers->second.toArray();
-                            phoneInfo.speakers.reserve(speakers.size());
-                            for (const auto &maybeSpeaker : speakers) {
-                                if (!maybeSpeaker.isObject()) {
-                                    return srt::Error(
-                                        srt::Error::InvalidFormat,
-                                        "words[].phones[].speakers must be an object");
-                                }
-                                const auto &speaker = maybeSpeaker.toObject();
-                                Co::InputPhonemeInfo::Speaker speakerInfo;
-                                auto it_speaker_name = speaker.find("name");
-                                if (it_speaker_name == speaker.end() ||
-                                    !it_speaker_name->second.isString()) {
-                                    return srt::Error(
-                                        srt::Error::InvalidFormat,
-                                        R"(words[].phones[].speakers object must contain "name" (string) field)");
-                                }
-                                speakerInfo.name = it_speaker_name->second.toString();
-
-                                auto it_speaker_proportion = speaker.find("proportion");
-                                speakerInfo.proportion =
-                                    (it_speaker_proportion == speaker.end())
-                                        ? 1
-                                        : it_speaker_proportion->second.toDouble(1);
-
-                                phoneInfo.speakers.push_back(std::move(speakerInfo));
-                            }
-                        } // words[].phones[].speakers
-                        wordInfo.phones.push_back(std::move(phoneInfo));
-                    } // words[].phones[] <ITER>
-                } // words[].phones
-                if (auto it_notes = word.find("notes"); it_notes != word.end()) {
-                    if (!it_notes->second.isArray()) {
-                        return srt::Error(srt::Error::InvalidFormat,
-                                          "words[].notes must be an array");
-                    }
-                    const auto &notes = it_notes->second.toArray();
-                    wordInfo.notes.reserve(notes.size());
-                    for (const auto &maybeNote : notes) {
-                        if (!maybeNote.isObject()) {
-                            return srt::Error(srt::Error::InvalidFormat,
-                                              "words[].notes[] array items must be an object");
-                        }
-                        const auto &note = maybeNote.toObject();
-
-                        Co::InputNoteInfo noteInfo;
-                        if (auto it_key = note.find("key"); it_key != note.end()) {
-                            // We accept 3 forms of keys:
-                            // [1] Integer key: directly interpret as key
-                            // [2] Float key: Convert to key and cents
-                            // [3] String key: parse "C4-20" "D#4+25" (librosa form) as key and
-                            // cents
-                            if (it_key->second.isInt()) {
-                                noteInfo.key = static_cast<int>(it_key->second.toInt());
-                                noteInfo.cents = 0;
-                            } else if (it_key->second.isDouble()) {
-                                double doubleKey = it_key->second.toDouble();
-                                noteInfo.key = static_cast<int>(doubleKey);
-                                noteInfo.cents = extractCents(doubleKey);
-                            } else if (it_key->second.isString()) {
-                                // parse librosa-like key string
-                                if (auto opt = parseLibrosaPitch(it_key->second.toString());
-                                    opt.has_value()) {
-                                    std::tie(noteInfo.key, noteInfo.cents, noteInfo.is_rest) =
-                                        opt.value_or(std::make_tuple(0, 0, false));
-                                } else {
-                                    return srt::Error(srt::Error::InvalidFormat,
-                                                      "words[].notes[].key invalid format");
-                                }
-                            }
-                        } // words[].notes[].key
-                        if (auto it_cents = note.find("cents"); it_cents != note.end()) {
-                            if (!it_cents->second.isNumber()) {
-                                return srt::Error(srt::Error::InvalidFormat,
-                                                  "words[].notes[].cents must be a number");
-                            }
-                            if (it_cents->second.isInt()) {
-                                // add cents to existing cents, maybe parsed from float key or
-                                // librosa-like string key
-                                noteInfo.cents += static_cast<int>(it_cents->second.toInt());
-                            } else {
-                                noteInfo.cents =
-                                    static_cast<int>(std::round(it_cents->second.toDouble()));
-                            }
-                        } // words[].notes[].cents
-                        if (auto it_duration = note.find("duration"); it_duration != note.end()) {
-                            if (!it_duration->second.isNumber()) {
-                                return srt::Error(srt::Error::InvalidFormat,
-                                                  "words[].notes[].duration must be a number");
-                            }
-                            noteInfo.duration = it_duration->second.toDouble();
-                        } // words[].notes[].duration
-                        if (auto it_glide = note.find("glide"); it_glide != note.end()) {
-                            if (!it_glide->second.isString()) {
-                                return srt::Error(
-                                    srt::Error::InvalidFormat,
-                                    R"(words[].notes[].glide must be a string of following values: "up", "down", "none"])");
-                            }
-                            const auto glide = stdc::to_lower(it_glide->second.toString());
-                            if (glide == "up") {
-                                noteInfo.glide = Co::GlideType::Up;
-                            } else if (glide == "down") {
-                                noteInfo.glide = Co::GlideType::Down;
-                            } else {
-                                noteInfo.glide = Co::GlideType::None;
-                            }
-                        } // words[].notes[].glide
-                        if (auto it_is_rest = note.find("is_rest"); it_is_rest != note.end()) {
-                            if (!it_is_rest->second.isBool()) {
-                                return srt::Error(srt::Error::InvalidFormat,
-                                                  "words[].notes[].is_rest must be a bool");
-                            }
-                            noteInfo.is_rest = it_is_rest->second.toBool();
-                        } // words[].notes[].is_rest
-
-                        // normalize `key` and `cents` such that `cents` lies in range [-50, 49]
-                        {
-                            int offset = (noteInfo.cents + 50) / 100;
-                            noteInfo.key += offset;
-                            noteInfo.cents -= offset * 100;
-                        }
-                        wordInfo.notes.push_back(noteInfo);
-                    } // words[].notes[] <ITER>
-                } // words.notes
-                outWords.push_back(std::move(wordInfo));
-            } // words[] <ITER>
-        } // words
-        return srt::Expected<void>();
+            parsedWords.push_back(parsed.take());
+        }
+        outWords = std::move(parsedWords);
+        return {};
     }
 
     srt::Expected<void> parseParameters(const srt::JsonObject &obj, bool pitchOnly,
                                         std::vector<Co::InputParameterInfo> &outParameters) {
-        if (auto it_parameters = obj.find("parameters"); it_parameters != obj.end()) {
-            if (!it_parameters->second.isArray()) {
-                return srt::Error(srt::Error::InvalidFormat, "parameters must be an array");
+        const auto parametersIt = obj.find("parameters");
+        if (parametersIt == obj.end()) {
+            return {};
+        }
+        if (!parametersIt->second.isArray()) {
+            return srt::Error(srt::Error::InvalidFormat, "parameters must be an array");
+        }
+
+        const auto &parameters = parametersIt->second.toArray();
+        std::vector<Co::InputParameterInfo> parsedParameters;
+        parsedParameters.reserve(parameters.size());
+        for (const auto &value : parameters) {
+            if (!value.isObject()) {
+                return srt::Error(srt::Error::InvalidFormat, "parameters[] must be an object");
             }
-            const auto &parameters = it_parameters->second.toArray();
-            outParameters.reserve(parameters.size());
-            for (const auto &maybeParameter : parameters) {
-                if (!maybeParameter.isObject()) {
+            const auto &parameter = value.toObject();
+            const auto tagIt = parameter.find("tag");
+            if (tagIt == parameter.end() || !tagIt->second.isString()) {
+                return srt::Error(srt::Error::InvalidFormat, "parameters[].tag must be a string");
+            }
+
+            const auto tag = stdc::to_lower(tagIt->second.toString());
+            auto parameterInfo = [&]() -> Co::InputParameterInfo {
+                if (tag == Co::Tags::Pitch.name()) {
+                    return {Co::Tags::Pitch};
+                }
+                if (tag == Co::Tags::Breathiness.name()) {
+                    return {Co::Tags::Breathiness};
+                }
+                if (tag == Co::Tags::Energy.name()) {
+                    return {Co::Tags::Energy};
+                }
+                if (tag == Co::Tags::Gender.name()) {
+                    return {Co::Tags::Gender};
+                }
+                if (tag == Co::Tags::Tension.name()) {
+                    return {Co::Tags::Tension};
+                }
+                if (tag == Co::Tags::Velocity.name()) {
+                    return {Co::Tags::Velocity};
+                }
+                if (tag == Co::Tags::Voicing.name()) {
+                    return {Co::Tags::Voicing};
+                }
+                if (tag == Co::Tags::MouthOpening.name()) {
+                    return {Co::Tags::MouthOpening};
+                }
+                if (tag == Co::Tags::ToneShift.name()) {
+                    return {Co::Tags::ToneShift};
+                }
+                if (tag == Co::Tags::F0.name()) {
+                    return {Co::Tags::F0};
+                }
+                if (tag == Co::Tags::Expr.name()) {
+                    return {Co::Tags::Expr};
+                }
+                return {};
+            }();
+
+            if (parameterInfo.tag.name().empty()) {
+                continue;
+            }
+            if (pitchOnly && parameterInfo.tag != Co::Tags::Pitch &&
+                parameterInfo.tag != Co::Tags::Expr) {
+                continue;
+            }
+
+            if (auto result = parseValueCurve(parameter, "parameters", parameterInfo.interval,
+                                              parameterInfo.values);
+                !result) {
+                return result.takeError();
+            }
+
+            if (const auto retakeIt = parameter.find("retake"); retakeIt != parameter.end()) {
+                if (!retakeIt->second.isObject()) {
                     return srt::Error(srt::Error::InvalidFormat,
-                                      "parameters[] array item must be an object");
+                                      "parameters[].retake must be an object");
                 }
-                const auto &parameter = maybeParameter.toObject();
-
-                // <BEGIN> parsing parameters[].tag
-                std::string tag;
-                if (auto it_tag = parameter.find("tag"); it_tag != parameter.end()) {
-                    if (!it_tag->second.isString()) {
-                        return srt::Error(srt::Error::InvalidFormat,
-                                          "parameters[] tag must be a string");
-                    }
-                    tag = stdc::to_lower(it_tag->second.toString());
-                } else {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "parameters[] tag must exist and be a string");
-                } // parameters[].tag
-                auto parameterInfo = [&]() -> Co::InputParameterInfo {
-                    if (tag == Co::Tags::Pitch.name()) {
-                        return Co::InputParameterInfo{Co::Tags::Pitch};
-                    } else if (tag == Co::Tags::Breathiness.name()) {
-                        return Co::InputParameterInfo{Co::Tags::Breathiness};
-                    } else if (tag == Co::Tags::Energy.name()) {
-                        return Co::InputParameterInfo{Co::Tags::Energy};
-                    } else if (tag == Co::Tags::Gender.name()) {
-                        return Co::InputParameterInfo{Co::Tags::Gender};
-                    } else if (tag == Co::Tags::Tension.name()) {
-                        return Co::InputParameterInfo{Co::Tags::Tension};
-                    } else if (tag == Co::Tags::Velocity.name()) {
-                        return Co::InputParameterInfo{Co::Tags::Velocity};
-                    } else if (tag == Co::Tags::Voicing.name()) {
-                        return Co::InputParameterInfo{Co::Tags::Voicing};
-                    } else if (tag == Co::Tags::MouthOpening.name()) {
-                        return Co::InputParameterInfo{Co::Tags::MouthOpening};
-                    } else if (tag == Co::Tags::ToneShift.name()) {
-                        return Co::InputParameterInfo{Co::Tags::ToneShift};
-                    } else if (tag == Co::Tags::F0.name()) {
-                        return Co::InputParameterInfo{Co::Tags::F0};
-                    } else if (tag == Co::Tags::Expr.name()) {
-                        return Co::InputParameterInfo{Co::Tags::Expr};
-                    }
-                    return Co::InputParameterInfo{};
-                }();
-                if (pitchOnly) {
-                    if (parameterInfo.tag != Co::Tags::Pitch &&
-                        parameterInfo.tag != Co::Tags::Expr) {
-                        continue;
-                    }
+                const auto &retake = retakeIt->second.toObject();
+                const auto startIt = retake.find("start");
+                const auto endIt = retake.find("end");
+                if (startIt == retake.end() || !startIt->second.isNumber() ||
+                    endIt == retake.end() || !endIt->second.isNumber()) {
+                    return srt::Error(
+                        srt::Error::InvalidFormat,
+                        "parameters[].retake must contain numeric start and end fields");
                 }
-                if (parameterInfo.tag.name().empty()) {
-                    // return srt::Error(srt::Error::InvalidFormat,
-                    //                   "parameters[].tag string unknown: " + tag);
-                    continue;
-                }
-                // <END> parsing parameters[].tag
+                parameterInfo.retake = Co::InputParameterInfo::RetakeRange{
+                    startIt->second.toDouble(), endIt->second.toDouble()};
+            }
+            parsedParameters.push_back(std::move(parameterInfo));
+        }
 
-                // parameters[].dynamic optional field, default to false
-                if (auto exp = parseValueCurve(parameter, "parameters", parameterInfo.interval,
-                                               parameterInfo.values);
-                    !exp) {
-                    return exp.takeError();
-                }
-
-                if (auto it_retake = parameter.find("retake"); it_retake != parameter.end()) {
-                    if (!it_retake->second.isObject()) {
-                        return srt::Error(srt::Error::InvalidFormat,
-                                          "parameters[].retake must be an object");
-                    }
-                    const auto &retake = it_retake->second.toObject();
-                    auto it_retakeStart = retake.find("start");
-                    auto it_retakeEnd = retake.find("end");
-
-                    if (!(it_retakeStart != retake.end() && it_retakeStart->second.isNumber()) ||
-                        !(it_retakeEnd != retake.end() && it_retakeEnd->second.isNumber())) {
-                        return srt::Error(
-                            srt::Error::InvalidFormat,
-                            R"(parameters[].retake object must contain "start" and "end" keys of numbers)");
-                    }
-                    parameterInfo.retake = Co::InputParameterInfo::RetakeRange{
-                        it_retakeStart->second.toDouble(), it_retakeEnd->second.toDouble()};
-                } // parameters[].retake
-
-                outParameters.push_back(std::move(parameterInfo));
-            } // parameters[] <ITER>
-        } // parameters
-        return srt::Expected<void>();
+        outParameters = std::move(parsedParameters);
+        return {};
     }
 
     srt::Expected<void> parseSpeakers(const srt::JsonObject &obj,
                                       std::vector<Co::InputSpeakerInfo> &outSpeakers) {
-        if (auto it_speakers = obj.find("speakers"); it_speakers != obj.end()) {
-            if (!it_speakers->second.isArray()) {
-                return srt::Error(srt::Error::InvalidFormat, "speakers must be an array");
+        const auto speakersIt = obj.find("speakers");
+        if (speakersIt == obj.end()) {
+            return {};
+        }
+        if (!speakersIt->second.isArray()) {
+            return srt::Error(srt::Error::InvalidFormat, "speakers must be an array");
+        }
+
+        const auto &speakers = speakersIt->second.toArray();
+        std::vector<Co::InputSpeakerInfo> parsedSpeakers;
+        parsedSpeakers.reserve(speakers.size());
+        for (const auto &value : speakers) {
+            if (!value.isObject()) {
+                return srt::Error(srt::Error::InvalidFormat, "speakers[] must be an object");
             }
-            const auto &speakers = it_speakers->second.toArray();
-            outSpeakers.reserve(speakers.size());
-            for (const auto &maybeSpeaker : speakers) {
-                if (!maybeSpeaker.isObject()) {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "speakers[] array item must be an object");
-                }
-                const auto &speaker = maybeSpeaker.toObject();
-                Co::InputSpeakerInfo speakerInfo;
-                if (auto it_name = speaker.find("name"); it_name != speaker.end()) {
-                    if (!it_name->second.isString()) {
-                        return srt::Error(srt::Error::InvalidFormat,
-                                          "speakers[].name must be a string");
-                    }
-                    speakerInfo.name = it_name->second.toString();
-                } else {
-                    return srt::Error(srt::Error::InvalidFormat,
-                                      "speakers[].name must exist and be a string");
-                }
-                if (auto exp = parseValueCurve(speaker, "parameters", speakerInfo.interval,
-                                               speakerInfo.proportions);
-                    !exp) {
-                    return exp.takeError();
-                }
-                outSpeakers.push_back(std::move(speakerInfo));
+            const auto &speaker = value.toObject();
+            const auto nameIt = speaker.find("name");
+            if (nameIt == speaker.end() || !nameIt->second.isString()) {
+                return srt::Error(srt::Error::InvalidFormat, "speakers[].name must be a string");
             }
-        } // speakers
-        return srt::Expected<void>();
+
+            Co::InputSpeakerInfo speakerInfo;
+            speakerInfo.name = nameIt->second.toString();
+            if (auto result = parseValueCurve(speaker, "speakers", speakerInfo.interval,
+                                              speakerInfo.proportions);
+                !result) {
+                return result.takeError();
+            }
+            parsedSpeakers.push_back(std::move(speakerInfo));
+        }
+
+        outSpeakers = std::move(parsedSpeakers);
+        return {};
     }
 
 }

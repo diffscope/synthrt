@@ -52,18 +52,18 @@ SynthRT 的 Package 基础设施目前已经实现：
 - 修订后的 level 1 推理契约和已经迁移到 2.4 的示例 Package 结构
 - 基于 `stdc::cli` 的命令行示例与手动测试运行器，通过 Singer Pipeline 和 Import role 驱动完整同步推理链
 - Duration、Pitch、Variance、Acoustic 和 Vocoder Task 通过通用 Task 异步执行器支持异步调用，并覆盖停止、等待、回调执行和回调内销毁
+- Duration、Pitch、Variance 和 Acoustic Input Parser 继续作为独立协议 Utility 提供，并由共享字段、音符、控制曲线和错误输入的自动化测试覆盖
+- ONNX Driver 原手动测试中的有效场景均已由自动测试覆盖，模型及生成脚本已迁入自动测试资源
 
 仍待完成的迁移包括：
 
 - 真实插件的 Package 加载和兼容性拒绝已有自动化覆盖，Pipeline 创建、子实例执行与 Package 卸载仍缺少端到端测试
-- 部分 Utility 仍保留旧模型和兼容代码，需要在 Interpreter 迁移后继续清理
 
-当前完整 `all` 构建可以通过，15 个自动测试均已通过。
+当前完整 `all` 构建可以通过，16 个自动测试均已通过。
 
 ## 后续工作
 
 1. 增加真实 2.4 Package 的端到端自动化测试，覆盖 Pipeline 执行、父子实例释放、Binding 关闭和 Package 卸载。
-2. 从 Utility 中移除剩余的过时 API，并把仍有价值的手动场景迁移到自动化测试。
-3. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
-4. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
-5. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。
+2. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
+3. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
+4. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。
