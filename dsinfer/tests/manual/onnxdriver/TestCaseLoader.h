@@ -1,9 +1,11 @@
-#ifndef TST_ONNXDRIVER_CASE_LOADER_H
-#define TST_ONNXDRIVER_CASE_LOADER_H
+#ifndef TEST_ONNXDRIVER_CASE_LOADER_H
+#define TEST_ONNXDRIVER_CASE_LOADER_H
 
+#include <filesystem>
+#include <memory>
 #include <stdexcept>
 #include <string>
-#include <filesystem>
+
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
 namespace test {
@@ -13,19 +15,20 @@ namespace test {
     };
 
     struct TestCaseMeta {
-        std::string test_id;
+        std::string testId;
         std::string description;
-        std::filesystem::path model_path;
+        std::filesystem::path modelPath;
     };
 
     struct TestCaseData {
         TestCaseData();
-        TestCaseData(TestCaseMeta meta, srt::NO<ds::Api::Onnx::SessionStartInput> input,
-                     srt::NO<ds::Api::Onnx::SessionResult> expectedResult);
+        TestCaseData(TestCaseMeta meta,
+                     std::shared_ptr<ds::Api::Onnx::SessionStartInput> sessionInput,
+                     std::shared_ptr<ds::Api::Onnx::SessionResult> expectedResult);
 
         TestCaseMeta meta;
-        srt::NO<ds::Api::Onnx::SessionStartInput> sessionInput;
-        srt::NO<ds::Api::Onnx::SessionResult> expectedResult;
+        std::shared_ptr<ds::Api::Onnx::SessionStartInput> sessionInput;
+        std::shared_ptr<ds::Api::Onnx::SessionResult> expectedResult;
     };
 
     class TestCaseLoader {
@@ -33,6 +36,6 @@ namespace test {
         static std::shared_ptr<TestCaseData> load(const std::filesystem::path &jsonPath);
     };
 
-} // namespace test
+}
 
-#endif //  TST_ONNXDRIVER_CASE_LOADER_H
+#endif // TEST_ONNXDRIVER_CASE_LOADER_H

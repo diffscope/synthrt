@@ -13,23 +13,24 @@
 namespace test {
 
     TestCaseData::TestCaseData()
-        : sessionInput(srt::NO<ds::Api::Onnx::SessionStartInput>::create()),
-          expectedResult(srt::NO<ds::Api::Onnx::SessionResult>::create()) {
+        : sessionInput(std::make_shared<ds::Api::Onnx::SessionStartInput>()),
+          expectedResult(std::make_shared<ds::Api::Onnx::SessionResult>()) {
     }
 
-    TestCaseData::TestCaseData(TestCaseMeta meta, srt::NO<ds::Api::Onnx::SessionStartInput> input,
-                               srt::NO<ds::Api::Onnx::SessionResult> expectedResult)
-        : meta(std::move(meta)), sessionInput(std::move(input)),
+    TestCaseData::TestCaseData(TestCaseMeta meta,
+                               std::shared_ptr<ds::Api::Onnx::SessionStartInput> sessionInput,
+                               std::shared_ptr<ds::Api::Onnx::SessionResult> expectedResult)
+        : meta(std::move(meta)), sessionInput(std::move(sessionInput)),
           expectedResult(std::move(expectedResult)) {
-        if (!sessionInput) {
-            sessionInput = srt::NO<ds::Api::Onnx::SessionStartInput>::create();
+        if (!this->sessionInput) {
+            this->sessionInput = std::make_shared<ds::Api::Onnx::SessionStartInput>();
         }
-        if (!expectedResult) {
-            expectedResult = srt::NO<ds::Api::Onnx::SessionResult>::create();
+        if (!this->expectedResult) {
+            this->expectedResult = std::make_shared<ds::Api::Onnx::SessionResult>();
         }
     }
 
-    static ds::ITensor::DataType parse_data_type(const std::string_view str) {
+    static ds::ITensor::DataType parseDataType(const std::string_view str) {
         auto s = stdc::to_lower(std::string(str));
         if (s == "float32" || s == "float") {
             return ds::ITensor::Float;
@@ -43,7 +44,7 @@ namespace test {
         return ds::ITensor::Undefined;
     }
 
-    static srt::NO<ds::ITensor> parse_tensor(const srt::JsonValue &root) {
+    static std::shared_ptr<ds::ITensor> parseTensor(const srt::JsonValue &root) {
         // JSON: first ensure the input is an object
         if (!root.isObject()) {
             throw TestCaseException("Failed to parse JSON: invalid JSON object");
@@ -63,7 +64,7 @@ namespace test {
         if (!dtypeField.isString()) {
             throw TestCaseException("Failed to parse JSON: dtype field must be a string");
         }
-        auto dtype = parse_data_type(root["dtype"].toString());
+        auto dtype = parseDataType(root["dtype"].toString());
 
         if (dtype == ds::ITensor::Undefined) {
             throw TestCaseException("Failed to parse JSON: unsupported data type");
@@ -148,9 +149,9 @@ namespace test {
                                     "': " + error.message());
 
         auto caseData = std::make_shared<TestCaseData>();
-        caseData->meta.test_id = root["test_id"].toString();
+        caseData->meta.testId = root["test_id"].toString();
         caseData->meta.description = root["description"].toString();
-        caseData->meta.model_path = stdc::path::from_utf8(root["model_path"].toString());
+        caseData->meta.modelPath = stdc::path::from_utf8(root["model_path"].toString());
 
         auto &inputMap = caseData->sessionInput->inputs;
         const auto jsonInputs = root["inputs"].toArray();
@@ -163,7 +164,7 @@ namespace test {
                                         jsonPath.string());
 
             std::string name = jsonInput["name"].toString();
-            inputMap[name] = parse_tensor(jsonInput);
+            inputMap[name] = parseTensor(jsonInput);
         }
 
         const auto jsonExpectedOutputs = root["expected_outputs"].toArray();
@@ -182,10 +183,10 @@ namespace test {
             caseData->sessionInput->outputs.insert(name);
 
             // Parse and store expected output tensor
-            caseData->expectedResult->outputs[name] = parse_tensor(jsonExpectedOutput);
+            caseData->expectedResult->outputs[name] = parseTensor(jsonExpectedOutput);
         }
 
         return caseData;
     }
 
-} // namespace test
+}

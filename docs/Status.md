@@ -42,19 +42,19 @@ SynthRT 的 Package 基础设施目前已经实现：
 - ONNX Runtime API 与 Environment 的进程内一致性、按 Driver 隔离的模型缓存以及由 Session 共同持有的运行时生命周期
 - ONNX Session 的同步与异步执行、终止与等待、输入输出 Tensor 转换，以及回调期间销毁 Session 的安全边界
 - 使用真实 ONNX 模型覆盖内部与外部 Runtime API、并发打开、同步与异步推理、错误输入和无效模型的自动化测试
+- 已迁移到当前 Driver、Task 和 Tensor API 的 ONNX Driver 手动测试
 - 修订后的 level 1 推理契约和已经迁移到 2.4 的示例 Package 结构
 - 主要基于公开 Runtime API 的命令行集成
 
 仍待完成的迁移包括：
 
-- ONNX Driver 手动测试仍在使用已经移除的 `PackageRef` 和 `UNO` API
 - 推理执行入口仍包含尚未实现的 `NotImplemented` 路径
 - Runtime Instance 计数和 Import Binding 执行仍需与 Package 卸载语义连接
 - 部分 Utility 和命令行行为需要在公开 API 稳定后继续清理
 
 ## 后续工作
 
-1. 从 Driver 手动测试和 Utility 中移除剩余的过时 API，并把仍有价值的手动场景迁移到自动化测试。
+1. 从 Utility 中移除剩余的过时 API，并把仍有价值的手动场景迁移到自动化测试。
 2. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
 3. 完成 Interpreter 执行，并连接 `ContribExecInstance`、`ContribImportBinding`、quit、wait 和 Package 释放行为。
 4. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
