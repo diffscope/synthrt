@@ -26,11 +26,6 @@ namespace srt {
                                 ContribSpec &target,
                                 std::unique_ptr<ContribImportOptions> options) const override;
 
-        /// Creates the provider-defined synthesis pipeline for a loaded singer contribution.
-        virtual Expected<std::unique_ptr<SingerPipelineExecInstance>>
-            createPipeline(SingerSpec &spec,
-                           const SingerPipelineRuntimeOptions &runtimeOptions) = 0;
-
     protected:
         SingerProvider() = default;
     };

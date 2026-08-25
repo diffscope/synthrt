@@ -350,8 +350,14 @@ static int execute(const fs::path &packagePath, const fs::path &inputPath,
     }
 
     // The root Pipeline owns every inference instance created through its Import roles.
+    auto *pipelineExtension = singerSpec->findExtension(DiffSinger::PIPELINE_EXTENSION_ID);
+    if (!pipelineExtension) {
+        throw std::runtime_error(stdc::formatN(
+            R"(singer "%1" does not provide the DiffSinger synthesis pipeline)", input.singer));
+    }
     std::unique_ptr<srt::SingerPipelineExecInstance> pipelineOwner;
-    if (auto result = singerSpec->createPipeline(DiffSinger::DiffSingerPipelineRuntimeOptions());
+    if (auto result = pipelineExtension->as<srt::SingerPipelineExtension>()->createPipeline(
+            DiffSinger::DiffSingerPipelineRuntimeOptions());
         !result) {
         throw std::runtime_error(
             stdc::formatN(R"(failed to create the synthesis pipeline for singer "%1": %2)",

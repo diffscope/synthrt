@@ -111,6 +111,15 @@ namespace srt {
         return ContribImport(it->second);
     }
 
+    stdc::array_view<ContribSpecExtension *> ContribSpec::extensions() const {
+        return _impl->extensions;
+    }
+
+    ContribSpecExtension *ContribSpec::findExtension(std::string_view id) const {
+        const auto it = _impl->extensionData.find(id);
+        return it == _impl->extensionData.end() ? nullptr : it->second.get();
+    }
+
     ContribSpec::ContribSpec(const ContribCreateContext &context)
         : _impl(std::make_unique<Impl>()) {
         _impl->package = context.m_data->package;

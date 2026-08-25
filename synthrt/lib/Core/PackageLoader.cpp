@@ -833,69 +833,133 @@ namespace srt {
             }
         }
 
-        // Ready lets the target interpreter own options parsing, then lets the importing
-        // interpreter validate the complete ordered import collection.
-        for (const auto &packageEntry : transaction) {
-            const auto &package = packageEntry.second;
-            if (package->loaded) {
-                continue;
-            }
-            for (const auto &categoryEntry : package->contributions) {
-                auto *category = m_synthUnit->category(categoryEntry.first);
-                if (category->declarationMode() != ContribCategory::ModuleDeclaration) {
+        const auto prepareImportBindings = [&]() -> Expected<void> {
+            for (const auto &packageEntry : transaction) {
+                const auto &package = packageEntry.second;
+                if (package->loaded) {
                     continue;
                 }
-                for (auto *spec : categoryEntry.second) {
-                    for (auto &import : spec->_impl->imports) {
-                        auto *target = resolveTarget(package, import.locator());
-                        auto options = target->_impl->interpreter->createImportOptions(
-                            *target, import.manifestOptions());
-                        if (!options) {
-                            return options.takeError().withContext(
-                                "failed to interpret module import options");
-                        }
-                        auto typedOptions = options.take();
-                        if (!typedOptions) {
-                            return Error(Error::InvalidFormat,
-                                         "target interpreter returned null import options");
-                        }
-                        if (auto result = validatePayloadIdentity(typedOptions.get(), *target,
-                                                                  "import options");
-                            !result) {
-                            return result.takeError();
-                        }
-                        spec->_impl->importData.at(import.role()).options = std::move(typedOptions);
+                for (const auto &categoryEntry : package->contributions) {
+                    auto *category = m_synthUnit->category(categoryEntry.first);
+                    if (category->declarationMode() != ContribCategory::ModuleDeclaration) {
+                        continue;
                     }
-                    auto validation = spec->_impl->interpreter->validateImports(*spec);
-                    if (!validation) {
-                        return validation.takeError().withContext(
-                            "module imports failed interpreter validation");
-                    }
-                    for (auto &import : spec->_impl->imports) {
-                        auto *target = resolveTarget(package, import.locator());
-                        auto &importData = spec->_impl->importData.at(import.role());
-                        auto binding = spec->_impl->interpreter->createImportBinding(
-                            *spec, import, *target, std::move(importData.options));
-                        if (!binding) {
-                            return binding.takeError().withContext(
-                                "failed to create module import binding");
+                    for (auto *spec : categoryEntry.second) {
+                        for (auto &import : spec->_impl->imports) {
+                            auto *target = resolveTarget(package, import.locator());
+                            auto options = target->_impl->interpreter->createImportOptions(
+                                *target, import.manifestOptions());
+                            if (!options) {
+                                return options.takeError().withContext(
+                                    "failed to interpret module import options");
+                            }
+                            auto typedOptions = options.take();
+                            if (!typedOptions) {
+                                return Error(Error::InvalidFormat,
+                                             "target interpreter returned null import options");
+                            }
+                            if (auto result = validatePayloadIdentity(typedOptions.get(), *target,
+                                                                      "import options");
+                                !result) {
+                                return result.takeError();
+                            }
+                            spec->_impl->importData.at(import.role()).options =
+                                std::move(typedOptions);
                         }
-                        auto preparedBinding = binding.take();
-                        if (!preparedBinding) {
-                            return Error(Error::InvalidFormat,
-                                         "importer interpreter returned a null import binding");
+                        auto validation = spec->_impl->interpreter->validateImports(*spec);
+                        if (!validation) {
+                            return validation.takeError().withContext(
+                                "module imports failed interpreter validation");
                         }
-                        auto *targetCategory = m_synthUnit->category(target->locator().category());
-                        auto factory = targetCategory->createExecFactory(*preparedBinding);
-                        if (!factory) {
-                            return factory.takeError().withContext(
-                                "target category failed to create import execution factory");
+                        for (auto &import : spec->_impl->imports) {
+                            auto *target = resolveTarget(package, import.locator());
+                            auto &importData = spec->_impl->importData.at(import.role());
+                            auto binding = spec->_impl->interpreter->createImportBinding(
+                                *spec, import, *target, std::move(importData.options));
+                            if (!binding) {
+                                return binding.takeError().withContext(
+                                    "failed to create module import binding");
+                            }
+                            auto preparedBinding = binding.take();
+                            if (!preparedBinding) {
+                                return Error(Error::InvalidFormat,
+                                             "importer interpreter returned a null import binding");
+                            }
+                            auto *targetCategory =
+                                m_synthUnit->category(target->locator().category());
+                            auto factory = targetCategory->createExecFactory(*preparedBinding);
+                            if (!factory) {
+                                return factory.takeError().withContext(
+                                    "target category failed to create import execution factory");
+                            }
+                            importData.binding = std::move(preparedBinding);
+                            importData.execFactory = factory.take();
                         }
-                        importData.binding = std::move(preparedBinding);
-                        importData.execFactory = factory.take();
                     }
                 }
             }
+            return {};
+        };
+
+        const auto attachSpecExtensions = [&]() -> Expected<void> {
+            for (const auto &packageEntry : transaction) {
+                const auto &package = packageEntry.second;
+                if (package->loaded) {
+                    continue;
+                }
+                for (const auto &categoryEntry : package->contributions) {
+                    for (auto *spec : categoryEntry.second) {
+                        for (const auto &entry : ContribSpecExtensionFactoryRegistry::entries()) {
+                            auto factory = entry.instantiate();
+                            if (!factory) {
+                                return Error(Error::InvalidFormat,
+                                             "contribution extension factory is null");
+                            }
+                            if (!factory->matches(*spec)) {
+                                continue;
+                            }
+                            auto extension = factory->create(*spec);
+                            if (!extension) {
+                                return extension.takeError().withContext(
+                                    "contribution extension creation failed");
+                            }
+                            auto preparedExtension = extension.take();
+                            if (!preparedExtension) {
+                                return Error(Error::InvalidFormat,
+                                             "contribution extension factory returned null");
+                            }
+                            if (&preparedExtension->spec() != spec) {
+                                return Error(Error::InvalidFormat,
+                                             "contribution extension targets another contribution");
+                            }
+                            if (!ContribLocator::isValidDottedId(preparedExtension->id())) {
+                                return Error(Error::InvalidFormat,
+                                             "contribution extension has an invalid identifier");
+                            }
+                            auto id = preparedExtension->id();
+                            auto *extensionPointer = preparedExtension.get();
+                            if (!spec->_impl->extensionData
+                                     .emplace(std::move(id), std::move(preparedExtension))
+                                     .second) {
+                                return Error(Error::InvalidFormat,
+                                             "contribution extension identifier is duplicated");
+                            }
+                            spec->_impl->extensions.push_back(extensionPointer);
+                        }
+                    }
+                }
+            }
+            return {};
+        };
+
+        // Ready pass 1 prepares every import before an extension can inspect the graph.
+        if (auto result = prepareImportBindings(); !result) {
+            return result.takeError();
+        }
+
+        // Ready pass 2 attaches extensions without exposing the uncommitted Packages.
+        if (auto result = attachSpecExtensions(); !result) {
+            return result.takeError();
         }
 
         // Commit contains no fallible work. The SynthUnit transaction lock prevents readers from

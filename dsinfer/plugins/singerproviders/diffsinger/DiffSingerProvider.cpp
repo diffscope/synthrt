@@ -17,6 +17,41 @@ namespace ds {
 
     namespace {
 
+        class DiffSingerPipelineExtension : public srt::SingerPipelineExtension {
+        public:
+            explicit DiffSingerPipelineExtension(srt::SingerSpec &spec)
+                : SingerPipelineExtension(spec, Ds::PIPELINE_EXTENSION_ID) {
+            }
+
+            srt::Expected<std::unique_ptr<srt::SingerPipelineExecInstance>>
+                createPipeline(const srt::SingerPipelineRuntimeOptions &runtimeOptions) override {
+                if (runtimeOptions.interface() != Ds::API_INTERFACE ||
+                    runtimeOptions.variant() != Ds::API_VARIANT ||
+                    runtimeOptions.level() != Ds::API_LEVEL) {
+                    return srt::Error(
+                        srt::Error::InvalidArgument,
+                        "DiffSinger pipeline options have an incompatible contract identity");
+                }
+                return std::unique_ptr<srt::SingerPipelineExecInstance>(
+                    new DiffSingerPipelineExecInstance(spec()));
+            }
+        };
+
+        class DiffSingerPipelineExtensionFactory : public srt::ContribSpecExtensionFactory {
+        public:
+            bool matches(const srt::ContribSpec &spec) const noexcept override {
+                return spec.locator().category() == "singer" &&
+                       spec.interface() == Ds::API_INTERFACE && spec.variant() == Ds::API_VARIANT &&
+                       spec.level() == Ds::API_LEVEL;
+            }
+
+            srt::Expected<std::unique_ptr<srt::ContribSpecExtension>>
+                create(srt::ContribSpec &spec) const override {
+                return std::unique_ptr<srt::ContribSpecExtension>(
+                    new DiffSingerPipelineExtension(*spec.as<srt::SingerSpec>()));
+            }
+        };
+
         srt::Expected<srt::InferenceSpec *>
             resolveKnownImport(const srt::ContribSpec &spec, const srt::PackageHandle &package,
                                std::string_view role, std::string_view expectedInterface,
@@ -138,13 +173,6 @@ namespace ds {
         return validateKnownImports(spec);
     }
 
-    srt::Expected<std::unique_ptr<srt::SingerPipelineExecInstance>>
-        DiffSingerProvider::createPipeline(srt::SingerSpec &spec,
-                                           const srt::SingerPipelineRuntimeOptions &) {
-        return std::unique_ptr<srt::SingerPipelineExecInstance>(
-            new DiffSingerPipelineExecInstance(spec));
-    }
-
     static inline std::string formatErrorMessage(const std::string &msgPrefix,
                                                  const stdc::vlarray<std::string> &errorList) {
         const std::string middlePart = " (";
@@ -182,3 +210,6 @@ namespace ds {
     }
 
 }
+
+static srt::ContribSpecExtensionFactoryRegistry::Add<ds::DiffSingerPipelineExtensionFactory>
+    diffSingerPipelineExtensionRegistration("org.openvpi.svs.singer.DiffSinger.Pipeline", "");

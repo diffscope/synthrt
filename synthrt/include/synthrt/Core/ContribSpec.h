@@ -10,6 +10,7 @@
 #include <stdcorelib/adt/array_view.h>
 
 #include <synthrt/Core/ContribLocator.h>
+#include <synthrt/Core/ContribSpecExtension.h>
 #include <synthrt/Core/ContribSpecPayload.h>
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Support/DisplayText.h>
@@ -162,6 +163,12 @@ namespace srt {
         std::optional<ContribImport> findImport(std::string_view role) const;
 
         /// \}
+
+        /// Returns all extensions attached during Package Load.
+        stdc::array_view<ContribSpecExtension *> extensions() const;
+
+        /// Finds an extension by its identifier.
+        ContribSpecExtension *findExtension(std::string_view id) const;
 
         /// Casts this declaration to the concrete type registered for its category.
         ///

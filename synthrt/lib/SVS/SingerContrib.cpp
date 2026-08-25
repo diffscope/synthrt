@@ -10,7 +10,6 @@
 #include <stdcorelib/path.h>
 
 #include "SingerPipelineExecInstance.h"
-#include "SingerProvider.h"
 #include "SingerProviderPlugin.h"
 
 namespace fs = std::filesystem;
@@ -120,21 +119,6 @@ namespace srt {
 
     const DisplayText &SingerSpec::demoAudio() const {
         return m_demoAudio;
-    }
-
-    Expected<std::unique_ptr<SingerPipelineExecInstance>>
-        SingerSpec::createPipeline(const SingerPipelineRuntimeOptions &runtimeOptions) {
-        auto *value = interpreter();
-        if (!value) {
-            return Error(Error::FeatureNotSupported,
-                         "cannot create singer from a contribution that is not loaded");
-        }
-        if (runtimeOptions.interface() != interface() || runtimeOptions.variant() != variant() ||
-            runtimeOptions.level() != level()) {
-            return Error(Error::InvalidArgument,
-                         "singer runtime options do not match the contribution contract");
-        }
-        return value->as<SingerProvider>()->createPipeline(*this, runtimeOptions);
     }
 
     SingerCategory::SingerCategory()

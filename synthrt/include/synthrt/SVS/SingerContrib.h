@@ -7,7 +7,6 @@
 #include <synthrt/Core/ContribCategory.h>
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Support/DisplayText.h>
-#include <synthrt/SVS/SingerPipelineExecInstance.h>
 
 namespace srt {
 
@@ -19,10 +18,6 @@ namespace srt {
         const DisplayText &avatar() const;
         const DisplayText &background() const;
         const DisplayText &demoAudio() const;
-
-        /// Creates the provider-defined synthesis pipeline for this singer.
-        Expected<std::unique_ptr<SingerPipelineExecInstance>>
-            createPipeline(const SingerPipelineRuntimeOptions &runtimeOptions);
 
     private:
         SingerSpec(const ContribCreateContext &context, DisplayText avatar, DisplayText background,

@@ -298,6 +298,10 @@ Acquire 才真正加载 Provider 插件。一个已加载插件中的同一个�
 
 Ready 产生的 Binding 处于 `Prepared`，不得开始业务执行。所有可能失败、分配或执行 I/O 的准备工作都必须在 Commit 前完成。
 
+Ready 内部明确分为两个 pass。`prepareImportBindings` 先为整个事务中的全部 import 创建 Binding 和 EI Factory。全部准备完成后，`attachSpecExtensions` 才调用 `ContribSpecExtensionFactoryRegistry`。Loader 先对每个工厂调用 `matches(spec)`，只对匹配的工厂调用 `create(spec)`。工厂可以检查完整 Spec，并返回一个由该 Spec 持有的 `ContribSpecExtension`。匹配后的工厂必须返回非空 Extension。Extension ID 在同一 Spec 内必须唯一，创建失败、返回空指针、ID 非法或重复都会使整个 Load 失败。
+
+Extension 是加载后附加到 Spec 的类型化能力，不是新的 Contribution，也不改变原 Spec 的清单身份。DataOnly 不创建 Extension。Extension 可以保存对 Spec、Binding 和 EI Factory 的非拥有引用，但不能在 Commit 前启动业务执行。Extension 在其引用的 import 数据之前销毁。
+
 ### 5.5 Commit
 
 Commit 只执行不可失败的发布操作：
@@ -503,7 +507,7 @@ Factory 的 `create(runtimeOptions)` 必须验证 runtime options 的三元组�
 
 ### 9.3 Singer Pipeline
 
-`SingerSpec::createPipeline()` 调用选中的 `SingerProvider`。返回的 `SingerPipelineExecInstance` 是根 EI，它本身表示 Provider 定义的合成流水线，并通过 import role 创建子 EI。
+Singer Pipeline 由 `SingerPipelineExtension` 创建，不再由 `SingerSpec` 或选中的 `SingerProvider` 独占创建。Provider 插件和链接时可用的其他库都可以注册 `ContribSpecExtensionFactory`。Factory 在 Ready 的最后一遍全局处理中检查 SingerSpec 的完整 imports，并按需附加 Pipeline Extension。返回的 `SingerPipelineExecInstance` 是根 EI，它通过已经聚合的 import role 创建子 EI。
 
 DiffSinger Level 1 的类型化 Pipeline 当前公开 duration、pitch、variance、acoustic 和 vocoder 创建函数。`DiffSingerProvider::validateImports()` 中 acoustic 和 vocoder 是必需 role，其他三个可以省略。调用一个清单未声明的可选 role 时，创建函数会返回错误，调用者必须按自己的工作流决定是否需要它。
 
@@ -522,7 +526,13 @@ if (singer->interface() != ds::Api::DiffSinger::L1::API_INTERFACE ||
     // 不是调用方理解的契约
 }
 
-auto pipelineResult = singer->createPipeline(
+auto *extension = singer->findExtension(
+    ds::Api::DiffSinger::L1::PIPELINE_EXTENSION_ID);
+if (!extension) {
+    // 当前 Singer 没有 DiffSinger Pipeline
+}
+
+auto pipelineResult = extension->as<srt::SingerPipelineExtension>()->createPipeline(
     ds::Api::DiffSinger::L1::DiffSingerPipelineRuntimeOptions());
 if (!pipelineResult) {
     return pipelineResult.takeError();

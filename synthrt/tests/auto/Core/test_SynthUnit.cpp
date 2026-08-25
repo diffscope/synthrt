@@ -12,6 +12,7 @@
 #include <synthrt/Core/ContribExecInstance.h>
 #include <synthrt/Core/ContribInterpreterPlugin.h>
 #include <synthrt/Core/ContribSpec.h>
+#include <synthrt/Core/ContribSpecExtension.h>
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Core/RuntimeService.h>
 #include <synthrt/Core/SynthUnit.h>
@@ -26,6 +27,7 @@ namespace {
     constexpr const char *testCategoryName = "com.example.test";
     constexpr const char *testInterpreterIid = "com.example.TestInterpreter";
     constexpr const char *testInterface = "com.example.Contract";
+    constexpr const char *testExtensionId = "com.example.TestExtension";
 
     int pluginCreateCount = 0;
     int exportsCount = 0;
@@ -38,6 +40,8 @@ namespace {
     int bindingWaitCount = 0;
     bool rejectImports = false;
     bool returnWrongPayloadIdentity = false;
+    int extensionCreateCount = 0;
+    bool extensionSawPreparedImports = false;
 
     class TestExports final : public srt::ContribExports {
     public:
@@ -212,6 +216,30 @@ namespace {
         }
     };
 
+    class TestExtension final : public srt::ContribSpecExtension {
+    public:
+        explicit TestExtension(srt::ContribSpec &spec)
+            : ContribSpecExtension(spec, testExtensionId) {
+        }
+    };
+
+    class TestExtensionFactory final : public srt::ContribSpecExtensionFactory {
+    public:
+        bool matches(const srt::ContribSpec &spec) const noexcept override {
+            return spec.locator().category() == testCategoryName;
+        }
+
+        srt::Expected<std::unique_ptr<srt::ContribSpecExtension>>
+            create(srt::ContribSpec &spec) const override {
+            ++extensionCreateCount;
+            for (const auto &item : spec.imports()) {
+                extensionSawPreparedImports =
+                    extensionSawPreparedImports || (item.binding() && item.execFactory());
+            }
+            return std::unique_ptr<srt::ContribSpecExtension>(new TestExtension(spec));
+        }
+    };
+
     class TestCategory final : public srt::ContribCategory {
     public:
         TestCategory() : ContribCategory(testCategoryName, ModuleDeclaration, testInterpreterIid) {
@@ -230,6 +258,8 @@ namespace {
     };
 
     srt::ContribCategoryRegistry::Add<TestCategory> testCategoryRegistration(testCategoryName, "");
+    srt::ContribSpecExtensionFactoryRegistry::Add<TestExtensionFactory>
+        testExtensionRegistration(testExtensionId, "");
 
     class EntrySpec final : public srt::ContribSpec {
     public:
@@ -501,6 +531,8 @@ BOOST_AUTO_TEST_CASE(test_data_only_expands_variables_without_loading_plugin) {
                       "$$");
     BOOST_CHECK(!spec->exports());
     BOOST_CHECK(!spec->configuration());
+    BOOST_CHECK(spec->extensions().empty());
+    BOOST_CHECK(!spec->findExtension(testExtensionId));
     BOOST_CHECK_EQUAL(pluginCreateCount, createCount);
     BOOST_CHECK(unit.loadedPackages().empty());
     BOOST_CHECK(unit.category(testCategoryName)->contributions().empty());
@@ -528,6 +560,8 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     const auto oldBindingActivate = bindingActivateCount;
     const auto oldBindingClose = bindingCloseCount;
     const auto oldBindingWait = bindingWaitCount;
+    const auto oldExtensionCreate = extensionCreateCount;
+    extensionSawPreparedImports = false;
 
     auto opened = unit.openPackage(root, srt::SynthUnit::Load);
     BOOST_REQUIRE(opened);
@@ -539,6 +573,13 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_REQUIRE(rootSpec);
     BOOST_CHECK(rootSpec->exports());
     BOOST_CHECK(rootSpec->configuration());
+    BOOST_REQUIRE_EQUAL(rootSpec->extensions().size(), 1u);
+    auto *extension = rootSpec->findExtension(testExtensionId);
+    BOOST_REQUIRE(extension);
+    BOOST_CHECK(&extension->spec() == rootSpec);
+    BOOST_CHECK_EQUAL(extension->id(), testExtensionId);
+    BOOST_CHECK(extension->as<TestExtension>() != nullptr);
+    BOOST_CHECK(extensionSawPreparedImports);
     BOOST_CHECK_EQUAL(rootSpec->exports()->interface(), testInterface);
     BOOST_CHECK_EQUAL(rootSpec->exports()->variant(), "test");
     BOOST_CHECK_EQUAL(rootSpec->exports()->level(), 1);
@@ -603,6 +644,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK_EQUAL(validationCount - oldValidation, 2);
     BOOST_CHECK_EQUAL(bindingCreateCount - oldBindingCreate, 2);
     BOOST_CHECK_EQUAL(bindingActivateCount - oldBindingActivate, 2);
+    BOOST_CHECK_EQUAL(extensionCreateCount - oldExtensionCreate, 2);
 
     auto openedAgain = unit.openPackage(root, srt::SynthUnit::Load);
     BOOST_REQUIRE(openedAgain);

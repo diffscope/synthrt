@@ -50,6 +50,8 @@ namespace srt {
         std::unique_ptr<ContribConfiguration> configuration;
         stdc::vlarray<ContribImport> imports;
         std::map<std::string, ContribImport::Data, std::less<>> importData;
+        stdc::vlarray<ContribSpecExtension *> extensions;
+        std::map<std::string, std::unique_ptr<ContribSpecExtension>, std::less<>> extensionData;
     };
 
 }
