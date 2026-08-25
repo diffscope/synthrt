@@ -11,27 +11,13 @@ if(NOT TARGET srt::driver)
 endif()
 
 # Require onnxruntime headers.
-# Locate ONNX Runtime: check SYNTHRT_ORT_DIR (CI), then third-party/ (local), then build dir
-if(DEFINED SYNTHRT_ORT_DIR AND IS_DIRECTORY "${SYNTHRT_ORT_DIR}/default")
-    set(_onnxruntime_dir ${SYNTHRT_ORT_DIR})
-elseif(IS_DIRECTORY ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime/default)
-    set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
-elseif(IS_DIRECTORY ${CMAKE_BINARY_DIR}/onnxruntime/default)
-    set(_onnxruntime_dir ${CMAKE_BINARY_DIR}/onnxruntime)
-else()
-    set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
-endif()
-
-# Normalize to forward slashes for portability. On Windows CI the workspace
-# path may contain backslashes (e.g. "D:\a\synthrt") which break CMake string
-# parsing when the path is embedded in a list argument ("\a" is an invalid
-# escape). file(TO_CMAKE_PATH) converts native separators to "/".
-file(TO_CMAKE_PATH "${_onnxruntime_dir}" _onnxruntime_dir)
-
-set(_onnxruntime_default_dir ${_onnxruntime_dir}/default)
-
-if(NOT IS_DIRECTORY ${_onnxruntime_default_dir})
-    message(WARNING "OnnxDriver plugin will not be built: ONNX runtime not found at ${_onnxruntime_default_dir}.")
+# ONNX Runtime is provided by the onnxruntime-builds CMake package (vcpkg
+# overlay port derived from its own scripts/setup-onnxruntime.cmake); find it
+# here so consumers never pass paths from the port. Without the package the
+# plugin degrades to not being built (same behavior as before the split).
+find_package(onnxruntime-builds CONFIG QUIET)
+if(NOT TARGET onnxruntime-builds::default)
+    message(WARNING "OnnxDriver plugin will not be built: ONNX Runtime package (onnxruntime-builds) not found.")
     return()
 endif()
 
@@ -41,8 +27,6 @@ project(srt-onnxdriver
 )
 
 file(GLOB_RECURSE _src CONFIGURE_DEPENDS *.h *.cpp)
-
-set(_onnxruntime_cuda_dir ${_onnxruntime_dir}/cuda)
 
 if(WIN32 AND SRT_DRIVER_ENABLE_DIRECTML)
     set(_onnxdriver_ep_macro_dml "ONNXDRIVER_ENABLE_DML")
@@ -65,7 +49,7 @@ synthrt_add_plugin(${PROJECT_NAME} inferencedrivers ${PROJECT_NAME} NO_EXPORT
     FEATURES cxx_std_20
     LINKS srt::driver srt::core
     LINKS_PRIVATE stduuid BLAKE3::blake3
-    INCLUDE_PRIVATE * ${_onnxruntime_default_dir}/include
+    INCLUDE_PRIVATE * ${ONNXRUNTIME_BUILDS_INCLUDE_DIR}
     DEFINES ORT_API_MANUAL_INIT ${_onnxdriver_ep_macros}
 )
 
@@ -74,12 +58,12 @@ synthrt_add_plugin(${PROJECT_NAME} inferencedrivers ${PROJECT_NAME} NO_EXPORT
 # install(FILES ...) receives actual file paths — install(FILES ...) does
 # not expand glob patterns itself.
 if(WIN32)
-    file(GLOB _ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dll)
+    file(GLOB _ort_default_lib_files ${ONNXRUNTIME_BUILDS_RUNTIME_DIR}/*.dll)
 elseif(APPLE)
-    file(GLOB _ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dylib)
+    file(GLOB _ort_default_lib_files ${ONNXRUNTIME_BUILDS_RUNTIME_DIR}/*.dylib)
 else()
-    file(GLOB _ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.so
-         ${_onnxruntime_default_dir}/lib/*.so.*)
+    file(GLOB _ort_default_lib_files ${ONNXRUNTIME_BUILDS_RUNTIME_DIR}/*.so
+         ${ONNXRUNTIME_BUILDS_RUNTIME_DIR}/*.so.*)
 endif()
 
 # Build-phase copy: place runtimes next to the plugin output directory.
@@ -103,12 +87,12 @@ if(_ort_default_lib_files)
     )
 endif()
 
-if(EXISTS ${_onnxruntime_cuda_dir} AND IS_DIRECTORY ${_onnxruntime_cuda_dir})
+if(ONNXRUNTIME_BUILDS_CUDA_RUNTIME_DIR)
     if(WIN32)
-        file(GLOB _ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.dll)
+        file(GLOB _ort_cuda_lib_files ${ONNXRUNTIME_BUILDS_CUDA_RUNTIME_DIR}/*.dll)
     else()
-        file(GLOB _ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.so
-             ${_onnxruntime_cuda_dir}/lib/*.so.*)
+        file(GLOB _ort_cuda_lib_files ${ONNXRUNTIME_BUILDS_CUDA_RUNTIME_DIR}/*.so
+             ${ONNXRUNTIME_BUILDS_CUDA_RUNTIME_DIR}/*.so.*)
     endif()
 
     if(NOT APPLE AND _ort_cuda_lib_files)

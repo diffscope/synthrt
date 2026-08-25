@@ -16,26 +16,17 @@ find_package(stdcorelib CONFIG REQUIRED)
 # Import onnxruntime headers for OnnxTensor (zero-copy Ort::Value backend).
 # With ORT_API_MANUAL_INIT the C++ wrapper is header-only; no onnxruntime
 # library link is required (the shared library is loaded at runtime by the
-# OnnxDriver plugin).
-# Locate ONNX Runtime: check SYNTHRT_ORT_DIR (CI), then third-party/ (local), then build dir
-if(DEFINED SYNTHRT_ORT_DIR AND IS_DIRECTORY "${SYNTHRT_ORT_DIR}/default")
-    set(_onnxruntime_dir ${SYNTHRT_ORT_DIR})
-elseif(IS_DIRECTORY ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime/default)
-    set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
-elseif(IS_DIRECTORY ${CMAKE_BINARY_DIR}/onnxruntime/default)
-    set(_onnxruntime_dir ${CMAKE_BINARY_DIR}/onnxruntime)
-else()
-    set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
-endif()
-set(_onnxruntime_default_dir ${_onnxruntime_dir}/default)
-
+# OnnxDriver plugin). ONNX Runtime is provided by the onnxruntime-builds CMake
+# package (vcpkg overlay port); find_package locates headers with no port-side
+# path. Without the package, OnnxTensor sources are excluded as before.
+find_package(onnxruntime-builds CONFIG QUIET)
 set(_onnx_include_dirs "")
 set(_onnx_defines "")
-if(IS_DIRECTORY ${_onnxruntime_default_dir})
-    set(_onnx_include_dirs ${_onnxruntime_default_dir}/include)
+if(TARGET onnxruntime-builds::default)
+    set(_onnx_include_dirs "${ONNXRUNTIME_BUILDS_INCLUDE_DIR}")
     set(_onnx_defines ORT_API_MANUAL_INIT)
 else()
-    message(WARNING "ONNX runtime not found at ${_onnxruntime_default_dir}. OnnxTensor sources will be excluded.")
+    message(WARNING "ONNX Runtime package (onnxruntime-builds) not found. OnnxTensor sources will be excluded.")
 
     # Filter out onnx-specific sources when onnxruntime is unavailable so the
     # srt-driver library can still build without ONNX support.
