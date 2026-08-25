@@ -37,17 +37,13 @@ namespace srt {
         InferenceSpec &spec() const;
 
         /// Returns the state of the contract-specific Task.
-        ITask::State state() const noexcept;
+        virtual ITask::State state() const noexcept = 0;
 
         /// Requests cancellation of the current inference execution.
-        Expected<void> stop();
+        virtual Expected<void> stop() = 0;
 
         /// Waits for the current inference execution to finish.
-        Expected<void> waitForFinished();
-
-    protected:
-        /// Returns the single Task implemented by this inference instance.
-        virtual ITask &task() const noexcept = 0;
+        virtual Expected<void> waitForFinished() = 0;
 
     private:
         Expected<void> quit() override;
