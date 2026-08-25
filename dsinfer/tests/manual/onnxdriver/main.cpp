@@ -1,24 +1,18 @@
-#define BOOST_TEST_MODULE tst_inference
+#define BOOST_TEST_MODULE test_inference
 
 #include <boost/test/unit_test.hpp>
 
-#include <filesystem>
-#include <fstream>
-#include <numeric>
 #include <cmath>
+#include <filesystem>
+#include <memory>
 
-#include <stdcorelib/system.h>
 #include <stdcorelib/path.h>
+#include <stdcorelib/system.h>
 
-#include <synthrt/Core/SynthUnit.h>
-#include <synthrt/Core/PackageRef.h>
-#include <synthrt/Support/JSON.h>
-#include <synthrt/Support/Logging.h>
-
-#include <dsinfer/Support/ErrorCode.h>
+#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverFactory.h>
-#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
+#include <dsinfer/Support/ErrorCode.h>
 
 #include "TestCaseLoader.h"
 
@@ -40,7 +34,7 @@
 
 namespace fs = std::filesystem;
 
-static constexpr float f32_tolerance = 1e-6f;
+static constexpr float s_f32Tolerance = 1e-6f;
 
 struct InferenceFixture {
     InferenceFixture() {
@@ -49,7 +43,7 @@ struct InferenceFixture {
         modelDir = resDir / STDC_TSTR("models");
         caseDir = resDir / STDC_TSTR("cases");
 
-        auto exp = initializeSU();
+        auto exp = initializeDriver();
         BOOST_TEST_MESSAGE("Driver initialization " +
                            std::string(exp ? "successful" : "failed: " + exp.error().message()));
         if (!exp) {
@@ -59,9 +53,9 @@ struct InferenceFixture {
 
     ~InferenceFixture() = default;
 
-    static srt::Expected<void> initializeSU() {
+    static srt::Expected<void> initializeDriver() {
         if (driver) {
-            return srt::Expected<void>(); // success
+            return {};
         }
 
         auto appDir = stdc::system::application_directory();
@@ -84,74 +78,25 @@ struct InferenceFixture {
                               "inference driver does not implement the ONNX backend contract");
         }
 
-        auto onnxArgs = srt::NO<ds::Api::Onnx::DriverInitArgs>::create();
-
-        onnxArgs->ep = ds::Api::Onnx::ExecutionProvider::CPU;
-        // The driver appends the library name, so this has to be the directory holding it. The
-        // build lays the runtimes out per backend and per provider.
-        onnxArgs->runtimePath = plugin->path().parent_path() / STDC_TSTR("runtimes") /
-                                STDC_TSTR("onnx") / STDC_TSTR("default");
-        onnxArgs->deviceIndex = 0;
+        ds::Api::Onnx::DriverInitArgs onnxArgs;
+        onnxArgs.ep = ds::Api::Onnx::ExecutionProvider::CPU;
+        onnxArgs.runtimePath = pluginPath / STDC_TSTR("onnx") / STDC_TSTR("runtimes") /
+                               STDC_TSTR("onnx") / STDC_TSTR("default");
+        onnxArgs.deviceIndex = 0;
 
         auto exp = onnxDriver->initialize(onnxArgs);
         if (exp) {
             driver = std::move(onnxDriver);
-            return srt::Expected<void>();
+            return {};
         }
-        return exp.error();
+        return exp.takeError();
     }
 
-
-    static inline srt::SynthUnit su;
     static inline ds::InferenceDriverFactory driverFactory;
-    static inline srt::UNO<ds::InferenceDriver> driver;
+    static inline std::unique_ptr<ds::InferenceDriver> driver;
     fs::path modelDir;
     fs::path caseDir;
 };
-
-template <typename T>
-struct TensorDataTypeTraits {
-    static_assert(sizeof(T) == 0, "Unsupported C++ type for TensorDataTypeTraits.");
-};
-
-template <>
-struct TensorDataTypeTraits<float> {
-    static constexpr ds::ITensor::DataType value = ds::ITensor::Float;
-};
-
-template <>
-struct TensorDataTypeTraits<bool> {
-    static constexpr ds::ITensor::DataType value = ds::ITensor::Bool;
-};
-
-template <>
-struct TensorDataTypeTraits<int64_t> {
-    static constexpr ds::ITensor::DataType value = ds::ITensor::Int64;
-};
-
-template <typename T>
-constexpr ds::ITensor::DataType getTensorDataType() {
-    return TensorDataTypeTraits<T>::value;
-}
-
-template <typename T>
-static inline srt::NO<ds::Tensor> createTensorFromData(const std::vector<int64_t> &shape,
-                                                       const std::vector<T> &data) {
-    int64_t shapeSize =
-        std::accumulate(shape.begin(), shape.end(), int64_t{1}, std::multiplies<>());
-    if (shapeSize != static_cast<int64_t>(data.size())) {
-        BOOST_FAIL("Size mismatch: shapeSize = " << shapeSize << ", data.size() = " << data.size());
-        return {};
-    }
-    std::vector<uint8_t> rawBytes(data.size() * sizeof(T));
-    std::memcpy(rawBytes.data(), data.data(), data.size() * sizeof(T));
-    return srt::NO<ds::Tensor>::create(getTensorDataType<T>(), std::move(shape), rawBytes);
-}
-
-template <typename T>
-static inline std::vector<int64_t> getVectorDataShape(const std::vector<T> &data) {
-    return {int64_t{1}, static_cast<int64_t>(data.size())};
-}
 
 template <typename T>
 static inline bool checkEqual(T x, T y, T epsilon = 1e-6) {
@@ -167,12 +112,12 @@ static inline bool checkEqual(T x, T y, T epsilon = 1e-6) {
 BOOST_FIXTURE_TEST_SUITE(InferenceTests, InferenceFixture)
 
 BOOST_AUTO_TEST_CASE(initialize_driver) {
-    auto exp = InferenceFixture::initializeSU();
-    auto initialize_driver_ok = static_cast<bool>(exp);
+    auto exp = InferenceFixture::initializeDriver();
+    auto initializeDriverOk = static_cast<bool>(exp);
     BOOST_TEST_MESSAGE("Initializing driver...");
 
-    BOOST_CHECK(initialize_driver_ok);
-    if (initialize_driver_ok) {
+    BOOST_CHECK(initializeDriverOk);
+    if (initializeDriverOk) {
         BOOST_TEST_MESSAGE("Driver initialized successfully");
     } else {
         BOOST_FAIL("Driver initialization failed: " << exp.error().message());
@@ -187,9 +132,10 @@ BOOST_AUTO_TEST_CASE(driver_extension) {
 
     auto ext = InferenceFixture::driver->extension();
     BOOST_REQUIRE(ext != nullptr);
-    BOOST_REQUIRE(ext->objectName() == ds::Api::Onnx::API_NAME);
+    BOOST_REQUIRE(ext->type() == ds::Api::Onnx::API_NAME);
+    BOOST_REQUIRE(ext->version() == ds::Api::Onnx::API_VERSION);
 
-    auto onnx = static_cast<const ds::Api::Onnx::DriverExtension *>(ext);
+    auto onnx = ext->as<ds::Api::Onnx::DriverExtension>();
     BOOST_CHECK(onnx->runtimeApi.ortApi != nullptr);
     BOOST_CHECK(onnx->runtimeApi.ortApiBase != nullptr);
     BOOST_CHECK(onnx->runtimeApi.ortApiVersion > 0);
@@ -203,11 +149,11 @@ struct SessionResultValidator {
         : testCase(testCaseData) {
     }
 
-    void operator()(const srt::NO<srt::TaskResult> &result_, const srt::Error &error) const {
-        BOOST_REQUIRE(result_ != nullptr);
-
-        // Cast to Onnx SessionResult
-        auto result = result_.as<ds::Api::Onnx::SessionResult>();
+    void operator()(srt::Expected<std::unique_ptr<srt::TaskResult>> result) const {
+        BOOST_REQUIRE(result);
+        auto sessionResult = result.take();
+        BOOST_REQUIRE(sessionResult != nullptr);
+        auto *onnxResult = sessionResult->as<ds::Api::Onnx::SessionResult>();
 
         // Verify outputs
         for (const auto &expectedOutputEntry : testCase->expectedResult->outputs) {
@@ -215,8 +161,8 @@ struct SessionResultValidator {
             auto expectedTensor = expectedOutputEntry.second;
 
             // Check that output tensor exists
-            auto it = result->outputs.find(outputName);
-            BOOST_REQUIRE_MESSAGE(it != result->outputs.end(),
+            auto it = onnxResult->outputs.find(outputName);
+            BOOST_REQUIRE_MESSAGE(it != onnxResult->outputs.end(),
                                   "Output tensor '" << outputName << "' not found");
             auto outputTensor = it->second;
             BOOST_REQUIRE(outputTensor != nullptr);
@@ -244,9 +190,9 @@ struct SessionResultValidator {
                     auto expected = reinterpret_cast<const float *>(expectedRaw.data());
                     size_t count = byteSize / sizeof(float);
                     BOOST_TEST_MESSAGE("Floating point data comparison using tolerance "
-                                       << f32_tolerance);
+                                       << s_f32Tolerance);
                     for (size_t i = 0; i < count; ++i) {
-                        bool isEqual = checkEqual(actual[i], expected[i], f32_tolerance);
+                        bool isEqual = checkEqual(actual[i], expected[i], s_f32Tolerance);
                         BOOST_CHECK_MESSAGE(isEqual, "Output: \"" << outputName << "\"; Index: "
                                                                   << i << "; Actual: " << actual[i]
                                                                   << "; Expected: " << expected[i]);
@@ -288,11 +234,11 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output) {
     auto session = driver->createSession();
     BOOST_REQUIRE(session != nullptr);
 
-    auto sessionOpenArgs = srt::NO<ds::Api::Onnx::SessionOpenArgs>::create();
-    sessionOpenArgs->useCpu = false;
+    ds::Api::Onnx::SessionOpenArgs sessionOpenArgs;
+    sessionOpenArgs.useCpu = false;
 
     srt::Expected<void> sessionOpenRes =
-        session->open(modelDir / testCase->meta.model_path, sessionOpenArgs);
+        session->open(modelDir / testCase->meta.modelPath, sessionOpenArgs);
     srt::Error error = sessionOpenRes ? srt::Error::success() : sessionOpenRes.error();
     bool sessionOpenOk = false;
     TST_CHECK_ASSIGN(sessionOpenOk, bool(sessionOpenRes));
@@ -301,20 +247,16 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output) {
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT open session: " << error.message());
 
     // Start session using loaded inputs and requested outputs
-    srt::Expected<void> sessionStartRes =
-        session->start(testCase->sessionInput.as<srt::TaskStartInput>());
+    auto sessionStartRes = session->start(*testCase->sessionInput);
     error = sessionStartRes ? srt::Error::success() : sessionStartRes.error();
     bool sessionStartOk = false;
     TST_CHECK_ASSIGN(sessionStartOk, bool(sessionStartRes));
     BOOST_CHECK_EQUAL(error.ok(), sessionStartOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT start session: " << error.message());
 
-    // Retrieve result
-    auto result_ = session->result();
-
     // Validate result
     SessionResultValidator validator(testCase);
-    validator(result_, error);
+    validator(std::move(sessionStartRes));
 }
 
 BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async) {
@@ -335,11 +277,11 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async) {
     auto session = driver->createSession();
     BOOST_REQUIRE(session != nullptr);
 
-    auto sessionOpenArgs = srt::NO<ds::Api::Onnx::SessionOpenArgs>::create();
-    sessionOpenArgs->useCpu = false;
+    ds::Api::Onnx::SessionOpenArgs sessionOpenArgs;
+    sessionOpenArgs.useCpu = false;
 
     srt::Expected<void> sessionOpenRes =
-        session->open(modelDir / testCase->meta.model_path, sessionOpenArgs);
+        session->open(modelDir / testCase->meta.modelPath, sessionOpenArgs);
     srt::Error error = sessionOpenRes ? srt::Error::success() : sessionOpenRes.error();
     bool sessionOpenOk = false;
     TST_CHECK_ASSIGN(sessionOpenOk, bool(sessionOpenRes));
@@ -352,13 +294,13 @@ BOOST_AUTO_TEST_CASE(basic_model_input_and_output_async) {
     SessionResultValidator validator(testCase);
 
     // Start session using loaded inputs and requested outputs
-    srt::Expected<void> sessionStartRes =
-        session->startAsync(testCase->sessionInput.as<srt::TaskStartInput>(), validator);
+    srt::Expected<void> sessionStartRes = session->startAsync(testCase->sessionInput, validator);
     error = sessionStartRes ? srt::Error::success() : sessionStartRes.error();
     bool sessionStartOk = false;
     TST_CHECK_ASSIGN(sessionStartOk, bool(sessionStartRes));
     BOOST_CHECK_EQUAL(error.ok(), sessionStartOk);
     BOOST_REQUIRE_MESSAGE(error.ok(), "Could NOT start session: " << error.message());
+    BOOST_REQUIRE(session->waitForFinished());
 }
 
 BOOST_AUTO_TEST_CASE(session_unopened) {
@@ -371,9 +313,7 @@ BOOST_AUTO_TEST_CASE(session_unopened) {
     BOOST_REQUIRE(session != nullptr);
 
     BOOST_CHECK_EQUAL(session->isOpen(), false);
-
-    // Sessions, even unopened, should allocate the result object.
-    BOOST_CHECK(session->result() != nullptr);
+    BOOST_CHECK(session->state() == srt::ITask::Idle);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(tst_onnxdriver LANGUAGES CXX)
+project(test_onnxdriver LANGUAGES CXX)
 
 # Check if the 'onnxdriver' target exists (adjust this to your actual dependency if needed)
 if(NOT TARGET onnxdriver)
@@ -38,7 +38,7 @@ qm_add_copy_command(${PROJECT_NAME}
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
-        RESOURCE_DIR=\"${_res_dir}\"
+    RESOURCE_DIR=\"${_res_dir}\"
 )
 
 add_dependencies(${PROJECT_NAME} onnxdriver)
