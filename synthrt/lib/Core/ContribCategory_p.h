@@ -11,10 +11,9 @@
 
 #include <stdcorelib/adt/vlarray.h>
 
+#include "PackageHandle_p.h"
+
 namespace srt {
-
-    class PackageData;
-
     class ContribCreateContext::Data {
     public:
         PackageData *package = nullptr;

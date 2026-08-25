@@ -8,6 +8,7 @@
 
 #include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpecPayload.h>
+#include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/JSON.h>
 
@@ -40,7 +41,6 @@ namespace srt {
         using ContribSpecPayload::ContribSpecPayload;
     };
 
-    class ContribCategory;
     class ContribCreateContext;
     class ContribExecInstance;
     class ContribExecFactory;
@@ -48,9 +48,7 @@ namespace srt {
     class ContribImportData;
     class ContribInterpreter;
     class PackageData;
-    class PackageHandle;
     class PackageLoader;
-    class SynthUnit;
 
     /// One ordered import declared by a contribution.
     class SYNTHRT_EXPORT ContribImport {
@@ -164,11 +162,9 @@ namespace srt {
         class Impl;
         std::unique_ptr<Impl> _impl;
 
-        friend class ContribCategory;
         friend class ContribExecInstance;
         friend class PackageData;
         friend class PackageLoader;
-        friend class SynthUnit;
     };
 
 }

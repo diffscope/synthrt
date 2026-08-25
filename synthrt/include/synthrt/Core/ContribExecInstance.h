@@ -8,14 +8,12 @@
 
 #include <stdcorelib/adt/vlarray.h>
 
+#include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Core/ContribSpecPayload.h>
 #include <synthrt/Support/Expected.h>
-#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
-    class ContribExecInstance;
-    class ContribSpec;
     class PackageData;
     class SynthUnit;
 
@@ -26,18 +24,6 @@ namespace srt {
 
     protected:
         using ContribSpecPayload::ContribSpecPayload;
-    };
-
-    /// Creates execution instances of one fixed contribution contract.
-    class ContribExecFactory {
-    public:
-        virtual ~ContribExecFactory() = default;
-
-        virtual Expected<std::unique_ptr<ContribExecInstance>>
-            create(const ContribRuntimeOptions &runtimeOptions) = 0;
-
-    protected:
-        ContribExecFactory() = default;
     };
 
     /// A top level execution instance created from one contribution declaration.
@@ -105,6 +91,18 @@ namespace srt {
         STDC_DISABLE_COPY(ContribExecInstance)
 
         friend class PackageData;
+    };
+
+    /// Creates execution instances of one fixed contribution contract.
+    class ContribExecFactory {
+    public:
+        virtual ~ContribExecFactory() = default;
+
+        virtual Expected<std::unique_ptr<ContribExecInstance>>
+            create(const ContribRuntimeOptions &runtimeOptions) = 0;
+
+    protected:
+        ContribExecFactory() = default;
     };
 
 }

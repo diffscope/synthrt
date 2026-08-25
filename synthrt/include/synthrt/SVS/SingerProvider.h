@@ -2,12 +2,10 @@
 #define SYNTHRT_SINGERPROVIDER_H
 
 #include <synthrt/Core/ContribInterpreter.h>
+#include <synthrt/SVS/SingerContrib.h>
+#include <synthrt/SVS/SingerPipelineExecInstance.h>
 
 namespace srt {
-
-    class SingerPipelineExecInstance;
-    class SingerPipelineRuntimeOptions;
-    class SingerSpec;
 
     /// Interprets and executes singer contributions.
     class SYNTHRT_EXPORT SingerProvider : public ContribInterpreter {

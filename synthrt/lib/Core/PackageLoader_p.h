@@ -8,10 +8,9 @@
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/Support/Expected.h>
 
+#include "PackageHandle_p.h"
+
 namespace srt {
-
-    class PackageData;
-
     /// Coordinates Package inspection, probing, loading, and commit.
     class PackageLoader {
     public:

@@ -70,5 +70,3 @@
 #include "SynthUnit.h"
 #include "ContribLocator.h"
 ```
-
-头文件应尽量使用前置声明减少依赖，但当成员布局、模板实例化或内联实现需要完整类型时必须包含对应头文件。

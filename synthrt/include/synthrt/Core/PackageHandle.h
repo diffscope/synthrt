@@ -11,13 +11,12 @@
 #include <stdcorelib/support/versionnumber.h>
 
 #include <synthrt/Core/ContribLocator.h>
-#include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/JSON.h>
-#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
+    class ContribSpec;
     class PackageData;
     class PackageLoader;
 

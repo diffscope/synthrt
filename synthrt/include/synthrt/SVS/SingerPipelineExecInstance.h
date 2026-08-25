@@ -5,7 +5,6 @@
 
 namespace srt {
 
-    class InferenceExecInstance;
     class SingerSpec;
 
     /// Runtime options supplied when a singer pipeline is created.
