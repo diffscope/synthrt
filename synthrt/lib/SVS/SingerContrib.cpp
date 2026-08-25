@@ -106,14 +106,9 @@ namespace srt {
                            DisplayText background, DisplayText demoAudio)
         : ContribSpec(context), m_avatar(std::move(avatar)), m_background(std::move(background)),
           m_demoAudio(std::move(demoAudio)) {
-        m_declarationPath = *context.declarationPath();
     }
 
     SingerSpec::~SingerSpec() = default;
-
-    const fs::path &SingerSpec::declarationPath() const {
-        return m_declarationPath;
-    }
 
     const DisplayText &SingerSpec::avatar() const {
         return m_avatar;

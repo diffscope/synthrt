@@ -47,6 +47,16 @@ namespace srt {
         return PackageHandle(_impl->package->shared_from_this());
     }
 
+    const std::filesystem::path &ContribSpec::declarationPath() const {
+        assert(_impl->hasModuleDeclaration);
+        return _impl->declarationPath;
+    }
+
+    const JsonObject &ContribSpec::manifestDeclaration() const {
+        assert(_impl->hasModuleDeclaration);
+        return _impl->manifestDeclaration;
+    }
+
     const DisplayText &ContribSpec::name() const {
         assert(_impl->hasModuleDeclaration);
         return _impl->name;
@@ -65,11 +75,6 @@ namespace srt {
     int ContribSpec::level() const {
         assert(_impl->hasModuleDeclaration);
         return _impl->level;
-    }
-
-    const JsonObject &ContribSpec::manifestDeclaration() const {
-        assert(_impl->hasModuleDeclaration);
-        return _impl->manifestDeclaration;
     }
 
     const JsonValue &ContribSpec::manifestExports() const {
@@ -115,6 +120,8 @@ namespace srt {
         }
 
         _impl->hasModuleDeclaration = true;
+        assert(context.m_data->declarationPath);
+        _impl->declarationPath = *context.m_data->declarationPath;
         _impl->manifestDeclaration = *context.m_data->manifestDeclaration;
         _impl->name = context.m_data->name;
         _impl->interface = context.m_data->interface;

@@ -1,7 +1,6 @@
 #ifndef SYNTHRT_INFERENCECONTRIB_H
 #define SYNTHRT_INFERENCECONTRIB_H
 
-#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -16,9 +15,6 @@ namespace srt {
     public:
         ~InferenceSpec();
 
-        /// Returns the module declaration file.
-        const std::filesystem::path &declarationPath() const;
-
         /// Validates whether this inference can consume output from \a other.
         ///
         /// Compatibility is directional. The interpreter of this inference defines the check.
@@ -31,8 +27,6 @@ namespace srt {
 
     private:
         explicit InferenceSpec(const ContribCreateContext &context);
-
-        std::filesystem::path m_declarationPath;
 
         friend class InferenceCategory;
     };

@@ -1,7 +1,6 @@
 #ifndef SYNTHRT_SINGERCONTRIB_H
 #define SYNTHRT_SINGERCONTRIB_H
 
-#include <filesystem>
 #include <memory>
 #include <vector>
 
@@ -17,7 +16,6 @@ namespace srt {
     public:
         ~SingerSpec();
 
-        const std::filesystem::path &declarationPath() const;
         const DisplayText &avatar() const;
         const DisplayText &background() const;
         const DisplayText &demoAudio() const;
@@ -30,7 +28,6 @@ namespace srt {
         SingerSpec(const ContribCreateContext &context, DisplayText avatar, DisplayText background,
                    DisplayText demoAudio);
 
-        std::filesystem::path m_declarationPath;
         DisplayText m_avatar;
         DisplayText m_background;
         DisplayText m_demoAudio;

@@ -92,7 +92,7 @@ Module Category 的条目使用 `path` 指向声明文件。公共 envelope 为�
 }
 ```
 
-`ContribSpec` 保存公共字段。解释器加载前，`manifestExports()`、`manifestConfiguration()` 和 `ContribImport::manifestOptions()` 提供展开后的 JSON。成功 Load 后，`exports()`、`configuration()` 和 `ContribImport::options()` 提供解释器创建的类型化对象。
+`ContribSpec` 保存公共字段和模块声明文件的 `declarationPath()`。解释器加载前，`manifestExports()`、`manifestConfiguration()` 和 `ContribImport::manifestOptions()` 提供展开后的 JSON。成功 Load 后，`exports()`、`configuration()` 和 `ContribImport::options()` 提供解释器创建的类型化对象。
 
 `ContribSpecPayload` 是这些类型化对象的公共身份基类。每个派生对象必须携带与目标 Module 完全一致的 `interface`、`variant` 和 `level`。Loader 会检查这组三元组，错误或空返回值会使整个加载事务失败。
 
@@ -549,15 +549,10 @@ auto *acoustic = *acousticResult; // 由 pipeline 持有
 
 ```cpp
 class LanguageSpec : public srt::ContribSpec {
-public:
-    const std::filesystem::path &declarationPath() const;
-
 private:
     explicit LanguageSpec(const srt::ContribCreateContext &context)
-        : ContribSpec(context), m_declarationPath(*context.declarationPath()) {
+        : ContribSpec(context) {
     }
-
-    std::filesystem::path m_declarationPath;
 
     friend class LanguageCategory;
 };

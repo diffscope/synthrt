@@ -11,6 +11,7 @@
 #include "PackageHandle_p.h"
 
 namespace srt {
+
     /// Coordinates Package inspection, probing, loading, and commit.
     class PackageLoader {
     public:

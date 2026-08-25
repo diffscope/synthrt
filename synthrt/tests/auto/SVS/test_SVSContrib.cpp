@@ -197,6 +197,7 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
     BOOST_REQUIRE(inferenceContribution);
     auto *inference = inferenceContribution->as<srt::InferenceSpec>();
     BOOST_REQUIRE(inference);
+    BOOST_CHECK(inferenceContribution->declarationPath() == root / "modules" / "inference.json");
     BOOST_CHECK(inference->declarationPath() == root / "modules" / "inference.json");
     BOOST_CHECK_EQUAL(inference->interface(), "com.example.svs.Acoustic");
 
@@ -204,6 +205,7 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
     BOOST_REQUIRE(singerContribution);
     auto *singer = singerContribution->as<srt::SingerSpec>();
     BOOST_REQUIRE(singer);
+    BOOST_CHECK(singer->declarationPath() == root / "modules" / "singer.json");
     BOOST_CHECK_EQUAL(singer->avatar().text(),
                       (root / "assets" / "singer1" / "avatar.png").string());
     BOOST_CHECK_EQUAL(singer->avatar().text("zh-CN"),

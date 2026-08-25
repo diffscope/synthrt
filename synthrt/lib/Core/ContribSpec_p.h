@@ -36,6 +36,7 @@ namespace srt {
         PackageData *package = nullptr;
         ContribLocator locator;
         bool hasModuleDeclaration = false;
+        std::filesystem::path declarationPath;
         stdc::plugin::PluginLoader *pluginLoader = nullptr;
         ContribInterpreter *interpreter = nullptr;
         JsonObject manifestDeclaration;

@@ -13,6 +13,7 @@
 #include "ContribExecInstance.h"
 
 namespace srt {
+
     class PackageData : public std::enable_shared_from_this<PackageData> {
     public:
         explicit PackageData(SynthUnit *synthUnit) : synthUnit(synthUnit) {

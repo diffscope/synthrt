@@ -71,14 +71,9 @@ namespace srt {
     }
 
     InferenceSpec::InferenceSpec(const ContribCreateContext &context) : ContribSpec(context) {
-        m_declarationPath = *context.declarationPath();
     }
 
     InferenceSpec::~InferenceSpec() = default;
-
-    const std::filesystem::path &InferenceSpec::declarationPath() const {
-        return m_declarationPath;
-    }
 
     Expected<void> InferenceSpec::validateCompatibilityWith(const InferenceSpec &other) const {
         auto *value = interpreter();

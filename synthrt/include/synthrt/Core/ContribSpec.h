@@ -1,6 +1,7 @@
 #ifndef SYNTHRT_CONTRIBSPEC_H
 #define SYNTHRT_CONTRIBSPEC_H
 
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -116,6 +117,9 @@ namespace srt {
         /// \c ContribCategory::ModuleDeclaration. They must not be called for a contribution whose
         /// category uses \c ContribCategory::EntryOnly.
         /// \{
+
+        /// Returns the common module declaration file.
+        const std::filesystem::path &declarationPath() const;
 
         /// Returns the expanded common module declaration, including unknown fields.
         const JsonObject &manifestDeclaration() const;
