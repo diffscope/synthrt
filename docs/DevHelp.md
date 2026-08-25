@@ -526,8 +526,8 @@ if (singer->interface() != ds::Api::DiffSinger::L1::API_INTERFACE ||
     // 不是调用方理解的契约
 }
 
-auto *extension = singer->findExtension(
-    ds::Api::DiffSinger::L1::PIPELINE_EXTENSION_ID);
+auto *extension = srt::ContribSpecExtension::findFromSpec<
+    ds::Api::DiffSinger::L1::DiffSingerPipelineExecInstance>(*singer);
 if (!extension) {
     // 当前 Singer 没有 DiffSinger Pipeline
 }

@@ -21,9 +21,6 @@ namespace ds::Api::DiffSinger::L1 {
     /// Identifies Level 1 of the singer contribution contract.
     inline constexpr int API_LEVEL = 1;
 
-    /// Identifies the extension that creates the DiffSinger synthesis pipeline.
-    inline constexpr char PIPELINE_EXTENSION_ID[] = "org.openvpi.svs.singer.DiffSinger.Pipeline";
-
     /// Contains the interpreted configuration of a DiffSinger singer contribution.
     class DiffSingerConfiguration : public srt::ContribConfiguration {
     public:
@@ -71,6 +68,16 @@ namespace ds::Api::DiffSinger::L1 {
 
     protected:
         using SingerPipelineExecInstance::SingerPipelineExecInstance;
+    };
+
+}
+
+namespace srt {
+
+    template <>
+    struct ContribSpecExtensionTraits<SingerSpec,
+                                      ds::Api::DiffSinger::L1::DiffSingerPipelineExecInstance> {
+        inline static constexpr char ID[] = "org.openvpi.svs.inference.Pipeline";
     };
 
 }

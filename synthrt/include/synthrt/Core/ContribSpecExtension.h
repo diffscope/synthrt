@@ -12,6 +12,10 @@ namespace srt {
 
     class ContribSpec;
 
+    /// Maps a contribution declaration type and an execution instance type to an extension ID.
+    template <class Spec, class ExecInstance>
+    struct ContribSpecExtensionTraits;
+
     /// Adds library defined behavior to one loaded contribution declaration.
     ///
     /// Extensions are created after imports and their execution factories are prepared. The
@@ -25,6 +29,13 @@ namespace srt {
 
         /// Returns the contribution extended by this object.
         ContribSpec &spec() const;
+
+        /// Finds the extension associated with an execution instance type in a spec.
+        template <class ExecInstance, class Spec>
+        static ContribSpecExtension *findFromSpec(const Spec &spec) {
+            using Traits = ContribSpecExtensionTraits<Spec, ExecInstance>;
+            return spec.findExtension(Traits::ID);
+        }
 
         SYNTHRT_DECLARE_AS_METHODS(ContribSpecExtension)
 

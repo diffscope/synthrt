@@ -20,7 +20,10 @@ namespace ds {
         class DiffSingerPipelineExtension : public srt::SingerPipelineExtension {
         public:
             explicit DiffSingerPipelineExtension(srt::SingerSpec &spec)
-                : SingerPipelineExtension(spec, Ds::PIPELINE_EXTENSION_ID) {
+                : SingerPipelineExtension(
+                      spec,
+                      srt::ContribSpecExtensionTraits<srt::SingerSpec,
+                                                      Ds::DiffSingerPipelineExecInstance>::ID) {
             }
 
             srt::Expected<std::unique_ptr<srt::SingerPipelineExecInstance>>
@@ -212,4 +215,7 @@ namespace ds {
 }
 
 static srt::ContribSpecExtensionFactoryRegistry::Add<ds::DiffSingerPipelineExtensionFactory>
-    diffSingerPipelineExtensionRegistration("org.openvpi.svs.singer.DiffSinger.Pipeline", "");
+    diffSingerPipelineExtensionRegistration(
+        srt::ContribSpecExtensionTraits<
+            srt::SingerSpec, ds::Api::DiffSinger::L1::DiffSingerPipelineExecInstance>::ID,
+        "");
