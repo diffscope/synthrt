@@ -16,7 +16,7 @@
 namespace ds::Api::Pitch::L1 {
 
     /// Identifies the pitch inference contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.PitchInference";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.inference.Pitch";
 
     /// Identifies the ONNX implementation variant.
     inline constexpr char API_VARIANT[] = "onnx";

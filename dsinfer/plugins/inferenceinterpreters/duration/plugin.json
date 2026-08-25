@@ -1,10 +1,10 @@
 {
-    "iid": "org.openvpi.InferenceInterpreter",
+    "iid": "org.openvpi.synthrt.interp.InferenceInterpreter",
     "name": "duration",
     "metadata": {
         "interpreters": [
             {
-                "interface": "org.openvpi.svs.DurationInference",
+                "interface": "org.openvpi.svs.inference.Duration",
                 "level": 1,
                 "variant": "onnx"
             }

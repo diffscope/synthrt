@@ -77,7 +77,7 @@ Module Category 的条目使用 `path` 指向声明文件。公共 envelope 为�
 ```json
 {
   "name": "Acoustic Model",
-  "interface": "org.openvpi.svs.Acoustic",
+  "interface": "org.openvpi.svs.inference.Acoustic",
   "level": 1,
   "variant": "openvpi",
   "exports": {},
@@ -373,12 +373,12 @@ Prepared -> Active -> Closed
 
 ```json
 {
-  "iid": "org.openvpi.InferenceInterpreter",
+  "iid": "org.openvpi.synthrt.interp.InferenceInterpreter",
   "name": "acoustic",
   "metadata": {
     "interpreters": [
       {
-        "interface": "org.openvpi.svs.Acoustic",
+        "interface": "org.openvpi.svs.inference.Acoustic",
         "level": 1,
         "variant": "openvpi"
       }
@@ -389,8 +389,8 @@ Prepared -> Active -> Closed
 
 `iid` 由 Category 决定。内置值为：
 
-- inference：`org.openvpi.InferenceInterpreter`
-- singer：`org.openvpi.SingerProvider`
+- inference：`org.openvpi.synthrt.interp.InferenceInterpreter`
+- singer：`org.openvpi.synthrt.interp.SingerProvider`
 
 `name` 是同目录动态库的跨平台中立名称。Loader 在 Probe 只读 metadata。Acquire 加载库后，调用 `ContribInterpreterPlugin::create(interface, level, variant)`。
 

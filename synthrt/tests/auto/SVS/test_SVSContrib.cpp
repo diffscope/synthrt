@@ -95,14 +95,14 @@ namespace {
 
     class TestRuntimeOptions final : public srt::InferenceRuntimeOptions {
     public:
-        TestRuntimeOptions() : InferenceRuntimeOptions("org.openvpi.Acoustic", "default", 1) {
+        TestRuntimeOptions() : InferenceRuntimeOptions("com.example.svs.Acoustic", "default", 1) {
         }
     };
 
     class TestSingerPipelineRuntimeOptions final : public srt::SingerPipelineRuntimeOptions {
     public:
         TestSingerPipelineRuntimeOptions()
-            : SingerPipelineRuntimeOptions("org.openvpi.Singer", "test", 1) {
+            : SingerPipelineRuntimeOptions("com.example.svs.Singer", "test", 1) {
         }
     };
 
@@ -142,12 +142,12 @@ BOOST_AUTO_TEST_SUITE(test_SVSContrib)
 BOOST_AUTO_TEST_CASE(test_runtime_options_carry_contract_identity) {
     TestRuntimeOptions options;
 
-    BOOST_CHECK_EQUAL(options.interface(), "org.openvpi.Acoustic");
+    BOOST_CHECK_EQUAL(options.interface(), "com.example.svs.Acoustic");
     BOOST_CHECK_EQUAL(options.variant(), "default");
     BOOST_CHECK_EQUAL(options.level(), 1);
 
     TestSingerPipelineRuntimeOptions singerOptions;
-    BOOST_CHECK_EQUAL(singerOptions.interface(), "org.openvpi.Singer");
+    BOOST_CHECK_EQUAL(singerOptions.interface(), "com.example.svs.Singer");
     BOOST_CHECK_EQUAL(singerOptions.variant(), "test");
     BOOST_CHECK_EQUAL(singerOptions.level(), 1);
 }
@@ -168,7 +168,7 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
               })");
     writeText(root / "modules" / "inference.json",
               R"({
-                  "interface":"org.openvpi.Acoustic",
+                  "interface":"com.example.svs.Acoustic",
                   "variant":"default",
                   "level":1,
                   "exports":{},
@@ -176,7 +176,7 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
               })");
     writeText(root / "modules" / "singer.json",
               R"({
-                  "interface":"org.openvpi.Singer",
+                  "interface":"com.example.svs.Singer",
                   "variant":"diffsinger",
                   "level":1,
                   "avatar":{"_":"../assets/singer1/avatar.png","zh-CN":"../assets/singer1/avatar-zh.png"},
@@ -198,7 +198,7 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
     auto *inference = inferenceContribution->as<srt::InferenceSpec>();
     BOOST_REQUIRE(inference);
     BOOST_CHECK(inference->declarationPath() == root / "modules" / "inference.json");
-    BOOST_CHECK_EQUAL(inference->interface(), "org.openvpi.Acoustic");
+    BOOST_CHECK_EQUAL(inference->interface(), "com.example.svs.Acoustic");
 
     auto *singerContribution = package.contribution("singer", "singer1");
     BOOST_REQUIRE(singerContribution);

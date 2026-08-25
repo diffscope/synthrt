@@ -13,7 +13,7 @@
 namespace ds::Api::DiffSinger::L1 {
 
     /// Identifies the DiffSinger contribution contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.DiffSinger";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.singer.DiffSinger";
 
     /// Identifies the OpenVPI DiffSinger implementation variant.
     inline constexpr char API_VARIANT[] = "openvpi";

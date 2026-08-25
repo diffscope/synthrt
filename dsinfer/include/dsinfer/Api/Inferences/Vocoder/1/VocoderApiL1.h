@@ -13,7 +13,7 @@
 namespace ds::Api::Vocoder::L1 {
 
     /// Identifies the vocoder inference contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.VocoderInference";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.inference.Vocoder";
 
     /// Identifies the ONNX implementation variant.
     inline constexpr char API_VARIANT[] = "onnx";

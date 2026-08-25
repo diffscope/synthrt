@@ -16,7 +16,7 @@
 namespace ds::Api::Duration::L1 {
 
     /// Identifies the duration inference contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.DurationInference";
+    inline constexpr char API_INTERFACE[] = "org.openvpi.svs.inference.Duration";
 
     /// Identifies the ONNX implementation variant.
     inline constexpr char API_VARIANT[] = "onnx";

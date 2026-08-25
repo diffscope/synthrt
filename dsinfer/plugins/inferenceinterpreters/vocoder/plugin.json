@@ -1,10 +1,10 @@
 {
-    "iid": "org.openvpi.InferenceInterpreter",
+    "iid": "org.openvpi.synthrt.interp.InferenceInterpreter",
     "name": "vocoder",
     "metadata": {
         "interpreters": [
             {
-                "interface": "org.openvpi.svs.VocoderInference",
+                "interface": "org.openvpi.svs.inference.Vocoder",
                 "level": 1,
                 "variant": "onnx"
             }

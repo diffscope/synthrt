@@ -8,7 +8,7 @@ namespace srt {
     /// The plugin extension point used by the \c inference category.
     class InferenceInterpreterPlugin : public ContribInterpreterPlugin {
     public:
-        static constexpr const char *IID = "org.openvpi.InferenceInterpreter";
+        static constexpr const char *IID = "org.openvpi.synthrt.interp.InferenceInterpreter";
 
         ~InferenceInterpreterPlugin() = default;
 

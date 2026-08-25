@@ -6,11 +6,11 @@
 
 | Interface | Level | Reference variant | Description |
 | :-- | --: | :-- | :-- |
-| `org.openvpi.svs.DurationInference` | 1 | `onnx` | 音素时长预测 |
-| `org.openvpi.svs.PitchInference` | 1 | `onnx` | 音高预测 |
-| `org.openvpi.svs.VarianceInference` | 1 | `onnx` | 唱法参数预测 |
-| `org.openvpi.svs.AcousticInference` | 1 | `onnx` | 声学特征生成 |
-| `org.openvpi.svs.VocoderInference` | 1 | `onnx` | 波形生成 |
+| `org.openvpi.svs.inference.Duration` | 1 | `onnx` | 音素时长预测 |
+| `org.openvpi.svs.inference.Pitch` | 1 | `onnx` | 音高预测 |
+| `org.openvpi.svs.inference.Variance` | 1 | `onnx` | 唱法参数预测 |
+| `org.openvpi.svs.inference.Acoustic` | 1 | `onnx` | 声学特征生成 |
+| `org.openvpi.svs.inference.Vocoder` | 1 | `onnx` | 波形生成 |
 
 ## 前置说明
 
@@ -27,7 +27,7 @@
 
 DiffSinger Level 1 Singer 必须分别以`acoustic`和`vocoder` role 导入 Acoustic 与 Vocoder Level 1 contribution。Package 加载时必须验证 Vocoder 能够消费 Acoustic 的输出。当前`onnx` variant 要求两者 configuration 中的`sampleRate`、`hopSize`、`winSize`、`fftSize`、`melChannels`、`melMinFreq`、`melMaxFreq`、`melBase`和`melScale`全部相同，不满足时整个 Package 加载失败。
 
-## `org.openvpi.svs.DurationInference`
+## `org.openvpi.svs.inference.Duration`
 
 ### Exports
 
@@ -75,7 +75,7 @@ DiffSinger Level 1 Singer 必须分别以`acoustic`和`vocoder` role 导入 Acou
 
 [2] 该输入绑定到 encoder.outputs.x_masks
 
-## `org.openvpi.svs.PitchInference`
+## `org.openvpi.svs.inference.Pitch`
 
 ### Exports
 
@@ -133,7 +133,7 @@ DiffSinger Level 1 Singer 必须分别以`acoustic`和`vocoder` role 导入 Acou
 
 [1] 该输入绑定到encoder.outputs.encoder_out
 
-## `org.openvpi.svs.VarianceInference`
+## `org.openvpi.svs.inference.Variance`
 
 ### Exports
 
@@ -195,7 +195,7 @@ DiffSinger Level 1 Singer 必须分别以`acoustic`和`vocoder` role 导入 Acou
 
 [1] 该输入绑定到 encoder.outputs.encoder_out
 
-## `org.openvpi.svs.AcousticInference`
+## `org.openvpi.svs.inference.Acoustic`
 
 ### Exports
 
@@ -258,7 +258,7 @@ DiffSinger Level 1 Singer 必须分别以`acoustic`和`vocoder` role 导入 Acou
 |    steps    | input  |  int64  |            scalar            |       采样步数       |               useContinuousAcceleration == true                |
 |     mel     | output | float32 | (1, n_frames, `melChannels`) |       梅尔频谱       |                               -                                |
 
-## `org.openvpi.svs.VocoderInference`
+## `org.openvpi.svs.inference.Vocoder`
 
 ### Exports
 

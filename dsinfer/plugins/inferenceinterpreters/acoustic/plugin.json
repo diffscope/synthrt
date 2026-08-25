@@ -1,10 +1,10 @@
 {
-    "iid": "org.openvpi.InferenceInterpreter",
+    "iid": "org.openvpi.synthrt.interp.InferenceInterpreter",
     "name": "acoustic",
     "metadata": {
         "interpreters": [
             {
-                "interface": "org.openvpi.svs.AcousticInference",
+                "interface": "org.openvpi.svs.inference.Acoustic",
                 "level": 1,
                 "variant": "onnx"
             }

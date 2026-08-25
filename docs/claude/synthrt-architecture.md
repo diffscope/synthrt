@@ -226,10 +226,10 @@ flowchart TB
 
 | IID | 接口 | 谁实现 |
 |---|---|---|
-| `org.openvpi.InferenceInterpreter` | `InferenceInterpreterPlugin` | dsinfer：acoustic / duration / pitch / variance / vocoder |
-| `org.openvpi.SingerProvider` | `SingerProviderPlugin` | dsinfer：diffsinger |
-| `org.openvpi.InferenceDriver` | `InferenceDriverPlugin`（**定义在 dsinfer**） | dsinfer：onnxdriver |
-| `org.openvpi.LanguageProvider` | `LanguageProviderPlugin`（**定义在 wolf**） | wolf：cmn |
+| `org.openvpi.synthrt.interp.InferenceInterpreter` | `InferenceInterpreterPlugin` | dsinfer：acoustic / duration / pitch / variance / vocoder |
+| `org.openvpi.synthrt.interp.SingerProvider` | `SingerProviderPlugin` | dsinfer：diffsinger |
+| `org.openvpi.dsinfer.service.InferenceDriver` | `InferenceDriverPlugin`（**定义在 dsinfer**） | dsinfer：onnxdriver |
+| `org.openvpi.synthrt.interp.LanguageProvider` | `LanguageProviderPlugin`（**定义在 wolf**） | wolf：cmn |
 
 后两个说明扩展点本身也是可扩展的：**一个 IID 由谁定义，与它被谁加载无关**，
 `PluginFactory::plugin<T>(key)` 只认 `T::IID`。
