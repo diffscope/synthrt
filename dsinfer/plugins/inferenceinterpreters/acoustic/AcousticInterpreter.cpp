@@ -235,11 +235,11 @@ namespace ds {
         return std::move(result);
     }
 
-    srt::Expected<std::unique_ptr<srt::Inference>>
+    srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
         AcousticInterpreter::createInference(srt::InferenceSpec &spec,
                                              const srt::ContribImportOptions &,
                                              const srt::InferenceRuntimeOptions &) {
-        return std::unique_ptr<srt::Inference>(new AcousticInference(spec));
+        return std::unique_ptr<srt::InferenceExecInstance>(new AcousticInference(spec));
     }
 
 }

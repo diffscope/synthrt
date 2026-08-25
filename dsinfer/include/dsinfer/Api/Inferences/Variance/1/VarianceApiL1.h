@@ -8,7 +8,7 @@
 #include <filesystem>
 
 #include <synthrt/SVS/InferenceContrib.h>
-#include <synthrt/SVS/Inference.h>
+#include <synthrt/SVS/InferenceExecInstance.h>
 
 #include <dsinfer/Core/ParamTag.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>

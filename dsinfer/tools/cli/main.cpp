@@ -11,7 +11,7 @@
 #include <synthrt/Support/Logging.h>
 #include <synthrt/SVS/SingerContrib.h>
 #include <synthrt/SVS/InferenceContrib.h>
-#include <synthrt/SVS/Inference.h>
+#include <synthrt/SVS/InferenceExecInstance.h>
 
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceDriverFactory.h>
@@ -318,7 +318,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
 
     // Run duration
     {
-        std::unique_ptr<srt::Inference> inference;
+        std::unique_ptr<srt::InferenceExecInstance> inference;
         if (auto exp = importDuration.inference->createInference(*importDuration.options,
                                                                  Dur::DurationRuntimeOptions());
             !exp) {
@@ -373,7 +373,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
 
     // Run pitch
     {
-        std::unique_ptr<srt::Inference> inference;
+        std::unique_ptr<srt::InferenceExecInstance> inference;
         if (auto exp = importPitch.inference->createInference(*importPitch.options,
                                                               Pit::PitchRuntimeOptions());
             !exp) {
@@ -436,7 +436,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
 
     // Run variance
     {
-        std::unique_ptr<srt::Inference> inference;
+        std::unique_ptr<srt::InferenceExecInstance> inference;
         const auto schema = importVariance.inference->exports()->as<Var::VarianceSchema>();
         if (auto exp = importVariance.inference->createInference(*importVariance.options,
                                                                  Var::VarianceRuntimeOptions());
@@ -521,7 +521,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
     std::shared_ptr<ds::ITensor> f0;
     {
         // Prepare
-        std::unique_ptr<srt::Inference> inference;
+        std::unique_ptr<srt::InferenceExecInstance> inference;
         if (auto exp = importAcoustic.inference->createInference(*importAcoustic.options,
                                                                  Ac::AcousticRuntimeOptions());
             !exp) {
@@ -556,7 +556,7 @@ static int exec(const fs::path &packagePath, const fs::path &inputPath,
     std::vector<uint8_t> audioData;
     {
         // Prepare
-        std::unique_ptr<srt::Inference> inference;
+        std::unique_ptr<srt::InferenceExecInstance> inference;
         if (auto exp = importVocoder.inference->createInference(*importVocoder.options,
                                                                 Vo::VocoderRuntimeOptions());
             !exp) {

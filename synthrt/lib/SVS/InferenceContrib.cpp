@@ -46,7 +46,7 @@ namespace srt {
         return m_declarationPath;
     }
 
-    Expected<std::unique_ptr<Inference>>
+    Expected<std::unique_ptr<InferenceExecInstance>>
         InferenceSpec::createInference(const ContribImportOptions &importOptions,
                                        const InferenceRuntimeOptions &runtimeOptions) {
         auto *value = interpreter();

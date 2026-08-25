@@ -4,14 +4,14 @@
 #include <memory>
 #include <shared_mutex>
 
-#include <synthrt/SVS/Inference.h>
+#include <synthrt/SVS/InferenceExecInstance.h>
 
 namespace ds {
 
     class InferenceDriver;
     class InferenceSession;
 
-    class AcousticInference : public srt::Inference {
+    class AcousticInference : public srt::InferenceExecInstance {
     public:
         explicit AcousticInference(srt::InferenceSpec &spec);
         ~AcousticInference();

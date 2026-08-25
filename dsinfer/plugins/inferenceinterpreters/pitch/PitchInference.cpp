@@ -45,7 +45,7 @@ namespace ds {
         return static_cast<const Pit::PitchConfiguration *>(genericConfig);
     }
 
-    PitchInference::PitchInference(srt::InferenceSpec &spec) : Inference(spec) {
+    PitchInference::PitchInference(srt::InferenceSpec &spec) : InferenceExecInstance(spec) {
     }
 
     PitchInference::~PitchInference() = default;

@@ -44,7 +44,7 @@ namespace ds {
         return static_cast<const Ac::AcousticConfiguration *>(genericConfig);
     }
 
-    AcousticInference::AcousticInference(srt::InferenceSpec &spec) : Inference(spec) {
+    AcousticInference::AcousticInference(srt::InferenceSpec &spec) : InferenceExecInstance(spec) {
     }
 
     AcousticInference::~AcousticInference() = default;

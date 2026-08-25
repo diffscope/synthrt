@@ -93,7 +93,7 @@ namespace ds {
         }
     }
 
-    DurationInference::DurationInference(srt::InferenceSpec &spec) : Inference(spec) {
+    DurationInference::DurationInference(srt::InferenceSpec &spec) : InferenceExecInstance(spec) {
     }
 
     DurationInference::~DurationInference() = default;

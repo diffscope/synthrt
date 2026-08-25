@@ -4,14 +4,14 @@
 #include <memory>
 #include <shared_mutex>
 
-#include <synthrt/SVS/Inference.h>
+#include <synthrt/SVS/InferenceExecInstance.h>
 
 namespace ds {
 
     class InferenceDriver;
     class InferenceSession;
 
-    class PitchInference : public srt::Inference {
+    class PitchInference : public srt::InferenceExecInstance {
     public:
         explicit PitchInference(srt::InferenceSpec &spec);
         ~PitchInference();

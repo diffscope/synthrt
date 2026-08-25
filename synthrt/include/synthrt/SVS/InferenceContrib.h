@@ -11,7 +11,7 @@
 
 namespace srt {
 
-    class Inference;
+    class InferenceExecInstance;
     class InferenceRuntimeOptions;
 
     /// The immutable declaration of one inference contribution.
@@ -23,7 +23,7 @@ namespace srt {
         const std::filesystem::path &declarationPath() const;
 
         /// Creates one execution instance using the interpreter selected during Package load.
-        Expected<std::unique_ptr<Inference>>
+        Expected<std::unique_ptr<InferenceExecInstance>>
             createInference(const ContribImportOptions &importOptions,
                             const InferenceRuntimeOptions &runtimeOptions);
 

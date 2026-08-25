@@ -35,7 +35,7 @@ namespace ds {
         return static_cast<const Vo::VocoderConfiguration *>(genericConfig);
     }
 
-    VocoderInference::VocoderInference(srt::InferenceSpec &spec) : Inference(spec) {
+    VocoderInference::VocoderInference(srt::InferenceSpec &spec) : InferenceExecInstance(spec) {
     }
 
     VocoderInference::~VocoderInference() = default;

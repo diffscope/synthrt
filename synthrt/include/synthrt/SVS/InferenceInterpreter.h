@@ -5,7 +5,7 @@
 
 #include <synthrt/Core/ContribInterpreter.h>
 #include <synthrt/Core/ContribSpecPayload.h>
-#include <synthrt/SVS/Inference.h>
+#include <synthrt/SVS/InferenceExecInstance.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
@@ -24,7 +24,7 @@ namespace srt {
                                 ContribSpec &target,
                                 std::unique_ptr<ContribImportOptions> options) const override;
 
-        virtual Expected<std::unique_ptr<Inference>>
+        virtual Expected<std::unique_ptr<InferenceExecInstance>>
             createInference(InferenceSpec &spec, const ContribImportOptions &importOptions,
                             const InferenceRuntimeOptions &runtimeOptions) = 0;
 
