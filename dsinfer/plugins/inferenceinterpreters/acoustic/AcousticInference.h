@@ -2,34 +2,33 @@
 #define DSINFER_ACOUSTICINFERENCE_H
 
 #include <memory>
-#include <shared_mutex>
 
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
+
+#include "AcousticTask.h"
 
 namespace ds {
 
-    class InferenceDriver;
-    class InferenceSession;
-
-    class AcousticInference : public srt::InferenceExecInstance {
+    class AcousticInference : public Api::Acoustic::L1::AcousticExecInstance {
     public:
         explicit AcousticInference(srt::InferenceSpec &spec);
         ~AcousticInference();
 
     public:
-        srt::Expected<void> initialize(const srt::TaskInitArgs &args) override;
+        srt::Expected<void> initialize(const Api::Acoustic::L1::AcousticInitArgs &args) override;
 
-        srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &input) override;
-        srt::Expected<void> startAsync(std::shared_ptr<const srt::TaskStartInput> input,
-                                       AsyncCallback callback) override;
+        srt::Expected<std::unique_ptr<Api::Acoustic::L1::AcousticResult>>
+            start(const Api::Acoustic::L1::AcousticStartInput &input) override;
+        srt::Expected<void>
+            startAsync(std::shared_ptr<const Api::Acoustic::L1::AcousticStartInput> input,
+                       AsyncCallback callback) override;
+
+        srt::ITask::State state() const noexcept override;
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
     private:
-        InferenceDriver *m_driver = nullptr;
-        std::unique_ptr<InferenceSession> m_session;
-        mutable std::shared_mutex m_mutex;
+        mutable AcousticTask m_task;
     };
 
 }
