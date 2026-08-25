@@ -28,20 +28,21 @@ namespace {
     constexpr const char *testInterpreterIid = "com.example.TestInterpreter";
     constexpr const char *testInterface = "com.example.Contract";
     constexpr const char *testExtensionId = "com.example.TestExtension";
+    constexpr const char *testSecondExtensionId = "com.example.SecondTestExtension";
 
     int pluginCreateCount = 0;
     int exportsCount = 0;
     int configurationCount = 0;
     int optionsCount = 0;
-    int validationCount = 0;
     int bindingCreateCount = 0;
     int bindingActivateCount = 0;
     int bindingCloseCount = 0;
     int bindingWaitCount = 0;
-    bool rejectImports = false;
     bool returnWrongPayloadIdentity = false;
+    int preparedImportValidationCount = 0;
     int extensionCreateCount = 0;
-    bool extensionSawPreparedImports = false;
+    bool rejectPreparedImports = false;
+    bool validatorSawPreparedImports = false;
 
     class TestExports final : public srt::ContribExports {
     public:
@@ -156,6 +157,12 @@ namespace {
 
     class TestInterpreter final : public srt::ContribInterpreter {
     public:
+        srt::Expected<std::vector<std::unique_ptr<srt::ContribImportValidator>>>
+            createImportValidators() const override;
+
+        srt::Expected<std::vector<std::unique_ptr<srt::ContribSpecExtension>>>
+            createExtensions(srt::ContribSpec &spec) const override;
+
         srt::Expected<std::unique_ptr<srt::ContribExports>>
             createExports(const srt::ContribSpec &) const override {
             ++exportsCount;
@@ -172,19 +179,6 @@ namespace {
             createImportOptions(const srt::ContribSpec &, const srt::JsonValue &) const override {
             ++optionsCount;
             return std::unique_ptr<srt::ContribImportOptions>(new TestOptions());
-        }
-
-        srt::Expected<void> validateImports(const srt::ContribSpec &spec) const override {
-            ++validationCount;
-            if (rejectImports) {
-                return srt::Error(srt::Error::InvalidFormat, "test interpreter rejected imports");
-            }
-            for (const auto &item : spec.imports()) {
-                if (!item.options()) {
-                    return srt::Error(srt::Error::InvalidFormat, "test import was not interpreted");
-                }
-            }
-            return {};
         }
 
         srt::Expected<std::unique_ptr<srt::ContribImportBinding>>
@@ -218,27 +212,51 @@ namespace {
 
     class TestExtension final : public srt::ContribSpecExtension {
     public:
-        explicit TestExtension(srt::ContribSpec &spec)
-            : ContribSpecExtension(spec, testExtensionId) {
+        TestExtension(srt::ContribSpec &spec, std::string id)
+            : ContribSpecExtension(spec, std::move(id)) {
         }
     };
 
-    class TestExtensionFactory final : public srt::ContribSpecExtensionFactory {
+    class TestImportValidator final : public srt::ContribImportValidator {
     public:
-        bool matches(const srt::ContribSpec &spec) const noexcept override {
-            return spec.locator().category() == testCategoryName;
-        }
-
-        srt::Expected<std::unique_ptr<srt::ContribSpecExtension>>
-            create(srt::ContribSpec &spec) const override {
-            ++extensionCreateCount;
-            for (const auto &item : spec.imports()) {
-                extensionSawPreparedImports =
-                    extensionSawPreparedImports || (item.binding() && item.execFactory());
+        srt::Expected<void> validateImports(const srt::ContribSpec &spec) const override {
+            if (spec.locator().category() != testCategoryName) {
+                return {};
             }
-            return std::unique_ptr<srt::ContribSpecExtension>(new TestExtension(spec));
+            ++preparedImportValidationCount;
+            for (const auto &item : spec.imports()) {
+                if (!item.options() || !item.binding() || !item.execFactory()) {
+                    return srt::Error(srt::Error::InvalidFormat,
+                                      "test import was not fully prepared");
+                }
+                validatorSawPreparedImports = true;
+            }
+            if (rejectPreparedImports) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "test validator rejected prepared imports");
+            }
+            return {};
         }
     };
+
+    srt::Expected<std::vector<std::unique_ptr<srt::ContribImportValidator>>>
+        TestInterpreter::createImportValidators() const {
+        std::vector<std::unique_ptr<srt::ContribImportValidator>> result;
+        result.emplace_back(new TestImportValidator());
+        return result;
+    }
+
+    srt::Expected<std::vector<std::unique_ptr<srt::ContribSpecExtension>>>
+        TestInterpreter::createExtensions(srt::ContribSpec &spec) const {
+        std::vector<std::unique_ptr<srt::ContribSpecExtension>> result;
+        if (spec.locator().category() != testCategoryName) {
+            return result;
+        }
+        ++extensionCreateCount;
+        result.emplace_back(new TestExtension(spec, testExtensionId));
+        result.emplace_back(new TestExtension(spec, testSecondExtensionId));
+        return result;
+    }
 
     class TestCategory final : public srt::ContribCategory {
     public:
@@ -258,8 +276,6 @@ namespace {
     };
 
     srt::ContribCategoryRegistry::Add<TestCategory> testCategoryRegistration(testCategoryName, "");
-    srt::ContribSpecExtensionFactoryRegistry::Add<TestExtensionFactory>
-        testExtensionRegistration(testExtensionId, "");
 
     class EntrySpec final : public srt::ContribSpec {
     public:
@@ -555,13 +571,13 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     const auto oldExports = exportsCount;
     const auto oldConfiguration = configurationCount;
     const auto oldOptions = optionsCount;
-    const auto oldValidation = validationCount;
     const auto oldBindingCreate = bindingCreateCount;
     const auto oldBindingActivate = bindingActivateCount;
     const auto oldBindingClose = bindingCloseCount;
     const auto oldBindingWait = bindingWaitCount;
+    const auto oldPreparedImportValidation = preparedImportValidationCount;
     const auto oldExtensionCreate = extensionCreateCount;
-    extensionSawPreparedImports = false;
+    validatorSawPreparedImports = false;
 
     auto opened = unit.openPackage(root, srt::SynthUnit::Load);
     BOOST_REQUIRE(opened);
@@ -573,13 +589,14 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_REQUIRE(rootSpec);
     BOOST_CHECK(rootSpec->exports());
     BOOST_CHECK(rootSpec->configuration());
-    BOOST_REQUIRE_EQUAL(rootSpec->extensions().size(), 1u);
+    BOOST_REQUIRE_EQUAL(rootSpec->extensions().size(), 2u);
     auto *extension = rootSpec->findExtension(testExtensionId);
     BOOST_REQUIRE(extension);
     BOOST_CHECK(&extension->spec() == rootSpec);
     BOOST_CHECK_EQUAL(extension->id(), testExtensionId);
+    BOOST_CHECK(rootSpec->findExtension(testSecondExtensionId) != nullptr);
     BOOST_CHECK(extension->as<TestExtension>() != nullptr);
-    BOOST_CHECK(extensionSawPreparedImports);
+    BOOST_CHECK(validatorSawPreparedImports);
     BOOST_CHECK_EQUAL(rootSpec->exports()->interface(), testInterface);
     BOOST_CHECK_EQUAL(rootSpec->exports()->variant(), "test");
     BOOST_CHECK_EQUAL(rootSpec->exports()->level(), 1);
@@ -641,9 +658,9 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK_EQUAL(exportsCount - oldExports, 2);
     BOOST_CHECK_EQUAL(configurationCount - oldConfiguration, 2);
     BOOST_CHECK_EQUAL(optionsCount - oldOptions, 2);
-    BOOST_CHECK_EQUAL(validationCount - oldValidation, 2);
     BOOST_CHECK_EQUAL(bindingCreateCount - oldBindingCreate, 2);
     BOOST_CHECK_EQUAL(bindingActivateCount - oldBindingActivate, 2);
+    BOOST_CHECK_EQUAL(preparedImportValidationCount - oldPreparedImportValidation, 2);
     BOOST_CHECK_EQUAL(extensionCreateCount - oldExtensionCreate, 2);
 
     auto openedAgain = unit.openPackage(root, srt::SynthUnit::Load);
@@ -751,23 +768,19 @@ BOOST_AUTO_TEST_CASE(test_manifest_profile_distinguishes_invalid_and_extensible_
     BOOST_CHECK(unit.loadedPackages().empty());
 }
 
-BOOST_AUTO_TEST_CASE(test_failed_validation_rolls_back_package_state) {
+BOOST_AUTO_TEST_CASE(test_failed_prepared_import_validation_rolls_back_package_state) {
     TemporaryDirectory temporary;
-    const auto packages = temporary.path() / "packages";
-    writePackage(packages, "dep", "dep", "1", "1");
-    const auto root =
-        writePackage(temporary.path(), "root", "root", "1", {}, R"([{"id":"dep","version":"1"}])",
-                     R"([{"role":"main","ref":"dep:com.example.test/main"}])");
+    const auto root = writePackage(temporary.path(), "root", "root", "1");
 
     auto unit = makeUnit();
-    const std::vector<fs::path> paths = {packages};
-    unit.setPackagePaths(paths);
-    rejectImports = true;
+    rejectPreparedImports = true;
     auto opened = unit.openPackage(root, srt::SynthUnit::Load);
-    rejectImports = false;
+    rejectPreparedImports = false;
 
     BOOST_REQUIRE(!opened);
     BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
+    BOOST_CHECK(opened.error().toString().find("prepared contribution imports") !=
+                std::string::npos);
     BOOST_CHECK(unit.loadedPackages().empty());
     BOOST_CHECK(unit.category(testCategoryName)->contributions().empty());
 }

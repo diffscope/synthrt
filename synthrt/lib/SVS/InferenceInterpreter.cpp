@@ -28,10 +28,6 @@ namespace srt {
 
     }
 
-    Expected<void> InferenceInterpreter::validateImports(const ContribSpec &) const {
-        return {};
-    }
-
     Expected<void> InferenceInterpreter::validateCompatibility(const InferenceSpec &,
                                                                const InferenceSpec &) const {
         return {};

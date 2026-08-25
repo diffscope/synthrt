@@ -2,6 +2,7 @@
 #define SYNTHRT_CONTRIBINTERPRETER_H
 
 #include <memory>
+#include <vector>
 
 #include <synthrt/Core/ContribImportBinding.h>
 #include <synthrt/Core/ContribSpec.h>
@@ -18,6 +19,20 @@ namespace srt {
     public:
         virtual ~ContribInterpreter() = default;
 
+        /// Creates the import validators made available by this interpreter.
+        virtual Expected<std::vector<std::unique_ptr<ContribImportValidator>>>
+            createImportValidators() const {
+            return std::vector<std::unique_ptr<ContribImportValidator>>();
+        }
+
+        /// Creates every extension supplied by this interpreter for a spec.
+        ///
+        /// Returns an empty collection when this interpreter does not extend a spec.
+        virtual Expected<std::vector<std::unique_ptr<ContribSpecExtension>>>
+            createExtensions(ContribSpec &spec) const {
+            return std::vector<std::unique_ptr<ContribSpecExtension>>();
+        }
+
         /// Interprets the manifest exports of \a spec.
         virtual Expected<std::unique_ptr<ContribExports>>
             createExports(const ContribSpec &spec) const = 0;
@@ -30,9 +45,6 @@ namespace srt {
         virtual Expected<std::unique_ptr<ContribImportOptions>>
             createImportOptions(const ContribSpec &target,
                                 const JsonValue &manifestOptions) const = 0;
-
-        /// Validates the interpreted, ordered imports of \a spec as one collection.
-        virtual Expected<void> validateImports(const ContribSpec &spec) const = 0;
 
         /// Creates a prepared runtime binding owned by \a importer.
         ///

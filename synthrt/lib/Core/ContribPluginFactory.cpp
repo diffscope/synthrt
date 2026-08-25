@@ -116,9 +116,36 @@ namespace srt {
                          "contribution interpreter plugin returned a null interpreter");
         }
 
+        auto validators = interpreter->createImportValidators();
+        if (!validators) {
+            return validators.takeError().withContext(
+                "contribution interpreter failed to create import validators");
+        }
+        auto preparedValidators = validators.take();
+        for (const auto &validator : preparedValidators) {
+            if (!validator) {
+                return Error(Error::InvalidFormat,
+                             "contribution interpreter returned a null import validator");
+            }
+        }
+
+        for (auto &validator : preparedValidators) {
+            m_importValidators.push_back(validator.get());
+            m_importValidatorData.push_back(std::move(validator));
+        }
+
         auto *value = interpreter.get();
+        m_interpreterViews.push_back(value);
         m_interpreters.emplace(std::move(key), std::move(interpreter));
         return value;
+    }
+
+    stdc::array_view<ContribInterpreter *> ContribPluginFactory::interpreters() const {
+        return m_interpreterViews;
+    }
+
+    stdc::array_view<ContribImportValidator *> ContribPluginFactory::importValidators() const {
+        return m_importValidators;
     }
 
 }

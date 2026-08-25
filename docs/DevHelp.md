@@ -290,15 +290,14 @@ Acquire 才真正加载 Provider 插件。一个已加载插件中的同一个�
 
 1. 用目标 Module 的解释器调用 `createImportOptions(target, manifestOptions)`。
 2. 校验 options payload 的三元组与目标 Module 一致。
-3. 用 importing Module 的解释器调用一次 `validateImports(spec)`，检查完整且保持声明顺序的 import 集合。
-4. 用 importing Module 的解释器调用 `createImportBinding(importer, declaration, target, options)`。
-5. 用目标 Category 调用 `createExecFactory(binding)`，把目标 Category 的运行时创建能力挂到该 role。
+3. 用 importing Module 的解释器调用 `createImportBinding(importer, declaration, target, options)`。
+4. 用目标 Category 调用 `createExecFactory(binding)`，把目标 Category 的运行时创建能力挂到该 role。
 
 这里有意把职责分开：目标解释器最懂自己的 options 契约，importing 解释器最懂多个 role 如何组合，目标 Category 最懂如何从目标 Spec 创建哪种 EI。
 
 Ready 产生的 Binding 处于 `Prepared`，不得开始业务执行。所有可能失败、分配或执行 I/O 的准备工作都必须在 Commit 前完成。
 
-Ready 内部明确分为两个 pass。`prepareImportBindings` 先为整个事务中的全部 import 创建 Binding 和 EI Factory。全部准备完成后，`attachSpecExtensions` 才调用 `ContribSpecExtensionFactoryRegistry`。Loader 先对每个工厂调用 `matches(spec)`，只对匹配的工厂调用 `create(spec)`。工厂可以检查完整 Spec，并返回一个由该 Spec 持有的 `ContribSpecExtension`。匹配后的工厂必须返回非空 Extension。Extension ID 在同一 Spec 内必须唯一，创建失败、返回空指针、ID 非法或重复都会使整个 Load 失败。
+Ready 内部明确分为三个 pass。解释器首次创建时可以通过 `createImportValidators()` 向当前 SynthUnit 提供零个或多个 Import Validator。第一遍为整个事务中的全部 import 创建 Binding 和 EI Factory。第二遍让每个 `ContribImportValidator` 检查所有 Spec 已经准备好的 options、Binding、EI Factory 以及跨 import 兼容性。第三遍对每个 Spec 调用每个已选中解释器的 `createExtensions(spec)`，解释器不扩展该 Spec 时返回空 vector，适用时可以一次返回一个或多个 Extension。Import Validator 与 Extension 创建是相互独立的职责，一个验证器不必创建 Extension。每个 Extension 均由对应 Spec 持有，其 ID 在同一 Spec 内必须唯一。验证失败、创建失败、返回空指针、ID 非法或重复都会使整个 Load 失败。
 
 Extension 是加载后附加到 Spec 的类型化能力，不是新的 Contribution，也不改变原 Spec 的清单身份。DataOnly 不创建 Extension。Extension 可以保存对 Spec、Binding 和 EI Factory 的非拥有引用，但不能在 Commit 前启动业务执行。Extension 在其引用的 import 数据之前销毁。
 
@@ -407,7 +406,7 @@ Prepared -> Active -> Closed
 - `createExports()`：把目标 Spec 的 manifest exports 转成派生自 `ContribExports` 的对象。
 - `createConfiguration()`：把 configuration 转成派生自 `ContribConfiguration` 的对象。
 - `createImportOptions()`：为一个指向该契约的 import 解析 options。
-- `validateImports()`：检查 importing Spec 的完整 import 集合。
+- `createImportValidators()`：创建在 Ready 第二遍检查完整 Prepared import 图的验证器。
 - `createImportBinding()`：建立 importing Spec 到目标 Spec 的 Prepared 连接。
 - Category 或更具体的解释器接口提供实际 EI 创建入口。
 
@@ -503,13 +502,13 @@ Factory 的 `create(runtimeOptions)` 必须验证 runtime options 的三元组�
 
 `InferenceSpec::validateCompatibilityWith(other)` 是有方向的检查，由当前 Spec 的解释器执行。默认 `InferenceInterpreter::validateCompatibility()` 接受所有组合，只有存在跨模型约束的契约需要覆盖。
 
-当前 DiffSinger Provider 要求 acoustic 和 vocoder role 存在，并调用 vocoder 的兼容性检查验证其能否消费 acoustic 输出。该检查发生在 Ready 的 `validateImports()` 中，因此不兼容 Package 会在 Load 阶段失败，而不是运行到一半才失败。
+当前 DiffSinger Import Validator 要求 acoustic 和 vocoder role 存在，并调用 vocoder 的兼容性检查验证其能否消费 acoustic 输出。该检查发生在 Ready 第二遍，此时所有 import 已经具有 Binding 和 EI Factory。因此不兼容 Package 会在 Load 阶段失败，而不是运行到一半才失败。
 
 ### 9.3 Singer Pipeline
 
-Singer Pipeline 由 `SingerPipelineExtension` 创建，不再由 `SingerSpec` 或选中的 `SingerProvider` 独占创建。Provider 插件和链接时可用的其他库都可以注册 `ContribSpecExtensionFactory`。Factory 在 Ready 的最后一遍全局处理中检查 SingerSpec 的完整 imports，并按需附加 Pipeline Extension。返回的 `SingerPipelineExecInstance` 是根 EI，它通过已经聚合的 import role 创建子 EI。
+Singer Pipeline 由 `SingerPipelineExtension` 创建，不再由 `SingerSpec` 独占创建。Loader 在 Ready 的最后一遍调用每个已选中 Interpreter 的 `createExtensions(spec)`。例如 DiffSinger Provider 可以为自身契约的 Singer 提供 Pipeline，Wolf Language Provider 也可以为导入语言 Contribution 的 Singer 提供独立 Pipeline。解释器不适用时返回空 vector，适用时按需附加一个或多个 Pipeline Extension。返回的 `SingerPipelineExecInstance` 是根 EI，它通过已经聚合的 import role 创建子 EI。
 
-DiffSinger Level 1 的类型化 Pipeline 当前公开 duration、pitch、variance、acoustic 和 vocoder 创建函数。`DiffSingerProvider::validateImports()` 中 acoustic 和 vocoder 是必需 role，其他三个可以省略。调用一个清单未声明的可选 role 时，创建函数会返回错误，调用者必须按自己的工作流决定是否需要它。
+DiffSinger Level 1 的类型化 Pipeline 当前公开 duration、pitch、variance、acoustic 和 vocoder 创建函数。`DiffSingerImportValidator` 将 acoustic 和 vocoder 视为必需 role，其他三个可以省略。调用一个清单未声明的可选 role 时，创建函数会返回错误，调用者必须按自己的工作流决定是否需要它。
 
 典型调用为：
 
@@ -677,6 +676,12 @@ Category 的 `createExecFactory()` 返回 `LanguageExecFactory`。Factory 使用
 ```cpp
 class LanguageInterpreter : public srt::ContribInterpreter {
 public:
+    srt::Expected<std::vector<std::unique_ptr<srt::ContribImportValidator>>>
+        createImportValidators() const override;
+
+    srt::Expected<std::vector<std::unique_ptr<srt::ContribSpecExtension>>>
+        createExtensions(srt::ContribSpec &spec) const override;
+
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         createExports(const srt::ContribSpec &spec) const override;
 
@@ -686,8 +691,6 @@ public:
     srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
         createImportOptions(const srt::ContribSpec &target,
                             const srt::JsonValue &manifestOptions) const override;
-
-    srt::Expected<void> validateImports(const srt::ContribSpec &spec) const override;
 
     srt::Expected<std::unique_ptr<srt::ContribImportBinding>>
         createImportBinding(srt::ContribSpec &importer,

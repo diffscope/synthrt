@@ -1,12 +1,9 @@
 #ifndef SYNTHRT_CONTRIBSPECEXTENSION_H
 #define SYNTHRT_CONTRIBSPECEXTENSION_H
 
-#include <memory>
 #include <string>
 
-#include <stdcorelib/support/staticregistry.h>
-
-#include <synthrt/Support/Expected.h>
+#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
@@ -49,30 +46,6 @@ namespace srt {
         STDC_DISABLE_COPY(ContribSpecExtension)
     };
 
-    /// Creates an extension for a matching contribution before Package Commit.
-    class ContribSpecExtensionFactory {
-    public:
-        virtual ~ContribSpecExtensionFactory() = default;
-
-        /// Returns whether this factory applies to a spec.
-        virtual bool matches(const ContribSpec &spec) const noexcept = 0;
-
-        /// Creates an extension for a matching spec.
-        virtual Expected<std::unique_ptr<ContribSpecExtension>> create(ContribSpec &spec) const = 0;
-
-    protected:
-        ContribSpecExtensionFactory() = default;
-
-        STDC_DISABLE_COPY(ContribSpecExtensionFactory)
-    };
-
-    /// The process wide registry of contribution extension factories available at Load time.
-    using ContribSpecExtensionFactoryRegistry = stdc::StaticRegistry<ContribSpecExtensionFactory>;
-
 }
-
-#if !defined(SYNTHRT_LIBRARY) && defined(_MSC_VER)
-extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribSpecExtensionFactory>;
-#endif
 
 #endif // SYNTHRT_CONTRIBSPECEXTENSION_H

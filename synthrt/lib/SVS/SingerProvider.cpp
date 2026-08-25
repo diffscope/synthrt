@@ -55,10 +55,6 @@ namespace srt {
         return std::unique_ptr<ContribImportOptions>(new SingerImportOptions(target));
     }
 
-    Expected<void> SingerProvider::validateImports(const ContribSpec &) const {
-        return {};
-    }
-
     Expected<std::unique_ptr<ContribImportBinding>>
         SingerProvider::createImportBinding(ContribSpec &importer, const ContribImport &declaration,
                                             ContribSpec &target,

@@ -866,11 +866,6 @@ namespace srt {
                             spec->_impl->importData.at(import.role()).options =
                                 std::move(typedOptions);
                         }
-                        auto validation = spec->_impl->interpreter->validateImports(*spec);
-                        if (!validation) {
-                            return validation.takeError().withContext(
-                                "module imports failed interpreter validation");
-                        }
                         for (auto &import : spec->_impl->imports) {
                             auto *target = resolveTarget(package, import.locator());
                             auto &importData = spec->_impl->importData.at(import.role());
@@ -901,6 +896,28 @@ namespace srt {
             return {};
         };
 
+        const auto validatePreparedImports = [&]() -> Expected<void> {
+            for (const auto &packageEntry : transaction) {
+                const auto &package = packageEntry.second;
+                if (package->loaded) {
+                    continue;
+                }
+                for (const auto &categoryEntry : package->contributions) {
+                    for (auto *spec : categoryEntry.second) {
+                        for (auto *validator :
+                             m_synthUnit->_impl->pluginFactory.importValidators()) {
+                            auto validation = validator->validateImports(*spec);
+                            if (!validation) {
+                                return validation.takeError().withContext(
+                                    "prepared contribution imports failed validation");
+                            }
+                        }
+                    }
+                }
+            }
+            return {};
+        };
+
         const auto attachSpecExtensions = [&]() -> Expected<void> {
             for (const auto &packageEntry : transaction) {
                 const auto &package = packageEntry.second;
@@ -909,42 +926,39 @@ namespace srt {
                 }
                 for (const auto &categoryEntry : package->contributions) {
                     for (auto *spec : categoryEntry.second) {
-                        for (const auto &entry : ContribSpecExtensionFactoryRegistry::entries()) {
-                            auto factory = entry.instantiate();
-                            if (!factory) {
-                                return Error(Error::InvalidFormat,
-                                             "contribution extension factory is null");
-                            }
-                            if (!factory->matches(*spec)) {
-                                continue;
-                            }
-                            auto extension = factory->create(*spec);
-                            if (!extension) {
-                                return extension.takeError().withContext(
+                        for (auto *interpreter : m_synthUnit->_impl->pluginFactory.interpreters()) {
+                            auto extensions = interpreter->createExtensions(*spec);
+                            if (!extensions) {
+                                return extensions.takeError().withContext(
                                     "contribution extension creation failed");
                             }
-                            auto preparedExtension = extension.take();
-                            if (!preparedExtension) {
-                                return Error(Error::InvalidFormat,
-                                             "contribution extension factory returned null");
+                            auto preparedExtensions = extensions.take();
+                            for (auto &preparedExtension : preparedExtensions) {
+                                if (!preparedExtension) {
+                                    return Error(
+                                        Error::InvalidFormat,
+                                        "contribution interpreter returned null extension");
+                                }
+                                if (&preparedExtension->spec() != spec) {
+                                    return Error(
+                                        Error::InvalidFormat,
+                                        "contribution extension targets another contribution");
+                                }
+                                if (!ContribLocator::isValidDottedId(preparedExtension->id())) {
+                                    return Error(
+                                        Error::InvalidFormat,
+                                        "contribution extension has an invalid identifier");
+                                }
+                                auto id = preparedExtension->id();
+                                auto *extensionPointer = preparedExtension.get();
+                                if (!spec->_impl->extensionData
+                                         .emplace(std::move(id), std::move(preparedExtension))
+                                         .second) {
+                                    return Error(Error::InvalidFormat,
+                                                 "contribution extension identifier is duplicated");
+                                }
+                                spec->_impl->extensions.push_back(extensionPointer);
                             }
-                            if (&preparedExtension->spec() != spec) {
-                                return Error(Error::InvalidFormat,
-                                             "contribution extension targets another contribution");
-                            }
-                            if (!ContribLocator::isValidDottedId(preparedExtension->id())) {
-                                return Error(Error::InvalidFormat,
-                                             "contribution extension has an invalid identifier");
-                            }
-                            auto id = preparedExtension->id();
-                            auto *extensionPointer = preparedExtension.get();
-                            if (!spec->_impl->extensionData
-                                     .emplace(std::move(id), std::move(preparedExtension))
-                                     .second) {
-                                return Error(Error::InvalidFormat,
-                                             "contribution extension identifier is duplicated");
-                            }
-                            spec->_impl->extensions.push_back(extensionPointer);
                         }
                     }
                 }
@@ -952,12 +966,17 @@ namespace srt {
             return {};
         };
 
-        // Ready pass 1 prepares every import before an extension can inspect the graph.
+        // Ready pass 1 prepares every import before validators or extensions inspect the graph.
         if (auto result = prepareImportBindings(); !result) {
             return result.takeError();
         }
 
-        // Ready pass 2 attaches extensions without exposing the uncommitted Packages.
+        // Ready pass 2 validates the complete prepared import graph.
+        if (auto result = validatePreparedImports(); !result) {
+            return result.takeError();
+        }
+
+        // Ready pass 3 attaches extensions without exposing the uncommitted Packages.
         if (auto result = attachSpecExtensions(); !result) {
             return result.takeError();
         }

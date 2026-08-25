@@ -14,6 +14,7 @@
 #include <synthrt/Core/ContribSpecPayload.h>
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Support/DisplayText.h>
+#include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
 
 namespace srt {
@@ -54,6 +55,20 @@ namespace srt {
     class PackageLoader;
 
     class ContribSpec;
+
+    /// Validates the prepared imports of a contribution before Package Commit.
+    class ContribImportValidator {
+    public:
+        virtual ~ContribImportValidator() = default;
+
+        /// Validates one contribution after all import bindings and execution factories exist.
+        virtual Expected<void> validateImports(const ContribSpec &spec) const = 0;
+
+    protected:
+        ContribImportValidator() = default;
+
+        STDC_DISABLE_COPY(ContribImportValidator)
+    };
 
     /// One ordered import declared by a contribution.
     ///

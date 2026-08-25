@@ -6,7 +6,7 @@
 #include <stdcorelib/path.h>
 
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
-#include <synthrt/Core/PackageHandle.h>
+#include <synthrt/Core/ContribImportBinding.h>
 #include <synthrt/SVS/InferenceContrib.h>
 
 #include "DiffSingerPipelineExecInstance.h"
@@ -16,6 +16,23 @@ namespace ds {
     namespace Ds = Api::DiffSinger::L1;
 
     namespace {
+
+        bool isDiffSingerSpec(const srt::ContribSpec &spec) {
+            return spec.locator().category() == "singer" && spec.interface() == Ds::API_INTERFACE &&
+                   spec.variant() == Ds::API_VARIANT && spec.level() == Ds::API_LEVEL;
+        }
+
+        srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec);
+
+        class DiffSingerImportValidator : public srt::ContribImportValidator {
+        public:
+            srt::Expected<void> validateImports(const srt::ContribSpec &spec) const override {
+                if (!isDiffSingerSpec(spec)) {
+                    return {};
+                }
+                return validateKnownImports(spec);
+            }
+        };
 
         class DiffSingerPipelineExtension : public srt::SingerPipelineExtension {
         public:
@@ -40,25 +57,11 @@ namespace ds {
             }
         };
 
-        class DiffSingerPipelineExtensionFactory : public srt::ContribSpecExtensionFactory {
-        public:
-            bool matches(const srt::ContribSpec &spec) const noexcept override {
-                return spec.locator().category() == "singer" &&
-                       spec.interface() == Ds::API_INTERFACE && spec.variant() == Ds::API_VARIANT &&
-                       spec.level() == Ds::API_LEVEL;
-            }
-
-            srt::Expected<std::unique_ptr<srt::ContribSpecExtension>>
-                create(srt::ContribSpec &spec) const override {
-                return std::unique_ptr<srt::ContribSpecExtension>(
-                    new DiffSingerPipelineExtension(*spec.as<srt::SingerSpec>()));
-            }
-        };
-
-        srt::Expected<srt::InferenceSpec *>
-            resolveKnownImport(const srt::ContribSpec &spec, const srt::PackageHandle &package,
-                               std::string_view role, std::string_view expectedInterface,
-                               std::string_view expectedVariant, int expectedLevel, bool required) {
+        srt::Expected<srt::InferenceSpec *> resolveKnownImport(const srt::ContribSpec &spec,
+                                                               std::string_view role,
+                                                               std::string_view expectedInterface,
+                                                               std::string_view expectedVariant,
+                                                               int expectedLevel, bool required) {
             const auto import = spec.findImport(role);
             if (!import) {
                 if (required) {
@@ -68,11 +71,15 @@ namespace ds {
                 }
                 return static_cast<srt::InferenceSpec *>(nullptr);
             }
-            auto *target = package.resolve(import->locator());
-            if (!target) {
-                return srt::Error(srt::Error::FileNotFound,
-                                  "DiffSinger inference import target is unavailable");
+            if (!import->binding()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "DiffSinger inference import has no prepared binding");
             }
+            if (!import->execFactory()) {
+                return srt::Error(srt::Error::FeatureNotSupported,
+                                  "DiffSinger inference import has no execution factory");
+            }
+            auto *target = &import->binding()->target();
             if (target->locator().category() != "inference" ||
                 target->interface() != expectedInterface || target->variant() != expectedVariant ||
                 target->level() != expectedLevel) {
@@ -84,34 +91,33 @@ namespace ds {
         }
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec) {
-            const auto package = spec.package();
-            auto duration = resolveKnownImport(
-                spec, package, "duration", Api::Duration::L1::API_INTERFACE,
-                Api::Duration::L1::API_VARIANT, Api::Duration::L1::API_LEVEL, false);
+            auto duration = resolveKnownImport(spec, "duration", Api::Duration::L1::API_INTERFACE,
+                                               Api::Duration::L1::API_VARIANT,
+                                               Api::Duration::L1::API_LEVEL, false);
             if (!duration) {
                 return duration.takeError();
             }
             auto pitch =
-                resolveKnownImport(spec, package, "pitch", Api::Pitch::L1::API_INTERFACE,
+                resolveKnownImport(spec, "pitch", Api::Pitch::L1::API_INTERFACE,
                                    Api::Pitch::L1::API_VARIANT, Api::Pitch::L1::API_LEVEL, false);
             if (!pitch) {
                 return pitch.takeError();
             }
-            auto variance = resolveKnownImport(
-                spec, package, "variance", Api::Variance::L1::API_INTERFACE,
-                Api::Variance::L1::API_VARIANT, Api::Variance::L1::API_LEVEL, false);
+            auto variance = resolveKnownImport(spec, "variance", Api::Variance::L1::API_INTERFACE,
+                                               Api::Variance::L1::API_VARIANT,
+                                               Api::Variance::L1::API_LEVEL, false);
             if (!variance) {
                 return variance.takeError();
             }
-            auto acoustic = resolveKnownImport(
-                spec, package, "acoustic", Api::Acoustic::L1::API_INTERFACE,
-                Api::Acoustic::L1::API_VARIANT, Api::Acoustic::L1::API_LEVEL, true);
+            auto acoustic = resolveKnownImport(spec, "acoustic", Api::Acoustic::L1::API_INTERFACE,
+                                               Api::Acoustic::L1::API_VARIANT,
+                                               Api::Acoustic::L1::API_LEVEL, true);
             if (!acoustic) {
                 return acoustic.takeError();
             }
-            auto vocoder = resolveKnownImport(
-                spec, package, "vocoder", Api::Vocoder::L1::API_INTERFACE,
-                Api::Vocoder::L1::API_VARIANT, Api::Vocoder::L1::API_LEVEL, true);
+            auto vocoder = resolveKnownImport(spec, "vocoder", Api::Vocoder::L1::API_INTERFACE,
+                                              Api::Vocoder::L1::API_VARIANT,
+                                              Api::Vocoder::L1::API_LEVEL, true);
             if (!vocoder) {
                 return vocoder.takeError();
             }
@@ -131,6 +137,22 @@ namespace ds {
     DiffSingerProvider::DiffSingerProvider() = default;
 
     DiffSingerProvider::~DiffSingerProvider() = default;
+
+    srt::Expected<std::vector<std::unique_ptr<srt::ContribImportValidator>>>
+        DiffSingerProvider::createImportValidators() const {
+        std::vector<std::unique_ptr<srt::ContribImportValidator>> result;
+        result.emplace_back(new DiffSingerImportValidator());
+        return result;
+    }
+
+    srt::Expected<std::vector<std::unique_ptr<srt::ContribSpecExtension>>>
+        DiffSingerProvider::createExtensions(srt::ContribSpec &spec) const {
+        std::vector<std::unique_ptr<srt::ContribSpecExtension>> result;
+        if (isDiffSingerSpec(spec)) {
+            result.emplace_back(new DiffSingerPipelineExtension(*spec.as<srt::SingerSpec>()));
+        }
+        return result;
+    }
 
     srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
         DiffSingerProvider::createConfiguration(const srt::ContribSpec &spec) const {
@@ -172,10 +194,6 @@ namespace ds {
         return std::unique_ptr<srt::ContribConfiguration>(std::move(result));
     }
 
-    srt::Expected<void> DiffSingerProvider::validateImports(const srt::ContribSpec &spec) const {
-        return validateKnownImports(spec);
-    }
-
     static inline std::string formatErrorMessage(const std::string &msgPrefix,
                                                  const stdc::vlarray<std::string> &errorList) {
         const std::string middlePart = " (";
@@ -213,9 +231,3 @@ namespace ds {
     }
 
 }
-
-static srt::ContribSpecExtensionFactoryRegistry::Add<ds::DiffSingerPipelineExtensionFactory>
-    diffSingerPipelineExtensionRegistration(
-        srt::ContribSpecExtensionTraits<
-            srt::SingerSpec, ds::Api::DiffSinger::L1::DiffSingerPipelineExecInstance>::ID,
-        "");
