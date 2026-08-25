@@ -3,6 +3,7 @@
 
 #include "ContribSpec.h"
 
+#include <map>
 #include <utility>
 
 #include <stdcorelib/adt/vlarray.h>
@@ -15,9 +16,9 @@
 
 namespace srt {
 
-    class ContribImportData {
+    class ContribImport::Data {
     public:
-        ContribImportData(std::string role, ContribLocator locator, JsonValue manifestOptions)
+        Data(std::string role, ContribLocator locator, JsonValue manifestOptions)
             : role(std::move(role)), locator(std::move(locator)),
               manifestOptions(std::move(manifestOptions)) {
         }
@@ -47,6 +48,7 @@ namespace srt {
         JsonValue manifestConfiguration;
         std::unique_ptr<ContribConfiguration> configuration;
         stdc::vlarray<ContribImport> imports;
+        std::map<std::string, ContribImport::Data, std::less<>> importData;
     };
 
 }

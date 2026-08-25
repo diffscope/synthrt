@@ -3,19 +3,32 @@
 
 #include "ContribCategory.h"
 
+#include <cassert>
+#include <map>
 #include <optional>
 #include <string>
 #include <utility>
 #include <vector>
-#include <cassert>
 
 #include <stdcorelib/adt/vlarray.h>
 
+#include "ContribSpec_p.h"
 #include "PackageHandle_p.h"
 
 namespace srt {
     class ContribCreateContext::Data {
     public:
+        std::optional<ContribImport> addImport(std::string role, ContribLocator locator,
+                                               JsonValue manifestOptions) {
+            auto key = role;
+            const auto [it, inserted] = importData.try_emplace(
+                std::move(key), std::move(role), std::move(locator), std::move(manifestOptions));
+            if (!inserted) {
+                return std::nullopt;
+            }
+            return ContribImport(it->second);
+        }
+
         PackageData *package = nullptr;
         ContribLocator locator;
         JsonObject manifestEntry;
@@ -28,6 +41,7 @@ namespace srt {
         JsonValue manifestExports;
         JsonValue manifestConfiguration;
         stdc::vlarray<ContribImport> imports;
+        std::map<std::string, ContribImport::Data, std::less<>> importData;
     };
 
     class ContribCategory::Impl {

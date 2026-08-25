@@ -545,6 +545,11 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_REQUIRE_EQUAL(rootSpec->imports().size(), 2u);
     BOOST_CHECK_EQUAL(rootSpec->imports()[0].role(), "first");
     BOOST_CHECK_EQUAL(rootSpec->imports()[1].role(), "second");
+    const auto firstImport = rootSpec->findImport("first");
+    BOOST_REQUIRE(firstImport);
+    BOOST_CHECK_EQUAL(firstImport->role(), "first");
+    BOOST_CHECK(firstImport->binding() == rootSpec->imports()[0].binding());
+    BOOST_CHECK(!rootSpec->findImport("missing"));
     BOOST_CHECK(rootSpec->imports()[0].options());
     BOOST_CHECK(rootSpec->imports()[1].options());
     BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->interface(), testInterface);

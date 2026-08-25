@@ -2,7 +2,9 @@
 #define SYNTHRT_CONTRIBSPEC_H
 
 #include <memory>
+#include <optional>
 #include <string>
+#include <string_view>
 
 #include <stdcorelib/adt/array_view.h>
 
@@ -45,17 +47,24 @@ namespace srt {
     class ContribExecInstance;
     class ContribExecFactory;
     class ContribImportBinding;
-    class ContribImportData;
     class ContribInterpreter;
     class PackageData;
     class PackageLoader;
 
+    class ContribSpec;
+
     /// One ordered import declared by a contribution.
+    ///
+    /// This object is a non owning view. A view returned by ContribSpec remains valid only while
+    /// that ContribSpec remains alive. A view returned through ContribCreateContext remains valid
+    /// only for the \c createSpec() call receiving that context.
     class SYNTHRT_EXPORT ContribImport {
     public:
-        ContribImport(ContribImport &&other) noexcept;
-        ContribImport &operator=(ContribImport &&other) noexcept;
-        ~ContribImport();
+        ContribImport(const ContribImport &other) = default;
+        ContribImport(ContribImport &&other) noexcept = default;
+        ContribImport &operator=(const ContribImport &other) = default;
+        ContribImport &operator=(ContribImport &&other) noexcept = default;
+        ~ContribImport() = default;
 
         /// Returns the role unique within the importing contribution.
         const std::string &role() const;
@@ -79,17 +88,15 @@ namespace srt {
         ContribExecFactory *execFactory() const;
 
     private:
-        ContribImport(std::string role, ContribLocator locator, JsonValue options);
-        ContribImport(const ContribImport &other);
+        class Data;
 
-        std::shared_ptr<ContribImportData> m_data;
+        /// Constructs a view over framework-owned import data.
+        explicit ContribImport(const Data &data);
 
-        ContribImport &operator=(const ContribImport &) = delete;
+        const Data *m_data;
 
-        friend class ContribExecInstance;
+        friend class ContribCreateContext;
         friend class ContribSpec;
-        friend class PackageData;
-        friend class PackageLoader;
     };
 
     /// The immutable declaration of one contribution in a Package.
@@ -143,6 +150,12 @@ namespace srt {
 
         /// Returns imports in declaration order, including repeated locators.
         stdc::array_view<ContribImport> imports() const;
+
+        /// Finds the import with a role.
+        ///
+        /// The returned view does not retain this ContribSpec. Returns an empty optional when the
+        /// role is not declared.
+        std::optional<ContribImport> findImport(std::string_view role) const;
 
         /// \}
 
