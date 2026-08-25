@@ -22,7 +22,7 @@ namespace srt {
 
         class SingerImportBinding : public ContribImportBinding {
         public:
-            SingerImportBinding(ContribSpec &importer, const ContribSpec::Import &declaration,
+            SingerImportBinding(ContribSpec &importer, const ContribImport &declaration,
                                 ContribSpec &target, std::unique_ptr<ContribImportOptions> options)
                 : ContribImportBinding(importer, declaration, target, std::move(options)) {
             }
@@ -59,9 +59,10 @@ namespace srt {
         return {};
     }
 
-    Expected<std::unique_ptr<ContribImportBinding>> SingerProvider::createImportBinding(
-        ContribSpec &importer, const ContribSpec::Import &declaration, ContribSpec &target,
-        std::unique_ptr<ContribImportOptions> options) const {
+    Expected<std::unique_ptr<ContribImportBinding>>
+        SingerProvider::createImportBinding(ContribSpec &importer, const ContribImport &declaration,
+                                            ContribSpec &target,
+                                            std::unique_ptr<ContribImportOptions> options) const {
         return std::unique_ptr<ContribImportBinding>(
             new SingerImportBinding(importer, declaration, target, std::move(options)));
     }

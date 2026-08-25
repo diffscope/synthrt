@@ -24,7 +24,7 @@ namespace srt {
         Expected<void> validateImports(const ContribSpec &spec) const override;
 
         Expected<std::unique_ptr<ContribImportBinding>>
-            createImportBinding(ContribSpec &importer, const ContribSpec::Import &declaration,
+            createImportBinding(ContribSpec &importer, const ContribImport &declaration,
                                 ContribSpec &target,
                                 std::unique_ptr<ContribImportOptions> options) const override;
 

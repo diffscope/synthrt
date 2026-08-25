@@ -40,7 +40,7 @@ namespace srt {
         /// The binding takes ownership of \a options and must remain closed until the Loader
         /// activates it during Commit.
         virtual Expected<std::unique_ptr<ContribImportBinding>>
-            createImportBinding(ContribSpec &importer, const ContribSpec::Import &declaration,
+            createImportBinding(ContribSpec &importer, const ContribImport &declaration,
                                 ContribSpec &target,
                                 std::unique_ptr<ContribImportOptions> options) const = 0;
 

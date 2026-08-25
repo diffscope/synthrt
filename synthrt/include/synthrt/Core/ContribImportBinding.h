@@ -27,7 +27,7 @@ namespace srt {
         ContribSpec &importer() const;
 
         /// Returns the manifest import declaration represented by this binding.
-        const ContribSpec::Import &declaration() const;
+        const ContribImport &declaration() const;
 
         /// Returns the contribution reached through this binding.
         ContribSpec &target() const;
@@ -41,7 +41,7 @@ namespace srt {
         SYNTHRT_DECLARE_AS_METHODS(ContribImportBinding)
 
     protected:
-        ContribImportBinding(ContribSpec &importer, const ContribSpec::Import &declaration,
+        ContribImportBinding(ContribSpec &importer, const ContribImport &declaration,
                              ContribSpec &target, std::unique_ptr<ContribImportOptions> options);
 
         /// Opens the prepared runtime connection during Commit.

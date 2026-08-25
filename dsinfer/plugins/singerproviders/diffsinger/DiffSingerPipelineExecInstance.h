@@ -1,6 +1,8 @@
 #ifndef DSINFER_DIFFSINGERPIPELINEEXECINSTANCE_H
 #define DSINFER_DIFFSINGERPIPELINEEXECINSTANCE_H
 
+#include <string_view>
+
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
 namespace ds {
@@ -26,6 +28,12 @@ namespace ds {
 
         srt::Expected<Api::Vocoder::L1::VocoderExecInstance *>
             createVocoder(const Api::Vocoder::L1::VocoderRuntimeOptions &options) override;
+
+    private:
+        srt::Expected<srt::InferenceExecInstance *>
+            createInference(std::string_view role, const srt::InferenceRuntimeOptions &options,
+                            std::string_view expectedInterface, std::string_view expectedVariant,
+                            int expectedLevel);
     };
 
 }

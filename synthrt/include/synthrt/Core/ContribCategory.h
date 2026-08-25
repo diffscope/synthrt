@@ -59,7 +59,7 @@ namespace srt {
         int level() const;
         const JsonValue &manifestExports() const;
         const JsonValue &manifestConfiguration() const;
-        stdc::array_view<ContribSpec::Import> imports() const;
+        stdc::array_view<ContribImport> imports() const;
 
         /// \}
 

@@ -2,6 +2,7 @@
 
 #include <set>
 #include <string_view>
+#include <utility>
 
 #include "InferenceInterpreter.h"
 #include "InferenceInterpreterPlugin.h"
@@ -31,7 +32,12 @@ namespace srt {
                 if (!result) {
                     return result.takeError();
                 }
-                return std::unique_ptr<ContribExecInstance>(result.take());
+                auto instance = result.take();
+                if (&instance->spec() != &target) {
+                    return Error(Error::InvalidFormat,
+                                 "inference provider returned an instance for another target");
+                }
+                return std::unique_ptr<ContribExecInstance>(std::move(instance));
             }
 
         private:

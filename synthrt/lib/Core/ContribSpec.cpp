@@ -9,39 +9,48 @@
 
 namespace srt {
 
-    ContribSpec::Import::Import(Import &&other) noexcept = default;
+    ContribImport::ContribImport(ContribImport &&other) noexcept = default;
 
-    ContribSpec::Import &ContribSpec::Import::operator=(Import &&other) noexcept = default;
+    ContribImport &ContribImport::operator=(ContribImport &&other) noexcept = default;
 
-    ContribSpec::Import::~Import() = default;
+    ContribImport::~ContribImport() = default;
 
-    const std::string &ContribSpec::Import::role() const {
-        return _impl->role;
+    const std::string &ContribImport::role() const {
+        assert(m_data);
+        return m_data->role;
     }
 
-    const ContribLocator &ContribSpec::Import::locator() const {
-        return _impl->locator;
+    const ContribLocator &ContribImport::locator() const {
+        assert(m_data);
+        return m_data->locator;
     }
 
-    const JsonValue &ContribSpec::Import::manifestOptions() const {
-        return _impl->manifestOptions;
+    const JsonValue &ContribImport::manifestOptions() const {
+        assert(m_data);
+        return m_data->manifestOptions;
     }
 
-    const ContribImportOptions *ContribSpec::Import::options() const {
-        return _impl->binding ? &_impl->binding->options() : _impl->options.get();
+    const ContribImportOptions *ContribImport::options() const {
+        assert(m_data);
+        return m_data->binding ? &m_data->binding->options() : m_data->options.get();
     }
 
-    ContribImportBinding *ContribSpec::Import::binding() const {
-        return _impl->binding.get();
+    ContribImportBinding *ContribImport::binding() const {
+        assert(m_data);
+        return m_data->binding.get();
     }
 
-    ContribExecFactory *ContribSpec::Import::execFactory() const {
-        return _impl->execFactory.get();
+    ContribExecFactory *ContribImport::execFactory() const {
+        assert(m_data);
+        return m_data->execFactory.get();
     }
 
-    ContribSpec::Import::Import(std::string role, ContribLocator locator, JsonValue options)
-        : _impl(std::make_unique<Impl>(std::move(role), std::move(locator), std::move(options))) {
+    ContribImport::ContribImport(std::string role, ContribLocator locator, JsonValue options)
+        : m_data(std::make_shared<ContribImportData>(std::move(role), std::move(locator),
+                                                     std::move(options))) {
     }
+
+    ContribImport::ContribImport(const ContribImport &other) = default;
 
     ContribSpec::~ContribSpec() = default;
 
@@ -99,7 +108,7 @@ namespace srt {
         return _impl->configuration.get();
     }
 
-    stdc::array_view<ContribSpec::Import> ContribSpec::imports() const {
+    stdc::array_view<ContribImport> ContribSpec::imports() const {
         assert(_impl->hasModuleDeclaration);
         return _impl->imports;
     }
@@ -122,12 +131,11 @@ namespace srt {
         _impl->manifestConfiguration = context.m_data->manifestConfiguration;
         _impl->imports.reserve(context.m_data->imports.size());
         for (const auto &item : context.m_data->imports) {
-            _impl->imports.push_back(Import(item.role(), item.locator(), item.manifestOptions()));
+            _impl->imports.push_back(ContribImport(item));
         }
     }
 
     ContribInterpreter *ContribSpec::interpreter() const {
         return _impl->interpreter;
     }
-
 }

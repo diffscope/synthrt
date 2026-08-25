@@ -67,7 +67,7 @@ namespace {
 
     class TestBinding final : public srt::ContribImportBinding {
     public:
-        TestBinding(srt::ContribSpec &importer, const srt::ContribSpec::Import &declaration,
+        TestBinding(srt::ContribSpec &importer, const srt::ContribImport &declaration,
                     srt::ContribSpec &target, std::unique_ptr<srt::ContribImportOptions> options)
             : ContribImportBinding(importer, declaration, target, std::move(options)) {
         }
@@ -184,8 +184,7 @@ namespace {
         }
 
         srt::Expected<std::unique_ptr<srt::ContribImportBinding>>
-            createImportBinding(srt::ContribSpec &importer,
-                                const srt::ContribSpec::Import &declaration,
+            createImportBinding(srt::ContribSpec &importer, const srt::ContribImport &declaration,
                                 srt::ContribSpec &target,
                                 std::unique_ptr<srt::ContribImportOptions> options) const override {
             ++bindingCreateCount;

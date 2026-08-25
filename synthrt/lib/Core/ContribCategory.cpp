@@ -57,7 +57,7 @@ namespace srt {
         return m_data->manifestConfiguration;
     }
 
-    stdc::array_view<ContribSpec::Import> ContribCreateContext::imports() const {
+    stdc::array_view<ContribImport> ContribCreateContext::imports() const {
         assert(m_data->manifestDeclaration);
         return m_data->imports;
     }

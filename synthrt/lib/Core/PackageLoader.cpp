@@ -864,7 +864,7 @@ namespace srt {
                             !result) {
                             return result.takeError();
                         }
-                        import._impl->options = std::move(typedOptions);
+                        import.m_data->options = std::move(typedOptions);
                     }
                     auto validation = spec->_impl->interpreter->validateImports(*spec);
                     if (!validation) {
@@ -874,7 +874,7 @@ namespace srt {
                     for (auto &import : spec->_impl->imports) {
                         auto *target = resolveTarget(package, import.locator());
                         auto binding = spec->_impl->interpreter->createImportBinding(
-                            *spec, import, *target, std::move(import._impl->options));
+                            *spec, import, *target, std::move(import.m_data->options));
                         if (!binding) {
                             return binding.takeError().withContext(
                                 "failed to create module import binding");
@@ -890,8 +890,8 @@ namespace srt {
                             return factory.takeError().withContext(
                                 "target category failed to create import execution factory");
                         }
-                        import._impl->execFactory = factory.take();
-                        import._impl->binding = std::move(preparedBinding);
+                        import.m_data->execFactory = factory.take();
+                        import.m_data->binding = std::move(preparedBinding);
                     }
                 }
             }
@@ -922,8 +922,8 @@ namespace srt {
             for (const auto &categoryEntry : package->contributions) {
                 for (auto *spec : categoryEntry.second) {
                     for (auto &import : spec->_impl->imports) {
-                        if (import._impl->binding) {
-                            import._impl->binding->activateForCommit();
+                        if (import.m_data->binding) {
+                            import.m_data->binding->activateForCommit();
                         }
                     }
                 }
@@ -1257,7 +1257,7 @@ namespace srt {
                             }
                             // Repeated locators are distinct import instances and array order is
                             // part of the importing contract.
-                            context.imports.push_back(ContribSpec::Import(
+                            context.imports.push_back(ContribImport(
                                 std::move(importRole), std::move(locator), std::move(options)));
                         }
                     }

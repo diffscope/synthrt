@@ -121,11 +121,11 @@ namespace srt {
             if (import.role() != role) {
                 continue;
             }
-            if (!import._impl->execFactory) {
+            if (!import.m_data->execFactory) {
                 return Error(Error::FeatureNotSupported,
                              "import role does not provide an execution instance");
             }
-            auto child = import._impl->execFactory->create(runtimeOptions);
+            auto child = import.m_data->execFactory->create(runtimeOptions);
             if (!child) {
                 return child.takeError();
             }

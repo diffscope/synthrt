@@ -10,7 +10,6 @@
 #include <synthrt/Core/ContribSpecPayload.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/JSON.h>
-#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
@@ -46,58 +45,58 @@ namespace srt {
     class ContribExecInstance;
     class ContribExecFactory;
     class ContribImportBinding;
+    class ContribImportData;
     class ContribInterpreter;
     class PackageData;
     class PackageHandle;
     class PackageLoader;
     class SynthUnit;
 
+    /// One ordered import declared by a contribution.
+    class SYNTHRT_EXPORT ContribImport {
+    public:
+        ContribImport(ContribImport &&other) noexcept;
+        ContribImport &operator=(ContribImport &&other) noexcept;
+        ~ContribImport();
+
+        /// Returns the role unique within the importing contribution.
+        const std::string &role() const;
+
+        const ContribLocator &locator() const;
+
+        /// Returns the options value read from the manifest.
+        const JsonValue &manifestOptions() const;
+
+        /// Returns options interpreted by the target interpreter during load.
+        ///
+        /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
+        const ContribImportOptions *options() const;
+
+        /// Returns the runtime binding created during load.
+        ///
+        /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
+        ContribImportBinding *binding() const;
+
+        /// Returns the target category's execution factory for this import.
+        ContribExecFactory *execFactory() const;
+
+    private:
+        ContribImport(std::string role, ContribLocator locator, JsonValue options);
+        ContribImport(const ContribImport &other);
+
+        std::shared_ptr<ContribImportData> m_data;
+
+        ContribImport &operator=(const ContribImport &) = delete;
+
+        friend class ContribExecInstance;
+        friend class ContribSpec;
+        friend class PackageData;
+        friend class PackageLoader;
+    };
+
     /// The immutable declaration of one contribution in a Package.
     class SYNTHRT_EXPORT ContribSpec {
     public:
-        /// One ordered import declared by this contribution.
-        class SYNTHRT_EXPORT Import {
-        public:
-            Import(Import &&other) noexcept;
-            Import &operator=(Import &&other) noexcept;
-            ~Import();
-
-            /// Returns the role unique within the importing contribution.
-            const std::string &role() const;
-
-            const ContribLocator &locator() const;
-
-            /// Returns the options value read from the manifest.
-            const JsonValue &manifestOptions() const;
-
-            /// Returns options interpreted by the target interpreter during load.
-            ///
-            /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
-            const ContribImportOptions *options() const;
-
-            /// Returns the runtime binding created during load.
-            ///
-            /// Returns \c nullptr for a declaration produced in \c DataOnly mode.
-            ContribImportBinding *binding() const;
-
-            /// Returns the target category's execution factory for this import.
-            ContribExecFactory *execFactory() const;
-
-        private:
-            Import(std::string role, ContribLocator locator, JsonValue options);
-
-            class Impl;
-            std::unique_ptr<Impl> _impl;
-
-            Import(const Import &) = delete;
-            Import &operator=(const Import &) = delete;
-
-            friend class PackageData;
-            friend class PackageLoader;
-            friend class ContribSpec;
-            friend class ContribExecInstance;
-        };
-
         virtual ~ContribSpec();
 
         /// Returns the identity assigned by the containing Package.
@@ -145,7 +144,7 @@ namespace srt {
         const ContribConfiguration *configuration() const;
 
         /// Returns imports in declaration order, including repeated locators.
-        stdc::array_view<Import> imports() const;
+        stdc::array_view<ContribImport> imports() const;
 
         /// \}
 
