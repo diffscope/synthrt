@@ -14,9 +14,9 @@ namespace srt {
     ///
     /// The same interpreter instance may serve multiple contributions that use the same
     /// interface, Level, and variant triple.
-    class SYNTHRT_EXPORT ContribInterpreter {
+    class ContribInterpreter {
     public:
-        virtual ~ContribInterpreter();
+        virtual ~ContribInterpreter() = default;
 
         /// Interprets the manifest exports of \a spec.
         virtual Expected<std::unique_ptr<ContribExports>>
