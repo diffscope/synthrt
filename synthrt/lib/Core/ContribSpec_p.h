@@ -6,22 +6,12 @@
 #include <utility>
 
 #include <stdcorelib/adt/vlarray.h>
+#include <stdcorelib/plugin/pluginloader.h>
 
 #include "ContribExecInstance.h"
 #include "ContribImportBinding.h"
-
-namespace srt {
-
-    class ContribInterpreter;
-    class PackageData;
-
-}
-
-namespace stdc::plugin {
-
-    class PluginLoader;
-
-}
+#include "ContribInterpreter.h"
+#include "PackageHandle_p.h"
 
 namespace srt {
 

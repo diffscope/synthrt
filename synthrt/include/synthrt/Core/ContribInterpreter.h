@@ -7,7 +7,6 @@
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
-#include <synthrt/synthrt_global.h>
 
 namespace srt {
 

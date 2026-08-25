@@ -10,10 +10,9 @@
 
 #include <stdcorelib/adt/vlarray.h>
 
+#include "ContribExecInstance.h"
+
 namespace srt {
-
-    class ContribExecInstance;
-
     class PackageData : public std::enable_shared_from_this<PackageData> {
     public:
         explicit PackageData(SynthUnit *synthUnit) : synthUnit(synthUnit) {

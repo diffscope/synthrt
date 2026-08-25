@@ -13,8 +13,6 @@
 
 namespace ds {
 
-    class PhonemeDict;
-
     /// PhonemeList stores a sequence of phonemes where each element is a null-terminated string.
     /// The sequence maintains contiguous memory storage of the original input format.
     class PhonemeList {

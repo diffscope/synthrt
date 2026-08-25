@@ -10,17 +10,16 @@
 #include <stdcorelib/adt/array_view.h>
 #include <stdcorelib/support/versionnumber.h>
 
+#include <synthrt/Core/ContribCategory.h>
+#include <synthrt/Core/ContribExecInstance.h>
 #include <synthrt/Core/PackageHandle.h>
+#include <synthrt/Core/RuntimeService.h>
 #include <synthrt/Support/Expected.h>
-#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
-    class ContribCategory;
-    class ContribExecInstance;
     class PackageData;
     class PackageLoader;
-    class RuntimeService;
 
     /// Owns Package resolution, interpreter discovery, and committed runtime state.
     class SYNTHRT_EXPORT SynthUnit {

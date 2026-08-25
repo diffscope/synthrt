@@ -4,8 +4,9 @@
 #include <cstddef>
 #include <cstdint>
 #include <vector>
-#include <synthrt/synthrt_global.h>
+
 #include <synthrt/Support/Expected.h>
+
 #include <dsinfer/Core/Tensor.h>
 #include <dsinfer/Support/ErrorCode.h>
 

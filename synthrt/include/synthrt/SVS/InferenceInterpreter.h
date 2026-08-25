@@ -5,12 +5,11 @@
 
 #include <synthrt/Core/ContribInterpreter.h>
 #include <synthrt/Core/ContribSpecPayload.h>
+#include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/InferenceExecInstance.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
-
-    class InferenceSpec;
 
     /// Interprets and executes inference contributions.
     class SYNTHRT_EXPORT InferenceInterpreter : public ContribInterpreter {

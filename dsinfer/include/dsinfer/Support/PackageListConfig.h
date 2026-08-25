@@ -12,8 +12,6 @@
 
 namespace ds {
 
-    class PackageListConfig;
-
     /// PackageListItemMetadata - Installed package metadata.
     class PackageListItemMetadata {
     public:

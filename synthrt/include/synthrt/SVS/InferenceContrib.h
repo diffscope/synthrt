@@ -7,12 +7,9 @@
 
 #include <synthrt/Core/ContribCategory.h>
 #include <synthrt/Core/ContribSpec.h>
-#include <synthrt/synthrt_global.h>
+#include <synthrt/SVS/InferenceExecInstance.h>
 
 namespace srt {
-
-    class InferenceExecInstance;
-    class InferenceRuntimeOptions;
 
     /// The immutable declaration of one inference contribution.
     class SYNTHRT_EXPORT InferenceSpec : public ContribSpec {

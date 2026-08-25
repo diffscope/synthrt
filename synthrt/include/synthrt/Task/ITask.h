@@ -8,7 +8,6 @@
 #include <utility>
 
 #include <synthrt/Support/Expected.h>
-#include <synthrt/synthrt_global.h>
 
 namespace srt {
 

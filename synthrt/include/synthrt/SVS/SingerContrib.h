@@ -8,12 +8,9 @@
 #include <synthrt/Core/ContribCategory.h>
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Support/DisplayText.h>
-#include <synthrt/synthrt_global.h>
+#include <synthrt/SVS/SingerPipelineExecInstance.h>
 
 namespace srt {
-
-    class SingerPipelineExecInstance;
-    class SingerPipelineRuntimeOptions;
 
     /// The immutable declaration of one singer contribution.
     class SYNTHRT_EXPORT SingerSpec : public ContribSpec {

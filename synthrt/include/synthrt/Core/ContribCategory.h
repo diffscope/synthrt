@@ -9,18 +9,16 @@
 #include <stdcorelib/adt/array_view.h>
 #include <stdcorelib/support/staticregistry.h>
 
+#include <synthrt/Core/ContribExecInstance.h>
+#include <synthrt/Core/ContribImportBinding.h>
 #include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Support/JSON.h>
-#include <synthrt/synthrt_global.h>
 
 namespace srt {
 
-    class ContribCategory;
-    class ContribExecFactory;
-    class ContribImportBinding;
     class PackageData;
     class PackageLoader;
     class SynthUnit;
