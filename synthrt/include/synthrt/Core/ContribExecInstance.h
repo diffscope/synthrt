@@ -84,7 +84,7 @@ namespace srt {
         ContribSpec *m_spec;
         PackageData *m_package;
         ContribExecInstance *m_parent = nullptr;
-        stdc::vlarray<ContribExecInstance *> m_children;
+        std::vector<ContribExecInstance *> m_children;
         bool m_destroyingChildren = false;
         std::atomic<LifecycleState> m_state = LifecycleState::Running;
 

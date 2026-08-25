@@ -2,35 +2,31 @@
 #define DSINFER_DURATIONINFERENCE_H
 
 #include <memory>
-#include <shared_mutex>
 
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
+
+#include "DurationTask.h"
 
 namespace ds {
 
-    class InferenceDriver;
-    class InferenceSession;
-
-    class DurationInference : public srt::InferenceExecInstance {
+    class DurationInference : public Api::Duration::L1::DurationExecInstance {
     public:
         explicit DurationInference(srt::InferenceSpec &spec);
         ~DurationInference();
 
-    public:
-        srt::Expected<void> initialize(const srt::TaskInitArgs &args) override;
+        srt::Expected<void> initialize(const Api::Duration::L1::DurationInitArgs &args) override;
+        srt::Expected<std::unique_ptr<Api::Duration::L1::DurationResult>>
+            start(const Api::Duration::L1::DurationStartInput &input) override;
+        srt::Expected<void>
+            startAsync(std::shared_ptr<const Api::Duration::L1::DurationStartInput> input,
+                       AsyncCallback callback) override;
 
-        srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &input) override;
-        srt::Expected<void> startAsync(std::shared_ptr<const srt::TaskStartInput> input,
-                                       AsyncCallback callback) override;
+        srt::ITask::State state() const noexcept override;
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
     private:
-        InferenceDriver *m_driver = nullptr;
-        std::unique_ptr<InferenceSession> m_encoderSession;
-        std::unique_ptr<InferenceSession> m_predictorSession;
-        mutable std::shared_mutex m_mutex;
+        mutable DurationTask m_task;
     };
 
 }
