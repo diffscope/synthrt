@@ -24,7 +24,11 @@ namespace srt {
         }
     };
 
-    class SYNTHRT_EXPORT InferenceExecInstance : public ITask, public ContribExecInstance {
+    /// A loaded runtime instance of one inference contribution.
+    ///
+    /// Each concrete instance exposes one contract-specific inference Task. The untyped Task is
+    /// available only to derived classes so callers cannot bypass the contract-specific API.
+    class SYNTHRT_EXPORT InferenceExecInstance : public ContribExecInstance {
     public:
         explicit InferenceExecInstance(InferenceSpec &spec);
         ~InferenceExecInstance();
@@ -32,7 +36,20 @@ namespace srt {
     public:
         InferenceSpec &spec() const;
 
+        /// Returns the state of the contract-specific Task.
+        ITask::State state() const noexcept;
+
+        /// Requests cancellation of the current inference execution.
+        Expected<void> stop();
+
+        /// Waits for the current inference execution to finish.
+        Expected<void> waitForFinished();
+
     protected:
+        /// Returns the single Task implemented by this inference instance.
+        virtual ITask &task() const noexcept = 0;
+
+    private:
         Expected<void> quit() override;
         Expected<void> wait() override;
     };

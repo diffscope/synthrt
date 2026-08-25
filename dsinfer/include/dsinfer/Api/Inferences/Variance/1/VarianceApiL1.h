@@ -1,6 +1,8 @@
 #ifndef DSINFER_API_VARIANCEAPIL1_H
 #define DSINFER_API_VARIANCEAPIL1_H
 
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 #include <map>
@@ -144,6 +146,29 @@ namespace ds::Api::Variance::L1 {
 
         /// Predicted parameter curves in the order declared by the contribution.
         std::vector<InputParameterInfo> predictions;
+    };
+
+    /// Executes one variance model using Level 1 typed payloads.
+    ///
+    /// An interpreter implementing this contract must create instances derived from this class.
+    class VarianceExecInstance : public srt::InferenceExecInstance {
+    public:
+        using AsyncCallback =
+            std::function<void(srt::Expected<std::unique_ptr<VarianceResult>> result)>;
+
+        /// Initializes the variance model instance.
+        virtual srt::Expected<void> initialize(const VarianceInitArgs &args) = 0;
+
+        /// Executes variance inference synchronously.
+        virtual srt::Expected<std::unique_ptr<VarianceResult>>
+            start(const VarianceStartInput &input) = 0;
+
+        /// Starts one asynchronous variance inference execution.
+        virtual srt::Expected<void> startAsync(std::shared_ptr<const VarianceStartInput> input,
+                                               AsyncCallback callback) = 0;
+
+    protected:
+        using InferenceExecInstance::InferenceExecInstance;
     };
 
 }

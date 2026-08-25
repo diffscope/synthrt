@@ -1,6 +1,8 @@
 #ifndef DSINFER_API_PITCHAPIL1_H
 #define DSINFER_API_PITCHAPIL1_H
 
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 #include <map>
@@ -146,6 +148,28 @@ namespace ds::Api::Pitch::L1 {
 
         /// Time between adjacent pitch samples in seconds.
         double interval = 0;
+    };
+
+    /// Executes one pitch model using Level 1 typed payloads.
+    ///
+    /// An interpreter implementing this contract must create instances derived from this class.
+    class PitchExecInstance : public srt::InferenceExecInstance {
+    public:
+        using AsyncCallback =
+            std::function<void(srt::Expected<std::unique_ptr<PitchResult>> result)>;
+
+        /// Initializes the pitch model instance.
+        virtual srt::Expected<void> initialize(const PitchInitArgs &args) = 0;
+
+        /// Executes pitch inference synchronously.
+        virtual srt::Expected<std::unique_ptr<PitchResult>> start(const PitchStartInput &input) = 0;
+
+        /// Starts one asynchronous pitch inference execution.
+        virtual srt::Expected<void> startAsync(std::shared_ptr<const PitchStartInput> input,
+                                               AsyncCallback callback) = 0;
+
+    protected:
+        using InferenceExecInstance::InferenceExecInstance;
     };
 
 }
