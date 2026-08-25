@@ -1,6 +1,9 @@
 #ifndef DSINFER_API_VOCODERAPIL1_H
 #define DSINFER_API_VOCODERAPIL1_H
 
+#include <functional>
+#include <memory>
+
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/InferenceExecInstance.h>
 
@@ -114,6 +117,29 @@ namespace ds::Api::Vocoder::L1 {
 
         /// Native byte representation of contiguous 32 bit floating point waveform samples.
         std::vector<uint8_t> audioData;
+    };
+
+    /// Executes one vocoder model using Level 1 typed payloads.
+    ///
+    /// An interpreter implementing this contract must create instances derived from this class.
+    class VocoderExecInstance : public srt::InferenceExecInstance {
+    public:
+        using AsyncCallback =
+            std::function<void(srt::Expected<std::unique_ptr<VocoderResult>> result)>;
+
+        /// Initializes the vocoder model instance.
+        virtual srt::Expected<void> initialize(const VocoderInitArgs &args) = 0;
+
+        /// Executes vocoder inference synchronously.
+        virtual srt::Expected<std::unique_ptr<VocoderResult>>
+            start(const VocoderStartInput &input) = 0;
+
+        /// Starts one asynchronous vocoder inference execution.
+        virtual srt::Expected<void> startAsync(std::shared_ptr<const VocoderStartInput> input,
+                                               AsyncCallback callback) = 0;
+
+    protected:
+        using InferenceExecInstance::InferenceExecInstance;
     };
 
 }

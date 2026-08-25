@@ -24,6 +24,7 @@
 | 模块 ID | 写在模块自己的声明文件里 | **写在 `desc.json` 里，由 Package 赋予** |
 | `class` | 推理类型 + 解释器选择，一词两义 | 改名 `interface`，只表示「这份声明遵循哪套契约」 |
 | 实现变体 | 无，只能另起一个 `class` | 新增 `variant`，表示同一契约的不同实现；不同变体不保证可互换 |
+| DiffSinger Singer 标识 | `class`为`diffsinger` | `interface`为`org.openvpi.svs.DiffSinger`，`variant`为`openvpi` |
 | 术语 | Library（亦称 Package） | 统一用 **Package**，不再用 Library / lib |
 | `$version` | 每份模块声明文件各写一份，`desc.json` 反而没有 | **只写在 `desc.json`**，全 Package 共用一个 |
 | 模块声明文件的公共字段 | 各类别各自定义、各自解析 | 提取为《公共字段》，由框架统一解析 |
@@ -558,7 +559,7 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 某个`variant`仍然是该契约的一种实现。共享`interface`表示它们使用相同的契约词汇和调用规则，不表示每种实现必须提供契约允许的全部能力。
 
-`variant`由`interface`定域，故本规范定义的变体用裸词即可。本规范当前使用的裸 variant 包括 Inference 契约的`onnx`与 Singer 契约的`diffsinger`。第三方为他人的契约提供变体时应使用反向域名（如`com.vendor.tensorrt`）。
+`variant`由`interface`定域，故本规范定义的变体用裸词即可。本规范当前使用的裸 variant 包括 Inference 契约的`onnx`与 DiffSinger Singer 契约的`openvpi`。第三方为他人的契约提供变体时应使用反向域名（如`com.vendor.tensorrt`）。
 
 该字段必填，**没有「默认变体」一说**。每个模块都由某个具体的实现来读取和执行，把那个实现的名字写出来，加载器才能在找不到解释器时说清楚缺的是哪一个。
 
@@ -678,9 +679,9 @@ Singer 模块负责定义一个歌手的信息，以及它需要使用的其他�
 
 ```json
 {
-    "interface": "org.openvpi.synthrt",
+    "interface": "org.openvpi.svs.DiffSinger",
     "level": 1,
-    "variant": "diffsinger",
+    "variant": "openvpi",
     "name": "Zhibin",
     "vars": [
         { "name": "singerAssets", "value": "${assets}/singer1" }
@@ -802,9 +803,9 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
   "metadata": {
     "interpreters": [
       {
-        "interface": "org.openvpi.svs.Singer",
+        "interface": "org.openvpi.svs.DiffSinger",
         "level": 1,
-        "variant": "diffsinger"
+        "variant": "openvpi"
       }
     ]
   }

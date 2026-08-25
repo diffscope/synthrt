@@ -4,9 +4,9 @@
     "metadata": {
         "interpreters": [
             {
-                "interface": "org.openvpi.svs.Singer",
+                "interface": "org.openvpi.svs.DiffSinger",
                 "level": 1,
-                "variant": "diffsinger"
+                "variant": "openvpi"
             }
         ]
     }

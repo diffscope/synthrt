@@ -1,6 +1,8 @@
 #ifndef DSINFER_API_ACOUSTICAPIL1_H
 #define DSINFER_API_ACOUSTICAPIL1_H
 
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 #include <map>
@@ -177,6 +179,29 @@ namespace ds::Api::Acoustic::L1 {
 
         /// Fundamental frequency tensor aligned with \c mel.
         std::shared_ptr<ITensor> f0;
+    };
+
+    /// Executes one acoustic model using Level 1 typed payloads.
+    ///
+    /// An interpreter implementing this contract must create instances derived from this class.
+    class AcousticExecInstance : public srt::InferenceExecInstance {
+    public:
+        using AsyncCallback =
+            std::function<void(srt::Expected<std::unique_ptr<AcousticResult>> result)>;
+
+        /// Initializes the acoustic model instance.
+        virtual srt::Expected<void> initialize(const AcousticInitArgs &args) = 0;
+
+        /// Executes acoustic inference synchronously.
+        virtual srt::Expected<std::unique_ptr<AcousticResult>>
+            start(const AcousticStartInput &input) = 0;
+
+        /// Starts one asynchronous acoustic inference execution.
+        virtual srt::Expected<void> startAsync(std::shared_ptr<const AcousticStartInput> input,
+                                               AsyncCallback callback) = 0;
+
+    protected:
+        using InferenceExecInstance::InferenceExecInstance;
     };
 
 }

@@ -1,6 +1,8 @@
 #ifndef DSINFER_API_DURATIONAPIL1_H
 #define DSINFER_API_DURATIONAPIL1_H
 
+#include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 #include <map>
@@ -116,6 +118,29 @@ namespace ds::Api::Duration::L1 {
 
         /// Predicted duration of each input phoneme in seconds.
         std::vector<double> durations;
+    };
+
+    /// Executes one duration model using Level 1 typed payloads.
+    ///
+    /// An interpreter implementing this contract must create instances derived from this class.
+    class DurationExecInstance : public srt::InferenceExecInstance {
+    public:
+        using AsyncCallback =
+            std::function<void(srt::Expected<std::unique_ptr<DurationResult>> result)>;
+
+        /// Initializes the duration model instance.
+        virtual srt::Expected<void> initialize(const DurationInitArgs &args) = 0;
+
+        /// Executes duration inference synchronously.
+        virtual srt::Expected<std::unique_ptr<DurationResult>>
+            start(const DurationStartInput &input) = 0;
+
+        /// Starts one asynchronous duration inference execution.
+        virtual srt::Expected<void> startAsync(std::shared_ptr<const DurationStartInput> input,
+                                               AsyncCallback callback) = 0;
+
+    protected:
+        using InferenceExecInstance::InferenceExecInstance;
     };
 
 }
