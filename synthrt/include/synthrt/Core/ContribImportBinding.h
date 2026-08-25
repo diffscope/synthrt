@@ -59,8 +59,11 @@ namespace srt {
         void closeForUnload() noexcept;
         Expected<void> waitForUnload();
 
-        class Impl;
-        std::unique_ptr<Impl> _impl;
+        ContribSpec *m_importer;
+        const ContribImport *m_declaration;
+        ContribSpec *m_target;
+        std::unique_ptr<ContribImportOptions> m_options;
+        State m_state = State::Prepared;
 
         friend class PackageData;
         friend class PackageLoader;

@@ -7,65 +7,51 @@
 
 namespace srt {
 
-    class ContribImportBinding::Impl {
-    public:
-        Impl(ContribSpec &importer, const ContribImport &declaration, ContribSpec &target,
-             std::unique_ptr<ContribImportOptions> options)
-            : importer(&importer), declaration(&declaration), target(&target),
-              options(std::move(options)) {
-        }
-
-        ContribSpec *importer;
-        const ContribImport *declaration;
-        ContribSpec *target;
-        std::unique_ptr<ContribImportOptions> options;
-        State state = State::Prepared;
-    };
-
     ContribImportBinding::ContribImportBinding(ContribSpec &importer,
                                                const ContribImport &declaration,
                                                ContribSpec &target,
                                                std::unique_ptr<ContribImportOptions> options)
-        : _impl(std::make_unique<Impl>(importer, declaration, target, std::move(options))) {
-        assert(_impl->options);
+        : m_importer(&importer), m_declaration(&declaration), m_target(&target),
+          m_options(std::move(options)) {
+        assert(m_options);
     }
 
     ContribImportBinding::~ContribImportBinding() = default;
 
     ContribSpec &ContribImportBinding::importer() const {
-        return *_impl->importer;
+        return *m_importer;
     }
 
     const ContribImport &ContribImportBinding::declaration() const {
-        return *_impl->declaration;
+        return *m_declaration;
     }
 
     ContribSpec &ContribImportBinding::target() const {
-        return *_impl->target;
+        return *m_target;
     }
 
     const ContribImportOptions &ContribImportBinding::options() const {
-        return *_impl->options;
+        return *m_options;
     }
 
     ContribImportBinding::State ContribImportBinding::state() const noexcept {
-        return _impl->state;
+        return m_state;
     }
 
     void ContribImportBinding::activateForCommit() noexcept {
-        assert(_impl->state == State::Prepared);
+        assert(m_state == State::Prepared);
         activate();
-        _impl->state = State::Active;
+        m_state = State::Active;
     }
 
     void ContribImportBinding::closeForUnload() noexcept {
-        assert(_impl->state == State::Active);
+        assert(m_state == State::Active);
         close();
-        _impl->state = State::Closed;
+        m_state = State::Closed;
     }
 
     Expected<void> ContribImportBinding::waitForUnload() {
-        assert(_impl->state == State::Closed);
+        assert(m_state == State::Closed);
         return wait();
     }
 

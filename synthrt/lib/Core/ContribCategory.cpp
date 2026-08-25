@@ -94,7 +94,7 @@ namespace srt {
     }
 
     Expected<std::unique_ptr<ContribExecFactory>>
-        ContribCategory::createExecFactory(ContribImportBinding &) const {
+        ContribCategory::createExecFactory(ContribImportBinding &binding) const {
         return std::unique_ptr<ContribExecFactory>();
     }
 
