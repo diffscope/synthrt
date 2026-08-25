@@ -2,34 +2,31 @@
 #define DSINFER_VOCODERINFERENCE_H
 
 #include <memory>
-#include <shared_mutex>
 
-#include <synthrt/SVS/InferenceExecInstance.h>
+#include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
+
+#include "VocoderTask.h"
 
 namespace ds {
 
-    class InferenceDriver;
-    class InferenceSession;
-
-    class VocoderInference : public srt::InferenceExecInstance {
+    class VocoderInference : public Api::Vocoder::L1::VocoderExecInstance {
     public:
         explicit VocoderInference(srt::InferenceSpec &spec);
         ~VocoderInference();
 
-    public:
-        srt::Expected<void> initialize(const srt::TaskInitArgs &args) override;
+        srt::Expected<void> initialize(const Api::Vocoder::L1::VocoderInitArgs &args) override;
+        srt::Expected<std::unique_ptr<Api::Vocoder::L1::VocoderResult>>
+            start(const Api::Vocoder::L1::VocoderStartInput &input) override;
+        srt::Expected<void>
+            startAsync(std::shared_ptr<const Api::Vocoder::L1::VocoderStartInput> input,
+                       AsyncCallback callback) override;
 
-        srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &input) override;
-        srt::Expected<void> startAsync(std::shared_ptr<const srt::TaskStartInput> input,
-                                       AsyncCallback callback) override;
+        srt::ITask::State state() const noexcept override;
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
     private:
-        InferenceDriver *m_driver = nullptr;
-        std::unique_ptr<InferenceSession> m_session;
-        mutable std::shared_mutex m_mutex;
+        mutable VocoderTask m_task;
     };
 
 }
