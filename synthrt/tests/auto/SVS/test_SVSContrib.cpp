@@ -10,6 +10,7 @@
 #include <synthrt/SVS/InferenceInterpreter.h>
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 #include <synthrt/SVS/SingerContrib.h>
+#include <synthrt/SVS/SingerPipelineExecInstance.h>
 #include <synthrt/SVS/SingerProviderPlugin.h>
 
 #define BOOST_TEST_MAIN
@@ -22,6 +23,13 @@ namespace {
     class TestRuntimeOptions final : public srt::InferenceRuntimeOptions {
     public:
         TestRuntimeOptions() : InferenceRuntimeOptions("org.openvpi.Acoustic", "default", 1) {
+        }
+    };
+
+    class TestSingerPipelineRuntimeOptions final : public srt::SingerPipelineRuntimeOptions {
+    public:
+        TestSingerPipelineRuntimeOptions()
+            : SingerPipelineRuntimeOptions("org.openvpi.Singer", "test", 1) {
         }
     };
 
@@ -64,6 +72,11 @@ BOOST_AUTO_TEST_CASE(test_runtime_options_carry_contract_identity) {
     BOOST_CHECK_EQUAL(options.interface(), "org.openvpi.Acoustic");
     BOOST_CHECK_EQUAL(options.variant(), "default");
     BOOST_CHECK_EQUAL(options.level(), 1);
+
+    TestSingerPipelineRuntimeOptions singerOptions;
+    BOOST_CHECK_EQUAL(singerOptions.interface(), "org.openvpi.Singer");
+    BOOST_CHECK_EQUAL(singerOptions.variant(), "test");
+    BOOST_CHECK_EQUAL(singerOptions.level(), 1);
 }
 
 BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {

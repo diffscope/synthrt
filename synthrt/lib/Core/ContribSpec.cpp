@@ -15,6 +15,10 @@ namespace srt {
 
     ContribSpec::Import::~Import() = default;
 
+    const std::string &ContribSpec::Import::role() const {
+        return _impl->role;
+    }
+
     const ContribLocator &ContribSpec::Import::locator() const {
         return _impl->locator;
     }
@@ -31,8 +35,12 @@ namespace srt {
         return _impl->binding.get();
     }
 
-    ContribSpec::Import::Import(ContribLocator locator, JsonValue options)
-        : _impl(std::make_unique<Impl>(std::move(locator), std::move(options))) {
+    ContribExecFactory *ContribSpec::Import::execFactory() const {
+        return _impl->execFactory.get();
+    }
+
+    ContribSpec::Import::Import(std::string role, ContribLocator locator, JsonValue options)
+        : _impl(std::make_unique<Impl>(std::move(role), std::move(locator), std::move(options))) {
     }
 
     ContribSpec::~ContribSpec() = default;
@@ -114,7 +122,7 @@ namespace srt {
         _impl->manifestConfiguration = context.m_data->manifestConfiguration;
         _impl->imports.reserve(context.m_data->imports.size());
         for (const auto &item : context.m_data->imports) {
-            _impl->imports.push_back(Import(item.locator(), item.manifestOptions()));
+            _impl->imports.push_back(Import(item.role(), item.locator(), item.manifestOptions()));
         }
     }
 
