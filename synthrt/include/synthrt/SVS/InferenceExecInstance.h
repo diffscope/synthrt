@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_INFERENCE_H
-#define SYNTHRT_INFERENCE_H
+#ifndef SYNTHRT_INFERENCEEXECINSTANCE_H
+#define SYNTHRT_INFERENCEEXECINSTANCE_H
 
 #include <synthrt/Core/ContribExecInstance.h>
 #include <synthrt/Core/ContribSpecPayload.h>
@@ -24,10 +24,10 @@ namespace srt {
         }
     };
 
-    class SYNTHRT_EXPORT Inference : public ITask, public ContribExecInstance {
+    class SYNTHRT_EXPORT InferenceExecInstance : public ITask, public ContribExecInstance {
     public:
-        explicit Inference(InferenceSpec &spec);
-        ~Inference();
+        explicit InferenceExecInstance(InferenceSpec &spec);
+        ~InferenceExecInstance();
 
     public:
         InferenceSpec &spec() const;
@@ -39,4 +39,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_INFERENCE_H
+#endif // SYNTHRT_INFERENCEEXECINSTANCE_H

@@ -61,7 +61,7 @@ namespace ds {
         return static_cast<const Var::VarianceSchema *>(genericSchema);
     }
 
-    VarianceInference::VarianceInference(srt::InferenceSpec &spec) : Inference(spec) {
+    VarianceInference::VarianceInference(srt::InferenceSpec &spec) : InferenceExecInstance(spec) {
     }
 
     VarianceInference::~VarianceInference() = default;

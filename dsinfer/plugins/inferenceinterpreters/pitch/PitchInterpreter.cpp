@@ -188,11 +188,11 @@ namespace ds {
         return std::move(result);
     }
 
-    srt::Expected<std::unique_ptr<srt::Inference>>
+    srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
         PitchInterpreter::createInference(srt::InferenceSpec &spec,
                                           const srt::ContribImportOptions &,
                                           const srt::InferenceRuntimeOptions &) {
-        return std::unique_ptr<srt::Inference>(new PitchInference(spec));
+        return std::unique_ptr<srt::InferenceExecInstance>(new PitchInference(spec));
     }
 
 }

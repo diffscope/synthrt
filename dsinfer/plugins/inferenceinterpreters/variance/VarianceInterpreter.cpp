@@ -190,11 +190,11 @@ namespace ds {
         return std::move(result);
     }
 
-    srt::Expected<std::unique_ptr<srt::Inference>>
+    srt::Expected<std::unique_ptr<srt::InferenceExecInstance>>
         VarianceInterpreter::createInference(srt::InferenceSpec &spec,
                                              const srt::ContribImportOptions &,
                                              const srt::InferenceRuntimeOptions &) {
-        return std::unique_ptr<srt::Inference>(new VarianceInference(spec));
+        return std::unique_ptr<srt::InferenceExecInstance>(new VarianceInference(spec));
     }
 
 }

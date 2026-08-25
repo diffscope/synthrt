@@ -4,14 +4,14 @@
 #include <memory>
 #include <shared_mutex>
 
-#include <synthrt/SVS/Inference.h>
+#include <synthrt/SVS/InferenceExecInstance.h>
 
 namespace ds {
 
     class InferenceDriver;
     class InferenceSession;
 
-    class VarianceInference : public srt::Inference {
+    class VarianceInference : public srt::InferenceExecInstance {
     public:
         explicit VarianceInference(srt::InferenceSpec &spec);
         ~VarianceInference();

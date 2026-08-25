@@ -4,14 +4,14 @@
 #include <memory>
 #include <shared_mutex>
 
-#include <synthrt/SVS/Inference.h>
+#include <synthrt/SVS/InferenceExecInstance.h>
 
 namespace ds {
 
     class InferenceDriver;
     class InferenceSession;
 
-    class DurationInference : public srt::Inference {
+    class DurationInference : public srt::InferenceExecInstance {
     public:
         explicit DurationInference(srt::InferenceSpec &spec);
         ~DurationInference();

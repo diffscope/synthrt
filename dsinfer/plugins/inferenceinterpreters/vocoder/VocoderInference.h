@@ -4,14 +4,14 @@
 #include <memory>
 #include <shared_mutex>
 
-#include <synthrt/SVS/Inference.h>
+#include <synthrt/SVS/InferenceExecInstance.h>
 
 namespace ds {
 
     class InferenceDriver;
     class InferenceSession;
 
-    class VocoderInference : public srt::Inference {
+    class VocoderInference : public srt::InferenceExecInstance {
     public:
         explicit VocoderInference(srt::InferenceSpec &spec);
         ~VocoderInference();
