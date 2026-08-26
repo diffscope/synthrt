@@ -64,8 +64,6 @@ qm_init_directories()
 # ----------------------------------
 if(SYNTHRT_BUILD_TESTS)
     enable_testing()
-
-    include("cmake/AddAutoTest.cmake")
 endif()
 
 # ----------------------------------

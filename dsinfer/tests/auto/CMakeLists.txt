@@ -1,3 +1,5 @@
+include("${SYNTHRT_SOURCE_DIR}/cmake/AddAutoTest.cmake")
+
 add_subdirectory(Core)
 
 add_subdirectory(Inference)
