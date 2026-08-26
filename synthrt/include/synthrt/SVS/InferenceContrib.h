@@ -20,7 +20,16 @@ namespace srt {
         /// Compatibility is directional. The interpreter of this inference defines the check.
         Expected<void> validateCompatibilityWith(const InferenceSpec &other) const;
 
-        /// Creates one executive using the interpreter selected during Package load.
+        /// Creates one root executive using the interpreter selected during Package load.
+        ///
+        /// \a importOptions describes how the caller imports this inference contract.
+        /// \a runtimeOptions supplies the options for this execution. Both objects must have the
+        /// same interface, variant, and Level as this specification.
+        ///
+        /// The caller exclusively owns the returned executive and must destroy it before the
+        /// Package containing this specification is released. The returned executive has no
+        /// parent. A derived \c ContribExecutive that creates an imported child should use
+        /// \c createChild instead so the child joins its supervision tree.
         Expected<std::unique_ptr<InferenceExecutive>>
             createInference(const ContribImportOptions &importOptions,
                             const InferenceRuntimeOptions &runtimeOptions);
