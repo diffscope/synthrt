@@ -40,8 +40,16 @@ namespace ds {
         /// Returns declared driver backends in discovery order.
         std::vector<std::string> backends() const;
 
-        /// Loads the first plugin for \a backend and creates its driver.
-        srt::Expected<std::unique_ptr<InferenceDriver>> create(std::string_view backend);
+        /// Returns the first plugin declaring \a backend, or null if none is found.
+        ///
+        /// \warning The returned loader must not outlive this factory. Replacing plugin paths may
+        ///          invalidate an unloaded loader.
+        stdc::plugin::PluginLoader *find(std::string_view backend) const;
+
+        /// Loads \a loader and creates its declared driver.
+        ///
+        /// \pre \a loader was returned by \c find() on this factory.
+        srt::Expected<std::unique_ptr<InferenceDriver>> create(stdc::plugin::PluginLoader *loader);
     };
 
 }

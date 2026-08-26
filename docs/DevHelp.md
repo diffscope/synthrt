@@ -194,7 +194,11 @@ ds::InferenceDriverFactory driverFactory;
 srt::SynthUnit unit;
 
 driverFactory.addPluginPath(pluginRoot / "inferencedrivers");
-auto driverResult = driverFactory.create(ds::Api::Onnx::API_NAME);
+auto driverLoader = driverFactory.find(ds::Api::Onnx::API_NAME);
+if (!driverLoader) {
+    return srt::Error(srt::Error::FileNotFound, "ONNX inference driver plugin was not found");
+}
+auto driverResult = driverFactory.create(driverLoader);
 if (!driverResult) {
     return driverResult.takeError();
 }
@@ -202,7 +206,7 @@ if (!driverResult) {
 auto driver = driverResult.take();
 ds::Api::Onnx::DriverInitArgs args;
 args.ep = ds::Api::Onnx::ExecutionProvider::CPU;
-args.runtimePath = onnxRuntimeDirectory;
+args.runtimePath = driverLoader->filePath().parent_path() / "runtimes" / "onnx" / "default";
 if (auto result = driver->initialize(args); !result) {
     return result.takeError();
 }
@@ -211,6 +215,8 @@ if (auto result = unit.addRuntimeService(std::move(driver)); !result) {
     return result.takeError();
 }
 ```
+
+`find()` 返回实际选中的 `PluginLoader`。调用者可以通过 `filePath()` 从动态库位置定位同一 bundle 内的资源，不应根据搜索根目录、backend 或插件中立名称重新拼出 bundle 路径。Loader 指针不得比 Factory 活得久，替换插件搜索路径可能使尚未加载的 Loader 失效。
 
 `InferenceDriverFactory` 持有已加载 Driver 插件的代码，必须比它创建的 Driver 活得久。上例中应先构造 Factory，再构造 SynthUnit，使销毁顺序为 SynthUnit 在前、Factory 在后。SynthUnit 接管 Driver 的对象所有权。
 

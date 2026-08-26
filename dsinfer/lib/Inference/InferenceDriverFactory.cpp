@@ -1,5 +1,6 @@
 #include "InferenceDriverFactory.h"
 
+#include <algorithm>
 #include <optional>
 #include <set>
 #include <utility>
@@ -64,43 +65,59 @@ namespace ds {
         return result;
     }
 
-    srt::Expected<std::unique_ptr<InferenceDriver>>
-        InferenceDriverFactory::create(std::string_view backend) {
+    stdc::plugin::PluginLoader *InferenceDriverFactory::find(std::string_view backend) const {
         if (!srt::ContribLocator::isValidDottedId(backend)) {
-            return srt::Error(srt::Error::InvalidArgument, "driver backend is invalid");
+            return nullptr;
         }
-
         for (auto loader : plugins(InferenceDriverPlugin::IID)) {
             const auto candidateBackend = driverBackend(loader->metadata());
-            if (!candidateBackend || *candidateBackend != backend) {
-                continue;
+            if (candidateBackend && *candidateBackend == backend) {
+                return loader;
             }
-            if (!loader->load()) {
-                return srt::Error(srt::Error::FileNotOpen,
-                                  "failed to load inference driver plugin: " +
-                                      loader->errorMessage());
-            }
+        }
+        return nullptr;
+    }
 
-            auto plugin = static_cast<InferenceDriverPlugin *>(loader->plugin());
-            auto result = plugin->create();
-            if (!result) {
-                return result.takeError().withContext("failed to create inference driver");
-            }
-            auto driver = result.take();
-            if (!driver) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "inference driver plugin returned a null driver");
-            }
-            if (driver->iid() != InferenceDriverPlugin::IID || driver->backend() != backend) {
-                return srt::Error(srt::Error::InvalidFormat,
-                                  "inference driver identity does not match plugin metadata");
-            }
-            return driver;
+    srt::Expected<std::unique_ptr<InferenceDriver>>
+        InferenceDriverFactory::create(stdc::plugin::PluginLoader *loader) {
+        if (!loader) {
+            return srt::Error(srt::Error::InvalidArgument,
+                              "inference driver plugin loader must not be null");
+        }
+        const auto driverPlugins = plugins(InferenceDriverPlugin::IID);
+        if (std::find(driverPlugins.begin(), driverPlugins.end(), loader) == driverPlugins.end()) {
+            return srt::Error(srt::Error::InvalidArgument,
+                              "inference driver plugin loader does not belong to this factory");
+        }
+        if (loader->iid() != InferenceDriverPlugin::IID) {
+            return srt::Error(srt::Error::InvalidArgument,
+                              "plugin loader does not provide an inference driver");
+        }
+        const auto backend = driverBackend(loader->metadata());
+        if (!backend) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              "inference driver plugin metadata is invalid");
+        }
+        if (!loader->load()) {
+            return srt::Error(srt::Error::FileNotOpen,
+                              "failed to load inference driver plugin: " + loader->errorMessage());
         }
 
-        return srt::Error(srt::Error::FileNotFound,
-                          "inference driver plugin was not found for backend: " +
-                              std::string(backend));
+        auto plugin = static_cast<InferenceDriverPlugin *>(loader->plugin());
+        auto result = plugin->create();
+        if (!result) {
+            return result.takeError().withContext("failed to create inference driver");
+        }
+        auto driver = result.take();
+        if (!driver) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              "inference driver plugin returned a null driver");
+        }
+        if (driver->iid() != InferenceDriverPlugin::IID || driver->backend() != *backend) {
+            return srt::Error(srt::Error::InvalidFormat,
+                              "inference driver identity does not match plugin metadata");
+        }
+        return driver;
     }
 
 }

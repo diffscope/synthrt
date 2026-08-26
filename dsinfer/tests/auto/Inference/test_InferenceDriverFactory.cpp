@@ -141,8 +141,13 @@ BOOST_AUTO_TEST_CASE(test_DiscoversAndCreatesRuntimeService) {
     const auto backends = factory.backends();
     BOOST_REQUIRE_EQUAL(backends.size(), 1u);
     BOOST_CHECK_EQUAL(backends[0], "test");
+    auto loader = factory.find("test");
+    BOOST_REQUIRE(loader);
+    BOOST_CHECK(loader->filePath().empty());
+    BOOST_CHECK(factory.find("missing") == nullptr);
+    BOOST_CHECK(factory.find("invalid/name") == nullptr);
 
-    auto result = factory.create("test");
+    auto result = factory.create(loader);
     BOOST_REQUIRE(result);
     auto driver = result.take();
     BOOST_CHECK_EQUAL(driver->iid(), ds::InferenceDriverPlugin::IID);
@@ -163,18 +168,24 @@ BOOST_AUTO_TEST_CASE(test_RejectsMissingAndMismatchedDrivers) {
     TestDriverPlugin wrongPlugin("actual");
     ds::InferenceDriverFactory factory;
 
-    auto missing = factory.create("missing");
+    BOOST_CHECK(factory.find("missing") == nullptr);
+    BOOST_CHECK(factory.find("invalid/name") == nullptr);
+
+    auto missing = factory.create(nullptr);
     BOOST_REQUIRE(!missing);
-    BOOST_CHECK(missing.error().code() == srt::Error::FileNotFound);
+    BOOST_CHECK(missing.error().code() == srt::Error::InvalidArgument);
 
     factory.addRuntimePlugin(ds::InferenceDriverPlugin::IID, &wrongPlugin, metadata("claimed"));
-    auto mismatched = factory.create("claimed");
+    auto loader = factory.find("claimed");
+    BOOST_REQUIRE(loader);
+    ds::InferenceDriverFactory otherFactory;
+    auto foreign = otherFactory.create(loader);
+    BOOST_REQUIRE(!foreign);
+    BOOST_CHECK(foreign.error().code() == srt::Error::InvalidArgument);
+
+    auto mismatched = factory.create(loader);
     BOOST_REQUIRE(!mismatched);
     BOOST_CHECK(mismatched.error().code() == srt::Error::InvalidFormat);
-
-    auto invalid = factory.create("invalid/name");
-    BOOST_REQUIRE(!invalid);
-    BOOST_CHECK(invalid.error().code() == srt::Error::InvalidArgument);
 }
 
 #ifdef DSINFER_TEST_DRIVER_PLUGIN_PATH
@@ -187,14 +198,20 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     BOOST_REQUIRE_EQUAL(backends.size(), 1u);
     BOOST_CHECK_EQUAL(backends.front(), ds::Api::Onnx::API_NAME);
 
-    auto result = factory.create(ds::Api::Onnx::API_NAME);
+    auto loader = factory.find(ds::Api::Onnx::API_NAME);
+    BOOST_REQUIRE(loader);
+    const auto bundlePath = loader->filePath().parent_path();
+    BOOST_CHECK(
+        std::filesystem::equivalent(bundlePath, pluginPaths.front() / ds::Api::Onnx::API_NAME));
+
+    auto result = factory.create(loader);
     BOOST_REQUIRE(result);
     auto driver = result.take();
     BOOST_CHECK_EQUAL(driver->backend(), "onnx");
     BOOST_CHECK(driver->extension() == nullptr);
     BOOST_CHECK(driver->createSession() == nullptr);
 
-    auto invalidResult = factory.create(ds::Api::Onnx::API_NAME);
+    auto invalidResult = factory.create(loader);
     BOOST_REQUIRE(invalidResult);
     auto invalidDriver = invalidResult.take();
     ds::Api::Onnx::DriverInitArgs invalidArgs;
@@ -204,8 +221,7 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     BOOST_CHECK(invalidInitialization.error().code() == srt::Error::InvalidArgument);
 
     ds::Api::Onnx::DriverInitArgs initArgs;
-    initArgs.runtimePath =
-        pluginPaths.front() / ds::Api::Onnx::API_NAME / "runtimes" / "onnx" / "default";
+    initArgs.runtimePath = bundlePath / "runtimes" / "onnx" / "default";
     BOOST_REQUIRE(driver->initialize(initArgs));
     auto duplicateInitialization = driver->initialize(initArgs);
     BOOST_REQUIRE(!duplicateInitialization);
@@ -233,7 +249,7 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     BOOST_REQUIRE(!mismatchedTensor);
     BOOST_CHECK(mismatchedTensor.error().code() == srt::Error::InvalidArgument);
 
-    auto externalResult = factory.create(ds::Api::Onnx::API_NAME);
+    auto externalResult = factory.create(loader);
     BOOST_REQUIRE(externalResult);
     auto externalDriver = externalResult.take();
     ds::Api::Onnx::DriverInitArgs externalArgs;
@@ -260,8 +276,7 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     ds::Api::Onnx::SessionOpenArgs openArgs;
     auto invalidModelSession = driverPointer->createSession();
     BOOST_REQUIRE(invalidModelSession);
-    auto invalidModel = invalidModelSession->open(
-        pluginPaths.front() / ds::Api::Onnx::API_NAME / "plugin.json", openArgs);
+    auto invalidModel = invalidModelSession->open(bundlePath / "plugin.json", openArgs);
     BOOST_REQUIRE(!invalidModel);
     BOOST_CHECK(invalidModel.error().code() == srt::Error::InvalidFormat);
 
@@ -269,7 +284,7 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     BOOST_CHECK_EQUAL(externalSession->id(), 1);
     BOOST_CHECK(!externalSession->isOpen());
 
-    auto coreMlResult = factory.create(ds::Api::Onnx::API_NAME);
+    auto coreMlResult = factory.create(loader);
     BOOST_REQUIRE(coreMlResult);
     auto coreMlDriver = coreMlResult.take();
     ds::Api::Onnx::DriverInitArgs coreMlArgs;
@@ -289,12 +304,14 @@ BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
     const std::array<std::filesystem::path, 1> pluginPaths{DSINFER_TEST_DRIVER_PLUGIN_PATH};
     factory.setPluginPaths(pluginPaths);
 
-    auto driverResult = factory.create(ds::Api::Onnx::API_NAME);
+    auto loader = factory.find(ds::Api::Onnx::API_NAME);
+    BOOST_REQUIRE(loader);
+    const auto bundlePath = loader->filePath().parent_path();
+    auto driverResult = factory.create(loader);
     BOOST_REQUIRE(driverResult);
     auto driver = driverResult.take();
     ds::Api::Onnx::DriverInitArgs initArgs;
-    initArgs.runtimePath =
-        pluginPaths.front() / ds::Api::Onnx::API_NAME / "runtimes" / "onnx" / "default";
+    initArgs.runtimePath = bundlePath / "runtimes" / "onnx" / "default";
     BOOST_REQUIRE(driver->initialize(initArgs));
 
     ds::Api::Onnx::SessionOpenArgs openArgs;

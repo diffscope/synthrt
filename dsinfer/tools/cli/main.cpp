@@ -137,7 +137,11 @@ static void initializeSynthUnit(srt::SynthUnit &su, ds::InferenceDriverFactory &
 
     // Drivers are runtime services rather than contributions, so they use a separate factory.
     driverFactory.addPluginPath(pluginRoot / STDC_TSTR("inferencedrivers"));
-    auto driverResult = driverFactory.create(ds::Api::Onnx::API_NAME);
+    auto driverLoader = driverFactory.find(ds::Api::Onnx::API_NAME);
+    if (!driverLoader) {
+        throw std::runtime_error("failed to find the ONNX inference driver plugin");
+    }
+    auto driverResult = driverFactory.create(driverLoader);
     if (!driverResult) {
         throw std::runtime_error("failed to load inference driver: " +
                                  driverResult.error().message());
@@ -146,9 +150,8 @@ static void initializeSynthUnit(srt::SynthUnit &su, ds::InferenceDriverFactory &
     ds::Api::Onnx::DriverInitArgs onnxArgs;
 
     onnxArgs.ep = ep;
-    auto ortParentPath = pluginRoot / STDC_TSTR("inferencedrivers") /
-                         stdc::path::from_utf8(ds::Api::Onnx::API_NAME) / STDC_TSTR("runtimes") /
-                         STDC_TSTR("onnx");
+    auto ortParentPath =
+        driverLoader->filePath().parent_path() / STDC_TSTR("runtimes") / STDC_TSTR("onnx");
     if (ep == EP::CUDA) {
         onnxArgs.runtimePath = ortParentPath / STDC_TSTR("cuda");
     } else {
