@@ -15,7 +15,7 @@ namespace ds {
     /// A plugin factory that creates inference drivers.
     class DSINFER_EXPORT InferenceDriverPlugin : public stdc::plugin::Plugin {
     public:
-        static constexpr const char *IID = InferenceDriver::IID;
+        static constexpr const char *IID = "org.openvpi.dsinfer.plugin.InferenceDriver";
 
         virtual ~InferenceDriverPlugin() = default;
 

@@ -91,7 +91,7 @@ namespace ds {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "inference driver plugin returned a null driver");
             }
-            if (driver->iid() != InferenceDriver::IID || driver->backend() != backend) {
+            if (driver->iid() != InferenceDriverPlugin::IID || driver->backend() != backend) {
                 return srt::Error(srt::Error::InvalidFormat,
                                   "inference driver identity does not match plugin metadata");
             }

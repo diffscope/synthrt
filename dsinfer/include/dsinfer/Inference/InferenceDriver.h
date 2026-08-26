@@ -64,8 +64,6 @@ namespace ds {
     /// A process backend used to execute inference models.
     class DSINFER_EXPORT InferenceDriver : public srt::RuntimeService {
     public:
-        static constexpr const char *IID = "org.openvpi.dsinfer.plugin.InferenceDriver";
-
         virtual ~InferenceDriver();
 
         /// Returns the backend contract name.

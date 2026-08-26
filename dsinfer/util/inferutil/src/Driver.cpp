@@ -2,13 +2,14 @@
 
 #include <synthrt/Core/SynthUnit.h>
 
-#include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
+#include <dsinfer/Inference/InferenceDriverPlugin.h>
+#include <dsinfer/Support/ErrorCode.h>
 
 namespace ds::inferutil {
     srt::Expected<InferenceDriver *> getInferenceDriver(const srt::InferenceExecutive *obj) {
         namespace Onnx = Api::Onnx;
-        auto service = obj->synthUnit().runtimeService(InferenceDriver::IID, Onnx::API_NAME);
+        auto service = obj->synthUnit().runtimeService(InferenceDriverPlugin::IID, Onnx::API_NAME);
         if (!service) {
             return srt::Error(ds::ErrorCode::NotInitialized,
                               "could not find the ONNX inference driver");

@@ -145,7 +145,7 @@ BOOST_AUTO_TEST_CASE(test_DiscoversAndCreatesRuntimeService) {
     auto result = factory.create("test");
     BOOST_REQUIRE(result);
     auto driver = result.take();
-    BOOST_CHECK_EQUAL(driver->iid(), ds::InferenceDriver::IID);
+    BOOST_CHECK_EQUAL(driver->iid(), ds::InferenceDriverPlugin::IID);
     BOOST_CHECK_EQUAL(driver->name(), "test");
     BOOST_CHECK_EQUAL(driver->backend(), "test");
     TestInitArgs args;
@@ -155,7 +155,7 @@ BOOST_AUTO_TEST_CASE(test_DiscoversAndCreatesRuntimeService) {
     auto driverPointer = driver.get();
     srt::SynthUnit unit;
     BOOST_REQUIRE(unit.addRuntimeService(std::move(driver)));
-    BOOST_CHECK(unit.runtimeService(ds::InferenceDriver::IID, "test") == driverPointer);
+    BOOST_CHECK(unit.runtimeService(ds::InferenceDriverPlugin::IID, "test") == driverPointer);
     BOOST_CHECK(&driverPointer->synthUnit() == &unit);
 }
 
@@ -214,7 +214,7 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     auto driverPointer = driver.get();
     srt::SynthUnit unit;
     BOOST_REQUIRE(unit.addRuntimeService(std::move(driver)));
-    BOOST_CHECK(unit.runtimeService(ds::InferenceDriver::IID, ds::Api::Onnx::API_NAME) ==
+    BOOST_CHECK(unit.runtimeService(ds::InferenceDriverPlugin::IID, ds::Api::Onnx::API_NAME) ==
                 driverPointer);
 
     auto extension = driverPointer->extension()->as<ds::Api::Onnx::DriverExtension>();
