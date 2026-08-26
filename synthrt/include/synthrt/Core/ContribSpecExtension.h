@@ -43,7 +43,7 @@ namespace srt {
         ContribSpec *m_spec;
         std::string m_id;
 
-        STDC_DISABLE_COPY(ContribSpecExtension)
+        STDC_DISABLE_COPY_MOVE(ContribSpecExtension)
     };
 
 }

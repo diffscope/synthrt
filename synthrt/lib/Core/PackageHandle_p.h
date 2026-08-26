@@ -41,6 +41,8 @@ namespace srt {
         std::map<std::string, std::map<std::string, ContribSpec *, std::less<>>, std::less<>>
             contributionIndex;
         stdc::vlarray<ContribExecutive *> executives;
+
+        STDC_DISABLE_COPY_MOVE(PackageData)
     };
 
 }

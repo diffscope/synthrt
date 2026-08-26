@@ -201,6 +201,8 @@ namespace srt {
         class Impl;
         std::unique_ptr<Impl> _impl;
 
+        STDC_DISABLE_COPY_MOVE(ContribSpec)
+
         friend class ContribExecutive;
         friend class PackageData;
         friend class PackageLoader;

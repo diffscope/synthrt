@@ -126,13 +126,18 @@ namespace {
                   })");
     }
 
-    srt::SynthUnit makeUnit() {
-        srt::SynthUnit unit;
-        const std::array<fs::path, 1> inferencePaths = {DSINFER_TEST_INFERENCE_PLUGIN_PATH};
-        const std::array<fs::path, 1> singerPaths = {DSINFER_TEST_SINGER_PLUGIN_PATH};
-        unit.setPluginPaths("inference", inferencePaths);
-        unit.setPluginPaths("singer", singerPaths);
-        return unit;
+    class ConfiguredSynthUnit final : public srt::SynthUnit {
+    public:
+        ConfiguredSynthUnit() {
+            const std::array<fs::path, 1> inferencePaths = {DSINFER_TEST_INFERENCE_PLUGIN_PATH};
+            const std::array<fs::path, 1> singerPaths = {DSINFER_TEST_SINGER_PLUGIN_PATH};
+            setPluginPaths("inference", inferencePaths);
+            setPluginPaths("singer", singerPaths);
+        }
+    };
+
+    ConfiguredSynthUnit makeUnit() {
+        return {};
     }
 
 }

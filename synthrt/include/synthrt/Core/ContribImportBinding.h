@@ -65,6 +65,8 @@ namespace srt {
         std::unique_ptr<ContribImportOptions> m_options;
         State m_state = State::Prepared;
 
+        STDC_DISABLE_COPY_MOVE(ContribImportBinding)
+
         friend class PackageData;
         friend class PackageLoader;
     };

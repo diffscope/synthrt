@@ -3,6 +3,7 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -375,10 +376,15 @@ namespace {
         return root;
     }
 
-    srt::SynthUnit makeUnit() {
-        srt::SynthUnit unit;
-        BOOST_REQUIRE(unit.category(testCategoryName));
-        return unit;
+    class ConfiguredSynthUnit final : public srt::SynthUnit {
+    public:
+        ConfiguredSynthUnit() {
+            BOOST_REQUIRE(category(testCategoryName));
+        }
+    };
+
+    ConfiguredSynthUnit makeUnit() {
+        return {};
     }
 
 }
@@ -394,17 +400,17 @@ BOOST_AUTO_TEST_CASE(test_linked_categories_are_instantiated_for_each_unit) {
     BOOST_CHECK(first.category(testCategoryName) != second.category(testCategoryName));
 }
 
-BOOST_AUTO_TEST_CASE(test_unregistered_runtime_service_is_movable) {
-    TestRuntimeService original("com.example.InferenceDriver", "onnx");
-    TestRuntimeService moved(std::move(original));
-
-    BOOST_CHECK_EQUAL(moved.iid(), "com.example.InferenceDriver");
-    BOOST_CHECK_EQUAL(moved.name(), "onnx");
-
-    TestRuntimeService assigned("com.example.Placeholder", "placeholder");
-    assigned = std::move(moved);
-    BOOST_CHECK_EQUAL(assigned.iid(), "com.example.InferenceDriver");
-    BOOST_CHECK_EQUAL(assigned.name(), "onnx");
+BOOST_AUTO_TEST_CASE(test_runtime_relationship_nodes_are_not_movable) {
+    BOOST_CHECK(!std::is_move_constructible_v<srt::SynthUnit>);
+    BOOST_CHECK(!std::is_move_assignable_v<srt::SynthUnit>);
+    BOOST_CHECK(!std::is_move_constructible_v<TestRuntimeService>);
+    BOOST_CHECK(!std::is_move_assignable_v<TestRuntimeService>);
+    BOOST_CHECK(!std::is_move_constructible_v<TestCategory>);
+    BOOST_CHECK(!std::is_move_constructible_v<TestSpec>);
+    BOOST_CHECK(!std::is_move_constructible_v<TestBinding>);
+    BOOST_CHECK(!std::is_move_constructible_v<TestExtension>);
+    BOOST_CHECK(!std::is_move_constructible_v<TestExecutive>);
+    BOOST_CHECK(!std::is_move_constructible_v<TestInterpreter>);
 }
 
 BOOST_AUTO_TEST_CASE(test_runtime_services_are_owned_and_indexed_by_synth_unit) {
@@ -436,12 +442,8 @@ BOOST_AUTO_TEST_CASE(test_runtime_services_are_owned_and_indexed_by_synth_unit) 
     BOOST_REQUIRE(!invalidName);
     BOOST_CHECK(invalidName.error().code() == srt::Error::InvalidArgument);
 
-    srt::SynthUnit moved(std::move(unit));
-    BOOST_CHECK(&onnxPointer->synthUnit() == &moved);
-    BOOST_CHECK(moved.runtimeService("com.example.InferenceDriver", "onnx") == onnxPointer);
-
-    BOOST_REQUIRE(moved.openPackage(root, srt::SynthUnit::DataOnly));
-    auto late = moved.addRuntimeService(
+    BOOST_REQUIRE(unit.openPackage(root, srt::SynthUnit::DataOnly));
+    auto late = unit.addRuntimeService(
         std::make_unique<TestRuntimeService>("com.example.InferenceDriver", "late"));
     BOOST_REQUIRE(!late);
     BOOST_CHECK(late.error().code() == srt::Error::InvalidArgument);

@@ -30,51 +30,6 @@ namespace srt {
         }
     }
 
-    SynthUnit::SynthUnit(SynthUnit &&RHS) noexcept : _impl(std::move(RHS._impl)) {
-        if (_impl) {
-            for (auto &item : _impl->categories) {
-                item.second->_impl->synthUnit = this;
-            }
-            for (auto &iidEntry : _impl->runtimeServices) {
-                for (auto &nameEntry : iidEntry.second) {
-                    nameEntry.second->m_synthUnit = this;
-                }
-            }
-            for (auto &idEntry : _impl->packages) {
-                for (auto &versionEntry : idEntry.second) {
-                    if (auto package = versionEntry.second.lock()) {
-                        package->synthUnit = this;
-                    }
-                }
-            }
-        }
-    }
-
-    SynthUnit &SynthUnit::operator=(SynthUnit &&RHS) noexcept {
-        if (this == &RHS) {
-            return *this;
-        }
-        _impl = std::move(RHS._impl);
-        if (_impl) {
-            for (auto &item : _impl->categories) {
-                item.second->_impl->synthUnit = this;
-            }
-            for (auto &iidEntry : _impl->runtimeServices) {
-                for (auto &nameEntry : iidEntry.second) {
-                    nameEntry.second->m_synthUnit = this;
-                }
-            }
-            for (auto &idEntry : _impl->packages) {
-                for (auto &versionEntry : idEntry.second) {
-                    if (auto package = versionEntry.second.lock()) {
-                        package->synthUnit = this;
-                    }
-                }
-            }
-        }
-        return *this;
-    }
-
     SynthUnit::~SynthUnit() = default;
 
     ContribCategory *SynthUnit::category(std::string_view name) {

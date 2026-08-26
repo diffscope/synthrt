@@ -88,7 +88,7 @@ namespace srt {
         bool m_destroyingChildren = false;
         std::atomic<LifecycleState> m_state = LifecycleState::Running;
 
-        STDC_DISABLE_COPY(ContribExecutive)
+        STDC_DISABLE_COPY_MOVE(ContribExecutive)
 
         friend class PackageData;
     };

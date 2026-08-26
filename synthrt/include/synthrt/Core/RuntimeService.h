@@ -41,21 +41,6 @@ namespace srt {
             : m_iid(std::move(iid)), m_name(std::move(name)) {
         }
 
-        /// Moves an unregistered service.
-        inline RuntimeService(RuntimeService &&RHS) noexcept
-            : m_iid(std::move(RHS.m_iid)), m_name(std::move(RHS.m_name)) {
-            assert(!RHS.m_synthUnit);
-        }
-
-        /// Moves an unregistered service into another unregistered service.
-        inline RuntimeService &operator=(RuntimeService &&RHS) noexcept {
-            assert(!m_synthUnit);
-            assert(!RHS.m_synthUnit);
-            m_iid = std::move(RHS.m_iid);
-            m_name = std::move(RHS.m_name);
-            return *this;
-        }
-
     private:
         std::string m_iid;
         std::string m_name;
@@ -63,7 +48,7 @@ namespace srt {
         // Set at registration
         SynthUnit *m_synthUnit = nullptr;
 
-        STDC_DISABLE_COPY(RuntimeService)
+        STDC_DISABLE_COPY_MOVE(RuntimeService)
 
         friend class SynthUnit;
     };

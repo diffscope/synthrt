@@ -26,8 +26,6 @@ namespace srt {
     public:
         /// Constructs a unit with every category in \c ContribCategoryRegistry.
         SynthUnit();
-        SynthUnit(SynthUnit &&RHS) noexcept;
-        SynthUnit &operator=(SynthUnit &&RHS) noexcept;
 
         /// \warning All PackageHandle objects owned by this unit must have been released before
         ///          destruction. All borrowed contribution pointers must no longer be used.
@@ -91,6 +89,8 @@ namespace srt {
     private:
         class Impl;
         std::unique_ptr<Impl> _impl;
+
+        STDC_DISABLE_COPY_MOVE(SynthUnit)
 
         friend class ContribCategory;
         friend class ContribExecutive;

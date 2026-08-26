@@ -139,7 +139,7 @@ namespace srt {
 
         std::shared_ptr<AsyncState> m_asyncState;
 
-        STDC_DISABLE_COPY(ITask)
+        STDC_DISABLE_COPY_MOVE(ITask)
     };
 
 }
