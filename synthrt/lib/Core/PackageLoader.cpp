@@ -711,6 +711,10 @@ namespace srt {
             return contribution == category->second.end() ? nullptr : contribution->second;
         };
 
+        // WARNING:
+        // Probe aborts the transaction on its first error and never resumes traversal. The state
+        // map and active stack therefore need no failure unwinding because both are local to this
+        // openLoaded() call and are discarded with the failed transaction.
         std::function<Expected<void>(const std::shared_ptr<PackageData> &)> probePackage;
         probePackage = [&](const std::shared_ptr<PackageData> &package) -> Expected<void> {
             if (package->loaded) {

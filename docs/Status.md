@@ -58,6 +58,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 仍待完成的迁移包括：
 
 - 真实插件的 Package 加载和兼容性拒绝已有自动化覆盖，Pipeline 创建、子实例执行与 Package 卸载仍缺少端到端测试
+- Core 已将每条 Import Binding 的 typed options 传入 Executive 创建流程，但 Duration、Pitch、Acoustic 与 Variance 插件尚未将 per-import options 保存到具体 Executive 并在 Task 中消费。插件作者仍需实现 `speakerMapping`，并让 Variance 按 import `predictions` 选择预测子集，同时补充同一 target 经不同 role 创建不同 Executive 的回归测试
 
 当前完整 `all` 构建可以通过，16 个自动测试均已通过。
 
