@@ -55,6 +55,11 @@ namespace srt {
         /// Returns a snapshot of the executives directly supervised by this executive.
         std::vector<ContribExecutive *> children() const;
 
+        /// Casts this executive to a contract specific type without a runtime check.
+        ///
+        /// \warning The caller must establish the dynamic type from the contribution contract and
+        /// provider agreement before calling this function. Passing another derived type results
+        /// in undefined behavior.
         SYNTHRT_DECLARE_AS_METHODS(ContribExecutive)
 
     protected:
@@ -98,6 +103,14 @@ namespace srt {
     public:
         virtual ~ContribExecutiveFactory() = default;
 
+        /// Creates an executive of the fixed contribution contract represented by this factory.
+        ///
+        /// The implementation must return the concrete executive type required by the target
+        /// interface, variant, and Level. Callers may use that contract to perform an unchecked
+        /// downcast.
+        ///
+        /// \warning Returning another dynamic type violates the provider ABI and results in
+        /// undefined behavior when the caller performs the contract defined downcast.
         virtual Expected<std::unique_ptr<ContribExecutive>>
             create(const ContribRuntimeOptions &runtimeOptions) = 0;
 
