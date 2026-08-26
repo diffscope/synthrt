@@ -5,6 +5,7 @@
 #include <string>
 
 #include <synthrt/Core/SynthUnit.h>
+#include <synthrt/SVS/InferenceContrib.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
@@ -56,6 +57,7 @@ namespace {
                       "contributions":{
                         "inference":[
                           {"id":"acoustic","path":"acoustic.json"},
+                          {"id":"pitch","path":"pitch.json"},
                           {"id":"vocoder","path":"vocoder.json"}
                         ],
                         "singer":[{"id":"singer","path":"singer.json"}]
@@ -73,6 +75,20 @@ namespace {
                         "model":"acoustic.onnx",
                         "sampleRate":)" +
                       std::to_string(acousticSampleRate) + R"(
+                      }
+                  })");
+        writeText(root / "pitch.json",
+                  R"({
+                      "interface":"org.openvpi.dsinfer.inference.Pitch",
+                      "variant":"onnx",
+                      "level":1,
+                      "exports":{},
+                      "configuration":{
+                        "phonemes":"phonemes.json",
+                        "encoder":"pitch-encoder.onnx",
+                        "predictor":"pitch-predictor.onnx",
+                        "sampleRate":44100,
+                        "hopSize":512
                       }
                   })");
         writeText(root / "vocoder.json",
@@ -156,6 +172,28 @@ BOOST_AUTO_TEST_CASE(test_missing_required_inference_role_does_not_commit) {
     BOOST_CHECK(!opened);
     BOOST_CHECK(opened.error().toString().find("acoustic inference import") != std::string::npos);
     BOOST_CHECK(unit.loadedPackages().empty());
+}
+
+BOOST_AUTO_TEST_CASE(test_vocoder_rejects_non_acoustic_compatibility_source) {
+    TemporaryDirectory temporary;
+    writePackage(temporary.path(), 44100, 44100);
+    auto unit = makeUnit();
+
+    auto opened = unit.openPackage(temporary.path(), srt::SynthUnit::Load);
+
+    BOOST_REQUIRE(opened);
+    auto package = opened.take();
+    auto vocoderSpec = package.contribution("inference", "vocoder");
+    auto pitchSpec = package.contribution("inference", "pitch");
+    BOOST_REQUIRE(vocoderSpec);
+    BOOST_REQUIRE(pitchSpec);
+    auto vocoder = vocoderSpec->as<srt::InferenceSpec>();
+    auto pitch = pitchSpec->as<srt::InferenceSpec>();
+    BOOST_REQUIRE(vocoder);
+    BOOST_REQUIRE(pitch);
+    auto compatible = vocoder->validateCompatibilityWith(*pitch);
+    BOOST_REQUIRE(!compatible);
+    BOOST_CHECK(compatible.error().code() == srt::Error::InvalidArgument);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

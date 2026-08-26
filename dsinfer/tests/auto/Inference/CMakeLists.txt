@@ -18,8 +18,9 @@ if(TARGET test_InferenceDriverFactory AND TARGET onnxdriver)
     )
 endif()
 
-if(TARGET test_InferenceCompatibility AND TARGET acoustic AND TARGET vocoder AND TARGET diffsinger)
-    add_dependencies(test_InferenceCompatibility acoustic vocoder diffsinger)
+if(TARGET test_InferenceCompatibility AND TARGET acoustic AND TARGET pitch AND TARGET vocoder AND
+   TARGET diffsinger)
+    add_dependencies(test_InferenceCompatibility acoustic pitch vocoder diffsinger)
     target_compile_definitions(test_InferenceCompatibility PRIVATE
         DSINFER_TEST_INFERENCE_PLUGIN_PATH="$<TARGET_FILE_DIR:acoustic>/.."
         DSINFER_TEST_SINGER_PLUGIN_PATH="$<TARGET_FILE_DIR:diffsinger>/.."

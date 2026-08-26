@@ -125,7 +125,8 @@ namespace ds {
                                                   const srt::InferenceSpec &other) const {
         if (other.interface() != Ac::API_INTERFACE || other.variant() != Ac::API_VARIANT ||
             other.level() != Ac::API_LEVEL) {
-            return {};
+            return srt::Error(srt::Error::InvalidArgument,
+                              "vocoder compatibility requires an Acoustic Level 1 ONNX inference");
         }
 
         const auto acoustic = other.configuration()->as<Ac::AcousticConfiguration>();
