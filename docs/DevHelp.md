@@ -179,7 +179,7 @@ unit.setPluginPaths("inference", {pluginRoot / "inferenceinterpreters"});
 unit.setPackagePaths({installedPackagesA, installedPackagesB});
 ```
 
-插件路径的直接子目录是 bundle。每个 bundle 包含 `plugin.json` 和由 `name` 定位的动态库。Provider 发现只读 `plugin.json`，不会为探测候选而加载动态库。
+插件路径的直接子目录是 bundle。每个 bundle 包含 `plugin.json` 和由 `name` 定位的动态库。插件 IID 嵌入动态库，`plugin.json` 只保存该扩展点拥有的用户 metadata。Provider 发现会读取动态库中的 IID 和 sidecar metadata，但不会执行插件代码。
 
 无法读取或不符合该 Category metadata 结构的 bundle 不进入候选集合。找到首个三元组匹配项后，后续 Provider 不再参与本次选择。若选中的动态库无法加载，或者解释器随后拒绝 configuration，整个 Load 失败，不会回退到下一个插件。
 
@@ -214,7 +214,16 @@ if (auto result = unit.addRuntimeService(std::move(driver)); !result) {
 
 `InferenceDriverFactory` 持有已加载 Driver 插件的代码，必须比它创建的 Driver 活得久。上例中应先构造 Factory，再构造 SynthUnit，使销毁顺序为 SynthUnit 在前、Factory 在后。SynthUnit 接管 Driver 的对象所有权。
 
-Executive 可以通过 `synthUnit().runtimeService(InferenceDriver::IID, backend)` 找到共享 Driver。Driver 再创建 `InferenceSession`，Session 是 `ITask`，负责打开一个模型并执行同步或异步推理。
+Driver bundle 同样把 `InferenceDriverPlugin::IID` 嵌入动态库。其 `plugin.json` 只声明用于定位动态库的 `name` 和用于选择 Driver 的 `backend`：
+
+```json
+{
+  "name": "onnxdriver",
+  "backend": "onnx"
+}
+```
+
+Executive 可以通过 `synthUnit().runtimeService(InferenceDriverPlugin::IID, backend)` 找到共享 Driver。IID 属于创建 Driver 的插件接口，Driver 类型本身不另行声明 IID。Driver 再创建 `InferenceSession`，Session 是 `ITask`，负责打开一个模型并执行同步或异步推理。
 
 ## 4. 打开模式
 
@@ -270,7 +279,7 @@ Probe 不执行 Provider 代码，主要完成：
 4. 解析每个 Locator，并确认目标存在且属于 Module Category。
 5. 从目标 Category 的插件元数据中为每个三元组选择第一个 Provider。
 
-插件选择键为 Category 所属 IID 加 `interface`、`level`、`variant`。同一个目录中的 bundle 由 stdcorelib.plugin 提供确定顺序，搜索路径按宿主给出的顺序处理。选中的 PluginLoader 会记录在 Spec 上，后续不会因为搜索路径改变而改选。
+插件选择键为 Category 所属插件 IID 加 `interface`、`level`、`variant`。同一个目录中的 bundle 由 stdcorelib.plugin 提供确定顺序，搜索路径按宿主给出的顺序处理。选中的 PluginLoader 会记录在 Spec 上，后续不会因为搜索路径改变而改选。
 
 ### 5.3 Acquire
 
@@ -370,32 +379,42 @@ Prepared -> Active -> Closed
 
 ## 7. 解释器如何工作
 
-### 7.1 插件元数据
+### 7.1 插件声明与用户 Metadata
 
 一个解释器插件可以支持多个三元组：
 
 ```json
 {
-  "iid": "org.openvpi.synthrt.plugin.InferenceInterpreter",
   "name": "acoustic",
-  "metadata": {
-    "interpreters": [
-      {
-        "interface": "org.openvpi.dsinfer.inference.Acoustic",
-        "level": 1,
-        "variant": "openvpi"
-      }
-    ]
-  }
+  "interpreters": [
+    {
+      "interface": "org.openvpi.dsinfer.inference.Acoustic",
+      "level": 1,
+      "variant": "openvpi"
+    }
+  ]
 }
 ```
 
-`iid` 由 Category 决定。内置值为：
+IID 由 Category 决定，并通过 `stdc_add_plugin_metadata()` 嵌入动态库，不写入 `plugin.json`。内置值为：
 
 - inference：`org.openvpi.synthrt.plugin.InferenceInterpreter`
 - singer：`org.openvpi.synthrt.plugin.SingerProvider`
 
-`name` 是同目录动态库的跨平台中立名称。Loader 在 Probe 只读 metadata。Acquire 加载库后，调用 `ContribInterpreterPlugin::create(interface, level, variant)`。
+`plugin.json` 本身就是 `PluginLoader::metadata()` 返回的用户 metadata，不再包含 `iid` 或额外的 `metadata` 包装层。`name` 是同目录动态库的跨平台中立名称。Loader 在 Probe 读取嵌入式 IID 和 sidecar metadata。Acquire 加载库后，调用 `ContribInterpreterPlugin::create(interface, level, variant)`。
+
+插件目标应在所属 category 的 CMake 层设置 IID，并在创建目标后声明插件二进制：
+
+```cmake
+set(CURRENT_PLUGIN_IID org.openvpi.synthrt.plugin.InferenceInterpreter)
+
+stdc_add_plugin_metadata(
+    TARGET ${PROJECT_NAME}
+    IID ${CURRENT_PLUGIN_IID}
+)
+```
+
+本仓库的 dsinfer 插件通过 `dsinfer_add_plugin_metadata(target, iid)` 包装上述调用，并负责把同目录的 `plugin.json` 复制或安装到 bundle 输出目录。
 
 插件加载成功后在 SynthUnit 内常驻，Package rollback 和卸载不会卸载它。SynthUnit 销毁时会先销毁 Package 弱索引、Category 和 Runtime Service，最后才释放内部插件 Factory 及其解释器和动态库。
 
@@ -709,7 +728,7 @@ public:
 };
 ```
 
-插件类使用 `STDC_EXPORT_PLUGIN` 导出，`plugin.json` 的 iid 必须等于 Category 的 `interpreterIid()`，metadata 必须声明每个受支持三元组。插件的 `create()` 仍应检查收到的三元组，不要假设 metadata 永远正确。
+插件类使用 `STDC_EXPORT_PLUGIN` 导出。构建系统使用 `stdc_add_plugin_metadata()` 把等于 Category `interpreterIid()` 的 IID 嵌入动态库。`plugin.json` 不写 IID，其根级 `interpreters` 必须声明每个受支持三元组。插件的 `create()` 仍应检查收到的三元组，不要假设 metadata 永远正确。
 
 ### 10.5 注册与宿主配置
 

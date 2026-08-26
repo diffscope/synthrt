@@ -43,7 +43,7 @@
 | 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Commit 前只允许同步管理调用并禁止业务执行，Commit 不可失败；卸载执行 quit / wait，Runtime 销毁前静止 provider domain |
 | Package 兼容承诺 | `compatVersion`只参与版本区间判断 | 明确兼容区间内必须保持的公开表面，由 Package 作者负责 |
 | DSPK 安全边界 | 未规定 | ZIP entry 文件名使用 UTF-8，解包严格封闭在安装目录内；运行时资源引用允许越过 Package root |
-| 模块 provider 发现 | 只规定 Inference 解释器 | 每个模块类别有专用插件搜索目录与 factory，无效元数据跳过，目录内按文件名确定排序，首次创建时选择并永久绑定首个 provider |
+| 模块 provider 发现 | 只规定 Inference 解释器 | 每个模块类别有专用插件搜索目录与 factory，插件 IID 嵌入动态库，sidecar 用户 metadata 不含 envelope，无效元数据跳过，目录内按文件名确定排序，首次创建时选择并永久绑定首个 provider |
 | interface 契约 | 只有名称与 API Level | 每个 (`interface`, `level`) 必须有稳定可定位的规范及 JSON Schema |
 | 契约发现 | 未规定 | 契约材料面向开发者发布，Runtime 不按 interface 自动发现或下载 Schema |
 | category 注册 | 只有开放类别概念 | 解析前完成进程内注册，重复名称报错，Package 不能定义 category 语义 |
@@ -569,7 +569,7 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 每个模块类别拥有各自专用的 provider factory 和有序插件搜索路径。一个类别的 factory 只发现和创建该类别的 provider，不同类别的 provider 不在同一个搜索目录或候选集合中并列比较。category 因此是选择 factory 与搜索路径的外部上下文，不属于 provider 的匹配键。
 
-模块 provider 必须在无需加载插件即可读取的`metadata.interpreters`数组中声明它支持的`interface`、`level`和`variant`。同一插件的数组中不得重复声明相同的 (`interface`, `level`, `variant`) 三元组，重复时整个插件元数据无效。根级`iid`与`name`及完整 envelope 由第 3 节规定。
+模块 provider 必须在无需加载插件即可读取的用户 metadata 根级`interpreters`数组中声明它支持的`interface`、`level`和`variant`。同一插件的数组中不得重复声明相同的 (`interface`, `level`, `variant`) 三元组，重复时整个插件元数据无效。插件 IID 与 bundle metadata 的边界由第 3 节规定。
 
 一个目录项只有在其元数据能够读取、是合法 JSON、包含全部必选字段及正确类型，并通过包括三元组不得重复在内的全部结构验证后，才被视为 provider plugin。无法读取、解析或通过验证的目录项，以及扫描期间消失的目录项，均视为不是插件并直接跳过，不得进入候选集合，也不使 discovery 失败。普通文件按相同规则自然忽略。
 
@@ -805,29 +805,26 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 
 每个 module category 都注册自己的 provider factory 与有序插件搜索路径序列。不同 category 的搜索路径彼此独立，某个 category 的 factory 只扫描该 category 的路径，不得从其他 category 的目录发现或选择插件。搜索路径由宿主配置，本规范不要求所有 category 共用某个固定的`plugins`根目录。
 
-模块 provider plugin 的清单遵循 stdcorelib plugin manifest envelope。根对象必须提供用于选择扩展点的`iid`、表示插件动态库跨平台中立 basename 的`name`，以及归该 IID 所有的`metadata`对象。JSON 对象的成员顺序不影响语义。`name`必须是非空字符串，不得包含目录部分、平台动态库前缀或扩展名；例如`"name": "diffsinger"`可以解析到 Windows 的`diffsinger.dll`、Unix 的`libdiffsinger.so`或 macOS 的`libdiffsinger.dylib`。它不是插件 ID，也不是面向用户的显示名称。
+模块 provider plugin 的 IID 必须按照 stdcorelib.plugin 的插件声明机制嵌入动态库。IID 选择扩展点，不写入`plugin.json`。bundle 中的`plugin.json`是归该 IID 所有的用户 metadata 根对象，不得再增加`metadata`包装层。JSON 对象的成员顺序不影响语义。根级`name`必须是非空字符串，用于表示插件动态库的跨平台中立 basename，不得包含目录部分、平台动态库前缀或扩展名；例如`"name": "diffsinger"`可以解析到 Windows 的`diffsinger.dll`、Unix 的`libdiffsinger.so`或 macOS 的`libdiffsinger.dylib`。它不是插件 ID，也不是面向用户的显示名称。
 
-`metadata.interpreters`是必选的非空数组，每个条目必须包含字符串`interface`、正整数`level`与字符串`variant`。同一插件不得重复声明相同的 (`interface`, `level`, `variant`) 三元组。一个插件可以声明多个三元组。选中某个条目并加载插件后，Runtime 必须将该条目的`interface`、`level`、`variant`传给`ContribInterpreterPlugin::create`，由插件为这个三元组创建`ContribInterpreter`。同一插件可以为不同三元组返回不同的解释器实现。
+根级`interpreters`是必选的非空数组，每个条目必须包含字符串`interface`、正整数`level`与字符串`variant`。同一插件不得重复声明相同的 (`interface`, `level`, `variant`) 三元组。一个插件可以声明多个三元组。选中某个条目并加载插件后，Runtime 必须将该条目的`interface`、`level`、`variant`传给`ContribInterpreterPlugin::create`，由插件为这个三元组创建`ContribInterpreter`。同一插件可以为不同三元组返回不同的解释器实现。
 
 例如一个 Singer provider plugin 可以声明：
 
 ```json
 {
-  "iid": "org.openvpi.synthrt.plugin.SingerProvider",
   "name": "diffsinger",
-  "metadata": {
-    "interpreters": [
-      {
-        "interface": "org.openvpi.dsinfer.singer.DiffSinger",
-        "level": 1,
-        "variant": "openvpi"
-      }
-    ]
-  }
+  "interpreters": [
+    {
+      "interface": "org.openvpi.dsinfer.singer.DiffSinger",
+      "level": 1,
+      "variant": "openvpi"
+    }
+  ]
 }
 ```
 
-Inference interpreter plugin 使用`org.openvpi.synthrt.plugin.InferenceInterpreter`作为 IID，并使用相同的`metadata.interpreters`结构。
+上述动态库嵌入的 IID 是`org.openvpi.synthrt.plugin.SingerProvider`。Inference interpreter plugin 则嵌入`org.openvpi.synthrt.plugin.InferenceInterpreter`，并使用相同的根级`interpreters`结构。
 
 例如，某个宿主可以配置：
 
@@ -862,13 +859,13 @@ com.vendor.language:
       - dictionary.dll / libdictionary.so / libdictionary.dylib
 ```
 
-每个 category 搜索路径的直接子目录表示一个插件，子目录中必须存在`plugin.json`。factory 使用根级`name`解析同目录中的动态库。即使两个 category 的搜索路径在文件系统中发生重叠，各自 factory 仍只能识别本 category 的插件。
+每个 category 搜索路径的直接子目录表示一个插件，子目录中必须存在`plugin.json`。factory 使用根级`name`解析同目录中的动态库，并在不执行插件代码的情况下读取动态库中嵌入的 IID。只有 IID 等于该 category 插件 IID 的动态库才进入其候选集合。即使两个 category 的搜索路径在文件系统中发生重叠，各自 factory 仍只能识别本 category 的插件。
 
 ### 推理解释器
 
 Inference provider 使用`inference`类别专用的插件搜索目录和 factory，是上文模块 provider 发现机制在该类别下的具体实现。
 
-插件必须在`metadata.interpreters`中列出它提供的推理解释器。每个解释器条目包含：
+插件必须在用户 metadata 的根级`interpreters`中列出它提供的推理解释器。每个解释器条目包含：
 
 - `interface`：负责的契约，如`org.openvpi.dsinfer.inference.Pitch`
 - `level`：负责的那一个 API Level
