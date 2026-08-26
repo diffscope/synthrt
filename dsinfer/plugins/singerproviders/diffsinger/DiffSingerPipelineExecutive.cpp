@@ -11,9 +11,8 @@ namespace ds {
     srt::Expected<Api::Duration::L1::DurationExecutive *>
         DiffSingerPipelineExecutive::createDuration(
             const Api::Duration::L1::DurationRuntimeOptions &options) {
-        auto result =
-            createInference("diffsinger/duration", options, Api::Duration::L1::API_INTERFACE,
-                            Api::Duration::L1::API_VARIANT, Api::Duration::L1::API_LEVEL);
+        auto result = createInference("singer/duration", options, Api::Duration::L1::API_INTERFACE,
+                                      Api::Duration::L1::API_VARIANT, Api::Duration::L1::API_LEVEL);
         if (!result) {
             return result.takeError();
         }
@@ -22,7 +21,7 @@ namespace ds {
 
     srt::Expected<Api::Pitch::L1::PitchExecutive *> DiffSingerPipelineExecutive::createPitch(
         const Api::Pitch::L1::PitchRuntimeOptions &options) {
-        auto result = createInference("diffsinger/pitch", options, Api::Pitch::L1::API_INTERFACE,
+        auto result = createInference("singer/pitch", options, Api::Pitch::L1::API_INTERFACE,
                                       Api::Pitch::L1::API_VARIANT, Api::Pitch::L1::API_LEVEL);
         if (!result) {
             return result.takeError();
@@ -33,9 +32,8 @@ namespace ds {
     srt::Expected<Api::Variance::L1::VarianceExecutive *>
         DiffSingerPipelineExecutive::createVariance(
             const Api::Variance::L1::VarianceRuntimeOptions &options) {
-        auto result =
-            createInference("diffsinger/variance", options, Api::Variance::L1::API_INTERFACE,
-                            Api::Variance::L1::API_VARIANT, Api::Variance::L1::API_LEVEL);
+        auto result = createInference("singer/variance", options, Api::Variance::L1::API_INTERFACE,
+                                      Api::Variance::L1::API_VARIANT, Api::Variance::L1::API_LEVEL);
         if (!result) {
             return result.takeError();
         }
@@ -45,9 +43,8 @@ namespace ds {
     srt::Expected<Api::Acoustic::L1::AcousticExecutive *>
         DiffSingerPipelineExecutive::createAcoustic(
             const Api::Acoustic::L1::AcousticRuntimeOptions &options) {
-        auto result =
-            createInference("diffsinger/acoustic", options, Api::Acoustic::L1::API_INTERFACE,
-                            Api::Acoustic::L1::API_VARIANT, Api::Acoustic::L1::API_LEVEL);
+        auto result = createInference("singer/acoustic", options, Api::Acoustic::L1::API_INTERFACE,
+                                      Api::Acoustic::L1::API_VARIANT, Api::Acoustic::L1::API_LEVEL);
         if (!result) {
             return result.takeError();
         }
@@ -56,9 +53,8 @@ namespace ds {
 
     srt::Expected<Api::Vocoder::L1::VocoderExecutive *> DiffSingerPipelineExecutive::createVocoder(
         const Api::Vocoder::L1::VocoderRuntimeOptions &options) {
-        auto result =
-            createInference("diffsinger/vocoder", options, Api::Vocoder::L1::API_INTERFACE,
-                            Api::Vocoder::L1::API_VARIANT, Api::Vocoder::L1::API_LEVEL);
+        auto result = createInference("singer/vocoder", options, Api::Vocoder::L1::API_INTERFACE,
+                                      Api::Vocoder::L1::API_VARIANT, Api::Vocoder::L1::API_LEVEL);
         if (!result) {
             return result.takeError();
         }

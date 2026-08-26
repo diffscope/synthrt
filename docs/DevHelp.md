@@ -84,7 +84,7 @@ Module Category 的条目使用 `path` 指向声明文件。公共 envelope 为�
   "configuration": {},
   "imports": [
     {
-      "role": "diffsinger/vocoder",
+      "role": "singer/vocoder",
       "ref": ":inference/vocoder",
       "options": {}
     }
@@ -107,7 +107,7 @@ org.example.models:inference/acoustic
 
 第一种形式引用当前 Package，第二种形式引用 `dependencies` 已经选定的直接依赖。Locator 不包含版本，也不会触发第二次依赖搜索。
 
-每个 import 使用唯一 `role` 标识自己的职责。Role 可以使用以`/`分隔的多个 segment，建议由扩展先使用首段标识自己的 role family，例如`diffsinger/acoustic`。相同 `ref` 可以在多个 role 中重复出现，每个条目仍有独立的 options、binding 和 Executive factory。代码应使用 `ContribSpec::findImport(role)` 定位 import，不依赖数组位置。
+每个 import 使用唯一 `role` 标识自己的职责。Role 可以使用以`/`分隔的多个 segment，建议由扩展先使用首段标识自己的 role family，例如`singer/acoustic`。相同 `ref` 可以在多个 role 中重复出现，每个条目仍有独立的 options、binding 和 Executive factory。代码应使用 `ContribSpec::findImport(role)` 定位 import，不依赖数组位置。
 
 ### 2.4 版本、变量、路径和多语言字段
 
@@ -436,7 +436,7 @@ Category 名称确定 `ContribSpec` 的派生类型，三元组确定 payload、
 运行时调用：
 
 ```cpp
-auto import = spec.findImport("diffsinger/acoustic");
+auto import = spec.findImport("singer/acoustic");
 if (!import || !import->executiveFactory()) {
     // role 不存在，或者目标 Category 没有运行时实例
 }
@@ -502,13 +502,13 @@ Factory 的 `create(runtimeOptions)` 必须验证 runtime options 的三元组�
 
 `InferenceSpec::validateCompatibilityWith(other)` 是有方向的检查，由当前 Spec 的解释器执行。默认 `InferenceInterpreter::validateCompatibility()` 接受所有组合，只有存在跨模型约束的契约需要覆盖。
 
-当前 DiffSinger Import Validator 要求`diffsinger/acoustic`和`diffsinger/vocoder` role 存在，并调用 vocoder 的兼容性检查验证其能否消费 acoustic 输出。该检查发生在 Ready 第二遍，此时所有 import 已经具有 Binding 和 Executive Factory。因此不兼容 Package 会在 Load 阶段失败，而不是运行到一半才失败。
+当前 DiffSinger Import Validator 要求`singer/acoustic`和`singer/vocoder` role 存在，并调用 vocoder 的兼容性检查验证其能否消费 acoustic 输出。该检查发生在 Ready 第二遍，此时所有 import 已经具有 Binding 和 Executive Factory。因此不兼容 Package 会在 Load 阶段失败，而不是运行到一半才失败。
 
 ### 9.3 Singer Pipeline
 
 Singer Pipeline 由 `SingerPipelineExtension` 创建，不再由 `SingerSpec` 独占创建。Loader 在 Ready 的最后一遍调用每个已选中 Interpreter 的 `createExtensions(spec)`。例如 DiffSinger Provider 可以为自身契约的 Singer 提供 Pipeline，Wolf Linguist Provider 也可以为导入 Linguist Contribution 的 Singer 提供独立 Pipeline。解释器不适用时返回空 vector，适用时按需附加一个或多个 Pipeline Extension。返回的 `SingerPipelineExecutive` 是根 Executive，它通过已经聚合的 import role 创建子 Executive。
 
-DiffSinger Level 1 的类型化 Pipeline 当前公开 duration、pitch、variance、acoustic 和 vocoder 创建函数。对应 role 分别为`diffsinger/duration`、`diffsinger/pitch`、`diffsinger/variance`、`diffsinger/acoustic`和`diffsinger/vocoder`。`DiffSingerImportValidator` 将 acoustic 和 vocoder 视为必需 role，其他三个可以省略。调用一个清单未声明的可选 role 时，创建函数会返回错误，调用者必须按自己的工作流决定是否需要它。
+DiffSinger Level 1 的类型化 Pipeline 当前公开 duration、pitch、variance、acoustic 和 vocoder 创建函数。对应 role 分别为`singer/duration`、`singer/pitch`、`singer/variance`、`singer/acoustic`和`singer/vocoder`。`DiffSingerImportValidator` 将 acoustic 和 vocoder 视为必需 role，其他三个可以省略。调用一个清单未声明的可选 role 时，创建函数会返回错误，调用者必须按自己的工作流决定是否需要它。
 
 典型调用为：
 

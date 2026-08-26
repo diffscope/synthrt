@@ -91,31 +91,31 @@ namespace ds {
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec) {
             auto duration = resolveKnownImport(
-                spec, "diffsinger/duration", Api::Duration::L1::API_INTERFACE,
+                spec, "singer/duration", Api::Duration::L1::API_INTERFACE,
                 Api::Duration::L1::API_VARIANT, Api::Duration::L1::API_LEVEL, false);
             if (!duration) {
                 return duration.takeError();
             }
             auto pitch =
-                resolveKnownImport(spec, "diffsinger/pitch", Api::Pitch::L1::API_INTERFACE,
+                resolveKnownImport(spec, "singer/pitch", Api::Pitch::L1::API_INTERFACE,
                                    Api::Pitch::L1::API_VARIANT, Api::Pitch::L1::API_LEVEL, false);
             if (!pitch) {
                 return pitch.takeError();
             }
             auto variance = resolveKnownImport(
-                spec, "diffsinger/variance", Api::Variance::L1::API_INTERFACE,
+                spec, "singer/variance", Api::Variance::L1::API_INTERFACE,
                 Api::Variance::L1::API_VARIANT, Api::Variance::L1::API_LEVEL, false);
             if (!variance) {
                 return variance.takeError();
             }
             auto acoustic = resolveKnownImport(
-                spec, "diffsinger/acoustic", Api::Acoustic::L1::API_INTERFACE,
+                spec, "singer/acoustic", Api::Acoustic::L1::API_INTERFACE,
                 Api::Acoustic::L1::API_VARIANT, Api::Acoustic::L1::API_LEVEL, true);
             if (!acoustic) {
                 return acoustic.takeError();
             }
             auto vocoder = resolveKnownImport(
-                spec, "diffsinger/vocoder", Api::Vocoder::L1::API_INTERFACE,
+                spec, "singer/vocoder", Api::Vocoder::L1::API_INTERFACE,
                 Api::Vocoder::L1::API_VARIANT, Api::Vocoder::L1::API_LEVEL, true);
             if (!vocoder) {
                 return vocoder.takeError();

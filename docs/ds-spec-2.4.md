@@ -631,7 +631,17 @@ Runtime 整体销毁前，必须先关闭所有 provider execution domain 的运
 + 可选字段
     + `options`：提供给被引用模块的选项，其语法由**被引用模块**的`interface`与`level`规定
 
-`imports`是由零至多个条目组成的有序数组。加载器必须保持声明顺序，不得排序或重排。`role`的语法为`segment *("/" segment)`，不得包含空 segment。每个条目的`role`在当前模块内必须唯一。每个条目都是独立的导入实例，相同`ref`可以重复出现，但必须使用不同的`role`，加载器不得自动合并或去重。
+`imports`是由零至多个条目组成的有序数组。加载器必须保持声明顺序，不得排序或重排。每个条目的`role`在当前模块内必须唯一。每个条目都是独立的导入实例，相同`ref`可以重复出现，但必须使用不同的`role`，加载器不得自动合并或去重。
+
+`role`必须符合下述文法，其中`segment`与上文引用文法中的定义相同：
+
+```
+role = segment *( "/" segment )
+```
+
+因此，每个 segment 必须包含至少一个字符，只能使用 ASCII 字母、数字、`_`或`-`。`role`不得以`/`开头或结尾，不得包含连续的`/`、空白、`.`、`:`或其他字符。`role`可以只包含一个 segment，也可以包含任意多个 segment。本规范不赋予层级数量固定语义。`role`区分大小写，并按等同的 ASCII 字节序列精确比较；Runtime 不得执行大小写折叠、Unicode normalization 或其他 canonicalization。
+
+为了使开放扩展定义的 role 更易识别，建议使用一个或多个前导 segment 表示 role family，例如`singer/acoustic`或`linguist/g2p`。这只是命名建议，不是有效性条件；不带 family 的单段 role 与具有更多层级的 role 同样合法。
 
 每个`imports`数组项必须恰好产生一个独立的 ImportBinding，由 importing module 拥有。ImportBinding 保存该条目的`ref`、`options`及其到目标模块的运行时连接；多个条目即使引用同一个目标模块，也不得共享或覆盖彼此的 binding 状态。目标模块实例可以共享，但不得将某一 import 的`options`作为目标模块的全局配置写入。
 
@@ -693,14 +703,14 @@ Singer 模块负责定义一个歌手的信息，以及它需要使用的其他�
     "background": "${singerAssets}/sprite.png",
     "demoAudio": "${singerAssets}/demo.wav",
     "imports": [
-        { "role": "diffsinger/acoustic", "ref": ":inference/acoustic" },
+        { "role": "singer/acoustic", "ref": ":inference/acoustic" },
         {
-            "role": "diffsinger/pitch",
+            "role": "singer/pitch",
             "ref": "bar:inference/pitch",
             "options": { "roles": ["pitch"] }
         },
         {
-            "role": "diffsinger/variance",
+            "role": "singer/variance",
             "ref": ":inference/variance",
             "options": { "roles": ["tension", "energy"] }
         }

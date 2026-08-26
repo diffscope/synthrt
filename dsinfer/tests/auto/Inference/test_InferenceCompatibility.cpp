@@ -90,13 +90,13 @@ namespace {
 
         std::string imports;
         if (includeAcousticImport) {
-            imports += R"({"role":"diffsinger/acoustic","ref":":inference/acoustic","options":{}})";
+            imports += R"({"role":"singer/acoustic","ref":":inference/acoustic","options":{}})";
         }
         if (includeVocoderImport) {
             if (!imports.empty()) {
                 imports += ',';
             }
-            imports += R"({"role":"diffsinger/vocoder","ref":":inference/vocoder","options":{}})";
+            imports += R"({"role":"singer/vocoder","ref":":inference/vocoder","options":{}})";
         }
         writeText(root / "singer.json",
                   R"({

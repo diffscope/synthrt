@@ -25,7 +25,7 @@
 
 除 Vocoder 外，`onnx` configuration 中的 `phonemes`必须存在。Duration、Pitch 与 Variance 必须提供 `encoder`和`predictor`，Acoustic 与 Vocoder 必须提供`model`。Duration、Pitch 与 Variance 必须提供 `frameWidth`，或者同时提供正数 `sampleRate`和 `hopSize`，后者按 `hopSize / sampleRate`计算 `frameWidth`。启用 `useLanguageId`时必须提供 `languages`。启用 `useSpeakerEmbedding`时必须提供 `hiddenSize`和 `speakers`。其他字段省略时使用对应 Level 1 API 类型定义的默认值。
 
-DiffSinger Level 1 Singer 必须分别以`diffsinger/acoustic`和`diffsinger/vocoder` role 导入 Acoustic 与 Vocoder Level 1 contribution。`diffsinger/duration`、`diffsinger/pitch`和`diffsinger/variance` role 可以省略。Package 加载时必须验证 Vocoder 能够消费 Acoustic 的输出。当前`onnx` variant 要求两者 configuration 中的`sampleRate`、`hopSize`、`winSize`、`fftSize`、`melChannels`、`melMinFreq`、`melMaxFreq`、`melBase`和`melScale`全部相同，不满足时整个 Package 加载失败。
+DiffSinger Level 1 Singer 必须分别以`singer/acoustic`和`singer/vocoder` role 导入 Acoustic 与 Vocoder Level 1 contribution。`singer/duration`、`singer/pitch`和`singer/variance` role 可以省略。Package 加载时必须验证 Vocoder 能够消费 Acoustic 的输出。当前`onnx` variant 要求两者 configuration 中的`sampleRate`、`hopSize`、`winSize`、`fftSize`、`melChannels`、`melMinFreq`、`melMaxFreq`、`melBase`和`melScale`全部相同，不满足时整个 Package 加载失败。
 
 ## `org.openvpi.dsinfer.inference.Duration`
 
