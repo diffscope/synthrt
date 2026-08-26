@@ -1,7 +1,9 @@
 #include "VarianceTask.h"
 
 #include <cmath>
+#include <cstdint>
 #include <cstring>
+#include <limits>
 #include <mutex>
 #include <numeric>
 #include <shared_mutex>
@@ -259,7 +261,19 @@ namespace ds {
         for (const auto &word : varianceInput.words) {
             totalDuration += inferutil::getWordDuration(word);
         }
-        const auto targetLength = static_cast<int64_t>(std::llround(totalDuration / frameWidth));
+        const auto frameCountValue = totalDuration / frameWidth;
+        if (!std::isfinite(frameCountValue) || frameCountValue <= 0 ||
+            frameCountValue >= static_cast<double>(std::numeric_limits<int64_t>::max())) {
+            ITask::setState(ITask::Failed);
+            return srt::Error(ds::ErrorCode::InvalidInput,
+                              "variance input produces an invalid frame count");
+        }
+        const auto targetLength = static_cast<int64_t>(std::llround(frameCountValue));
+        if (targetLength <= 0) {
+            ITask::setState(ITask::Failed);
+            return srt::Error(ds::ErrorCode::InvalidInput,
+                              "variance input must contain at least one frame");
+        }
 
         // ph_dur
         if (auto exp =
@@ -276,12 +290,25 @@ namespace ds {
             ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::InvalidInput, "no parameters to predict");
         }
+        if (static_cast<uint64_t>(targetLength) > std::numeric_limits<size_t>::max()) {
+            ITask::setState(ITask::Failed);
+            return srt::Error(ds::ErrorCode::InvalidInput,
+                              "variance frame count exceeds the addressable range");
+        }
+        const auto frameCount = static_cast<size_t>(targetLength);
+        const auto predictionCount = schema->predictions.size();
+        if (predictionCount > static_cast<size_t>(std::numeric_limits<int64_t>::max()) ||
+            predictionCount > std::numeric_limits<size_t>::max() / frameCount) {
+            ITask::setState(ITask::Failed);
+            return srt::Error(ds::ErrorCode::InvalidInput,
+                              "variance retake tensor dimensions are too large");
+        }
         bool satisfyPitch = false;
-        std::vector<bool> satisfyParams(schema->predictions.size(), false);
+        std::vector<bool> satisfyParams(predictionCount, false);
 
         constexpr auto kRetakeTrue = std::byte{1};
         constexpr auto kRetakeFalse = std::byte{0};
-        Tensor::Container retake(targetLength * schema->predictions.size(), kRetakeTrue);
+        Tensor::Container retake(frameCount * predictionCount, kRetakeTrue);
 
         for (const auto &param : varianceInput.parameters) {
             const auto isPitch = param.tag == Co::Tags::Pitch;
@@ -357,45 +384,33 @@ namespace ds {
                 if (param.retake.has_value()) {
                     const auto &[start, end] = *param.retake;
 
-                    // Compute frame index range for this parameter
-                    // startIndex is inclusive. endIndex is exclusive.
-                    const auto startIndex = static_cast<int64_t>(j * targetLength);
-                    const auto endIndex = static_cast<int64_t>((j + 1) * targetLength);
-
-                    // Convert retake start/end time (in seconds) to frame indices,
-                    // clamped to [0, targetLength]
-                    // Note: retakeStartFrame is inclusive, retakeEndFrame is exclusive
-                    int64_t retakeStartFrame = 0;
-                    if (std::isfinite(start) && start >= 0) {
-                        retakeStartFrame = std::clamp<int64_t>(
-                            static_cast<int64_t>(std::llround(start / frameWidth)), int64_t{0},
-                            targetLength);
-                    } else {
-                        // For invalid start (NaN, Inf, or negative): default to 0
-                    }
-                    int64_t retakeEndFrame = targetLength;
-                    if (std::isfinite(end) && end >= 0) {
-                        retakeEndFrame = std::clamp<int64_t>(
-                            static_cast<int64_t>(std::llround(end / frameWidth)), int64_t{0},
-                            targetLength);
-                    } else {
-                        // For invalid end (NaN, Inf, or negative): default to last frame
+                    const auto toFrame = [&](double time, int64_t fallback) {
+                        if (!std::isfinite(time) || time < 0) {
+                            return fallback;
+                        }
+                        const auto frame = time / frameWidth;
+                        if (frame <= 0) {
+                            return int64_t{0};
+                        }
+                        if (frame >= static_cast<double>(targetLength)) {
+                            return targetLength;
+                        }
+                        return static_cast<int64_t>(std::llround(frame));
+                    };
+                    const auto retakeStartFrame = toFrame(start, 0);
+                    const auto retakeEndFrame = toFrame(end, targetLength);
+                    if (retakeStartFrame > retakeEndFrame) {
+                        ITask::setState(ITask::Failed);
+                        return srt::Error(ds::ErrorCode::InvalidInput,
+                                          "variance retake start must not exceed its end");
                     }
 
-                    // Get iterators pointing to the beginning and end
-                    // of this parameter's retake region in the tensor
-                    auto beginIt = retake.begin() + startIndex;
-                    auto endIt = retake.begin() + endIndex;
-
-                    if (retakeStartFrame == retakeEndFrame) {
-                        // Zero-length retake interval: mark entire region as 'no retake' (false)
-                        std::fill(beginIt, endIt, kRetakeFalse);
-                    } else if (retakeStartFrame < retakeEndFrame) {
-                        // Mark frames before retake start as "no retake" (false)
-                        std::fill(beginIt, beginIt + retakeStartFrame, kRetakeFalse);
-                        // Frames in [retake start, retake end) remain true
-                        // Mark frames after retake end as "no retake" (false)
-                        std::fill(beginIt + retakeEndFrame, endIt, kRetakeFalse);
+                    // The tensor shape is (frame, prediction), so one prediction occupies a
+                    // strided column rather than a contiguous range.
+                    for (size_t i = 0; i < frameCount; ++i) {
+                        const auto inRange = static_cast<int64_t>(i) >= retakeStartFrame &&
+                                             static_cast<int64_t>(i) < retakeEndFrame;
+                        retake[i * predictionCount + j] = inRange ? kRetakeTrue : kRetakeFalse;
                     }
                 }
                 satisfyParams[j] = true;
@@ -403,7 +418,7 @@ namespace ds {
         }
 
         if (auto exp = Tensor::createFromRawData(
-                ITensor::Bool, {1, targetLength, static_cast<int64_t>(schema->predictions.size())},
+                ITensor::Bool, {1, targetLength, static_cast<int64_t>(predictionCount)},
                 std::move(retake));
             exp) {
             sessionInput->inputs.emplace("retake", exp.take());
@@ -497,33 +512,45 @@ namespace ds {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "variance predictor session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::API_NAME) {
+        if (sessionTaskResult->type() != Onnx::API_NAME ||
+            sessionTaskResult->version() != Onnx::API_VERSION) {
             ITask::setState(ITask::Failed);
-            return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
+            return srt::Error(srt::Error::InvalidArgument, "invalid session result contract");
         }
         auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
-        varianceResult->predictions.reserve(sessionResult->outputs.size());
-        for (const auto &[outputName, output] : sessionResult->outputs) {
-            for (const auto &prediction : schema->predictions) {
-                if (outputName != std::string(prediction.name()) + "_pred") {
-                    continue;
-                }
-                const auto view = output->view<float>();
-                Co::InputParameterInfo inputParam{prediction};
-                inputParam.interval = frameWidth;
-                inputParam.values.assign(view.begin(), view.end());
-                varianceResult->predictions.emplace_back(std::move(inputParam));
+        varianceResult->predictions.reserve(predictionCount);
+        const std::vector<int64_t> expectedShape = {1, targetLength};
+        for (const auto &prediction : schema->predictions) {
+            const auto outputName = std::string(prediction.name()) + "_pred";
+            const auto outputIt = sessionResult->outputs.find(outputName);
+            if (outputIt == sessionResult->outputs.end() || !outputIt->second) {
+                ITask::setState(ITask::Failed);
+                return srt::Error(ds::ErrorCode::SessionFailed,
+                                  "variance result is missing output " + outputName);
             }
-        }
-
-        const auto expectedCount = schema->predictions.size();
-        const auto actualCount = varianceResult->predictions.size();
-        if (expectedCount != actualCount) {
-            ITask::setState(ITask::Failed);
-            return srt::Error(
-                ds::ErrorCode::ShapeMismatch,
-                stdc::formatN("predicted parameter count mismatch: expected %1, got %2",
-                              expectedCount, actualCount));
+            const auto &output = outputIt->second;
+            if (output->dataType() != ITensor::Float) {
+                ITask::setState(ITask::Failed);
+                return srt::Error(ds::ErrorCode::SessionFailed,
+                                  "variance output " + outputName + " is not float");
+            }
+            if (output->shape() != expectedShape || output->elementCount() != frameCount) {
+                ITask::setState(ITask::Failed);
+                return srt::Error(ds::ErrorCode::ShapeMismatch,
+                                  "variance output " + outputName +
+                                      " does not have shape (1, n_frames)");
+            }
+            const auto view = output->view<float>();
+            if (view.size() != frameCount) {
+                ITask::setState(ITask::Failed);
+                return srt::Error(ds::ErrorCode::ShapeMismatch,
+                                  "variance output " + outputName +
+                                      " has an invalid element count");
+            }
+            Co::InputParameterInfo inputParam{prediction};
+            inputParam.interval = frameWidth;
+            inputParam.values.assign(view.begin(), view.end());
+            varianceResult->predictions.emplace_back(std::move(inputParam));
         }
         ITask::setState(ITask::Succeeded);
         return std::unique_ptr<srt::TaskResult>(std::move(varianceResult));
