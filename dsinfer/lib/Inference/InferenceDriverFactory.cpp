@@ -12,16 +12,12 @@ namespace ds {
 
     namespace {
 
-        std::optional<std::string> driverBackend(const stdc::json::Value &manifest) {
-            if (!manifest.isObject()) {
-                return std::nullopt;
-            }
-            const auto &name = manifest["name"];
-            if (!name.isString() || !srt::ContribLocator::isValidSegment(name.toString())) {
-                return std::nullopt;
-            }
-            const auto &metadata = manifest["metadata"];
+        std::optional<std::string> driverBackend(const stdc::json::Value &metadata) {
             if (!metadata.isObject()) {
+                return std::nullopt;
+            }
+            const auto &name = metadata["name"];
+            if (!name.isString() || !srt::ContribLocator::isValidSegment(name.toString())) {
                 return std::nullopt;
             }
             const auto &backend = metadata["backend"];
@@ -60,7 +56,7 @@ namespace ds {
         std::vector<std::string> result;
         std::set<std::string> visited;
         for (auto loader : plugins(InferenceDriverPlugin::IID)) {
-            auto backend = driverBackend(loader->manifest());
+            auto backend = driverBackend(loader->metadata());
             if (backend && visited.insert(*backend).second) {
                 result.push_back(std::move(*backend));
             }
@@ -75,7 +71,7 @@ namespace ds {
         }
 
         for (auto loader : plugins(InferenceDriverPlugin::IID)) {
-            const auto candidateBackend = driverBackend(loader->manifest());
+            const auto candidateBackend = driverBackend(loader->metadata());
             if (!candidateBackend || *candidateBackend != backend) {
                 continue;
             }

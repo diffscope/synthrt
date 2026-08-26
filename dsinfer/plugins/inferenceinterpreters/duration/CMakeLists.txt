@@ -15,4 +15,4 @@ dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/duration 
     INCLUDE_PRIVATE *
 )
 
-dsinfer_add_plugin_manifest(${PROJECT_NAME})
+dsinfer_add_plugin_metadata(${PROJECT_NAME} ${CURRENT_PLUGIN_IID})

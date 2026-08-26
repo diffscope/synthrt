@@ -311,17 +311,13 @@ namespace {
 
     STDC_EXPORT_STATIC_PLUGIN(TestInterpreterPlugin, testInterpreterIid,
                               (stdc::json::Object{
-                                  {"iid", testInterpreterIid},
-                                  {"name", "test-interpreter"},
-                                  {
-                                   "metadata", stdc::json::Object{
-                                          {"interpreters",
-                                           stdc::json::Array{
-                                               stdc::json::Object{{"interface", testInterface},
-                                                                  {"level", 1},
-                                                                  {"variant", "test"}},
-                                           }}},
-                                   },
+                                  {"name",         "test-interpreter"},
+                                  {"interpreters",
+                                   stdc::json::Array{
+                                       stdc::json::Object{{"interface", testInterface},
+                                                          {"level", 1},
+                                                          {"variant", "test"}},
+                                   }                                 },
     }))
 
     class TemporaryDirectory {

@@ -1,13 +1,10 @@
 {
-    "iid": "org.openvpi.synthrt.plugin.InferenceInterpreter",
     "name": "pitch",
-    "metadata": {
-        "interpreters": [
-            {
-                "interface": "org.openvpi.dsinfer.inference.Pitch",
-                "level": 1,
-                "variant": "onnx"
-            }
-        ]
-    }
+    "interpreters": [
+        {
+            "interface": "org.openvpi.dsinfer.inference.Pitch",
+            "level": 1,
+            "variant": "onnx"
+        }
+    ]
 }

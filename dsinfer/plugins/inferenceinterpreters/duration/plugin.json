@@ -1,13 +1,10 @@
 {
-    "iid": "org.openvpi.synthrt.plugin.InferenceInterpreter",
     "name": "duration",
-    "metadata": {
-        "interpreters": [
-            {
-                "interface": "org.openvpi.dsinfer.inference.Duration",
-                "level": 1,
-                "variant": "onnx"
-            }
-        ]
-    }
+    "interpreters": [
+        {
+            "interface": "org.openvpi.dsinfer.inference.Duration",
+            "level": 1,
+            "variant": "onnx"
+        }
+    ]
 }

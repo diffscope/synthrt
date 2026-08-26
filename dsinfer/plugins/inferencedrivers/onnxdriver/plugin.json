@@ -1,7 +1,4 @@
 {
-    "iid": "org.openvpi.dsinfer.plugin.InferenceDriver",
     "name": "onnxdriver",
-    "metadata": {
-        "backend": "onnx"
-    }
+    "backend": "onnx"
 }

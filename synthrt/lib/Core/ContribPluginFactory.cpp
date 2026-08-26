@@ -17,22 +17,18 @@ namespace srt {
 
     namespace {
 
-        bool manifestProvidesInterpreter(const stdc::json::Value &manifest,
+        bool metadataProvidesInterpreter(const stdc::json::Value &metadata,
                                          std::string_view interfaceName, int level,
                                          std::string_view variant) {
-            if (!manifest.isObject()) {
+            if (!metadata.isObject()) {
                 return false;
             }
 
-            const auto &name = manifest["name"];
+            const auto &name = metadata["name"];
             if (!name.isString() || !ContribLocator::isValidSegment(name.toString())) {
                 return false;
             }
 
-            const auto &metadata = manifest["metadata"];
-            if (!metadata.isObject()) {
-                return false;
-            }
             const auto &interpreters = metadata["interpreters"];
             if (!interpreters.isArray() || interpreters.toArray().empty()) {
                 return false;
@@ -79,7 +75,7 @@ namespace srt {
         ContribPluginFactory::findInterpreter(std::string_view iid, std::string_view interfaceName,
                                               int level, std::string_view variant) const {
         for (auto loader : plugins(iid)) {
-            if (manifestProvidesInterpreter(loader->manifest(), interfaceName, level, variant)) {
+            if (metadataProvidesInterpreter(loader->metadata(), interfaceName, level, variant)) {
                 return loader;
             }
         }

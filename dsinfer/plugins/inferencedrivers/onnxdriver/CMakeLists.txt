@@ -36,7 +36,7 @@ dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/onnx NO_E
     DEFINES ORT_API_MANUAL_INIT ${_onnxdriver_ep_macros}
 )
 
-dsinfer_add_plugin_manifest(${PROJECT_NAME})
+dsinfer_add_plugin_metadata(${PROJECT_NAME} ${CURRENT_PLUGIN_IID})
 
 if(WIN32)
     set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dll)

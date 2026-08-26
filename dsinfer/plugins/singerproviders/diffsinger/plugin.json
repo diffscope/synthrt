@@ -1,13 +1,10 @@
 {
-    "iid": "org.openvpi.synthrt.plugin.SingerProvider",
     "name": "diffsinger",
-    "metadata": {
-        "interpreters": [
-            {
-                "interface": "org.openvpi.dsinfer.singer.DiffSinger",
-                "level": 1,
-                "variant": "openvpi"
-            }
-        ]
-    }
+    "interpreters": [
+        {
+            "interface": "org.openvpi.dsinfer.singer.DiffSinger",
+            "level": 1,
+            "variant": "openvpi"
+        }
+    ]
 }

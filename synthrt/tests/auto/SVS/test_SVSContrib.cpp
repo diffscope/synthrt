@@ -83,14 +83,11 @@ namespace {
 
     STDC_EXPORT_STATIC_PLUGIN(TestInferenceInterpreterPlugin, srt::InferenceInterpreterPlugin::IID,
                               (stdc::json::Object{
-                                  {"iid",      srt::InferenceInterpreterPlugin::IID              },
-                                  {"name",     "test-inference-interpreter"                      },
-                                  {"metadata",
-                                   stdc::json::Object{
-                                       {"interpreters", stdc::json::Array{stdc::json::Object{
-                                                            {"interface", testInferenceInterface},
-                                                            {"level", 1},
-                                                            {"variant", testInferenceVariant}}}}}},
+                                  {"name",         "test-inference-interpreter"                                                             },
+                                  {"interpreters", stdc::json::Array{stdc::json::Object{
+                                                       {"interface", testInferenceInterface},
+                                                       {"level", 1},
+                                                       {"variant", testInferenceVariant}}}},
     }))
 
     class TestRuntimeOptions final : public srt::InferenceRuntimeOptions {

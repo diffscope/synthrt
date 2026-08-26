@@ -72,11 +72,10 @@ namespace {
         std::string m_backend;
     };
 
-    stdc::json::Value manifest(std::string backend) {
+    stdc::json::Value metadata(std::string backend) {
         return stdc::json::Object{
-            {"iid",      ds::InferenceDriverPlugin::IID                     },
-            {"name",     "test-driver"                                      },
-            {"metadata", stdc::json::Object{{"backend", std::move(backend)}}},
+            {"name",    "test-driver"     },
+            {"backend", std::move(backend)},
         };
     }
 
@@ -137,7 +136,7 @@ BOOST_AUTO_TEST_SUITE(test_InferenceDriverFactory)
 BOOST_AUTO_TEST_CASE(test_DiscoversAndCreatesRuntimeService) {
     TestDriverPlugin plugin("test");
     ds::InferenceDriverFactory factory;
-    factory.addRuntimePlugin(&plugin, manifest("test"));
+    factory.addRuntimePlugin(ds::InferenceDriverPlugin::IID, &plugin, metadata("test"));
 
     const auto backends = factory.backends();
     BOOST_REQUIRE_EQUAL(backends.size(), 1u);
@@ -168,7 +167,7 @@ BOOST_AUTO_TEST_CASE(test_RejectsMissingAndMismatchedDrivers) {
     BOOST_REQUIRE(!missing);
     BOOST_CHECK(missing.error().code() == srt::Error::FileNotFound);
 
-    factory.addRuntimePlugin(&wrongPlugin, manifest("claimed"));
+    factory.addRuntimePlugin(ds::InferenceDriverPlugin::IID, &wrongPlugin, metadata("claimed"));
     auto mismatched = factory.create("claimed");
     BOOST_REQUIRE(!mismatched);
     BOOST_CHECK(mismatched.error().code() == srt::Error::InvalidFormat);
