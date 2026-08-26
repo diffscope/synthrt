@@ -1351,7 +1351,7 @@ namespace srt {
                                 return Error(Error::InvalidFormat,
                                              "module import references an undeclared dependency");
                             }
-                            JsonValue options;
+                            JsonValue options = JsonObject{};
                             if (const auto it = importObject.find("options");
                                 it != importObject.end()) {
                                 options = it->second;

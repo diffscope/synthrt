@@ -562,7 +562,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     writePackage(secondPath, "dep-3", "dep", "3", "1");
     const auto root = writePackage(
         temporary.path(), "root", "root", "1", {}, R"([{"id":"dep","version":"1"}])",
-        R"([{"role":"test/first","ref":"dep:com.example.test/main"},{"role":"test/second","ref":"dep:com.example.test/main"}])");
+        R"([{"role":"test/first","ref":"dep:com.example.test/main"},{"role":"test/second","ref":"dep:com.example.test/main","options":{}}])");
 
     auto unit = makeUnit();
     const std::vector<fs::path> paths = {firstPath, secondPath};
@@ -607,6 +607,10 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK_EQUAL(firstImport->role(), "test/first");
     BOOST_CHECK(firstImport->binding() == rootSpec->imports()[0].binding());
     BOOST_CHECK(!rootSpec->findImport("missing"));
+    BOOST_CHECK(rootSpec->imports()[0].manifestOptions().isObject());
+    BOOST_CHECK(rootSpec->imports()[0].manifestOptions().toObject().empty());
+    BOOST_CHECK(rootSpec->imports()[1].manifestOptions().isObject());
+    BOOST_CHECK(rootSpec->imports()[1].manifestOptions().toObject().empty());
     BOOST_CHECK(rootSpec->imports()[0].options());
     BOOST_CHECK(rootSpec->imports()[1].options());
     BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->interface(), testInterface);
