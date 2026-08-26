@@ -129,7 +129,6 @@ namespace srt {
 
         std::atomic<State> m_state = State::Idle;
 
-    private:
         struct AsyncState {
             std::mutex mutex;
             std::condition_variable finished;
