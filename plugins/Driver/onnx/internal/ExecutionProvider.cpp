@@ -63,7 +63,7 @@ namespace srt::driver::onnx {
             constexpr int CUDA_OPTIONS_SIZE = 2;
             const char *cudaOptionsKeys[CUDA_OPTIONS_SIZE] = {"device_id",
                                                               "cudnn_conv_algo_search"};
-            const char *cudaOptionsValues[CUDA_OPTIONS_SIZE] = {cudaDeviceIdCStr, "DEFAULT"};
+            const char *cudaOptionsValues[CUDA_OPTIONS_SIZE] = {cudaDeviceIdCStr, "HEURISTIC"};
             Ort::Status updateStatus(ortApi.UpdateCUDAProviderOptions(
                 cudaOptions.get(), cudaOptionsKeys, cudaOptionsValues, CUDA_OPTIONS_SIZE));
             if (!updateStatus.IsOK()) {
