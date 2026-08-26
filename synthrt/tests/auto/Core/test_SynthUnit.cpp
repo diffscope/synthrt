@@ -562,7 +562,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     writePackage(secondPath, "dep-3", "dep", "3", "1");
     const auto root = writePackage(
         temporary.path(), "root", "root", "1", {}, R"([{"id":"dep","version":"1"}])",
-        R"([{"role":"first","ref":"dep:com.example.test/main"},{"role":"second","ref":"dep:com.example.test/main"}])");
+        R"([{"role":"test/first","ref":"dep:com.example.test/main"},{"role":"test/second","ref":"dep:com.example.test/main"}])");
 
     auto unit = makeUnit();
     const std::vector<fs::path> paths = {firstPath, secondPath};
@@ -600,11 +600,11 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK_EQUAL(rootSpec->exports()->variant(), "test");
     BOOST_CHECK_EQUAL(rootSpec->exports()->level(), 1);
     BOOST_REQUIRE_EQUAL(rootSpec->imports().size(), 2u);
-    BOOST_CHECK_EQUAL(rootSpec->imports()[0].role(), "first");
-    BOOST_CHECK_EQUAL(rootSpec->imports()[1].role(), "second");
-    const auto firstImport = rootSpec->findImport("first");
+    BOOST_CHECK_EQUAL(rootSpec->imports()[0].role(), "test/first");
+    BOOST_CHECK_EQUAL(rootSpec->imports()[1].role(), "test/second");
+    const auto firstImport = rootSpec->findImport("test/first");
     BOOST_REQUIRE(firstImport);
-    BOOST_CHECK_EQUAL(firstImport->role(), "first");
+    BOOST_CHECK_EQUAL(firstImport->role(), "test/first");
     BOOST_CHECK(firstImport->binding() == rootSpec->imports()[0].binding());
     BOOST_CHECK(!rootSpec->findImport("missing"));
     BOOST_CHECK(rootSpec->imports()[0].options());
@@ -632,7 +632,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
         BOOST_CHECK(&parent.synthUnit() == &unit);
         BOOST_CHECK(parent.lifecycleState() == srt::ContribExecutive::LifecycleState::Running);
         TestRuntimeOptions runtimeOptions;
-        auto created = parent.create("first", runtimeOptions);
+        auto created = parent.create("test/first", runtimeOptions);
         BOOST_REQUIRE(created);
         BOOST_CHECK(&(*created)->spec() == dependencySpec);
         BOOST_CHECK((*created)->parent() == &parent);
@@ -674,6 +674,19 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK_EQUAL(bindingWaitCount - oldBindingWait, 2);
     BOOST_CHECK(unit.loadedPackages().empty());
     BOOST_CHECK(unit.category(testCategoryName)->contributions().empty());
+}
+
+BOOST_AUTO_TEST_CASE(test_load_rejects_import_role_with_empty_segment) {
+    TemporaryDirectory temporary;
+    const auto root = writePackage(temporary.path(), "root", "root", "1", {}, {},
+                                   R"([{"role":"test//invalid","ref":":com.example.test/main"}])");
+
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(root, srt::SynthUnit::Load);
+
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
+    BOOST_CHECK(unit.loadedPackages().empty());
 }
 
 BOOST_AUTO_TEST_CASE(test_dependency_cycle_reports_chain) {

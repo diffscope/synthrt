@@ -245,7 +245,7 @@ Level 是对某一作用域内能力版本的统称。`runtimeLevel`序列化 Pa
 
 **本规范不规定贡献类别的完整集合。** `inference`与`singer`是本规范定义的两种，加载器实现可以再注册别的（例如语言资源）。
 
-内置类别可以使用裸名称。第三方类别必须使用由其所有者控制的反向域名名称，例如`com.vendor.language`。同一个类别名称的条目 schema 与语义发布后必须保持兼容，不兼容的类别定义必须使用新名称。
+类别可以使用裸名称，例如`linguist`。不能协调裸名称所有权的第三方类别推荐使用由其所有者控制的反向域名名称，例如`com.vendor.language`。同一个类别名称的条目 schema 与语义发布后必须保持兼容，不兼容的类别定义必须使用新名称。
 
 所有 category 必须在解析任何 Package 前完成进程内注册。一次注册至少包含 category 名称、条目是模块还是非模块，以及该类别的条目解析器或 schema。模块类别还必须注册专用 provider factory 和有序插件搜索路径，非模块类别则注册自己的条目解析器，不使用模块 provider。
 
@@ -626,12 +626,12 @@ Runtime 整体销毁前，必须先关闭所有 provider execution domain 的运
 每个条目：
 
 + 必选字段
-    + `role`：该 import 在当前模块内唯一的用途名称，使用 contrib-id 的单段语法
+    + `role`：该 import 在当前模块内唯一的用途名称，由一个或多个以`/`分隔的 segment 组成
     + `ref`：被引用模块的 ModuleReference，见上文文法
 + 可选字段
     + `options`：提供给被引用模块的选项，其语法由**被引用模块**的`interface`与`level`规定
 
-`imports`是由零至多个条目组成的有序数组。加载器必须保持声明顺序，不得排序或重排。每个条目的`role`在当前模块内必须唯一。每个条目都是独立的导入实例，相同`ref`可以重复出现，但必须使用不同的`role`，加载器不得自动合并或去重。
+`imports`是由零至多个条目组成的有序数组。加载器必须保持声明顺序，不得排序或重排。`role`的语法为`segment *("/" segment)`，不得包含空 segment。每个条目的`role`在当前模块内必须唯一。每个条目都是独立的导入实例，相同`ref`可以重复出现，但必须使用不同的`role`，加载器不得自动合并或去重。
 
 每个`imports`数组项必须恰好产生一个独立的 ImportBinding，由 importing module 拥有。ImportBinding 保存该条目的`ref`、`options`及其到目标模块的运行时连接；多个条目即使引用同一个目标模块，也不得共享或覆盖彼此的 binding 状态。目标模块实例可以共享，但不得将某一 import 的`options`作为目标模块的全局配置写入。
 
@@ -639,7 +639,7 @@ Runtime 整体销毁前，必须先关闭所有 provider execution domain 的运
 
 每个 import 最多关联一个由目标 category 提供的 Executive Factory。该 Factory 的目标契约由对应`ref`唯一确定，一次调用只创建该契约的一种 Executive，但可以被调用多次以创建多个 Executive。没有运行时对象的 category 可以不提供 Factory。其他已注册 category 可以通过这一机制为新的 role 提供 Executive，因此 Singer 等导入方不得仅因遇到自身不认识的 role 而拒绝整个模块；导入方仍可严格要求自己契约规定的 role 存在且只指向规定的目标契约。
 
-**被引用的可以是任何模块类别中的模块，不限于 `inference`。** 类别写在`ref`里：`:inference/pitch`引用一个推理模块，`:com.vendor.language/cmn`引用一个第三方语言模块。非模块类别的贡献不能作为`imports[].ref`的目标。这也是为什么这里用一个引用串而不是拆成几个字段——拆开就没有类别的位置了。
+**被引用的可以是任何模块类别中的模块，不限于 `inference`。** 类别写在`ref`里：`:inference/pitch`引用一个推理模块，`:linguist/cmn`引用一个 Linguist 模块。非模块类别的贡献不能作为`imports[].ref`的目标。这也是为什么这里用一个引用串而不是拆成几个字段——拆开就没有类别的位置了。
 
 `options`的语法**不依赖被引用模块的`variant`**。导入方按引用串选中具体模块，可以根据该模块的`exports`填写`options`；共享契约的另一个变体可以具有不同的`exports`，也就不保证能直接接受同一份导入声明。
 
@@ -693,14 +693,14 @@ Singer 模块负责定义一个歌手的信息，以及它需要使用的其他�
     "background": "${singerAssets}/sprite.png",
     "demoAudio": "${singerAssets}/demo.wav",
     "imports": [
-        { "role": "acoustic", "ref": ":inference/acoustic" },
+        { "role": "diffsinger/acoustic", "ref": ":inference/acoustic" },
         {
-            "role": "pitch",
+            "role": "diffsinger/pitch",
             "ref": "bar:inference/pitch",
             "options": { "roles": ["pitch"] }
         },
         {
-            "role": "variance",
+            "role": "diffsinger/variance",
             "ref": ":inference/variance",
             "options": { "roles": ["tension", "energy"] }
         }

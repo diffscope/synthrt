@@ -1,6 +1,7 @@
 #include "PackageLoader_p.h"
 
 #include <algorithm>
+#include <cstddef>
 #include <fstream>
 #include <functional>
 #include <limits>
@@ -33,6 +34,26 @@ namespace srt {
         const stdc::VersionNumber supportedManifestVersion(1, 0);
 
         using Variables = std::map<std::string, std::string, std::less<>>;
+
+        bool isValidImportRole(std::string_view role) {
+            if (role.empty()) {
+                return false;
+            }
+            std::size_t begin = 0;
+            while (true) {
+                const auto end = role.find('/', begin);
+                const auto segment = end == std::string_view::npos
+                                         ? role.substr(begin)
+                                         : role.substr(begin, end - begin);
+                if (!ContribLocator::isValidSegment(segment)) {
+                    return false;
+                }
+                if (end == std::string_view::npos) {
+                    return true;
+                }
+                begin = end + 1;
+            }
+        }
 
         Expected<void> validatePayloadIdentity(const ContribSpecPayload *payload,
                                                const ContribSpec &spec,
@@ -1306,7 +1327,7 @@ namespace srt {
                             const auto &importObject = importValue.toObject();
                             const auto roleIt = importObject.find("role");
                             if (roleIt == importObject.end() || !roleIt->second.isString() ||
-                                !ContribLocator::isValidSegment(roleIt->second.toString())) {
+                                !isValidImportRole(roleIt->second.toString())) {
                                 return Error(Error::InvalidFormat,
                                              "module import requires a valid string role field");
                             }
