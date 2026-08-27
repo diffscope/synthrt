@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <optional>
-#include <set>
 #include <utility>
 
 #include <synthrt/Core/ContribLocator.h>
@@ -30,8 +29,10 @@ namespace ds {
 
     }
 
-    InferenceDriverFactory::InferenceDriverFactory() {
-        addStaticPlugins(InferenceDriverPlugin::IID);
+    InferenceDriverFactory::InferenceDriverFactory()
+        : PluginCatalog(InferenceDriverPlugin::IID,
+                        std::make_unique<stdc::plugin::BundlePluginFactory>()) {
+        factory()->addStaticPlugins(iid());
     }
 
     InferenceDriverFactory::~InferenceDriverFactory() = default;
@@ -41,50 +42,13 @@ namespace ds {
     InferenceDriverFactory &
         InferenceDriverFactory::operator=(InferenceDriverFactory &&RHS) noexcept = default;
 
-    void InferenceDriverFactory::addPluginPath(const std::filesystem::path &path) {
-        PluginFactory::addPluginPath(InferenceDriverPlugin::IID, path);
-    }
-
-    void InferenceDriverFactory::setPluginPaths(stdc::array_view<std::filesystem::path> paths) {
-        PluginFactory::setPluginPaths(InferenceDriverPlugin::IID, paths);
-    }
-
-    std::vector<std::filesystem::path> InferenceDriverFactory::pluginPaths() const {
-        return PluginFactory::pluginPaths(InferenceDriverPlugin::IID);
-    }
-
-    std::vector<std::string> InferenceDriverFactory::backends() const {
-        std::vector<std::string> result;
-        std::set<std::string> visited;
-        for (auto loader : plugins(InferenceDriverPlugin::IID)) {
-            auto backend = driverBackend(loader->metadata());
-            if (backend && visited.insert(*backend).second) {
-                result.push_back(std::move(*backend));
-            }
-        }
-        return result;
-    }
-
-    stdc::plugin::PluginLoader *InferenceDriverFactory::find(std::string_view backend) const {
-        if (!srt::ContribLocator::isValidDottedId(backend)) {
-            return nullptr;
-        }
-        for (auto loader : plugins(InferenceDriverPlugin::IID)) {
-            const auto candidateBackend = driverBackend(loader->metadata());
-            if (candidateBackend && *candidateBackend == backend) {
-                return loader;
-            }
-        }
-        return nullptr;
-    }
-
     srt::Expected<std::unique_ptr<InferenceDriver>>
         InferenceDriverFactory::create(stdc::plugin::PluginLoader *loader) {
         if (!loader) {
             return srt::Error(srt::Error::InvalidArgument,
                               "inference driver plugin loader must not be null");
         }
-        const auto driverPlugins = plugins(InferenceDriverPlugin::IID);
+        const auto driverPlugins = loaders();
         if (std::find(driverPlugins.begin(), driverPlugins.end(), loader) == driverPlugins.end()) {
             return srt::Error(srt::Error::InvalidArgument,
                               "inference driver plugin loader does not belong to this factory");
@@ -118,6 +82,17 @@ namespace ds {
                               "inference driver identity does not match plugin metadata");
         }
         return driver;
+    }
+
+    std::vector<std::string>
+        InferenceDriverFactory::keysFromMetadata(const stdc::json::Value &metadata) const {
+        auto backend = driverBackend(metadata);
+        if (!backend) {
+            return {};
+        }
+        std::vector<std::string> result;
+        result.push_back(std::move(*backend));
+        return result;
     }
 
 }

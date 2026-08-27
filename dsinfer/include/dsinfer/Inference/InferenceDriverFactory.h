@@ -8,19 +8,21 @@
 #include <vector>
 
 #include <stdcorelib/adt/array_view.h>
-#include <stdcorelib/plugin/pluginfactory.h>
+#include <stdcorelib/plugin/plugincatalog.h>
+
 #include <synthrt/Support/Expected.h>
 
 #include <dsinfer/Inference/InferenceDriver.h>
+#include <dsinfer/Inference/InferenceDriverPlugin.h>
 #include <dsinfer/dsinfer_global.h>
 
 namespace ds {
 
-    /// Discovers inference driver plugins and creates their Runtime Services.
+    /// Discovers inference driver plugins by backend and creates their Runtime Services.
     ///
     /// Loaded plugin code is retained by this factory. Every driver created from it must be
     /// destroyed before the factory.
-    class DSINFER_EXPORT InferenceDriverFactory : public stdc::plugin::BundlePluginFactory {
+    class DSINFER_EXPORT InferenceDriverFactory : public stdc::plugin::PluginCatalog {
     public:
         InferenceDriverFactory();
         ~InferenceDriverFactory();
@@ -28,28 +30,47 @@ namespace ds {
         InferenceDriverFactory(InferenceDriverFactory &&RHS) noexcept;
         InferenceDriverFactory &operator=(InferenceDriverFactory &&RHS) noexcept;
 
+        /// Adds an inference driver plugin instance owned by the caller.
+        void addRuntimePlugin(InferenceDriverPlugin *plugin,
+                              const stdc::json::Value &metadata = stdc::json::Object()) {
+            factory()->addRuntimePlugin(iid(), plugin, metadata);
+        }
+
         /// Adds a directory containing inference driver plugins.
-        void addPluginPath(const std::filesystem::path &path);
+        void addPluginPath(const std::filesystem::path &path) {
+            factory()->addPluginPath(iid(), path);
+        }
 
         /// Replaces the inference driver plugin search path sequence.
-        void setPluginPaths(stdc::array_view<std::filesystem::path> paths);
+        void setPluginPaths(stdc::array_view<std::filesystem::path> paths) {
+            factory()->setPluginPaths(iid(), paths);
+        }
 
         /// Returns the inference driver plugin search path sequence.
-        std::vector<std::filesystem::path> pluginPaths() const;
+        std::vector<std::filesystem::path> pluginPaths() const {
+            return factory()->pluginPaths(iid());
+        }
 
         /// Returns declared driver backends in discovery order.
-        std::vector<std::string> backends() const;
+        std::vector<std::string> backends() const {
+            return keys();
+        }
 
         /// Returns the first plugin declaring \a backend, or null if none is found.
         ///
         /// \warning The returned loader must not outlive this factory. Replacing plugin paths may
         ///          invalidate an unloaded loader.
-        stdc::plugin::PluginLoader *find(std::string_view backend) const;
+        stdc::plugin::PluginLoader *find(std::string_view backend) const {
+            return loader(backend);
+        }
 
         /// Loads \a loader and creates its declared driver.
         ///
         /// \pre \a loader was returned by \c find() on this factory.
         srt::Expected<std::unique_ptr<InferenceDriver>> create(stdc::plugin::PluginLoader *loader);
+
+    protected:
+        std::vector<std::string> keysFromMetadata(const stdc::json::Value &metadata) const override;
     };
 
 }

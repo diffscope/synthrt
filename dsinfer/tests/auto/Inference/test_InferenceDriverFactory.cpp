@@ -136,7 +136,7 @@ BOOST_AUTO_TEST_SUITE(test_InferenceDriverFactory)
 BOOST_AUTO_TEST_CASE(test_DiscoversAndCreatesRuntimeService) {
     TestDriverPlugin plugin("test");
     ds::InferenceDriverFactory factory;
-    factory.addRuntimePlugin(ds::InferenceDriverPlugin::IID, &plugin, metadata("test"));
+    factory.addRuntimePlugin(&plugin, metadata("test"));
 
     const auto backends = factory.backends();
     BOOST_REQUIRE_EQUAL(backends.size(), 1u);
@@ -175,7 +175,7 @@ BOOST_AUTO_TEST_CASE(test_RejectsMissingAndMismatchedDrivers) {
     BOOST_REQUIRE(!missing);
     BOOST_CHECK(missing.error().code() == srt::Error::InvalidArgument);
 
-    factory.addRuntimePlugin(ds::InferenceDriverPlugin::IID, &wrongPlugin, metadata("claimed"));
+    factory.addRuntimePlugin(&wrongPlugin, metadata("claimed"));
     auto loader = factory.find("claimed");
     BOOST_REQUIRE(loader);
     ds::InferenceDriverFactory otherFactory;
