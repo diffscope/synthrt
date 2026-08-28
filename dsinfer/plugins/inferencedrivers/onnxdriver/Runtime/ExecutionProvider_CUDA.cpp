@@ -1,6 +1,6 @@
 #include "ExecutionProvider.h"
 
-#include <cstddef>
+#include <array>
 #include <memory>
 #include <string>
 
@@ -34,11 +34,12 @@ namespace ds::onnxdriver {
         }
 
         const auto cudaDeviceId = std::to_string(deviceIndex);
-        constexpr size_t optionCount = 2;
-        const char *optionKeys[optionCount] = {"device_id", "cudnn_conv_algo_search"};
-        const char *optionValues[optionCount] = {cudaDeviceId.c_str(), "DEFAULT"};
-        Ort::Status updateStatus(ortApi.UpdateCUDAProviderOptions(cudaOptions.get(), optionKeys,
-                                                                  optionValues, optionCount));
+        constexpr std::array optionKeys = {"device_id", "cudnn_conv_algo_search"};
+        const std::array optionValues = {cudaDeviceId.c_str(), "HEURISTIC"};
+        static_assert(std::tuple_size<decltype(optionKeys)>::value ==
+                      std::tuple_size<decltype(optionValues)>::value);
+        Ort::Status updateStatus(ortApi.UpdateCUDAProviderOptions(
+            cudaOptions.get(), optionKeys.data(), optionValues.data(), optionKeys.size()));
         if (!updateStatus.IsOK()) {
             return srt::Error(ds::ErrorCode::DriverLoadFailed, updateStatus.GetErrorMessage());
         }
