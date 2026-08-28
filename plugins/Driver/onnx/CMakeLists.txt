@@ -12,9 +12,9 @@ endif()
 
 # Require onnxruntime headers.
 # ONNX Runtime is provided by the onnxruntime-builds CMake package (vcpkg
-# overlay port derived from its own scripts/setup-onnxruntime.cmake); find it
-# here so consumers never pass paths from the port. Without the package the
-# plugin degrades to not being built (same behavior as before the split).
+# overlay port); find it here so consumers never pass paths from the port.
+# Without the package the plugin degrades to not being built (same behavior
+# as before the split).
 find_package(onnxruntime-builds CONFIG QUIET)
 if(NOT TARGET onnxruntime-builds::default)
     message(WARNING "OnnxDriver plugin will not be built: ONNX Runtime package (onnxruntime-builds) not found.")

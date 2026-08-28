@@ -1,0 +1,13 @@
+# PACKAGE_VERSION is derived from _version_ort (setup-onnxruntime/versions.cmake)
+# at install time so find_package(onnxruntime-builds <ver>) checks stay in sync
+# with the payload. If the DirectML runtime is ever decoupled from _version_ort,
+# this still tracks the GitHub (CPU/CUDA) version — revisit semantics then.
+set(PACKAGE_VERSION "@_version_ort@")
+if(PACKAGE_FIND_VERSION VERSION_GREATER PACKAGE_VERSION)
+  set(PACKAGE_VERSION_COMPATIBLE FALSE)
+else()
+  set(PACKAGE_VERSION_COMPATIBLE TRUE)
+  if(PACKAGE_FIND_VERSION VERSION_EQUAL PACKAGE_VERSION)
+    set(PACKAGE_VERSION_EXACT TRUE)
+  endif()
+endif()

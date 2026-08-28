@@ -1,0 +1,17 @@
+# ONNX Runtime binary payload package (onnxruntime-builds).
+# This config exposes the deployed ONNX Runtime payload so that consumers can
+# locate headers and runtimes without the synthrt port passing any path.
+get_filename_component(_ort_prefix "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+set(ONNXRUNTIME_BUILDS_INCLUDE_DIR "${_ort_prefix}/include")
+set(ONNXRUNTIME_BUILDS_RUNTIME_DIR "${_ort_prefix}/@_ORT_REL_RUNTIME_DEFAULT@")
+if(EXISTS "${_ort_prefix}/@_ORT_REL_RUNTIME_CUDA@")
+    set(ONNXRUNTIME_BUILDS_CUDA_RUNTIME_DIR "${_ort_prefix}/@_ORT_REL_RUNTIME_CUDA@")
+endif()
+
+# Header-only INTERFACE target (OnnxTensor uses ORT_API_MANUAL_INIT, no link step).
+if(NOT TARGET onnxruntime-builds::default)
+    add_library(onnxruntime-builds::default INTERFACE IMPORTED)
+    set_target_properties(onnxruntime-builds::default PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${ONNXRUNTIME_BUILDS_INCLUDE_DIR}"
+    )
+endif()

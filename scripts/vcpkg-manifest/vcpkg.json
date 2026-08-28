@@ -18,7 +18,8 @@
             "default-features": false,
             "features": ["avcodec", "avformat", "swresample"]
         },
-        "libsndfile"
+        "libsndfile",
+        "onnxruntime-builds"
     ],
     "features": {
         "tests": {

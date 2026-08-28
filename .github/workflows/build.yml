@@ -67,9 +67,8 @@ jobs:
 
       # Normalize the vcpkg triplet per platform+arch. Previously the macOS
       # job relied on the vcpkg default triplet (x64-osx): on ARM64 runners
-      # (macos-latest is now arm64) that mismatched the ONNX Runtime /
-      # ffmpeg-builds artifacts download selected by host arch detection in
-      # scripts/setup-onnxruntime.cmake and the ffmpeg-builds port, causing
+      # (macos-latest is now arm64) that mismatched the prebuilt artifacts
+      # selected by host arch detection in the ffmpeg-builds port, causing
       # link failures. Explicitly pinning the triplet keeps every platform in
       # sync with the downloaded prebuilt artifacts.
       - name: Normalize vcpkg target triplet
@@ -122,24 +121,9 @@ jobs:
         run: |
           "${VCPKG_ROOT}/vcpkg" version
 
-      # ONNX Runtime cache: large binary download (~200 MB), cache keyed by
-      # platform + arch + version. Bump the v1 suffix when setup-onnxruntime.cmake
-      # changes its version or download URL.
-      - name: Cache ONNX Runtime
-        id: cache-ort
-        uses: actions/cache@v5
-        with:
-          path: build/onnxruntime
-          key: onnxruntime-${{ matrix.os }}-${{ runner.arch }}-1.17.3-v1
-
-      - name: Download ONNX Runtime
-        if: steps.cache-ort.outputs.cache-hit != 'true'
-        shell: cmake -P {0}
-        run: |
-          set(ws [=[${{ github.workspace }}]=])
-          file(TO_CMAKE_PATH "${ws}" ws)
-          set(CMAKE_BINARY_DIR "${ws}/build")
-          include(${ws}/scripts/setup-onnxruntime.cmake)
+      # ONNX Runtime comes from the onnxruntime-builds overlay port (tracked
+      # under scripts/vcpkg-overlay, declared in scripts/vcpkg-manifest), so
+      # no separate download/cache step is needed.
 
       # sccache accelerates C++ recompilation across runs by caching object
       # files in the GH Actions cache backend. Only enabled on Linux/macOS
@@ -176,7 +160,6 @@ jobs:
           cmake -B build -S . \
             -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} \
             -DSYNTHRT_BUILD_TESTS=ON \
-            -DSYNTHRT_ORT_DIR="${{ github.workspace }}/build/onnxruntime" \
             -DCMAKE_TOOLCHAIN_FILE="${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake" \
             -DVCPKG_MANIFEST_DIR="${{ github.workspace }}/scripts/vcpkg-manifest" \
             -DVCPKG_TARGET_TRIPLET="${{ env.VCPKG_TARGET_TRIPLET }}"

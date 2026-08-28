@@ -38,25 +38,25 @@ cd vcpkg
     --x-install-root=./installed
 ```
 
-### Install OnnxRuntime
+### ONNX Runtime
 
-Default configuration (no CUDA support):
+ONNX Runtime is provided by the `onnxruntime-builds` vcpkg overlay port
+(tracked under `scripts/vcpkg-overlay/ports/onnxruntime-builds` and declared
+in `scripts/vcpkg-manifest/vcpkg.json`), so the regular `vcpkg install` step
+above already deploys it — no separate download is needed.
 
-```cmake
-cd third-party && cmake -P ../scripts/setup-onnxruntime.cmake
+To enable the CUDA 12.x execution provider, add the feature to the install
+invocation:
+
+```sh
+./vcpkg install \
+    --x-manifest-root=../scripts/vcpkg-manifest \
+    --x-install-root=./installed \
+    --x-feature=cuda12
 ```
 
-With CUDA 11.x support:
-
-```cmake
-cd third-party && cmake -Dep=cuda11 -P ../scripts/setup-onnxruntime.cmake
-```
-
-With CUDA 12.x support:
-
-```cmake
-cd third-party && cmake -Dep=cuda12 -P ../scripts/setup-onnxruntime.cmake
-```
+When the package is absent, the onnx driver plugin degrades gracefully: it is
+simply not built, and the rest of synthrt still compiles.
 
 ### Build & Install
 
