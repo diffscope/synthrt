@@ -34,34 +34,39 @@ include("${CMAKE_CURRENT_LIST_DIR}/versions.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/hashes.cmake")
 
 # Deploy one native payload directory, whitelist-split by filename pattern
-# (platform-neutral; audit plan V3, docs/audit-report-onnxruntime-builds.md):
-#   *.{dll,dylib,so,so.*}  runtime binaries → per-flavor runtime dir
-#   *.pdb / *.dSYM         debug symbols → same runtime dir, next to the
-#                          binaries (debuggers pick them up automatically;
-#                          consumers' runtime globs — *.dll/*.so/*.dylib — never
-#                          sweep them, so symbols stay out of shipped packages)
-#   *.lib                  import libraries → <runtime>/import/ (per-flavor
-#                          private; kills the DML/GPU onnxruntime.lib overwrite;
-#                          nothing links them today, kept as stock)
+# into three physically separated destination trees (layout decision D7,
+# docs/audit-report-onnxruntime-builds.md):
+#   *.{dll,dylib,so,so.*}  runtime binaries → <runtime_dst> (pure-DLL tree;
+#                          consumers glob it for deployment, symbols can
+#                          never leak into shipped packages)
+#   *.pdb / *.dSYM         debug symbols → <pdb_dst> (parallel tree, same
+#                          flavor structure; consumers copy them on demand
+#                          for Debug/RelWithDebInfo staging)
+#   *.lib                  import libraries → <import_dst> (per-flavor
+#                          private; kills the DML/GPU onnxruntime.lib
+#                          overwrite; nothing links them today, kept as
+#                          stock)
 #   everything else        NOT deployed: upstream lib/cmake configs and
 #                          pkgconfig embed dead upstream paths — junk in the
 #                          vcpkg layout (and would cross-flavor overwrite too)
-function(_deploy_runtime_contents _src _runtime_dst)
+function(_deploy_runtime_contents _src _runtime_dst _pdb_dst _import_dst)
     file(GLOB SOURCE_FILES "${_src}/*")
     file(MAKE_DIRECTORY "${_runtime_dst}")
     foreach(FILE IN LISTS SOURCE_FILES)
         get_filename_component(_file_name "${FILE}" NAME)
-        if(_file_name MATCHES "\\.dll$|\\.dylib$|\\.so(\\..*)?$|\\.pdb$|\\.dSYM$")
+        if(_file_name MATCHES "\\.dll$|\\.dylib$|\\.so(\\..*)?$")
             file(COPY "${FILE}" DESTINATION "${_runtime_dst}")
+        elseif(_file_name MATCHES "\\.pdb$|\\.dSYM$")
+            file(MAKE_DIRECTORY "${_pdb_dst}")
+            file(COPY "${FILE}" DESTINATION "${_pdb_dst}")
         elseif(_file_name MATCHES "\\.lib$")
-            set(_import_dir "${_runtime_dst}/import")
-            file(MAKE_DIRECTORY "${_import_dir}")
-            file(COPY "${FILE}" DESTINATION "${_import_dir}")
+            file(MAKE_DIRECTORY "${_import_dst}")
+            file(COPY "${FILE}" DESTINATION "${_import_dst}")
         endif()
     endforeach()
 endfunction()
 
-function(download_onnxruntime_from_github _ep _deploy_dst_dir _runtime_dst_dir)
+function(download_onnxruntime_from_github _ep _deploy_dst_dir _runtime_dst_dir _pdb_dst_dir _import_dst_dir)
     string(TOLOWER "${_ep}" _ep)
     if(_ep STREQUAL "cpu")
         set(_full_version "${_version_ort}")
@@ -96,11 +101,11 @@ function(download_onnxruntime_from_github _ep _deploy_dst_dir _runtime_dst_dir)
     )
 
     file(COPY "${_extract_dir}/${_name}/include" DESTINATION "${_deploy_dst_dir}")
-    _deploy_runtime_contents("${_extract_dir}/${_name}/lib" "${_runtime_dst_dir}")
+    _deploy_runtime_contents("${_extract_dir}/${_name}/lib" "${_runtime_dst_dir}" "${_pdb_dst_dir}" "${_import_dst_dir}")
     file(REMOVE_RECURSE "${_extract_dir}")
 endfunction()
 
-function(download_onnxruntime_from_nuget _deploy_dst_dir _runtime_dst_dir)
+function(download_onnxruntime_from_nuget _deploy_dst_dir _runtime_dst_dir _pdb_dst_dir _import_dst_dir)
     set(_url "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime.DirectML/${_version_ort_dml}")
     set(_download_filename "Microsoft.ML.OnnxRuntime.DirectML.${_version_ort_dml}.zip")
 
@@ -125,12 +130,12 @@ function(download_onnxruntime_from_nuget _deploy_dst_dir _runtime_dst_dir)
 
     file(COPY "${_extract_dir}/build/native/include" DESTINATION "${_deploy_dst_dir}")
 
-    _deploy_runtime_contents("${_extract_dir}/runtimes/win-x64/native" "${_runtime_dst_dir}")
+    _deploy_runtime_contents("${_extract_dir}/runtimes/win-x64/native" "${_runtime_dst_dir}" "${_pdb_dst_dir}" "${_import_dst_dir}")
 
     file(REMOVE_RECURSE "${_extract_dir}")
 endfunction()
 
-function(download_dml_from_nuget _deploy_dst_dir _runtime_dst_dir)
+function(download_dml_from_nuget _deploy_dst_dir _runtime_dst_dir _pdb_dst_dir _import_dst_dir)
     set(_url "https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/${_version_dml}")
     set(_download_filename "Microsoft.AI.DirectML.${_version_dml}.zip")
 
@@ -155,7 +160,7 @@ function(download_dml_from_nuget _deploy_dst_dir _runtime_dst_dir)
 
     file(COPY "${_extract_dir}/include" DESTINATION "${_deploy_dst_dir}")
 
-    _deploy_runtime_contents("${_extract_dir}/bin/x64-win" "${_runtime_dst_dir}")
+    _deploy_runtime_contents("${_extract_dir}/bin/x64-win" "${_runtime_dst_dir}" "${_pdb_dst_dir}" "${_import_dst_dir}")
 
     file(REMOVE_RECURSE "${_extract_dir}")
 endfunction()

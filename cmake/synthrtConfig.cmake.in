@@ -31,4 +31,12 @@ find_dependency(dsinfer)
 
 include("${CMAKE_CURRENT_LIST_DIR}/synthrtTargets.cmake")
 
+# Optional per-plugin payload declarations. Runtime plugins (loaded by the
+# host at runtime, not exported as CMake targets) install small fragments
+# declaring their deployed payload layout (plugin dir, flavors) so consumers
+# can stage and package them without hardcoding plugin paths or flavor
+# names. Fragments are written by the owning plugin's CMakeLists; a package
+# built without a given plugin simply ships no fragment.
+include("${CMAKE_CURRENT_LIST_DIR}/onnxdriver-payload.cmake" OPTIONAL)
+
 check_required_components(synthrt)

@@ -4,8 +4,28 @@
 get_filename_component(_ort_prefix "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 set(ONNXRUNTIME_BUILDS_INCLUDE_DIR "${_ort_prefix}/include")
 set(ONNXRUNTIME_BUILDS_RUNTIME_DIR "${_ort_prefix}/@_ORT_REL_RUNTIME_DEFAULT@")
+set(ONNXRUNTIME_BUILDS_SYMBOLS_DIR "${_ort_prefix}/@_ORT_REL_PDB_DEFAULT@")
 if(EXISTS "${_ort_prefix}/@_ORT_REL_RUNTIME_CUDA@")
     set(ONNXRUNTIME_BUILDS_CUDA_RUNTIME_DIR "${_ort_prefix}/@_ORT_REL_RUNTIME_CUDA@")
+endif()
+if(EXISTS "${_ort_prefix}/@_ORT_REL_PDB_CUDA@")
+    set(ONNXRUNTIME_BUILDS_CUDA_SYMBOLS_DIR "${_ort_prefix}/@_ORT_REL_PDB_CUDA@")
+endif()
+
+# Data-driven flavor interface: ONNXRUNTIME_BUILDS_FLAVORS lists every
+# deployed flavor (the default runtime is always present; "cuda" only when
+# the cuda12 payload was installed), and for each flavor <F> the variables
+# ONNXRUNTIME_BUILDS_<F-UPPER>_RUNTIME_DIR / _SYMBOLS_DIR point at its
+# runtime and symbol trees. Consumers iterate the list instead of
+# hardcoding flavor names; the two explicit blocks below keep the
+# default/cuda pairs in one visible place.
+set(ONNXRUNTIME_BUILDS_FLAVORS "default")
+set(ONNXRUNTIME_BUILDS_DEFAULT_RUNTIME_DIR "${ONNXRUNTIME_BUILDS_RUNTIME_DIR}")
+set(ONNXRUNTIME_BUILDS_DEFAULT_SYMBOLS_DIR "${ONNXRUNTIME_BUILDS_SYMBOLS_DIR}")
+if(EXISTS "${_ort_prefix}/@_ORT_REL_RUNTIME_CUDA@")
+    list(APPEND ONNXRUNTIME_BUILDS_FLAVORS "cuda")
+    set(ONNXRUNTIME_BUILDS_CUDA_RUNTIME_DIR "${_ort_prefix}/@_ORT_REL_RUNTIME_CUDA@")
+    set(ONNXRUNTIME_BUILDS_CUDA_SYMBOLS_DIR "${_ort_prefix}/@_ORT_REL_PDB_CUDA@")
 endif()
 
 # Header-only INTERFACE target (OnnxTensor uses ORT_API_MANUAL_INIT, no link step).
