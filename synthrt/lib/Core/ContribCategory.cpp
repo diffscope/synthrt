@@ -7,7 +7,7 @@
 #include "ContribExecutive.h"
 #include "SynthUnit_p.h"
 
-STDC_INSTANTIATE_STATIC_REGISTRY_EXPORT(srt::ContribCategory, SYNTHRT_EXPORT)
+STDC_STATIC_REGISTRY(srt::ContribCategory)
 
 namespace srt {
 

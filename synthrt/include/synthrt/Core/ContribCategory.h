@@ -159,10 +159,6 @@ namespace srt {
 
 }
 
-#if !defined(SYNTHRT_LIBRARY) && defined(_MSC_VER)
-// MSVC needs the dllimport declaration when inline registry code references the exported registry
-// storage. GNU family compilers must instantiate nested registration types locally.
-extern template class SYNTHRT_EXPORT stdc::StaticRegistry<srt::ContribCategory>;
-#endif
+STDC_DECLARE_EXPORTED_STATIC_REGISTRY(srt::ContribCategory, SYNTHRT_EXPORT)
 
 #endif // SYNTHRT_CONTRIBCATEGORY_H
