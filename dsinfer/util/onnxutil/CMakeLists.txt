@@ -1,9 +1,14 @@
-# Import onnxruntime
-set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
-set(_onnxruntime_default_dir ${_onnxruntime_dir}/default)
+# ONNX Runtime is provided by the onnxruntime-builds package, a vcpkg overlay port, which alone
+# determines the ONNX Runtime version. This file specifies neither a version nor a path. The
+# imported target carries the include directory, so a different ONNX Runtime payload requires no
+# change here.
+#
+# Without the package, neither onnxutil nor the ONNX driver plugin is built.
+find_package(onnxruntime-builds CONFIG QUIET)
 
-if(NOT IS_DIRECTORY ${_onnxruntime_default_dir})
-    message(WARNING "ONNX runtime not found. Please download and build it from https://github.com/microsoft/onnxruntime.")
+if(NOT TARGET onnxruntime-builds::default)
+    message(WARNING "ONNX Runtime package (onnxruntime-builds) not found, so the ONNX driver "
+                    "plugin will not be built. The vcpkg \"onnx\" feature installs the package.")
     return()
 endif()
 
@@ -11,9 +16,11 @@ project(onnxutil)
 
 file(GLOB_RECURSE _src "*.cpp")
 
+# LINKS is public, so the ONNX driver plugin obtains the ONNX Runtime include directory through
+# this target and requires no ONNX Runtime path of its own.
 dsinfer_add_library(${PROJECT_NAME} STATIC NO_INSTALL
     SOURCES ${_src}
-    LINKS dsinfer
-    INCLUDE ${CMAKE_CURRENT_SOURCE_DIR} ${_onnxruntime_default_dir}/include
+    LINKS dsinfer onnxruntime-builds::default
+    INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}
     DEFINES ORT_API_MANUAL_INIT
 )

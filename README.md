@@ -61,12 +61,14 @@ plugins/
 └── dsinfer/
     ├── inferencedrivers/
     │   └── onnx/
-    └── inferenceinterpreters/
-        ├── acoustic/
-        ├── duration/
-        ├── pitch/
-        ├── variance/
-        └── vocoder/
+    ├── inferenceinterpreters/
+    │   ├── acoustic/
+    │   ├── duration/
+    │   ├── pitch/
+    │   ├── variance/
+    │   └── vocoder/
+    └── singerproviders/
+        └── diffsinger/
 ```
 
 ## Current Status
@@ -140,27 +142,17 @@ Omit `--x-feature=tests` if automated tests are not required.
 
 ## Prepare ONNX Runtime
 
-Choose one ONNX Runtime distribution and run the corresponding command from the repository root.
+ONNX Runtime is provided by the `onnxruntime-builds` overlay port. The `onnx` feature of the vcpkg manifest installs it together with the other dependencies:
 
-1. CPU build:
+```sh
+vcpkg install --x-manifest-root=scripts/vcpkg-manifest --x-install-root=vcpkg/installed --x-feature=onnx
+```
 
-   ```sh
-   cmake -E chdir third-party cmake -P ../scripts/setup-onnxruntime.cmake
-   ```
+The CUDA 12 build of ONNX Runtime is the `cuda12` feature of that port, `onnxruntime-builds[cuda12]`.
 
-2. CUDA 11 build:
+This repository specifies no ONNX Runtime version. The overlay port alone determines the installed version, so a different ONNX Runtime payload requires no change to this repository. If the `onnx` feature is not installed, CMake omits the ONNX utility and driver targets, and the remaining libraries can still be built.
 
-   ```sh
-   cmake -E chdir third-party cmake -Dep=cuda11 -P ../scripts/setup-onnxruntime.cmake
-   ```
-
-3. CUDA 12 build:
-
-   ```sh
-   cmake -E chdir third-party cmake -Dep=cuda12 -P ../scripts/setup-onnxruntime.cmake
-   ```
-
-Without a prepared ONNX Runtime distribution, CMake omits the ONNX utility and driver targets while the remaining libraries may still be built.
+The build deploys no ONNX Runtime libraries beside the driver plugin. The driver loads ONNX Runtime from the directory that the host passes in `DriverInitArgs::runtimePath`, so the run-time location of ONNX Runtime is the responsibility of the host application. The tests in this repository pass `ONNXRUNTIME_BUILDS_RUNTIME_DIR`, which the `onnxruntime-builds` package defines.
 
 ## Build From Source
 
