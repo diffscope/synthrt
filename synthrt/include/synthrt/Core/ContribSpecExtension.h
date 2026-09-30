@@ -15,7 +15,11 @@ namespace srt {
 
     /// Adds library defined behavior to one loaded contribution declaration.
     ///
-    /// Extensions are created after imports and their execution factories are prepared. The
+    /// Extensions are created in the last step of the Ready phase, after every import of the new
+    /// package has its options, binding and execution factory, and after every registered import
+    /// validator has accepted the package. An extension may therefore read the exports,
+    /// configuration, import options and bindings of the declaration it extends and of the
+    /// declarations those imports refer to, and may rely on the guarantees of the validators. The
     /// containing ContribSpec owns each extension and outlives it.
     class SYNTHRT_EXPORT ContribSpecExtension {
     public:

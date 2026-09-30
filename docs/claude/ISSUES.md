@@ -665,10 +665,10 @@ BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会�
 ---
 
 ### B3. 锁的粒度与覆盖不一致
-- [ ] **B3a** `packagePathsDirty` 在锁外读 — [SynthUnit.cpp:149](../../synthrt/lib/Core/SynthUnit.cpp#L149)
-- [ ] **B3b** `closeAllLoadedPackages()` 遍历 `loadedPackageMap` 不加锁 — [SynthUnit.cpp:436](../../synthrt/lib/Core/SynthUnit.cpp#L436)
+- [x] **B3a** `packagePathsDirty` 在锁外读 — 已不适用（`SynthUnit` 重写后没有这个成员，搜索路径的读写都在 `loadMutex` 下）
+- [x] **B3b** `closeAllLoadedPackages()` 遍历 `loadedPackageMap` 不加锁 — 已不适用（这两个名字已不存在，包的生命周期由 `PackageHandle` 管理）
 - [ ] **B3c** 持全局独占锁期间加载 ONNX 模型（可能数十秒），阻塞所有其它 session 的 open/close — [Session.cpp:664](../../dsinfer/plugins/inferencedrivers/onnxdriver/internal/Session.cpp#L664)
-- [ ] **B3d** `ITask::setState()` 完全无同步，但 AcousticInference 从多处并发调用 — [ITask.cpp:28](../../synthrt/lib/Task/ITask.cpp#L28)
+- [x] **B3d** `ITask::setState()` 完全无同步，但 AcousticInference 从多处并发调用 — 已修（`m_state` 为 `std::atomic<State>`）
 - [ ] **B3e** `AcousticInference::start` 先 shared_lock 查 driver 再释放、后面才 unique_lock，TOCTOU — [AcousticInference.cpp:118-124](../../dsinfer/plugins/inferenceinterpreters/acoustic/AcousticInference.cpp#L118-L124)
 
 B3d 最简单：`state` 改 `std::atomic<State>`。

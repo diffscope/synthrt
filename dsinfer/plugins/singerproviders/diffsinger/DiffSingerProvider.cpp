@@ -1,6 +1,9 @@
 #include "DiffSingerProvider.h"
 
+#include <set>
+#include <string>
 #include <string_view>
+#include <vector>
 
 #include <stdcorelib/adt/vlarray.h>
 #include <stdcorelib/path.h>
@@ -8,6 +11,7 @@
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 #include <synthrt/Core/ContribImportBinding.h>
 #include <synthrt/SVS/InferenceContrib.h>
+#include <synthrt/SVS/SingerContrib.h>
 
 #include "DiffSingerPipelineExecutive.h"
 
@@ -15,11 +19,17 @@ namespace ds {
 
     namespace Ds = Api::DiffSinger::L1;
 
+    // Declared before the anonymous namespace because the import validation in that namespace
+    // also uses it, and the definition appears later in this file.
+    static inline std::string formatErrorMessage(const std::string &msgPrefix,
+                                                 const stdc::vlarray<std::string> &errorList);
+
     namespace {
 
         bool isDiffSingerSpec(const srt::ContribSpec &spec) {
-            return spec.locator().category() == "singer" && spec.interface() == Ds::API_INTERFACE &&
-                   spec.variant() == Ds::API_VARIANT && spec.level() == Ds::API_LEVEL;
+            return spec.locator().category() == srt::SingerCategory::NAME &&
+                   spec.interface() == Ds::API_INTERFACE && spec.variant() == Ds::API_VARIANT &&
+                   spec.level() == Ds::API_LEVEL;
         }
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec);
@@ -79,7 +89,7 @@ namespace ds {
                                   "DiffSinger inference import has no execution factory");
             }
             auto target = &import->binding()->target();
-            if (target->locator().category() != "inference" ||
+            if (target->locator().category() != srt::InferenceCategory::NAME ||
                 target->interface() != expectedInterface || target->variant() != expectedVariant ||
                 target->level() != expectedLevel) {
                 return srt::Error(
@@ -87,6 +97,90 @@ namespace ds {
                     "DiffSinger inference import has an incompatible contract identity");
             }
             return target->as<srt::InferenceSpec>();
+        }
+
+        // Returns the reserved phonemes that are absent from the phoneme table of \a model.
+        // Returns an empty list if \a model is null, \a reserved is empty, or the model has no
+        // configuration.
+        //
+        // The function is templated on the configuration type because the four configuration
+        // types that carry a phoneme table share no base class that exposes it. Each of them names
+        // the table \c phonemes, which is the only requirement on \a Configuration.
+        template <class Configuration>
+        std::vector<std::string> missingFrom(const srt::InferenceSpec *model,
+                                             const std::vector<std::string> &reserved) {
+            std::vector<std::string> missing;
+            if (model == nullptr || reserved.empty()) {
+                return missing;
+            }
+            const auto *configuration = static_cast<const Configuration *>(model->configuration());
+            if (configuration == nullptr) {
+                return missing;
+            }
+            for (const auto &token : reserved) {
+                if (configuration->phonemes.find(token) == configuration->phonemes.end()) {
+                    missing.push_back(token);
+                }
+            }
+            return missing;
+        }
+
+        std::string listOf(const std::vector<std::string> &values) {
+            std::string result;
+            for (const auto &value : values) {
+                result += (result.empty() ? "" : " ") + value;
+            }
+            return result;
+        }
+
+        // Verifies that every reserved phoneme of the singer is present in the phoneme table of
+        // each imported model.
+        //
+        // A reserved phoneme bypasses phoneme conversion because hosts pass the token directly to
+        // the models. This function is therefore the only point at which the token is validated.
+        // Without this check, a singer that reserves a token absent from its models loads and
+        // synthesizes successfully but produces silence where the user wrote the marker, and no
+        // later stage detects the error.
+        //
+        // Every model with a phoneme table is checked, not only the acoustic model. The tables
+        // are separate files. If they disagree, a marker can be valid for the duration of a note
+        // and invalid for its synthesized sound.
+        srt::Expected<void> validateReservedPhonemes(const srt::ContribSpec &spec,
+                                                     srt::InferenceSpec *duration,
+                                                     srt::InferenceSpec *pitch,
+                                                     srt::InferenceSpec *variance,
+                                                     srt::InferenceSpec *acoustic) {
+            // The singer category has already parsed the declaration, so every host and language
+            // library reads the same set. This provider adds only the check against the phoneme
+            // tables of the models.
+            const auto &reserved = spec.as<srt::SingerSpec>()->reservedPhonemes();
+            if (reserved.empty()) {
+                return {};
+            }
+
+            stdc::vlarray<std::string> errorList;
+            const auto check = [&](const char *what, std::vector<std::string> missing) {
+                if (!missing.empty()) {
+                    errorList.emplace_back("missing from the " + std::string(what) +
+                                           " model: " + listOf(missing));
+                }
+            };
+            check("duration",
+                  missingFrom<Api::Duration::L1::DurationConfiguration>(duration, reserved));
+            check("pitch", missingFrom<Api::Pitch::L1::PitchConfiguration>(pitch, reserved));
+            check("variance",
+                  missingFrom<Api::Variance::L1::VarianceConfiguration>(variance, reserved));
+            check("acoustic",
+                  missingFrom<Api::Acoustic::L1::AcousticConfiguration>(acoustic, reserved));
+            if (errorList.empty()) {
+                return {};
+            }
+            return srt::Error{
+                srt::Error::InvalidFormat,
+                formatErrorMessage("DiffSinger singer declares reserved phonemes that are "
+                                   "missing from its models",
+                                   errorList),
+            };
         }
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec) {
@@ -125,13 +219,10 @@ namespace ds {
                 return compatibility.takeError().withContext(
                     "DiffSinger vocoder import is incompatible with its acoustic import");
             }
-            return {};
+            return validateReservedPhonemes(spec, *duration, *pitch, *variance, *acoustic);
         }
 
     }
-
-    static inline std::string formatErrorMessage(const std::string &msgPrefix,
-                                                 const stdc::vlarray<std::string> &errorList);
 
     DiffSingerProvider::DiffSingerProvider() = default;
 

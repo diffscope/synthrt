@@ -5,13 +5,18 @@
 
 #include <stdcorelib/str.h>
 
+#include <synthrt/SVS/InferenceContrib.h>
+#include <synthrt/SVS/SingerContrib.h>
+
 namespace ds::cli {
 
     CliRuntime::CliRuntime(const std::filesystem::path &pluginRoot,
                            Api::Onnx::ExecutionProvider executionProvider, int deviceIndex) {
         // Each contribution category discovers only plugins from its own directory.
-        m_synthUnit.setPluginPaths("singer", {pluginRoot / STDC_TSTR("singerproviders")});
-        m_synthUnit.setPluginPaths("inference", {pluginRoot / STDC_TSTR("inferenceinterpreters")});
+        m_synthUnit.setPluginPaths(srt::SingerCategory::NAME,
+                                   {pluginRoot / STDC_TSTR("singerproviders")});
+        m_synthUnit.setPluginPaths(srt::InferenceCategory::NAME,
+                                   {pluginRoot / STDC_TSTR("inferenceinterpreters")});
 
         // Drivers are runtime services rather than contributions, so they use a separate factory.
         m_driverFactory.addPluginPath(pluginRoot / STDC_TSTR("inferencedrivers"));
