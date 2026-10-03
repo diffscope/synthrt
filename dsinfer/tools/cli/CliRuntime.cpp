@@ -34,11 +34,13 @@ namespace ds::cli {
         Api::Onnx::DriverInitArgs args;
         args.ep = executionProvider;
         args.deviceIndex = deviceIndex;
-        auto runtimeRoot =
-            driverLoader->filePath().parent_path() / STDC_TSTR("runtimes") / STDC_TSTR("onnx");
-        args.runtimePath = runtimeRoot / (executionProvider == Api::Onnx::ExecutionProvider::CUDA
-                                              ? STDC_TSTR("cuda")
-                                              : STDC_TSTR("default"));
+
+        // The default payload is staged directly in the runtime directory and only the CUDA
+        // flavor gets its own subdirectory (see ONNX_RUNTIME_DIR / CUDA_RUNTIME_SUBDIR).
+        auto runtimeRoot = driverLoader->filePath().parent_path() / STDC_TSTR("runtime");
+        args.runtimePath = executionProvider == Api::Onnx::ExecutionProvider::CUDA
+                               ? runtimeRoot / STDC_TSTR("cuda")
+                               : runtimeRoot;
 
         if (auto result = onnxDriver->initialize(args); !result) {
             throw std::runtime_error(
