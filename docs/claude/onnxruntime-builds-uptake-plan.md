@@ -29,7 +29,7 @@
 | 1 | 端口本体无需改动。refactor 内嵌 overlay、`scripts/vcpkg` 子模块、ds-editor-lite 三处的 onnxruntime-builds 端口逐文件字节相同，均为 1.24.4 port-version 8 | 三处 `vcpkg.json` 与 `portfile.cmake` 对比 |
 | 2 | ORT 版本由 synthrt 自身固定 | `scripts/setup-onnxruntime.cmake` |
 | 3 | **驱动从不在 `runtimes/onnx/` 中查找运行库**。`DriverInitArgs::runtimePath` 是宿主传入的目录，为空时退回系统加载器的搜索 | `OnnxDriverApi.h`、`OnnxDriver.cpp` |
-| 4 | 上述复制逻辑的**唯一实际使用者是本仓库的测试** | `test_InferenceDriverFactory.cpp` 拼出 `bundlePath / "runtimes" / "onnx" / "default"` |
+| 4 | 上述复制逻辑的使用者只有本仓库的测试，测试的运行时目录由 CMake 以 `DSINFER_TEST_ORT_RUNTIME_DIR` 传入。`dsinfer-cli` 曾从驱动插件相邻的 `runtimes/onnx/<flavor>` 取 ORT，已按宿主部署布局改为 `runtime`（见 A23） | `test_InferenceDriverFactory.cpp`、`dsinfer/tools/cli/CliRuntime.cpp` |
 | 5 | 头文件可以完全由 imported target 传递，因为 qmsetup 的 `LINKS`（裸名）是 PUBLIC | `QMSetupAPI.cmake` |
 | 6 | ORT 头文件不暴露给 dsinfer 的客户端，前向声明隔离了这些头文件 | `OnnxDriverApi.h` |
 | 7 | `third-party/CMakeLists.txt` 的内容仅为 `# Empty`，该目录中只有此文件和一个忽略 `/onnxruntime` 的 `.gitignore` | 目录清点 |
@@ -38,7 +38,7 @@
 
 ## 4. synthrt 侧的变更
 
-### 4.1 `dsinfer/util/onnxutil/CMakeLists.txt`：全仓库唯一引用 ORT 的位置
+### 4.1 `dsinfer/util/onnxutil/CMakeLists.txt`：把 ORT 接入构建树的位置
 
 ```cmake
 find_package(onnxruntime-builds CONFIG QUIET)
@@ -102,7 +102,7 @@ target_compile_definitions(test_InferenceDriverFactory PRIVATE
 - 删除顶层 `CMakeLists.txt` 中的 `add_subdirectory(third-party)`
 - README 中的三条 `cmake -E chdir third-party ...` 命令替换为说明：ORT 由 overlay 的 `onnxruntime-builds` 端口提供，通过 `--x-feature=onnx` 启用
 
-完成后，`grep -ri "1\.17\.3\|third-party/onnxruntime\|runtimes/onnx" .` 在本仓库中除本文档外应无匹配。
+完成后，`grep -ri "1\.17\.3\|third-party/onnxruntime" .` 在本仓库中除本文档外应无匹配。判据**不能**写成搜 `runtimes/onnx`：该字符串曾出现在 `dsinfer/tools/cli/CliRuntime.cpp` 与 `docs/DevHelp.md`，与本方案无关，且已按宿主部署布局改正（见 A23），写进判据会把它们掩盖过去。
 
 ## 5. 消费侧的变更
 
@@ -125,7 +125,7 @@ target_compile_definitions(test_InferenceDriverFactory PRIVATE
 
 ## 7. 验收判据
 
-1. `grep -ri "1\.17\.3\|third-party/onnxruntime\|runtimes/onnx" .` 在本仓库中除本文档外无匹配。
+1. `grep -ri "1\.17\.3\|third-party/onnxruntime" .` 在本仓库中除本文档外无匹配（不要搜 `runtimes/onnx`，理由见 §4 末）。
 2. 启用 `--x-feature=onnx` 构建：构建出 onnx 驱动，`test_InferenceDriverFactory` 通过，且其 `runtimePath` 指向端口目录而非插件所在目录。
 3. 不启用该 feature 构建：不构建驱动，跳过驱动测试，其余测试全部通过。
 4. 消费侧端口删除复制步骤后，启用 onnx feature 安装成功，消费侧测试全部通过（包括运行真实模型的用例）。

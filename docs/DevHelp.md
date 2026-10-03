@@ -206,7 +206,7 @@ if (!driverResult) {
 auto driver = driverResult.take();
 ds::Api::Onnx::DriverInitArgs args;
 args.ep = ds::Api::Onnx::ExecutionProvider::CPU;
-args.runtimePath = driverLoader->filePath().parent_path() / "runtimes" / "onnx" / "default";
+args.runtimePath = driverLoader->filePath().parent_path() / "runtime";
 if (auto result = driver->initialize(args); !result) {
     return result.takeError();
 }
@@ -215,6 +215,8 @@ if (auto result = unit.addRuntimeService(std::move(driver)); !result) {
     return result.takeError();
 }
 ```
+
+`runtimePath` 由宿主负责部署：插件包不再携带 ONNX Runtime，运行库由 `onnxruntime-builds` 端口安装，由宿主复制到驱动插件旁边（即 `<驱动插件目录>/runtime`）。其中默认载荷直接铺在该目录里，只有 CUDA 载荷多一层子目录（ds-editor-lite 的 `src/libs/SynthrtEngine/DeployLayout.h:41` 的 `ONNX_RUNTIME_DIR` 与 `:46` 的 `CUDA_RUNTIME_SUBDIR`）。
 
 `find()` 返回实际选中的 `PluginLoader`。调用者可以通过 `filePath()` 从动态库位置定位同一 bundle 内的资源，不应根据搜索根目录、backend 或插件中立名称重新拼出 bundle 路径。Loader 指针不得比 Factory 活得久，替换插件搜索路径可能使尚未加载的 Loader 失效。
 

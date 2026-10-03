@@ -2,6 +2,7 @@
 
 > 生成于 2026-08-01，基于 commit `304b275`（分支 `main`）。
 > 最后回填 2026-08-05，对应 `main` 上 `304b275` 之后的 48 个提交。
+> 最近一次回填 2026-10-03（A23 按宿主部署布局修复，并订正已漂移的引用）。
 > 每修复一条就把 `[ ]` 改成 `[x]`，并在条目末尾补一行 `> 修复：<commit/说明>`。
 >
 > 分组顺序即建议的处理顺序：**A（确定 bug）→ B（健壮性/并发）→ E（Error 重设计）→ C（代码质量）→ D（设计，最后讨论）**。
@@ -627,6 +628,24 @@ BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会�
 **影响**：本轮所有涉及头文件的改动（Algorithm.h、JSON.cpp 的模板等）都只能靠**全量重建**验证。
 在修好之前，增量构建的结果不可信。
 
+### A23. `dsinfer-cli` 找 ONNX Runtime 的目录与当前部署不一致
+
+- **事实**：`CliRuntime.cpp:37-41` 把运行库目录拼成 `<驱动插件目录>/runtimes/onnx/<flavor>`（`default` 或
+  `cuda`），其中 `<驱动插件目录>` 取 `driverLoader->filePath().parent_path()`。
+- **事实**：驱动就是从该目录直接加载动态库的（`OnnxDriver.cpp:68`：
+  `OnnxRuntime::load(onnxArgs.runtimePath / ONNXRUNTIME_DYLIB_FILENAME)`），不会在别的目录再找一份。
+- **事实**：本分支起的部署把运行库放在 `<驱动插件目录>/runtime/<flavor>`——宿主 `ds-editor-lite` 侧由
+  `cmake/LiteBuildApi.cmake:191`（`LITE_LAYOUT_ONNX_RUNTIME_DIR`）从 `share/onnxruntime-builds/runtime/default`
+  拷入。`runtimes/onnx` 这个拼法只在旧构建树里出现过（本机实测
+  `cmake-build-release/.../srt-onnxdriver/runtimes/onnx/{cuda,default}` 存在；`cmake-build-debug` 下同名目录现为空），
+  新布局不再产生。另注：`LITE_LAYOUT_ONNX_RUNTIME_DIR` 在宿主 `ds-editor-lite` 全仓（排除 `vcpkg/` 与构建树）
+  只有**一处出现且是读取**（`cmake/LiteBuildApi.cmake:191`），**找不到定义处**，其赋值来源需作者确认【未证实】。
+- **推断**：`dsinfer-cli` 的模型类命令会因找不到 ONNX Runtime 动态库而初始化失败。**未实测**（本轮未跑模型推理；
+  注意本分支**默认就会构建** `dsinfer-cli`：`CMakeLists.txt` 与 `dsinfer/tools/cli/CMakeLists.txt` 里已无
+  `SYNTHRT_BUILD_TOOLS` 开关，构建树里 `out/bin/dsinfer-cli.exe` 确实产出）。
+- **修法**：把 `runtimes` / `onnx` 两级压成单级 `runtime`（与宿主部署一致），或改为向宿主/端口查询目录。
+> 修复：`065955a` 按宿主部署布局改成 `<驱动插件目录>/runtime`（默认载荷直接铺在该目录里）与 `<驱动插件目录>/runtime/cuda`（CUDA）。宿主侧目录常量见 ds-editor-lite 的 `src/libs/SynthrtEngine/DeployLayout.h`（`ONNX_RUNTIME_DIR` 与 `CUDA_RUNTIME_SUBDIR`），该仓的打包逻辑从 `share/onnxruntime-builds/runtime/default` 拷入该目录；`docs/DevHelp.md` 的样例与说明、本仓 uptake 计划文档 §3 第 4 条同步更正。宿主 `LITE_LAYOUT_ONNX_RUNTIME_DIR` 在该仓仍只有读取处、没有定义处，属宿主侧待查项。
+
 ---
 
 ## B. 健壮性 / 并发（次优先）
@@ -667,9 +686,9 @@ BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会�
 ### B3. 锁的粒度与覆盖不一致
 - [x] **B3a** `packagePathsDirty` 在锁外读 — 已不适用（`SynthUnit` 重写后没有这个成员，搜索路径的读写都在 `loadMutex` 下）
 - [x] **B3b** `closeAllLoadedPackages()` 遍历 `loadedPackageMap` 不加锁 — 已不适用（这两个名字已不存在，包的生命周期由 `PackageHandle` 管理）
-- [ ] **B3c** 持全局独占锁期间加载 ONNX 模型（可能数十秒），阻塞所有其它 session 的 open/close — [Session.cpp:664](../../dsinfer/plugins/inferencedrivers/onnxdriver/internal/Session.cpp#L664)
+- [ ] **B3c** 持全局独占锁期间加载 ONNX 模型（可能数十秒），阻塞所有其它 session 的 open/close — [Session.cpp:664](../../dsinfer/plugins/inferencedrivers/onnxdriver/Session/Session.cpp#L664)
 - [x] **B3d** `ITask::setState()` 完全无同步，但 AcousticInference 从多处并发调用 — 已修（`m_state` 为 `std::atomic<State>`）
-- [ ] **B3e** `AcousticInference::start` 先 shared_lock 查 driver 再释放、后面才 unique_lock，TOCTOU — [AcousticInference.cpp:118-124](../../dsinfer/plugins/inferenceinterpreters/acoustic/AcousticInference.cpp#L118-L124)
+- [ ] **B3e** `AcousticTask::start` 先 shared_lock 查 driver 再释放、后面才 unique_lock，TOCTOU — [AcousticTask.cpp:168](../../dsinfer/plugins/inferenceinterpreters/acoustic/AcousticTask.cpp#L168)（该类拆分后此模式已从 `AcousticInference.cpp` 移到 `AcousticTask.cpp`；`initialize` 的 unique_lock 在 :135，另有 :523。）
 
 B3d 最简单：`state` 改 `std::atomic<State>`。
 B3c 需要把"占位 + 建 image"拆成两阶段（先在 map 里插入一个 pending 占位并放锁，建完再回填）。
@@ -1393,13 +1412,13 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
 
 | 分组 | 可动手 | 🔒 保留 | 已完成 |
 |---|---|---|---|
-| A 确定 bug | 29（+A19 A20 A21 A22） | 1 | **28**（仅剩 A16 环境问题） |
+| A 确定 bug | 30（+A19 A20 A21 A22 A23） | 1 | **29**（仅剩 A16 环境问题） |
 | B 健壮性 | 12（−B4） | 2 | **7**（B1 B2a–d B8a + B4 裁定不修） |
 | C 代码质量 | 11（−C3，升为 A18；+C12 C13） | 1 | **5**（C6 C8 C9 C9b C13） |
 | E Error 重设计 | 2 | 0 | **2** |
 | F 注册与标识 | 10（+F10） | 0 | **10**（F1–F10） |
 | D 设计 | 1（D5 剩类型识别部分） | 4 | **2**（D2 D7） |
-| **合计** | **65** | **8** | **54** |
+| **合计** | **66** | **8** | **54** |
 
 ### 剩余可动手的条目
 | 条目 | 性质 | 风险 |
@@ -1431,8 +1450,8 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
 
 ### 验证方式
 - 全量重建（`ninja -t clean` + build）：**exit 0**
-- **`ctest` 14 个用例全过**（一个头文件一个可执行文件，见 `33d1189`）
-- 手动套件 `dsinfer/tests/manual/` **5/5**，含真实 ONNX 推理。不进 ctest：`onnxdriver` 要模型，`txtdict` 要词典路径
+- **`ctest` 全过**（一个头文件一个可执行文件，见 `33d1189`）。用例数只保留在 `docs/Status.md` 的当前状态段，此处不再重复记数
+- 手动套件 `dsinfer/tests/manual/` 已随迁移删除，其有效场景由自动测试覆盖（迁移记录见 `docs/Status.md`），此处不再单独记数
 - **JSON 与两套语料测试已随 `JsonValue` 迁往 stdcorelib**（见下），本仓库不再有它们
 - ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
 - 断言总数约 **540**（`test_AlignedAllocator` 1019 的循环断言不计入此数）。

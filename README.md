@@ -15,7 +15,7 @@ SynthRT is a package-oriented runtime for singing voice synthesis. Packages desc
 ### Packages and Contributions
 
 - A package is currently an installed directory containing a `desc.json` manifest.
-- A package is identified by its package ID and four-part normalized version.
+- A package is identified by its package ID and a version of one to four numeric parts, compared as integers after padding on the right.
 - The root `contributions` object groups declarations by contribution category.
 - Built-in categories currently include `inference` and `singer`.
 - Applications may register additional categories before loading their first package.
@@ -168,6 +168,22 @@ cmake -S . -B build/Release -G Ninja \
 cmake --build build/Release --target all
 cmake --install build/Release
 ```
+
+## Running the Automated Tests
+
+`SYNTHRT_BUILD_TESTS=ON` registers the Boost.Test targets with CTest. On Windows the test
+executables link Boost.Test and the vcpkg runtime libraries dynamically, so the loader cannot
+find them unless the matching directories are on `PATH` first; without that, every test aborts
+with `0xc0000135` (`STATUS_DLL_NOT_FOUND`) before it starts.
+
+```powershell
+$env:PATH = "vcpkg\installed\x64-windows\debug\bin;$env:PATH"
+ctest --test-dir build/Release --output-on-failure
+```
+
+Add the prefix that actually holds the runtime libraries when it is not `vcpkg/installed`
+(for example a second prefix that provides Boost), and add the `onnxruntime-builds` runtime
+directory when the driver tests run against a locally installed ONNX Runtime.
 
 ## Consume the Libraries with CMake
 

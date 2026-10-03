@@ -47,3 +47,7 @@ CMakeSettings.json
 /vcpkg
 /data
 /*.natvis
+
+# Local scratch space and the agent skills that only exist on this machine
+.tmp/
+.agents/
