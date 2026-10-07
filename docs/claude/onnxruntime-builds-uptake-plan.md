@@ -102,11 +102,13 @@ target_compile_definitions(test_InferenceDriverFactory PRIVATE
 - 删除顶层 `CMakeLists.txt` 中的 `add_subdirectory(third-party)`
 - README 中的三条 `cmake -E chdir third-party ...` 命令替换为说明：ORT 由 overlay 的 `onnxruntime-builds` 端口提供，通过 `--x-feature=onnx` 启用
 
-完成后，`grep -ri "1\.17\.3\|third-party/onnxruntime" .` 在本仓库中除本文档外应无匹配。判据**不能**写成搜 `runtimes/onnx`：该字符串曾出现在 `dsinfer/tools/cli/CliRuntime.cpp` 与 `docs/DevHelp.md`，与本方案无关，且已按宿主部署布局改正（见 A23），写进判据会把它们掩盖过去。
+完成后，`grep -ri "1\.17\.3\|third-party/onnxruntime" .` 在本仓库中除本文档外应无匹配。
+
+判据**不能**写成搜 `runtimes/onnx`。该字符串曾出现在 `dsinfer/tools/cli/CliRuntime.cpp` 与 `docs/DevHelp.md`，与本方案无关，且已按宿主部署布局改正（见 A23）。写进判据会把它们掩盖过去。
 
 ## 5. 消费侧的变更
 
-依赖 synthrt main 分支的端口原先手动将 ORT 头文件复制到 `third-party/onnxruntime/default/include`，唯一原因是 main 分支会探测该目录。该目录不再被探测后，复制步骤随之删除。端口的 `onnx` feature 依赖 `onnxruntime-builds`，二者安装在同一棵 installed 树中，因此 `find_package` 可以直接找到该包。
+消费侧删除的复制步骤，唯一原因是 main 分支会探测 `third-party/onnxruntime/default/include`。该目录不再被探测后，复制步骤随之删除。端口的 `onnx` feature 依赖 `onnxruntime-builds`，二者安装在同一棵 installed 树中，因此 `find_package` 可以直接找到该包。
 
 ## 6. 不在范围内的改动
 
@@ -125,7 +127,7 @@ target_compile_definitions(test_InferenceDriverFactory PRIVATE
 
 ## 7. 验收判据
 
-1. `grep -ri "1\.17\.3\|third-party/onnxruntime" .` 在本仓库中除本文档外无匹配（不要搜 `runtimes/onnx`，理由见 §4 末）。
+1. §4 末的 grep 判据（本仓库中除本文档外无匹配）。
 2. 启用 `--x-feature=onnx` 构建：构建出 onnx 驱动，`test_InferenceDriverFactory` 通过，且其 `runtimePath` 指向端口目录而非插件所在目录。
 3. 不启用该 feature 构建：不构建驱动，跳过驱动测试，其余测试全部通过。
 4. 消费侧端口删除复制步骤后，启用 onnx feature 安装成功，消费侧测试全部通过（包括运行真实模型的用例）。

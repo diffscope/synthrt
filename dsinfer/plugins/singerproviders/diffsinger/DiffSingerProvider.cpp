@@ -136,15 +136,14 @@ namespace ds {
         // Verifies that every reserved phoneme of the singer is present in the phoneme table of
         // each imported model.
         //
-        // A reserved phoneme bypasses phoneme conversion because hosts pass the token directly to
-        // the models. This function is therefore the only point at which the token is validated.
-        // Without this check, a singer that reserves a token absent from its models loads and
-        // synthesizes successfully but produces silence where the user wrote the marker, and no
-        // later stage detects the error.
+        // A reserved phoneme bypasses phoneme conversion, so this function is the only point at
+        // which the token is validated. Without the check, a singer that reserves a token absent
+        // from its models loads and synthesizes successfully but produces silence where the user
+        // wrote the marker, and no later stage detects the error.
         //
         // Every model with a phoneme table is checked, not only the acoustic model. The tables
-        // are separate files. If they disagree, a marker can be valid for the duration of a note
-        // and invalid for its synthesized sound.
+        // are separate files, so a marker can be valid for the duration of a note and invalid for
+        // its synthesized sound.
         srt::Expected<void> validateReservedPhonemes(const srt::ContribSpec &spec,
                                                      srt::InferenceSpec *duration,
                                                      srt::InferenceSpec *pitch,

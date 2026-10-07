@@ -112,14 +112,13 @@ namespace ds {
         } // useWordDiv
 
         // useWordDur, bool
-        // [REQUIRES useWordDiv; DECLARES the "word_dur" input of the predictor]
+        // [REQUIRES useWordDiv. DECLARES the "word_dur" input of the predictor]
         {
             static_assert(std::is_same_v<decltype(result->useWordDur), bool>);
             parser.parse_bool_optional(result->useWordDur, "useWordDur");
             if (result->useWordDur && !result->useWordDiv) {
-                // The budget of a word is read at the word each phoneme belongs to, so a predictor
-                // that takes it also needs the division. Accepting the combination would leave a
-                // configuration that no exported model can match.
+                // Rejecting the combination is a parse error rather than a later failure, because
+                // no exported model matches a predictor that takes a budget without a division.
                 ec.collectError(R"("useWordDur" requires "useWordDiv")");
             }
         } // useWordDur

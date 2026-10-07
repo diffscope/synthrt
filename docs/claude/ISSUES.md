@@ -636,10 +636,10 @@ BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会�
   `OnnxRuntime::load(onnxArgs.runtimePath / ONNXRUNTIME_DYLIB_FILENAME)`），不会在别的目录再找一份。
 - **事实**：本分支起的部署把运行库放在 `<驱动插件目录>/runtime/<flavor>`——宿主 `ds-editor-lite` 侧由
   `cmake/LiteBuildApi.cmake:191`（`LITE_LAYOUT_ONNX_RUNTIME_DIR`）从 `share/onnxruntime-builds/runtime/default`
-  拷入。`runtimes/onnx` 这个拼法只在旧构建树里出现过（本机实测
-  `cmake-build-release/.../srt-onnxdriver/runtimes/onnx/{cuda,default}` 存在；`cmake-build-debug` 下同名目录现为空），
-  新布局不再产生。另注：`LITE_LAYOUT_ONNX_RUNTIME_DIR` 在宿主 `ds-editor-lite` 全仓（排除 `vcpkg/` 与构建树）
-  只有**一处出现且是读取**（`cmake/LiteBuildApi.cmake:191`），**找不到定义处**，其赋值来源需作者确认【未证实】。
+  拷入。`runtimes/onnx` 这个拼法只在旧构建树里出现过（旧的插件写入逻辑产出的
+  `runtimes/onnx/{cuda,default}` 目录），新布局不再产生。另注：`LITE_LAYOUT_ONNX_RUNTIME_DIR` 在宿主
+  `ds-editor-lite` 全仓（排除 `vcpkg/` 与构建树）只有**一处出现且是读取**（`cmake/LiteBuildApi.cmake:191`），
+  该仓内找不到定义处。
 - **推断**：`dsinfer-cli` 的模型类命令会因找不到 ONNX Runtime 动态库而初始化失败。**未实测**（本轮未跑模型推理；
   注意本分支**默认就会构建** `dsinfer-cli`：`CMakeLists.txt` 与 `dsinfer/tools/cli/CMakeLists.txt` 里已无
   `SYNTHRT_BUILD_TOOLS` 开关，构建树里 `out/bin/dsinfer-cli.exe` 确实产出）。
