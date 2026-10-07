@@ -104,6 +104,26 @@ namespace ds {
             parser.parse_path_required(result->predictor, "predictor");
         } // predictor
 
+        // useWordDiv, bool
+        // [DECLARES the "word_div" input of the predictor]
+        {
+            static_assert(std::is_same_v<decltype(result->useWordDiv), bool>);
+            parser.parse_bool_optional(result->useWordDiv, "useWordDiv");
+        } // useWordDiv
+
+        // useWordDur, bool
+        // [REQUIRES useWordDiv; DECLARES the "word_dur" input of the predictor]
+        {
+            static_assert(std::is_same_v<decltype(result->useWordDur), bool>);
+            parser.parse_bool_optional(result->useWordDur, "useWordDur");
+            if (result->useWordDur && !result->useWordDiv) {
+                // The budget of a word is read at the word each phoneme belongs to, so a predictor
+                // that takes it also needs the division. Accepting the combination would leave a
+                // configuration that no exported model can match.
+                ec.collectError(R"("useWordDur" requires "useWordDiv")");
+            }
+        } // useWordDur
+
         // [REQUIRED] frameWidth, double
         // json value can be either:
         //   frameWidth (double)

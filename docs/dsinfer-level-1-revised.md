@@ -23,7 +23,7 @@
 
 所有 `exports`和 import `options`都必须是 JSON object。除下文明确要求的字段外，其余字段可以省略。Variance 的 `exports.predictions`和 import `options.predictions`必须存在且非空。`speakerMapping`可以省略。
 
-除 Vocoder 外，`onnx` configuration 中的 `phonemes`必须存在。Duration、Pitch 与 Variance 必须提供 `encoder`和`predictor`，Acoustic 与 Vocoder 必须提供`model`。Duration、Pitch 与 Variance 必须提供 `frameWidth`，或者同时提供正数 `sampleRate`和 `hopSize`，后者按 `hopSize / sampleRate`计算 `frameWidth`。启用 `useLanguageId`时必须提供 `languages`。启用 `useSpeakerEmbedding`时必须提供 `hiddenSize`和 `speakers`。其他字段省略时使用对应 Level 1 API 类型定义的默认值。
+除 Vocoder 外，`onnx` configuration 中的 `phonemes`必须存在。Duration、Pitch 与 Variance 必须提供 `encoder`和`predictor`，Acoustic 与 Vocoder 必须提供`model`。Duration、Pitch 与 Variance 必须提供 `frameWidth`，或者同时提供正数 `sampleRate`和 `hopSize`，后者按 `hopSize / sampleRate`计算 `frameWidth`。启用 `useLanguageId`时必须提供 `languages`。启用 `useSpeakerEmbedding`时必须提供 `hiddenSize`和 `speakers`。启用 `useWordDur`时必须同时启用 `useWordDiv`。其他字段省略时使用对应 Level 1 API 类型定义的默认值。
 
 DiffSinger Level 1 Singer 必须分别以`singer/acoustic`和`singer/vocoder` role 导入 Acoustic 与 Vocoder Level 1 contribution。`singer/duration`、`singer/pitch`和`singer/variance` role 可以省略。Package 加载时必须验证 Vocoder 能够消费 Acoustic 的输出。当前`onnx` variant 要求两者 configuration 中的`sampleRate`、`hopSize`、`winSize`、`fftSize`、`melChannels`、`melMinFreq`、`melMaxFreq`、`melBase`和`melScale`全部相同，不满足时整个 Package 加载失败。
 
@@ -54,6 +54,8 @@ DiffSinger Level 1 Singer 必须分别以`singer/acoustic`和`singer/vocoder` ro
 |    useLanguageId    |           boolean            |                是否启用语言 ID 嵌入                |                           true                           |
 | useSpeakerEmbedding |           boolean            |                 是否启用说话人嵌入                 |                           true                           |
 |     hiddenSize      |           integer            |           隐层维度（说话人嵌入向量维度）           |                           256                            |
+|     useWordDiv      |           boolean            |     是否启用音节划分输入（predictor 接收 `word_div`）      |                           true                           |
+|     useWordDur      |           boolean            |  是否启用音节长度（帧）输入（predictor 接收 `word_dur`）   |                           true                           |
 
 ### Model variables for `onnx`
 
@@ -68,12 +70,16 @@ DiffSinger Level 1 Singer 必须分别以`singer/acoustic`和`singer/vocoder` ro
 | predictor | encoder_out^[1]^ | input  |    -    |              -              |          -           |              -              |
 | predictor |   x_masks^[2]^   | input  |    -    |              -              |          -           |              -              |
 | predictor |     ph_midi      | input  |  int64  |        (1, n_tokens)        | 音素粗略音高（半音） |              -              |
+| predictor |     word_div     | input  |  int64  |        (1, n_words)         |       音节划分       |     useWordDiv == true      |
+| predictor |     word_dur     | input  |  int64  |        (1, n_words)         |    音节长度（帧）    |     useWordDur == true      |
 | predictor |    spk_embed     | input  | float32 | (1, n_tokens, `hiddenSize`) |  说话人（音色）嵌入  | useSpeakerEmbedding == true |
 | predictor |   ph_dur_pred    | output | float32 |        (1, n_tokens)        |    音素长度预测值    |              -              |
 
 [1] 该输入绑定到 encoder.outputs.encoder_out
 
 [2] 该输入绑定到 encoder.outputs.x_masks
+
+按词分配帧预算的时长模型（`useWordDur`）输出的 `ph_dur_pred`是每个音素的帧数，同一词内各音素之和等于该词的 `word_dur`。运行时只取每个词内各预测值的比例，再按乐谱给出的音节时长换算，因此消费方得到的时长与模型输出所用的单位无关。
 
 ## `org.openvpi.dsinfer.inference.Pitch`
 
