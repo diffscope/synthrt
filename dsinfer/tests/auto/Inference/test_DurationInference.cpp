@@ -104,14 +104,14 @@ namespace {
     }
 #endif
 
-    // Describes the word inputs a configuration declares for the predictor. \c BudgetOnly is not a
-    // signature any model declares, it stands for a configuration that consumes a frame budget
-    // without telling the predictor how the phonemes are divided over the words.
+    // Describes the word inputs a configuration declares for the predictor. \c Invalid is not a
+    // signature any model declares, it stands for a configuration that writes a value the schema
+    // does not define, which must be rejected while the configuration is interpreted.
     enum class WordInputs {
         None,
         Division,
         DivisionAndBudget,
-        BudgetOnly,
+        Invalid,
     };
 
     // Writes one package holding a single duration contribution. The word inputs describe the
@@ -146,13 +146,23 @@ namespace {
         configuration += R"(",
                         "sampleRate":44100,
                         "hopSize":512)";
-        if (wordInputs == WordInputs::Division || wordInputs == WordInputs::DivisionAndBudget) {
-            configuration += R"(,
-                        "useWordDiv":true)";
-        }
-        if (wordInputs == WordInputs::DivisionAndBudget || wordInputs == WordInputs::BudgetOnly) {
-            configuration += R"(,
-                        "useWordDur":true)";
+        switch (wordInputs) {
+            case WordInputs::None:
+                break;
+            case WordInputs::Division:
+                configuration += R"(,
+                        "dur_type":"abs")";
+                break;
+            case WordInputs::DivisionAndBudget:
+                configuration += R"(,
+                        "dur_type":"rel")";
+                break;
+            case WordInputs::Invalid:
+                // The option that spelled a budget without a division is gone. An unknown value
+                // must be rejected while the configuration is interpreted.
+                configuration += R"(,
+                        "dur_type":"budget")";
+                break;
         }
         configuration += R"(
                       }
@@ -372,9 +382,9 @@ BOOST_AUTO_TEST_CASE(test_unexpected_word_inputs_are_reported) {
 #endif
 
 #if defined(TEST_RESOURCE_DIRECTORY) && defined(DSINFER_TEST_INFERENCE_PLUGIN_PATH)
-BOOST_AUTO_TEST_CASE(test_word_duration_requires_the_word_division) {
+BOOST_AUTO_TEST_CASE(test_an_unknown_duration_type_is_rejected) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, WordInputs::BudgetOnly);
+    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, WordInputs::Invalid);
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), WORD_PREDICTOR_MODEL);
 
@@ -386,7 +396,7 @@ BOOST_AUTO_TEST_CASE(test_word_duration_requires_the_word_division) {
     auto opened = unit.openPackage(temporary.path(), srt::SynthUnit::Load);
     BOOST_REQUIRE(!opened);
     const auto message = opened.error().toString();
-    BOOST_CHECK_MESSAGE(message.find("useWordDur") != std::string::npos, message);
+    BOOST_CHECK_MESSAGE(message.find("dur_type") != std::string::npos, message);
 }
 #endif
 

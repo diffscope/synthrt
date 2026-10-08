@@ -265,17 +265,28 @@ namespace ds {
             // The predictor receives the word tensors that the encoder already built, so a
             // configuration that does not describe the exported predictor is reported by the
             // session instead of running the predictor on a wrong word structure.
-            if (config->useWordDiv) {
-                if (auto res = shareWordInput(*linguisticInput, *sessionInput, "word_div"); !res) {
-                    setState(Failed);
-                    return res.takeError();
-                }
-            }
-            if (config->useWordDur) {
-                if (auto res = shareWordInput(*linguisticInput, *sessionInput, "word_dur"); !res) {
-                    setState(Failed);
-                    return res.takeError();
-                }
+            switch (config->durType) {
+                case Dur::DurationType::None:
+                    break;
+                case Dur::DurationType::Abs:
+                    if (auto res = shareWordInput(*linguisticInput, *sessionInput, "word_div");
+                        !res) {
+                        setState(Failed);
+                        return res.takeError();
+                    }
+                    break;
+                case Dur::DurationType::Rel:
+                    if (auto res = shareWordInput(*linguisticInput, *sessionInput, "word_div");
+                        !res) {
+                        setState(Failed);
+                        return res.takeError();
+                    }
+                    if (auto res = shareWordInput(*linguisticInput, *sessionInput, "word_dur");
+                        !res) {
+                        setState(Failed);
+                        return res.takeError();
+                    }
+                    break;
             }
         } else {
             setState(Failed);

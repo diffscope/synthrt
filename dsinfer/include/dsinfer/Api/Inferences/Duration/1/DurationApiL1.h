@@ -36,6 +36,20 @@ namespace ds::Api::Duration::L1 {
         std::vector<std::string> speakers;
     };
 
+    /// Selects the word level inputs declared by a duration predictor.
+    enum class DurationType {
+        /// Declares no word level input. This is how a model that predicts the duration of every
+        /// phoneme without the word structure of the score is declared.
+        None,
+        /// Declares a `word_div` input. The predictor predicts absolute phoneme durations and uses
+        /// the division to add the position of a phoneme inside its word.
+        Abs,
+        /// Declares `word_div` and `word_dur` inputs. The predictor splits the frame budget of
+        /// every word instead of predicting absolute durations. It reads the budget at the word
+        /// each phoneme belongs to, which it locates with the word division.
+        Rel,
+    };
+
     /// Contains the interpreted configuration of an ONNX duration model.
     class DurationConfiguration : public srt::ContribConfiguration {
     public:
@@ -70,21 +84,14 @@ namespace ds::Api::Duration::L1 {
         /// Width of the encoder state and each speaker embedding vector.
         int hiddenSize = 256;
 
-        /// Indicates whether the predictor consumes the word division of the score.
+        /// Selects the word level inputs that the duration predictor consumes.
         ///
-        /// A predictor that splits the frame budget of every word or that adds the position of a
-        /// phoneme inside its word declares a \c word_div input. Each element of that input is the
-        /// number of phonemes of one word. Models trained before those architectures existed do not
-        /// declare it, and the session rejects an input the model does not expect.
-        bool useWordDiv = false;
-
-        /// Indicates whether the predictor also consumes the frame budget of every word.
-        ///
-        /// Declared together with \c word_div by a predictor that splits the frame budget of every
-        /// word instead of predicting absolute phoneme durations. The predictor reads the budget at
-        /// the word each phoneme belongs to, which it locates with the word division, so this
-        /// requires \c useWordDiv.
-        bool useWordDur = false;
+        /// A predictor that splits the frame budget of every word, or that adds the position of a
+        /// phoneme inside its word, declares a \c word_div input. Each element of that input is
+        /// the number of phonemes of one word. Models trained before those architectures existed
+        /// declare no word level input at all, and the session rejects an input the model does not
+        /// expect.
+        DurationType durType = DurationType::None;
     };
 
     /// Configures one import of a duration inference contribution.

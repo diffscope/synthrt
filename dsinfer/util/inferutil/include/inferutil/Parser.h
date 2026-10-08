@@ -9,6 +9,7 @@
 
 #include <dsinfer/Core/ParamTag.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
+#include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
 
 #include <inferutil/ErrorCollector.h>
 
@@ -25,6 +26,7 @@ namespace ds::inferutil {
         using MelBase = Api::Common::L1::MelBase;
         using MelScale = Api::Common::L1::MelScale;
         using LinguisticMode = Api::Common::L1::LinguisticMode;
+        using DurationType = Api::Duration::L1::DurationType;
 
     public:
         ConfigurationParser(const srt::InferenceSpec *spec_, ErrorCollector *ec_)
@@ -43,6 +45,7 @@ namespace ds::inferutil {
         inline void parse_melBase_optional(MelBase &out);
         inline void parse_melScale_optional(MelScale &out);
         inline void parse_linguisticMode_optional(LinguisticMode &out);
+        inline void parse_durType_optional(DurationType &out);
         inline void parse_languages(bool useLanguageId, std::map<std::string, int> &out);
         inline void parse_hiddenSize(bool useSpeakerEmbedding, int &out);
         inline void parse_speakers_and_load_emb(bool useSpeakerEmbedding, int hiddenSize,

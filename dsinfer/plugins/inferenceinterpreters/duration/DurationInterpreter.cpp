@@ -104,24 +104,12 @@ namespace ds {
             parser.parse_path_required(result->predictor, "predictor");
         } // predictor
 
-        // useWordDiv, bool
-        // [DECLARES the "word_div" input of the predictor]
+        // dur_type, enum (json value is string)
+        // [DECLARES the word level inputs of the predictor]
         {
-            static_assert(std::is_same_v<decltype(result->useWordDiv), bool>);
-            parser.parse_bool_optional(result->useWordDiv, "useWordDiv");
-        } // useWordDiv
-
-        // useWordDur, bool
-        // [REQUIRES useWordDiv. DECLARES the "word_dur" input of the predictor]
-        {
-            static_assert(std::is_same_v<decltype(result->useWordDur), bool>);
-            parser.parse_bool_optional(result->useWordDur, "useWordDur");
-            if (result->useWordDur && !result->useWordDiv) {
-                // Rejecting the combination is a parse error rather than a later failure, because
-                // no exported model matches a predictor that takes a budget without a division.
-                ec.collectError(R"("useWordDur" requires "useWordDiv")");
-            }
-        } // useWordDur
+            static_assert(std::is_same_v<decltype(result->durType), Dur::DurationType>);
+            parser.parse_durType_optional(result->durType);
+        } // dur_type
 
         // [REQUIRED] frameWidth, double
         // json value can be either:
