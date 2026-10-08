@@ -24,19 +24,20 @@ namespace Onnx = ds::Api::Onnx;
 namespace fs = std::filesystem;
 
 // The duration predictor declares the word inputs of the word level linguistic encoder only when it
-// consumes them. A predictor of the current DiffSinger exports takes them when it locates the
-// phonemes with the word division, and when it splits the frame budget of every word it takes the
-// budget as well. A duration model of an earlier export takes neither, and the ONNX session rejects
-// both a missing and an unexpected input, so the configuration decides which inputs the task hands
-// over. These cases run the complete duration task against models of every signature.
+// consumes them. The architecture decides which inputs those are, and the configuration states the
+// result as dur_type. A predictor that splits the frame budget of every word takes the budget and
+// the division that locates it, which is "rel". Every other architecture predicts absolute
+// durations and takes no word level input at all, which is "abs". The ONNX session rejects both a
+// missing and an unexpected input, so the configuration decides which inputs the task hands over.
+// These cases run the complete duration task against models of every signature.
 //
 // The models are far smaller than real ones. The budget predictor adds the one based position of a
 // phoneme inside its word to the frame budget of that word, so its shares depend on both word
-// inputs and the test can check the values that reach it. The division predictor predicts the
-// position alone, which checks the division without a budget. The absolute predictor predicts the
-// MIDI pitch of the phoneme, which is constant inside a word, so it takes no word input and its
-// shares are even. The task applies the shares of every word to the duration the score assigns to
-// it.
+// inputs and the test can check the values that reach it. The division predictor predicts that
+// position alone, which makes it a model whose word_div input only a relative configuration
+// declares. The absolute predictor predicts the MIDI pitch of the phoneme, which is constant inside
+// a word, so it takes no word input and its shares are even. The task applies the shares of every
+// word to the duration the score assigns to it.
 
 namespace {
 
@@ -104,13 +105,14 @@ namespace {
     }
 #endif
 
-    // Describes the word inputs a configuration declares for the predictor. \c Invalid is not a
-    // signature any model declares, it stands for a configuration that writes a value the schema
-    // does not define, which must be rejected while the configuration is interpreted.
+    // Describes the word inputs a configuration declares for the predictor. \c Absolute declares no
+    // word level input and \c Relative declares the division together with the budget. \c Invalid
+    // is not a signature any model declares, it stands for a configuration that writes a value the
+    // schema does not define, which must be rejected while the configuration is interpreted.
     enum class WordInputs {
         None,
-        Division,
-        DivisionAndBudget,
+        Absolute,
+        Relative,
         Invalid,
     };
 
@@ -149,17 +151,17 @@ namespace {
         switch (wordInputs) {
             case WordInputs::None:
                 break;
-            case WordInputs::Division:
+            case WordInputs::Absolute:
                 configuration += R"(,
                         "dur_type":"abs")";
                 break;
-            case WordInputs::DivisionAndBudget:
+            case WordInputs::Relative:
                 configuration += R"(,
                         "dur_type":"rel")";
                 break;
             case WordInputs::Invalid:
-                // The option that spelled a budget without a division is gone. An unknown value
-                // must be rejected while the configuration is interpreted.
+                // The schema defines the two duration types and nothing else, so a value outside
+                // them must be rejected while the configuration is interpreted.
                 configuration += R"(,
                         "dur_type":"budget")";
                 break;
@@ -297,7 +299,7 @@ BOOST_AUTO_TEST_SUITE(test_DurationInference)
     defined(DSINFER_TEST_INFERENCE_PLUGIN_PATH)
 BOOST_AUTO_TEST_CASE(test_word_budget_predictor_receives_the_word_structure) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, WordInputs::DivisionAndBudget);
+    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, WordInputs::Relative);
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), WORD_PREDICTOR_MODEL);
 
@@ -316,24 +318,22 @@ BOOST_AUTO_TEST_CASE(test_word_budget_predictor_receives_the_word_structure) {
     checkShares(durations, {44.0 / 135, 45.0 / 135, 46.0 / 135, 36.0 / 73, 37.0 / 73});
 }
 
-BOOST_AUTO_TEST_CASE(test_division_predictor_receives_the_word_division_only) {
+BOOST_AUTO_TEST_CASE(test_an_absolute_duration_type_passes_no_word_input) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), DIVISION_PREDICTOR_MODEL, WordInputs::Division);
+    writePackage(temporary.path(), DIVISION_PREDICTOR_MODEL, WordInputs::Absolute);
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), DIVISION_PREDICTOR_MODEL);
 
     DurationFixture fixture(temporary.path());
     auto result = fixture.duration().start(makeStartInput());
-    const std::string why = result ? std::string() : result.error().toString();
-    BOOST_REQUIRE_MESSAGE(bool(result), why);
-    const auto &durations = (*result)->durations;
-    BOOST_REQUIRE_EQUAL(durations.size(), 5u);
 
-    // The predictor locates the word of a phoneme with the division and predicts the one based
-    // position of the phoneme inside it, so the shares of a word of three phonemes are 1/6, 2/6 and
-    // 3/6, and those of a word of two phonemes are 1/3 and 2/3. A division that does not match the
-    // score locates the phonemes in other words and moves the shares away from this ramp.
-    checkShares(durations, {1.0 / 6, 2.0 / 6, 3.0 / 6, 1.0 / 3, 2.0 / 3});
+    // Only a relative configuration declares the word inputs, so an absolute one hands over none of
+    // them. This predictor declares a word_div input and predicts the one based position of a
+    // phoneme inside its word from it, so it runs only when the task passes that input. The session
+    // reports the input that never arrives instead.
+    BOOST_REQUIRE(!result);
+    const auto message = result.error().toString();
+    BOOST_CHECK_MESSAGE(message.find("word_div") != std::string::npos, message);
 }
 
 BOOST_AUTO_TEST_CASE(test_absolute_predictor_keeps_working_without_word_inputs) {
@@ -349,8 +349,9 @@ BOOST_AUTO_TEST_CASE(test_absolute_predictor_keeps_working_without_word_inputs) 
     const auto &durations = (*result)->durations;
     BOOST_REQUIRE_EQUAL(durations.size(), 5u);
 
-    // The predictor takes no word input and predicts the same value for every phoneme of a word, so
-    // every word keeps its duration and is divided evenly.
+    // The configuration omits dur_type, which declares no word level input just like an absolute
+    // one. The predictor takes no word input and predicts the same value for every phoneme of a
+    // word, so every word keeps its duration and is divided evenly.
     checkShares(durations, {1.0 / 3, 1.0 / 3, 1.0 / 3, 1.0 / 2, 1.0 / 2});
 }
 
@@ -369,7 +370,7 @@ BOOST_AUTO_TEST_CASE(test_word_inputs_of_an_unconfigured_predictor_are_reported)
 
 BOOST_AUTO_TEST_CASE(test_unexpected_word_inputs_are_reported) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), ABSOLUTE_PREDICTOR_MODEL, WordInputs::DivisionAndBudget);
+    writePackage(temporary.path(), ABSOLUTE_PREDICTOR_MODEL, WordInputs::Relative);
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), ABSOLUTE_PREDICTOR_MODEL);
 

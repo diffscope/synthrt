@@ -267,13 +267,9 @@ namespace ds {
             // session instead of running the predictor on a wrong word structure.
             switch (config->durType) {
                 case Dur::DurationType::None:
-                    break;
                 case Dur::DurationType::Abs:
-                    if (auto res = shareWordInput(*linguisticInput, *sessionInput, "word_div");
-                        !res) {
-                        setState(Failed);
-                        return res.takeError();
-                    }
+                    // Absolute durations are predicted without the word structure of the score, so
+                    // the predictor takes no word level input.
                     break;
                 case Dur::DurationType::Rel:
                     if (auto res = shareWordInput(*linguisticInput, *sessionInput, "word_div");

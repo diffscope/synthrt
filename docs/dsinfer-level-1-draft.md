@@ -44,6 +44,7 @@
 |    useLanguageId    |           boolean            |                是否启用语言 ID 嵌入                |                           true                           |
 | useSpeakerEmbedding |           boolean            |                 是否启用说话人嵌入                 |                           true                           |
 |     hiddenSize      |           integer            |           隐层维度（说话人嵌入向量维度）           |                           256                            |
+|      dur_type       |             enum             | predictor 的词级输入：`"rel"` 声明 `word_div` 与 `word_dur`（group-aware attn 预测器），`"abs"` 与省略都不声明（绝对时长预测器） |                          "rel"                           |
 
 ### Variables
 
@@ -58,12 +59,16 @@
 | predictor | encoder_out^[1]^ | input  |    -    |              -              |          -           |              -              |
 | predictor |   x_masks^[2]^   | input  |    -    |              -              |          -           |              -              |
 | predictor |     ph_midi      | input  |  int64  |        (1, n_tokens)        | 音素粗略音高（半音） |              -              |
+| predictor |     word_div     | input  |  int64  |        (1, n_words)         |       音节划分       |      dur_type == "rel"      |
+| predictor |     word_dur     | input  |  int64  |        (1, n_words)         |    音节长度（帧）    |      dur_type == "rel"      |
 | predictor |    spk_embed     | input  | float32 | (1, n_tokens, `hiddenSize`) |  说话人（音色）嵌入  | useSpeakerEmbedding == true |
 | predictor |   ph_dur_pred    | output | float32 |        (1, n_tokens)        |    音素长度预测值    |              -              |
 
 [1] 该输入绑定到 encoder.outputs.encoder_out
 
 [2] 该输入绑定到 encoder.outputs.x_masks
+
+按词分配帧预算的时长模型（`dur_type` 为 `"rel"`）输出的 `ph_dur_pred`是每个音素的帧数，同一词内各音素之和等于该词的 `word_dur`。运行时只取每个词内各预测值的比例，再按乐谱给出的音节时长换算，因此消费方得到的时长与模型输出所用的单位无关。
 
 ## ai.svs.PitchPrediction
 

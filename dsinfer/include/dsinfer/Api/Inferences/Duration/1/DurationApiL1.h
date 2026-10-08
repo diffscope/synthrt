@@ -38,11 +38,12 @@ namespace ds::Api::Duration::L1 {
 
     /// Selects the word level inputs declared by a duration predictor.
     enum class DurationType {
-        /// Declares no word level input. This is how a model that predicts the duration of every
-        /// phoneme without the word structure of the score is declared.
+        /// Declares no word level input. This is the state of a configuration that omits the
+        /// \c dur_type field, and it behaves like \c Abs.
         None,
-        /// Declares a `word_div` input. The predictor predicts absolute phoneme durations and uses
-        /// the division to add the position of a phoneme inside its word.
+        /// Declares no word level input. The predictor predicts absolute phoneme durations
+        /// without the word structure of the score, which is how the convolutional predictors of
+        /// the current DiffSinger exports work.
         Abs,
         /// Declares `word_div` and `word_dur` inputs. The predictor splits the frame budget of
         /// every word instead of predicting absolute durations. It reads the budget at the word
@@ -86,11 +87,10 @@ namespace ds::Api::Duration::L1 {
 
         /// Selects the word level inputs that the duration predictor consumes.
         ///
-        /// A predictor that splits the frame budget of every word, or that adds the position of a
-        /// phoneme inside its word, declares a \c word_div input. Each element of that input is
-        /// the number of phonemes of one word. Models trained before those architectures existed
-        /// declare no word level input at all, and the session rejects an input the model does not
-        /// expect.
+        /// Only a predictor that splits the frame budget of every word declares word level inputs,
+        /// namely \c word_div and \c word_dur together. A configuration that omits this field
+        /// selects no word level input, which is the behavior of \c Abs, and the session rejects an
+        /// input the model does not expect.
         DurationType durType = DurationType::None;
     };
 
