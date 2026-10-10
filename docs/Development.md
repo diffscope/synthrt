@@ -72,3 +72,13 @@
 #include "SynthUnit.h"
 #include "ContribLocator.h"
 ```
+
+## 头文件保护
+
+头文件保护名取引用该头文件时所写的完整路径，全部大写，路径分隔符与扩展名前的点换成下划线，中间各级目录都保留，与 LLVM 编码规范（`llvm/docs/CodingStandards.rst` 的 Header Guard 一节）相同。例如 `dsinfer/include/dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h` 以 `#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>` 引用，保护名为 `DSINFER_API_DRIVERS_ONNX_ONNXDRIVERAPI_H`；`synthrt/include/synthrt/Core/PackageHandle.h` 的保护名为 `SYNTHRT_CORE_PACKAGEHANDLE_H`。
+
+私有头文件的保护名取同一模块的公开头文件路径，文件名部分保留 `_P` 后缀。例如 `synthrt/lib/Core/PackageHandle_p.h` 的保护名为 `SYNTHRT_CORE_PACKAGEHANDLE_P_H`。
+
+`#endif` 后的注释与保护名一致。
+
+现有头文件的保护名大多省略了模块目录（如 `SYNTHRT_PACKAGEHANDLE_H`），尚不符合本节，待统一修正。新增或修改的头文件按本节命名。
