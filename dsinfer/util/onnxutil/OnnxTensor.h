@@ -1,5 +1,5 @@
-#ifndef DSINFER_ONNXTENSOR_H
-#define DSINFER_ONNXTENSOR_H
+#ifndef DSINFER_ONNXUTIL_ONNXTENSOR_H
+#define DSINFER_ONNXUTIL_ONNXTENSOR_H
 
 #include <algorithm>
 
@@ -165,4 +165,4 @@ namespace ds {
 
 }
 
-#endif // DSINFER_ONNXTENSOR_H
+#endif // DSINFER_ONNXUTIL_ONNXTENSOR_H

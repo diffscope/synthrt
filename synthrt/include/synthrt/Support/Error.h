@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_ERROR_H
-#define SYNTHRT_ERROR_H
+#ifndef SYNTHRT_SUPPORT_ERROR_H
+#define SYNTHRT_SUPPORT_ERROR_H
 
 #include <string>
 #include <memory>
@@ -227,4 +227,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_ERROR_H
+#endif // SYNTHRT_SUPPORT_ERROR_H

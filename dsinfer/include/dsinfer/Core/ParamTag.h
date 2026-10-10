@@ -1,5 +1,5 @@
-#ifndef DSINFER_PARAMTAG_H
-#define DSINFER_PARAMTAG_H
+#ifndef DSINFER_CORE_PARAMTAG_H
+#define DSINFER_CORE_PARAMTAG_H
 
 #include <functional>
 #include <string>
@@ -62,4 +62,4 @@ namespace std {
 
 }
 
-#endif // DSINFER_PARAMTAG_H
+#endif // DSINFER_CORE_PARAMTAG_H

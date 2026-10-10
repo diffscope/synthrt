@@ -1,5 +1,5 @@
-#ifndef DSINFER_API_PITCHAPIL1_H
-#define DSINFER_API_PITCHAPIL1_H
+#ifndef DSINFER_API_INFERENCES_PITCH_1_PITCHAPIL1_H
+#define DSINFER_API_INFERENCES_PITCH_1_PITCHAPIL1_H
 
 #include <functional>
 #include <memory>
@@ -174,4 +174,4 @@ namespace ds::Api::Pitch::L1 {
 
 }
 
-#endif // DSINFER_API_PITCHAPIL1_H
+#endif // DSINFER_API_INFERENCES_PITCH_1_PITCHAPIL1_H

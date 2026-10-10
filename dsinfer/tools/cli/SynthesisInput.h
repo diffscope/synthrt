@@ -1,5 +1,5 @@
-#ifndef DSINFER_TOOLS_CLI_SYNTHESISINPUT_H
-#define DSINFER_TOOLS_CLI_SYNTHESISINPUT_H
+#ifndef CLI_SYNTHESISINPUT_H
+#define CLI_SYNTHESISINPUT_H
 
 #include <filesystem>
 #include <memory>
@@ -98,4 +98,4 @@ namespace ds::cli {
 
 }
 
-#endif // DSINFER_TOOLS_CLI_SYNTHESISINPUT_H
+#endif // CLI_SYNTHESISINPUT_H

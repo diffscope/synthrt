@@ -1,5 +1,5 @@
-#ifndef DSINFER_TOOLS_CLI_CLIRUNTIME_H
-#define DSINFER_TOOLS_CLI_CLIRUNTIME_H
+#ifndef CLI_CLIRUNTIME_H
+#define CLI_CLIRUNTIME_H
 
 #include <filesystem>
 
@@ -29,4 +29,4 @@ namespace ds::cli {
 
 }
 
-#endif // DSINFER_TOOLS_CLI_CLIRUNTIME_H
+#endif // CLI_CLIRUNTIME_H

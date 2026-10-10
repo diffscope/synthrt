@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_SINGERCONTRIB_H
-#define SYNTHRT_SINGERCONTRIB_H
+#ifndef SYNTHRT_SVS_SINGERCONTRIB_H
+#define SYNTHRT_SVS_SINGERCONTRIB_H
 
 #include <memory>
 #include <vector>
@@ -45,4 +45,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_SINGERCONTRIB_H
+#endif // SYNTHRT_SVS_SINGERCONTRIB_H

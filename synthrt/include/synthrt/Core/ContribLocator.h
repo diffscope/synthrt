@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_CONTRIBLOCATOR_H
-#define SYNTHRT_CONTRIBLOCATOR_H
+#ifndef SYNTHRT_CORE_CONTRIBLOCATOR_H
+#define SYNTHRT_CORE_CONTRIBLOCATOR_H
 
 #include <string>
 #include <string_view>
@@ -94,4 +94,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_CONTRIBLOCATOR_H
+#endif // SYNTHRT_CORE_CONTRIBLOCATOR_H

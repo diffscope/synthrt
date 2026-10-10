@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_EXPECTED_H
-#define SYNTHRT_EXPECTED_H
+#ifndef SYNTHRT_SUPPORT_EXPECTED_H
+#define SYNTHRT_SUPPORT_EXPECTED_H
 
 #include <cassert>
 #include <type_traits>
@@ -330,4 +330,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_EXPECTED_H
+#endif // SYNTHRT_SUPPORT_EXPECTED_H

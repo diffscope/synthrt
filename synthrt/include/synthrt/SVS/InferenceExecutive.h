@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_INFERENCEEXECUTIVE_H
-#define SYNTHRT_INFERENCEEXECUTIVE_H
+#ifndef SYNTHRT_SVS_INFERENCEEXECUTIVE_H
+#define SYNTHRT_SVS_INFERENCEEXECUTIVE_H
 
 #include <synthrt/Core/ContribExecutive.h>
 #include <synthrt/Task/ITask.h>
@@ -51,4 +51,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_INFERENCEEXECUTIVE_H
+#endif // SYNTHRT_SVS_INFERENCEEXECUTIVE_H

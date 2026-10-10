@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_SYNTHUNIT_P_H
-#define SYNTHRT_SYNTHUNIT_P_H
+#ifndef SYNTHRT_CORE_SYNTHUNIT_P_H
+#define SYNTHRT_CORE_SYNTHUNIT_P_H
 
 #include "SynthUnit.h"
 
@@ -35,4 +35,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_SYNTHUNIT_P_H
+#endif // SYNTHRT_CORE_SYNTHUNIT_P_H

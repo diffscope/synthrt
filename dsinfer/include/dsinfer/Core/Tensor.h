@@ -1,5 +1,5 @@
-#ifndef DSINFER_TENSOR_H
-#define DSINFER_TENSOR_H
+#ifndef DSINFER_CORE_TENSOR_H
+#define DSINFER_CORE_TENSOR_H
 
 #include <algorithm>
 #include <cstddef>
@@ -248,4 +248,4 @@ namespace ds {
 
 }
 
-#endif // DSINFER_TENSOR_H
+#endif // DSINFER_CORE_TENSOR_H

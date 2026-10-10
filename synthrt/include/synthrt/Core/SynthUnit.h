@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_SYNTHUNIT_H
-#define SYNTHRT_SYNTHUNIT_H
+#ifndef SYNTHRT_CORE_SYNTHUNIT_H
+#define SYNTHRT_CORE_SYNTHUNIT_H
 
 #include <filesystem>
 #include <memory>
@@ -102,4 +102,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_SYNTHUNIT_H
+#endif // SYNTHRT_CORE_SYNTHUNIT_H

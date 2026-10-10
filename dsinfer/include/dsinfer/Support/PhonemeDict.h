@@ -1,5 +1,5 @@
-#ifndef DSINFER_PHONEMEDICT_H
-#define DSINFER_PHONEMEDICT_H
+#ifndef DSINFER_SUPPORT_PHONEMEDICT_H
+#define DSINFER_SUPPORT_PHONEMEDICT_H
 
 #include <memory>
 #include <filesystem>
@@ -201,4 +201,4 @@ namespace ds {
 
 }
 
-#endif // DSINFER_PHONEMEDICT_H
+#endif // DSINFER_SUPPORT_PHONEMEDICT_H

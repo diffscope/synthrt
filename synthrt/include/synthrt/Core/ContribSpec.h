@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_CONTRIBSPEC_H
-#define SYNTHRT_CONTRIBSPEC_H
+#ifndef SYNTHRT_CORE_CONTRIBSPEC_H
+#define SYNTHRT_CORE_CONTRIBSPEC_H
 
 #include <filesystem>
 #include <memory>
@@ -216,4 +216,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_CONTRIBSPEC_H
+#endif // SYNTHRT_CORE_CONTRIBSPEC_H

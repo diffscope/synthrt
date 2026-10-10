@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_RUNTIMESERVICE_H
-#define SYNTHRT_RUNTIMESERVICE_H
+#ifndef SYNTHRT_CORE_RUNTIMESERVICE_H
+#define SYNTHRT_CORE_RUNTIMESERVICE_H
 
 #include <cassert>
 #include <string>
@@ -55,4 +55,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_RUNTIMESERVICE_H
+#endif // SYNTHRT_CORE_RUNTIMESERVICE_H

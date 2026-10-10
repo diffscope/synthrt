@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_DISPLAYTEXT_H
-#define SYNTHRT_DISPLAYTEXT_H
+#ifndef SYNTHRT_SUPPORT_DISPLAYTEXT_H
+#define SYNTHRT_SUPPORT_DISPLAYTEXT_H
 
 #include <string>
 #include <map>
@@ -48,4 +48,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_DISPLAYTEXT_H
+#endif // SYNTHRT_SUPPORT_DISPLAYTEXT_H

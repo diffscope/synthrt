@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_ITASK_H
-#define SYNTHRT_ITASK_H
+#ifndef SYNTHRT_TASK_ITASK_H
+#define SYNTHRT_TASK_ITASK_H
 
 #include <atomic>
 #include <condition_variable>
@@ -144,4 +144,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_ITASK_H
+#endif // SYNTHRT_TASK_ITASK_H

@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_JSON_H
-#define SYNTHRT_JSON_H
+#ifndef SYNTHRT_SUPPORT_JSON_H
+#define SYNTHRT_SUPPORT_JSON_H
 
 #include <stdcorelib/support/json.h>
 
@@ -13,4 +13,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_JSON_H
+#endif // SYNTHRT_SUPPORT_JSON_H

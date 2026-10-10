@@ -1,8 +1,8 @@
 // DO NOT include this file directly.
 // Include <inferutil/Parser.h> instead.
 
-#ifndef DSINFER_INFERUTIL_PARSER_IMPL_H
-#define DSINFER_INFERUTIL_PARSER_IMPL_H
+#ifndef DSINFER_INFERUTIL_DETAIL_PARSER_IMPL_H
+#define DSINFER_INFERUTIL_DETAIL_PARSER_IMPL_H
 
 #ifndef DSINFER_INFERUTIL_PARSER_H
 #  error "Parser_impl.h should only be included by Parser.h"
@@ -621,4 +621,4 @@ namespace ds::inferutil {
     }
 }
 
-#endif // DSINFER_INFERUTIL_PARSER_IMPL_H
+#endif // DSINFER_INFERUTIL_DETAIL_PARSER_IMPL_H

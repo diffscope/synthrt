@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_INFERENCECONTRIB_H
-#define SYNTHRT_INFERENCECONTRIB_H
+#ifndef SYNTHRT_SVS_INFERENCECONTRIB_H
+#define SYNTHRT_SVS_INFERENCECONTRIB_H
 
 #include <memory>
 #include <vector>
@@ -58,4 +58,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_INFERENCECONTRIB_H
+#endif // SYNTHRT_SVS_INFERENCECONTRIB_H

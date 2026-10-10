@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_PACKAGELOADER_P_H
-#define SYNTHRT_PACKAGELOADER_P_H
+#ifndef SYNTHRT_CORE_PACKAGELOADER_P_H
+#define SYNTHRT_CORE_PACKAGELOADER_P_H
 
 #include <filesystem>
 #include <memory>
@@ -30,4 +30,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_PACKAGELOADER_P_H
+#endif // SYNTHRT_CORE_PACKAGELOADER_P_H

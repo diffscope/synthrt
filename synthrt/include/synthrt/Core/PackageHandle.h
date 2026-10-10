@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_PACKAGEHANDLE_H
-#define SYNTHRT_PACKAGEHANDLE_H
+#ifndef SYNTHRT_CORE_PACKAGEHANDLE_H
+#define SYNTHRT_CORE_PACKAGEHANDLE_H
 
 #include <filesystem>
 #include <memory>
@@ -119,4 +119,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_PACKAGEHANDLE_H
+#endif // SYNTHRT_CORE_PACKAGEHANDLE_H

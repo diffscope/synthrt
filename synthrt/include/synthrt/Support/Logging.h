@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_LOGGING_H
-#define SYNTHRT_LOGGING_H
+#ifndef SYNTHRT_SUPPORT_LOGGING_H
+#define SYNTHRT_SUPPORT_LOGGING_H
 
 #include <stdcorelib/support/logging.h>
 
@@ -59,4 +59,4 @@ namespace srt {
 #define srtCriticalF(...)   stdcCriticalF(__VA_ARGS__)
 #define srtFatalF(...)      stdcFatalF(__VA_ARGS__)
 
-#endif // SYNTHRT_LOGGING_H
+#endif // SYNTHRT_SUPPORT_LOGGING_H

@@ -1,5 +1,5 @@
-#ifndef SYNTHRT_SINGERPROVIDER_H
-#define SYNTHRT_SINGERPROVIDER_H
+#ifndef SYNTHRT_SVS_SINGERPROVIDER_H
+#define SYNTHRT_SVS_SINGERPROVIDER_H
 
 #include <synthrt/Core/ContribInterpreter.h>
 #include <synthrt/SVS/SingerContrib.h>
@@ -30,4 +30,4 @@ namespace srt {
 
 }
 
-#endif // SYNTHRT_SINGERPROVIDER_H
+#endif // SYNTHRT_SVS_SINGERPROVIDER_H
