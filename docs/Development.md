@@ -75,10 +75,12 @@
 
 ## 头文件保护
 
-头文件保护名取引用该头文件时所写的完整路径，全部大写，路径分隔符与扩展名前的点换成下划线，中间各级目录都保留，与 LLVM 编码规范（`llvm/docs/CodingStandards.rst` 的 Header Guard 一节）相同。例如 `dsinfer/include/dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h` 以 `#include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>` 引用，保护名为 `DSINFER_API_DRIVERS_ONNX_ONNXDRIVERAPI_H`；`synthrt/include/synthrt/Core/PackageHandle.h` 的保护名为 `SYNTHRT_CORE_PACKAGEHANDLE_H`。
+头文件保护名取头文件的路径，全部大写，路径分隔符与扩展名前的点换成下划线，中间各级目录都保留，与 LLVM 编码规范（`llvm/docs/CodingStandards.rst` 的 Header Guard 一节）相同。`#endif` 后的注释与保护名一致。
 
-私有头文件的保护名取同一模块的公开头文件路径，文件名部分保留 `_P` 后缀。例如 `synthrt/lib/Core/PackageHandle_p.h` 的保护名为 `SYNTHRT_CORE_PACKAGEHANDLE_P_H`。
-
-`#endif` 后的注释与保护名一致。
-
-现有头文件的保护名大多省略了模块目录（如 `SYNTHRT_PACKAGEHANDLE_H`），尚不符合本节，待统一修正。新增或修改的头文件按本节命名。
+- 公开头文件取 include 路径：`dsinfer/include/dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h` 为 `DSINFER_API_DRIVERS_ONNX_ONNXDRIVERAPI_H`，`synthrt/include/synthrt/Core/PackageHandle.h` 为 `SYNTHRT_CORE_PACKAGEHANDLE_H`。
+- 库内私有头文件取模块名与 `lib/` 之后的路径，文件名保留 `_P`：`synthrt/lib/Core/PackageHandle_p.h` 为 `SYNTHRT_CORE_PACKAGEHANDLE_P_H`。
+- 插件的头文件取模块名与 `plugins/` 之后的路径，各级目录都计入：`dsinfer/plugins/inferencedrivers/onnxdriver/Runtime/DriverContext.h` 为 `DSINFER_INFERENCEDRIVERS_ONNXDRIVER_RUNTIME_DRIVERCONTEXT_H`。
+- 测试的辅助头文件取模块名、`TESTS` 与 `tests/auto/` 之后的路径：`dsinfer/tests/auto/Inference/TestCaseLoader.h` 为 `DSINFER_TESTS_INFERENCE_TESTCASELOADER_H`。
+- 独立程序（`tools/` 与 `tests/manual/` 下的各个程序）的头文件以程序目录名开头，取其后的路径：`dsinfer/tools/cli/SynthesisRunner.h` 为 `CLI_SYNTHESISRUNNER_H`。
+- `util/` 下子库的 include 根目录是子库自己的名字，不带模块名，故补回模块名。没有 include 目录时 `src/` 与 `lib/` 同等看待：`dsinfer/util/inferutil/include/inferutil/Algorithm.h` 为 `DSINFER_INFERUTIL_ALGORITHM_H`，`dsinfer/util/inputparser/src/InputParserCommon_p.h` 为 `DSINFER_INPUTPARSER_INPUTPARSERCOMMON_P_H`。
+- 第三方代码（如 `dsinfer/util/wavfile/thirdparty/`）沿用上游的保护名，不按本节改写。
