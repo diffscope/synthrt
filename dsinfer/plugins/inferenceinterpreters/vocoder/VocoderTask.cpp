@@ -30,7 +30,7 @@ namespace ds {
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "vocoder configuration is nullptr");
         }
-        if (genericConfig->interface() != Vo::API_INTERFACE ||
+        if (genericConfig->interfaceId() != Vo::API_INTERFACE ||
             genericConfig->variant() != Vo::API_VARIANT ||
             genericConfig->level() != Vo::API_LEVEL) {
             return srt::Error(srt::Error::InvalidArgument, "invalid vocoder configuration");

@@ -9,14 +9,14 @@ namespace srt {
         class SingerExports : public ContribExports {
         public:
             explicit SingerExports(const ContribSpec &spec)
-                : ContribExports(spec.interface(), spec.variant(), spec.level()) {
+                : ContribExports(spec.interfaceId(), spec.variant(), spec.level()) {
             }
         };
 
         class SingerImportOptions : public ContribImportOptions {
         public:
             explicit SingerImportOptions(const ContribSpec &target)
-                : ContribImportOptions(target.interface(), target.variant(), target.level()) {
+                : ContribImportOptions(target.interfaceId(), target.variant(), target.level()) {
             }
         };
 

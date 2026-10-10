@@ -62,9 +62,9 @@ namespace srt {
         return _impl->name;
     }
 
-    const std::string &ContribSpec::interface() const {
+    const std::string &ContribSpec::interfaceId() const {
         assert(_impl->hasModuleDeclaration);
-        return _impl->interface;
+        return _impl->interfaceId;
     }
 
     const std::string &ContribSpec::variant() const {
@@ -133,7 +133,7 @@ namespace srt {
         _impl->declarationPath = *context.m_data->declarationPath;
         _impl->manifestDeclaration = *context.m_data->manifestDeclaration;
         _impl->name = context.m_data->name;
-        _impl->interface = context.m_data->interface;
+        _impl->interfaceId = context.m_data->interfaceId;
         _impl->variant = context.m_data->variant;
         _impl->level = context.m_data->level;
         _impl->manifestExports = context.m_data->manifestExports;

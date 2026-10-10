@@ -32,9 +32,9 @@ namespace srt {
         return m_data->name;
     }
 
-    const std::string &ContribCreateContext::interface() const {
+    const std::string &ContribCreateContext::interfaceId() const {
         assert(m_data->manifestDeclaration);
-        return m_data->interface;
+        return m_data->interfaceId;
     }
 
     const std::string &ContribCreateContext::variant() const {

@@ -139,12 +139,12 @@ BOOST_AUTO_TEST_SUITE(test_SVSContrib)
 BOOST_AUTO_TEST_CASE(test_runtime_options_carry_contract_identity) {
     TestRuntimeOptions options;
 
-    BOOST_CHECK_EQUAL(options.interface(), "com.example.svs.Acoustic");
+    BOOST_CHECK_EQUAL(options.interfaceId(), "com.example.svs.Acoustic");
     BOOST_CHECK_EQUAL(options.variant(), "default");
     BOOST_CHECK_EQUAL(options.level(), 1);
 
     TestSingerPipelineRuntimeOptions singerOptions;
-    BOOST_CHECK_EQUAL(singerOptions.interface(), "com.example.svs.Singer");
+    BOOST_CHECK_EQUAL(singerOptions.interfaceId(), "com.example.svs.Singer");
     BOOST_CHECK_EQUAL(singerOptions.variant(), "test");
     BOOST_CHECK_EQUAL(singerOptions.level(), 1);
 }
@@ -196,7 +196,7 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
     BOOST_REQUIRE(inference);
     BOOST_CHECK(inferenceContribution->declarationPath() == root / "modules" / "inference.json");
     BOOST_CHECK(inference->declarationPath() == root / "modules" / "inference.json");
-    BOOST_CHECK_EQUAL(inference->interface(), "com.example.svs.Acoustic");
+    BOOST_CHECK_EQUAL(inference->interfaceId(), "com.example.svs.Acoustic");
 
     auto singerContribution = package.contribution("singer", "singer1");
     BOOST_REQUIRE(singerContribution);

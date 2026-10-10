@@ -40,7 +40,7 @@ namespace ds {
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "pitch configuration is nullptr");
         }
-        if (genericConfig->interface() != Pit::API_INTERFACE ||
+        if (genericConfig->interfaceId() != Pit::API_INTERFACE ||
             genericConfig->variant() != Pit::API_VARIANT ||
             genericConfig->level() != Pit::API_LEVEL) {
             return srt::Error(srt::Error::InvalidArgument, "invalid pitch configuration");

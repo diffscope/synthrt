@@ -18,7 +18,7 @@ namespace ds {
     namespace {
 
         bool isDiffSingerSpec(const srt::ContribSpec &spec) {
-            return spec.locator().category() == "singer" && spec.interface() == Ds::API_INTERFACE &&
+            return spec.locator().category() == "singer" && spec.interfaceId() == Ds::API_INTERFACE &&
                    spec.variant() == Ds::API_VARIANT && spec.level() == Ds::API_LEVEL;
         }
 
@@ -44,7 +44,7 @@ namespace ds {
 
             srt::Expected<std::unique_ptr<srt::SingerPipelineExecutive>>
                 createPipeline(const srt::SingerPipelineRuntimeOptions &runtimeOptions) override {
-                if (runtimeOptions.interface() != Ds::API_INTERFACE ||
+                if (runtimeOptions.interfaceId() != Ds::API_INTERFACE ||
                     runtimeOptions.variant() != Ds::API_VARIANT ||
                     runtimeOptions.level() != Ds::API_LEVEL) {
                     return srt::Error(
@@ -80,7 +80,7 @@ namespace ds {
             }
             auto target = &import->binding()->target();
             if (target->locator().category() != "inference" ||
-                target->interface() != expectedInterface || target->variant() != expectedVariant ||
+                target->interfaceId() != expectedInterface || target->variant() != expectedVariant ||
                 target->level() != expectedLevel) {
                 return srt::Error(
                     srt::Error::InvalidFormat,

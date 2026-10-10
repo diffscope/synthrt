@@ -13,7 +13,7 @@ namespace srt {
     public:
         virtual ~ContribSpecPayload() = default;
 
-        inline const std::string &interface() const {
+        inline const std::string &interfaceId() const {
             return m_interface;
         }
 
@@ -28,8 +28,8 @@ namespace srt {
         SYNTHRT_DECLARE_AS_METHODS(ContribSpecPayload)
 
     protected:
-        ContribSpecPayload(std::string interface, std::string variant, int level)
-            : m_interface(std::move(interface)), m_variant(std::move(variant)), m_level(level) {
+        ContribSpecPayload(std::string interfaceId, std::string variant, int level)
+            : m_interface(std::move(interfaceId)), m_variant(std::move(variant)), m_level(level) {
         }
 
     private:

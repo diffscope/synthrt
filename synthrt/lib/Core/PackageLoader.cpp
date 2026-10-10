@@ -62,14 +62,14 @@ namespace srt {
                 return Error(Error::InvalidFormat,
                              std::string("interpreter returned null ") + std::string(payloadName));
             }
-            if (payload->interface() != spec.interface() || payload->variant() != spec.variant() ||
+            if (payload->interfaceId() != spec.interfaceId() || payload->variant() != spec.variant() ||
                 payload->level() != spec.level()) {
                 return Error(Error::InvalidFormat,
                              stdc::formatN(
                                  "interpreter returned %1 for contract %2/%3/%4 instead of "
                                  "%5/%6/%7",
-                                 payloadName, payload->interface(), payload->variant(),
-                                 payload->level(), spec.interface(), spec.variant(), spec.level()));
+                                 payloadName, payload->interfaceId(), payload->variant(),
+                                 payload->level(), spec.interfaceId(), spec.variant(), spec.level()));
             }
             return {};
         }
@@ -767,7 +767,7 @@ namespace srt {
                 }
                 for (auto spec : categoryEntry.second) {
                     auto loader = m_synthUnit->_impl->pluginFactory.findInterpreter(
-                        category->interpreterIid(), spec->interface(), spec->level(),
+                        category->interpreterIid(), spec->interfaceId(), spec->level(),
                         spec->variant());
                     if (!loader) {
                         return Error(Error::FeatureNotSupported,
@@ -823,7 +823,7 @@ namespace srt {
                 }
                 for (auto spec : categoryEntry.second) {
                     auto interpreterResult = m_synthUnit->_impl->pluginFactory.loadInterpreter(
-                        spec->_impl->pluginLoader, spec->interface(), spec->level(),
+                        spec->_impl->pluginLoader, spec->interfaceId(), spec->level(),
                         spec->variant());
                     if (!interpreterResult) {
                         return interpreterResult.takeError();
@@ -1298,7 +1298,7 @@ namespace srt {
 
                     context.declarationPath = declarationPath;
                     context.manifestDeclaration = declaration;
-                    context.interface = interfaceIt->second.toString();
+                    context.interfaceId = interfaceIt->second.toString();
                     context.variant = variantIt->second.toString();
                     context.level = static_cast<int>(levelIt->second.toInt());
                     if (const auto it = declaration.find("name"); it != declaration.end()) {

@@ -39,7 +39,7 @@ namespace ds {
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "acoustic configuration is nullptr");
         }
-        if (genericConfig->interface() != Ac::API_INTERFACE ||
+        if (genericConfig->interfaceId() != Ac::API_INTERFACE ||
             genericConfig->variant() != Ac::API_VARIANT ||
             genericConfig->level() != Ac::API_LEVEL) {
             return srt::Error(srt::Error::InvalidArgument, "invalid acoustic configuration");

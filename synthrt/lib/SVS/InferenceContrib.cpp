@@ -22,7 +22,7 @@ namespace srt {
             Expected<std::unique_ptr<ContribExecutive>>
                 create(const ContribRuntimeOptions &runtimeOptions) override {
                 auto &target = m_binding->target();
-                if (runtimeOptions.interface() != target.interface() ||
+                if (runtimeOptions.interfaceId() != target.interfaceId() ||
                     runtimeOptions.variant() != target.variant() ||
                     runtimeOptions.level() != target.level()) {
                     return Error(Error::InvalidArgument,
@@ -93,12 +93,12 @@ namespace srt {
             return Error(Error::FeatureNotSupported,
                          "cannot create inference from a contribution that is not loaded");
         }
-        if (importOptions.interface() != interface() || importOptions.variant() != variant() ||
+        if (importOptions.interfaceId() != interfaceId() || importOptions.variant() != variant() ||
             importOptions.level() != level()) {
             return Error(Error::InvalidArgument,
                          "inference import options do not match the contribution contract");
         }
-        if (runtimeOptions.interface() != interface() || runtimeOptions.variant() != variant() ||
+        if (runtimeOptions.interfaceId() != interfaceId() || runtimeOptions.variant() != variant() ||
             runtimeOptions.level() != level()) {
             return Error(Error::InvalidArgument,
                          "inference runtime options do not match the contribution contract");

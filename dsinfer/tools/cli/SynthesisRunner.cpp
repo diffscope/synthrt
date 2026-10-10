@@ -71,7 +71,7 @@ namespace ds::cli {
 
         std::unique_ptr<srt::SingerPipelineExecutive> createPipeline(srt::SingerSpec &singerSpec,
                                                                      std::string_view singerId) {
-            if (singerSpec.interface() != DiffSinger::API_INTERFACE ||
+            if (singerSpec.interfaceId() != DiffSinger::API_INTERFACE ||
                 singerSpec.variant() != DiffSinger::API_VARIANT ||
                 singerSpec.level() != DiffSinger::API_LEVEL) {
                 throw std::runtime_error(stdc::formatN(

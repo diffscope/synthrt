@@ -594,7 +594,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(rootSpec->findExtension(testSecondExtensionId) != nullptr);
     BOOST_CHECK(extension->as<TestExtension>() != nullptr);
     BOOST_CHECK(validatorSawPreparedImports);
-    BOOST_CHECK_EQUAL(rootSpec->exports()->interface(), testInterface);
+    BOOST_CHECK_EQUAL(rootSpec->exports()->interfaceId(), testInterface);
     BOOST_CHECK_EQUAL(rootSpec->exports()->variant(), "test");
     BOOST_CHECK_EQUAL(rootSpec->exports()->level(), 1);
     BOOST_REQUIRE_EQUAL(rootSpec->imports().size(), 2u);
@@ -611,7 +611,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(rootSpec->imports()[1].manifestOptions().toObject().empty());
     BOOST_CHECK(rootSpec->imports()[0].options());
     BOOST_CHECK(rootSpec->imports()[1].options());
-    BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->interface(), testInterface);
+    BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->interfaceId(), testInterface);
     BOOST_REQUIRE(rootSpec->imports()[0].binding());
     BOOST_REQUIRE(rootSpec->imports()[1].binding());
     BOOST_CHECK(rootSpec->imports()[0].binding()->state() ==

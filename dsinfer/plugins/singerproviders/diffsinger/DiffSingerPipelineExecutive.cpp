@@ -70,7 +70,7 @@ namespace ds {
         }
         auto executive = *result;
         const auto &executiveSpec = executive->spec();
-        if (executiveSpec.interface() != expectedInterface ||
+        if (executiveSpec.interfaceId() != expectedInterface ||
             executiveSpec.variant() != expectedVariant || executiveSpec.level() != expectedLevel) {
             delete executive;
             return srt::Error(srt::Error::InvalidFormat,
