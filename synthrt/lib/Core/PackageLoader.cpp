@@ -1156,13 +1156,13 @@ namespace srt {
         if (auto result = readOptionalText("vendor", &package->vendor); !result) {
             return result.takeError();
         }
-        if (auto result = readOptionalText("copyright", &package->copyright); !result) {
-            return result.takeError();
-        }
         if (auto result = readOptionalText("description", &package->description); !result) {
             return result.takeError();
         }
         if (auto result = readOptionalText("readme", &package->readme, &root); !result) {
+            return result.takeError();
+        }
+        if (auto result = readOptionalText("license", &package->license, &root); !result) {
             return result.takeError();
         }
         if (const auto it = desc.find("url"); it != desc.end()) {

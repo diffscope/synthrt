@@ -31,7 +31,7 @@ namespace srt {
         DisplayText description;
         DisplayText vendor;
         DisplayText readme;
-        DisplayText copyright;
+        DisplayText license;
         std::string url;
         std::filesystem::path path;
         stdc::vlarray<PackageDependency> dependencies;

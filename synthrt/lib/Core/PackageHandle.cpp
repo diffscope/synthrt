@@ -134,9 +134,9 @@ namespace srt {
         return m_data->readme;
     }
 
-    DisplayText PackageHandle::copyright() const {
+    DisplayText PackageHandle::license() const {
         assert(m_data);
-        return m_data->copyright;
+        return m_data->license;
     }
 
     const std::string &PackageHandle::url() const {

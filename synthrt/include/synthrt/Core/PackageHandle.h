@@ -81,7 +81,7 @@ namespace srt {
         DisplayText description() const;
         DisplayText vendor() const;
         DisplayText readme() const;
-        DisplayText copyright() const;
+        DisplayText license() const;
         const std::string &url() const;
 
         /// Returns the contributions declared under \a category.

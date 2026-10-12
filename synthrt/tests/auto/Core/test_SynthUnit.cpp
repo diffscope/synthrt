@@ -488,6 +488,7 @@ BOOST_AUTO_TEST_CASE(test_data_only_expands_variables_without_loading_plugin) {
                   ],
                   "vendor":"${${selector}}",
                   "readme":"${assets}/readme.txt",
+                  "license":"${assets}/LICENSE.txt",
                   "applicationData":{"assetRoot":"${assets}"},
                   "contributions":{"com.example.test":[
                     {"id":"main","path":"${modulePath}"}
@@ -526,6 +527,8 @@ BOOST_AUTO_TEST_CASE(test_data_only_expands_variables_without_loading_plugin) {
     BOOST_CHECK_EQUAL(package.vendor().text(), "Expanded");
     BOOST_CHECK_EQUAL(package.readme().text(),
                       (root / "assets" / "readme.txt").lexically_normal().string());
+    BOOST_CHECK_EQUAL(package.license().text(),
+                      (root / "assets" / "LICENSE.txt").lexically_normal().string());
     BOOST_CHECK_EQUAL(package.manifestDeclaration().at("applicationData")["assetRoot"].toString(),
                       root.lexically_normal().string() + "/assets");
     BOOST_CHECK(package.manifestDeclaration().find("vars") == package.manifestDeclaration().end());

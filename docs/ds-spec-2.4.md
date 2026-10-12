@@ -31,7 +31,9 @@
 | `schema` | 名为 schema，装的却是功能清单 | 改名 `exports`，与 `imports` 成对 |
 | `configuration`的语法 | 未区分契约与实现 | 完全由`variant`规定，契约不规定其中的公共字段 |
 | 多语言值 | Runtime 按语言代码选择文字 | Runtime 忠实提供完整 map，不解释语言代码；路径 value 在返回前完成解析与规范化 |
-| 多语言路径 | 未明确落到具体字段 | `readme`、`avatar`、`background`与`demoAudio`均为多语言路径 |
+| 多语言路径 | 未明确落到具体字段 | `readme`、`license`、`avatar`、`background`与`demoAudio`均为多语言路径 |
+| `copyright` | 版权信息字段 | 去掉，版权信息随 `license` 所指的协议文件分发 |
+| `license` | 未规定 | 新增，与 `readme` 同为多语言路径，指向许可协议文件 |
 | `imports` 条目 | `id` + `inferenceId` + `version` 三个字段，或一个裸字符串简写 | `role` + `ref`，其中引用串包含类别，不设简写 |
 | `imports`集合语义 | 未规定 | 有序数组，重复引用是独立导入实例，不自动去重 |
 | 模块引用 | `lib[version]/id`，Package、版本与模块混在一起 | ModuleReference 只定位已解析依赖中的模块，版本要求只写在`dependencies`中 |
@@ -121,9 +123,9 @@ Runtime 为`${root}`和`${dir}`生成的值必须是 fully-qualified、词法规
         { "name": "assets", "value": "${root}/assets" }
     ],
     "vendor": "someone",
-    "copyright": "Copyright (C) someone",
     "description": "Some package",
     "readme": "${assets}/readme.txt",
+    "license": "${assets}/LICENSE.txt",
     "url": "https://www.example.com",
     "contributions": {
         "inference": [
@@ -149,9 +151,9 @@ Runtime 为`${root}`和`${dir}`生成的值必须是 fully-qualified、词法规
     + `compatVersion`：兼容到的最低版本，如果为`0.0.0.0`表示向下兼容所有，如果与`version`相同则表示不向下兼容，缺省为`version`
     + `vars`：Package 级字符串变量，见上文《字符串变量》
     + `vendor`：提供者，可为多语言，见下文《多语言文本》
-    + `copyright`：版权信息，可为多语言
     + `description`：介绍文字，可为多语言
-    + `readme`：多语言路径，指向放置介绍、许可证等信息的文本文件
+    + `readme`：多语言路径，指向介绍文本文件
+    + `license`：多语言路径，指向许可协议文件
     + `url`：网站
     + `contributions`：功能贡献列表，见下节
     + `dependencies`：依赖的库，每个条目均为强制依赖，缺省为空
@@ -292,9 +294,9 @@ Runtime 不解释这些属性名，不验证 BCP 47、POSIX locale 或其他语�
 
 | 字段 | 类型 |
 |---|---|
-| `vendor`、`copyright`、`description` | 多语言文本 |
+| `vendor`、`description` | 多语言文本 |
 | `name` | 多语言文本 |
-| `readme` | 多语言路径 |
+| `readme`、`license` | 多语言路径 |
 | `avatar`、`background`、`demoAudio` | 多语言路径 |
 
 贡献类别与契约追加的字段是否多语言，以及是文本还是路径，由定义它们的一方明确规定。
@@ -778,6 +780,7 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 + somedspk
   + assets
     - readme.txt
+    - LICENSE.txt
     + singer1
       - avatar.png
       - sprite.png
