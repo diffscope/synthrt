@@ -56,7 +56,7 @@ namespace ds {
             ss << file.rdbuf();
 
             stdc::json::ParseError error2;
-            auto root = JsonValue::fromJson(ss.str(), true, &error2);
+            auto root = JsonValue::fromJson(ss.str(), false, &error2);
             if (error2) {
                 return Error{
                     Error::InvalidFormat,

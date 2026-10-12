@@ -88,30 +88,8 @@ namespace srt {
 
         private:
             void skipSpace() {
-                for (;;) {
-                    while (m_offset < m_source.size() && stdc::str::is_space(m_source[m_offset])) {
-                        ++m_offset;
-                    }
-                    if (m_offset + 1 >= m_source.size() || m_source[m_offset] != '/') {
-                        return;
-                    }
-                    if (m_source[m_offset + 1] == '/') {
-                        m_offset += 2;
-                        while (m_offset < m_source.size() && m_source[m_offset] != '\r' &&
-                               m_source[m_offset] != '\n') {
-                            ++m_offset;
-                        }
-                        continue;
-                    }
-                    if (m_source[m_offset + 1] != '*') {
-                        return;
-                    }
-                    const auto end = m_source.find("*/", m_offset + 2);
-                    if (end == std::string_view::npos) {
-                        m_offset = m_source.size();
-                        return;
-                    }
-                    m_offset = end + 2;
+                while (m_offset < m_source.size() && stdc::str::is_space(m_source[m_offset])) {
+                    ++m_offset;
                 }
             }
 
@@ -254,10 +232,13 @@ namespace srt {
             std::stringstream stream;
             stream << file.rdbuf();
             auto text = stream.str();
+            // The profile asks for UTF-8 without a BOM, so one is reported rather than skipped.
+            // Accepting it quietly would let a Package carry a byte sequence the profile forbids.
             if (text.size() >= 3 && static_cast<unsigned char>(text[0]) == 0xef &&
                 static_cast<unsigned char>(text[1]) == 0xbb &&
                 static_cast<unsigned char>(text[2]) == 0xbf) {
-                text.erase(0, 3);
+                return Error(Error::InvalidFormat,
+                             displayPath(path) + ": declaration must not begin with a UTF-8 BOM");
             }
 
             if (JsonProfileValidator(text).hasDuplicateObjectKey()) {
@@ -266,7 +247,7 @@ namespace srt {
             }
 
             stdc::json::ParseError parseError;
-            auto value = JsonValue::fromJson(text, true, &parseError);
+            auto value = JsonValue::fromJson(text, false, &parseError);
             if (parseError) {
                 return Error(Error::InvalidFormat, displayPath(path) + ": " + parseError.message());
             }
