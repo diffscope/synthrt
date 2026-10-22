@@ -40,11 +40,12 @@
 | 可选依赖 | `dependencies[].required`，默认 `true` | **不支持**，所有依赖均为强制依赖 |
 | 依赖求解 | 候选选择与依赖图约束未规定 | 路径优先，同一路径选择最高兼容版本；允许多版本共存，禁止重复依赖、自依赖与环 |
 | Package 身份 | ID 与版本的实例共享语义未规定 | `(id, normalized-version)`唯一标识 Package，靠前搜索路径的来源遮蔽后续同身份来源 |
-| Package 加载来源 | DSPK 与安装目录的职责未分 | `.dspk`只由 Installer 安装，Loader 只读取已安装 Package 目录 |
+| Package 加载来源 | 分发文件与安装目录的职责未分 | Loader 只读取已安装的 Package 目录，分发格式不在本规范范围 |
 | 清单解析模式 | 未规定 | `Probe`只读取和验证清单并选择 provider，`load`在成功完成`Probe`后启动解释器；依赖求解不回溯 |
 | 加载事务与生命周期 | Initialized / Ready 后反序回滚 | DLL 风格强引用计数，Commit 前只允许同步管理调用并禁止业务执行，Commit 不可失败；卸载执行 quit / wait，Runtime 销毁前静止 provider domain |
 | Package 兼容承诺 | `compatVersion`只参与版本区间判断 | 明确兼容区间内必须保持的公开表面，由 Package 作者负责 |
-| DSPK 安全边界 | 未规定 | ZIP entry 文件名使用 UTF-8，解包严格封闭在安装目录内；运行时资源引用允许越过 Package root |
+| 分发格式 | 规定 Package 即 `.dspk` 归档，并规定其解包要求 | 移出本规范。Package 是已安装的目录，归档格式由 DSPK 格式规范定义 |
+| Package 目录要求 | 未规定 | 根下恰好一个 `desc.json`，无特殊文件，Loader 看到的目录必须完整 |
 | 模块 provider 发现 | 只规定 Inference 解释器 | 每个模块类别有专用插件搜索目录与 factory，插件 IID 嵌入动态库，sidecar 用户 metadata 不含 envelope，无效元数据跳过，目录内按文件名确定排序，首次创建时选择并永久绑定首个 provider |
 | interface 契约 | 只有名称与 API Level | 每个 (`interface`, `level`) 必须有稳定可定位的规范及 JSON Schema |
 | 契约发现 | 未规定 | 契约材料面向开发者发布，Runtime 不按 interface 自动发现或下载 Schema |
@@ -58,11 +59,11 @@
 
 ### 文件结构
 
-本规范内，可分发的数据包的最小单位是 Package（包），是一个以`dspk`为扩展名的 ZIP 格式的单文件压缩包。一个 DSPK 不得依赖辅助卷或其他分卷文件才能读取。
+本规范内，可加载的数据包的最小单位是 Package（包），是一个根目录下含有`desc.json`的目录。Package 以何种格式分发、如何被放置到该目录，本规范不规定。
 
 压缩包内基本结构为：
 ```
-+ xxx.dspk
++ somepackage
   - desc.json
   - ...
 ```
@@ -261,11 +262,11 @@ Level 是对某一作用域内能力版本的统称。`runtimeLevel`序列化 Pa
 
 当前 AI 推理现状是，一个模型动辄超过 100MB 甚至 1GB，因此内存与显存是宝贵的，本规范使用了一种常见的方式缓解这个问题。
 
-为了模块复用与增量更新，`dspk`引入了依赖机制。
+为了模块复用与增量更新，本规范引入了依赖机制。
 
-- 模块复用：开发者要分发若干个`dspk`（假设为 A、B），但是它们之间存在一些可以复用的内容，为了节省存储时的硬盘资源以及推理时的内存资源，那么可以将这些内容独立到一个`dspk`（C）中，在 A 与 B 的描述文件中声明它们依赖 C 即可。
+- 模块复用：开发者要分发若干个 Package（假设为 A、B），但是它们之间存在一些可以复用的内容，为了节省存储时的硬盘资源以及推理时的内存资源，那么可以将这些内容独立到一个 Package（C）中，在 A 与 B 的描述文件中声明它们依赖 C 即可。
 
-- 增量更新：开发者要分发一个`dspk`（A），A 中存在稳定与不稳定的部分，不稳定的部分每次更新都需要更改，为了节省网络资源，那么可以将不稳定的内容独立到一个`dspk`（B）中，每次更新时只需更新 B 即可。
+- 增量更新：开发者要分发一个 Package（A），A 中存在稳定与不稳定的部分，不稳定的部分每次更新都需要更改，为了节省网络资源，那么可以将不稳定的内容独立到一个 Package（B）中，每次更新时只需更新 B 即可。
 
 ### 多语言文本
 
@@ -338,43 +339,31 @@ vendor/sample:singer/main
 
 #### 安装
 
-对于`dspk`文件，安装就是在某个目录中解压它。本规范对这个目录没有任何要求。`.dspk`只作为 Installer 的输入；Loader 只从已经完成安装的 Package 目录执行`Probe`与`load`，不得直接把 raw DSPK 作为候选或临时物化后加载。
+安装是把一个 Package 放置到某个目录下。本规范对该目录没有任何要求，也不规定分发格式与安装过程。
 
-##### 安全解包
+Loader 只从已经完成安装的 Package 目录执行`Probe`与`load`，不得把分发用的归档文件直接作为候选，也不得将其临时物化后加载。
 
-ZIP entry 文件名必须使用 UTF-8，安装器不得按 CP437、系统代码页或 locale 解码文件名。无法得到有效 UTF-8 文件名的 entry 使整个 Package 无效。
+##### Package 目录的要求
 
-ZIP 中的 entry 路径必须使用`/`作为分隔符，并满足以下要求：
+一个已安装的 Package 目录必须满足以下条件，Loader 依赖它们：
 
-- 不得包含 U+005C REVERSE SOLIDUS（反斜杠）
-- 不得是绝对路径、带盘符的路径或 UNC 路径
-- 除目录 entry 末尾用于标识目录的空段外，不得包含值为`.`、`..`或空字符串的路径段
-- 不得包含 NUL 字符
-- 目录 entry 必须以`/`结尾，其他 entry 必须是普通文件
+- 根目录恰好包含一个名为`desc.json`的普通文件，名称大小写必须完全一致。其他位置的同名文件不作为 Package 描述文件
+- 不得包含符号链接、junction、reparse point、设备、FIFO、socket 或其他特殊文件
+- Loader 能看到的 Package 目录必须是完整的。安装过程不得留下可见的半安装 Package，也不得在已有 Package 目录中逐个覆盖文件
 
-ZIP 中只允许普通文件与目录，不得包含符号链接、junction、reparse point、设备、FIFO、socket 或其他特殊文件。父目录可以不作为独立 entry 出现，由安装器按普通文件的路径创建。
+安装器如何满足这些条件、从何种分发格式安装，由安装器自行决定。DSPK 归档格式及其安全解包要求由 DSPK 格式规范定义，不属于本规范。
 
-Package 根目录必须恰好包含一个名为`desc.json`的普通文件，名称大小写必须完全一致。其他位置的同名文件不作为 Package 描述文件。
-
-安装器必须拒绝重复 entry、文件与目录重名，以及路径规范化后或目标文件系统名称比较规则下发生的碰撞。为保证跨平台结果一致，仅大小写不同的路径也视为碰撞。
-
-安装器必须先将 Package 解压到同一文件系统中新建的 staging 目录。写入每个 entry 前，安装器必须将目标路径规范化，并再次确认目标位于 staging 目录内。完整解压与验证全部成功后，安装器才可以将 staging 目录原子移动到安装位置；失败时不得留下可见的半安装 Package，也不得直接在已有 Package 目录中覆盖文件。
-
-安装器必须同时在解压前和流式解压过程中执行实现定义的资源限制，至少包括 entry 数量、单文件与总解压大小、路径长度和压缩比。资源限制必须依据 ZIP 实现最终产生的实际 entry 与数据量执行，不得仅依据归档元数据中的声明值。
-
-除 UTF-8 文件名、单文件分发和上述安全后置条件外，本规范不定义 DSPK 专用 ZIP feature profile，也不解释 ZIP 内部元数据。实现可以自行决定支持的 compression method、ZIP64、data descriptor、Unicode extra field、加密、CRC 及其他不依赖辅助卷的 ZIP 特性，并完全负责 header、central directory、extra field 与 descriptor 的解析、一致性和权威值选择；不支持或判定无效时可以拒绝整个 Package，不要求不同安装器接受完全相同的 ZIP 功能集合。无论使用哪些 ZIP 特性，成功安装的结果都必须满足本节全部 UTF-8 文件名、路径、entry 类型、资源限制和原子安装规则。
-
-上述路径封闭规则只适用于 ZIP 解包。声明文件中的资源路径可以是绝对路径；相对路径以声明文件所在目录为基路径，允许包含`..`，规范化后可以位于 Package root 之外。模型格式内部的二级引用同样允许访问 Package root 之外的路径。所有访问均受宿主进程的操作系统权限约束。
+声明文件中的资源路径可以是绝对路径；相对路径以声明文件所在目录为基路径，允许包含`..`，规范化后可以位于 Package root 之外。模型格式内部的二级引用同样允许访问 Package root 之外的路径。所有访问均受宿主进程的操作系统权限约束。
 
 > **安全边界**
 >
-> DSPK 不是自包含或沙箱化格式。安装器保证解包不会越界写入，但加载 Package 时可能读取 Package root 之外的文件。消费者必须将 Package 视为受信任内容。
+> Package 不是自包含或沙箱化格式。加载 Package 时可能读取 Package root 之外的文件。消费者必须将 Package 视为受信任内容。
 >
-> 本规范不提供 Package 来源认证，也不要求使用内容摘要或数字签名绑定`id`与`version`。这些机制由分发渠道或单独的分发规范负责。ZIP 实现提供的完整性检查不构成来源真实性或安全性证明。
+> 本规范不提供 Package 来源认证，也不要求使用内容摘要或数字签名绑定`id`与`version`。这些机制由分发渠道或单独的分发规范负责。
 
 #### 加载
 
-由于`dspk`引入了依赖机制，因此一个`dspk`的加载流程中包含依赖查找。
+由于本规范引入了依赖机制，因此一个 Package 的加载流程中包含依赖查找。
 
 清单解析器提供两种模式：
 
@@ -490,7 +479,7 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 
 本节将给出一种简单的安装加载方案。
 
-安装器将所有`dspk`安装到同一个目录（如`~/.diffsinger/packages`），所有被安装的`dspk`平铺在这个目录中。
+安装器将所有 Package 安装到同一个目录（如`~/.diffsinger/packages`），所有被安装的 Package 平铺在这个目录中。
 ```
 + ~/.diffsinger
   + packages
@@ -777,7 +766,7 @@ API Level 版本化的是**`interface`**，既不是模块，也不是变体。�
 ### 推荐目录结构
 
 ```
-+ somedspk
++ somepackage
   + assets
     - readme.txt
     - LICENSE.txt
