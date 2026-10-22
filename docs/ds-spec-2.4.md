@@ -483,14 +483,16 @@ ImportBinding 必须写入事务完成日志。rollback 与正常卸载必须先
 ```
 + ~/.diffsinger
   + packages
-      + foo
+      + foo-1.0.0
         - desc.json
         - ...
-      + bar
+      + bar-1.1.0
         - desc.json
         - ...
   - ...
 ```
+
+目录名对 Loader 没有意义，Package 的`id`与`version`一律从其`desc.json`读取。示例中把版本放进目录名，是为了让同一个 Package 的多个版本能够并存。上文的依赖规则允许它们同时被加载，而以`id`命名的目录装不下第二个版本。
 
 加载器可由用户在启动时指定一个路径列表（如`~/.diffsinger/packages;/opt/diffsinger/packages;./packages`）。加载器按上文规定的顺序从这些路径中解析每个依赖，直到依赖图全部解析完成。
 
