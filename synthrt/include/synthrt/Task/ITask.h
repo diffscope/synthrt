@@ -35,6 +35,15 @@ namespace srt {
         TaskPayload(std::string type, int version) : m_type(std::move(type)), m_version(version) {
         }
 
+        /// Transfers the identity of \a other into this payload.
+        ///
+        /// A caller that builds a payload and then hands it over needs those move operations, and
+        /// the deleted copy operations of \c TaskPayload suppress the implicit ones. A class
+        /// derived from this one must not declare a destructor either, because that suppresses
+        /// its own move operations in the same way.
+        TaskPayload(TaskPayload &&other) noexcept = default;
+        TaskPayload &operator=(TaskPayload &&other) noexcept = default;
+
     private:
         std::string m_type;
         int m_version;
@@ -44,27 +53,18 @@ namespace srt {
 
     /// Initialization data supplied before a Task is executed.
     class TaskInitArgs : public TaskPayload {
-    public:
-        virtual ~TaskInitArgs() = default;
-
     protected:
         using TaskPayload::TaskPayload;
     };
 
     /// Input supplied for one Task execution.
     class TaskStartInput : public TaskPayload {
-    public:
-        virtual ~TaskStartInput() = default;
-
     protected:
         using TaskPayload::TaskPayload;
     };
 
     /// Successful output produced by one Task execution.
     class TaskResult : public TaskPayload {
-    public:
-        virtual ~TaskResult() = default;
-
     protected:
         using TaskPayload::TaskPayload;
     };

@@ -9,6 +9,7 @@
 
 #include <stdcorelib/path.h>
 
+#include "Logging.h"
 #include "SingerPipelineExecutive.h"
 #include "SingerProviderPlugin.h"
 
@@ -29,15 +30,83 @@ namespace srt {
             return {};
         }
 
-        Expected<void> validateDeclaration(const JsonObject &declaration) {
-            static const std::set<std::string_view> fields = {
-                "avatar",  "background", "configuration", "demoAudio", "exports",
-                "imports", "interface",  "level",         "name",      "variant",
-            };
-            for (const auto &item : declaration) {
-                if (fields.find(item.first) == fields.end()) {
-                    return Error(Error::InvalidFormat, "singer declaration has an unknown field");
+        // Reads the language map and the default language, which the category adds to every
+        // singer.
+        //
+        // Roles are checked only against the imports of this declaration. The language category
+        // is responsible for rejecting a handle that is not a language, or a role whose import is
+        // not a language, because the singer category does not define languages.
+        Expected<void> readLanguages(const JsonObject &declaration,
+                                     stdc::array_view<ContribImport> imports,
+                                     std::map<std::string, std::string> *languages,
+                                     std::string *defaultLanguage) {
+            const auto languagesIt = declaration.find("languages");
+            if (languagesIt != declaration.end()) {
+                if (!languagesIt->second.isObject()) {
+                    return Error(Error::InvalidFormat,
+                                 "singer languages must map language handles to import roles");
                 }
+                for (const auto &[handle, roleValue] : languagesIt->second.toObject()) {
+                    if (handle.empty() || !roleValue.isString() || roleValue.toString().empty()) {
+                        return Error(Error::InvalidFormat,
+                                     "singer languages must map language handles to import roles");
+                    }
+                    const auto role = roleValue.toString();
+                    const auto known = std::any_of(
+                        imports.begin(), imports.end(),
+                        [&role](const ContribImport &item) { return item.role() == role; });
+                    if (!known) {
+                        return Error(Error::InvalidFormat,
+                                     "singer language " + handle +
+                                         " refers to a nonexistent import role: " + role);
+                    }
+                    languages->emplace(handle, role);
+                }
+            }
+            const auto defaultIt = declaration.find("defaultLanguage");
+            if (defaultIt != declaration.end()) {
+                if (!defaultIt->second.isString()) {
+                    return Error(Error::InvalidFormat, "singer defaultLanguage must be a string");
+                }
+                *defaultLanguage = defaultIt->second.toString();
+                if (languages->find(*defaultLanguage) == languages->end()) {
+                    return Error(Error::InvalidFormat,
+                                 "singer defaultLanguage is not a key of languages: " +
+                                     *defaultLanguage);
+                }
+            } else if (!languages->empty()) {
+                // A JSON object orders its members by key, so the declaration order of the
+                // languages is not preserved and the default language must be declared
+                // explicitly.
+                return Error(Error::InvalidFormat,
+                             "a singer that declares languages must declare defaultLanguage");
+            }
+            return {};
+        }
+
+        // Reads the reserved phonemes and validates only that they are distinct non-empty
+        // strings. The singer validator checks that the models contain them.
+        Expected<void> readReservedPhonemes(const JsonObject &declaration,
+                                            std::vector<std::string> *reserved) {
+            const auto it = declaration.find("reservedPhonemes");
+            if (it == declaration.end()) {
+                return {};
+            }
+            if (!it->second.isArray()) {
+                return Error(Error::InvalidFormat, "singer reservedPhonemes must be an array");
+            }
+            std::set<std::string> seen;
+            for (const auto &item : it->second.toArray()) {
+                if (!item.isString() || item.toString().empty()) {
+                    return Error(Error::InvalidFormat,
+                                 "singer reservedPhonemes must contain only non-empty strings");
+                }
+                auto token = item.toString();
+                if (!seen.insert(token).second) {
+                    return Error(Error::InvalidFormat,
+                                 "singer reservedPhonemes contains " + token + " twice");
+                }
+                reserved->push_back(std::move(token));
             }
             return {};
         }
@@ -102,9 +171,13 @@ namespace srt {
     }
 
     SingerSpec::SingerSpec(const ContribCreateContext &context, DisplayText avatar,
-                           DisplayText background, DisplayText demoAudio)
+                           DisplayText background, DisplayText demoAudio,
+                           std::map<std::string, std::string> languages,
+                           std::string defaultLanguage, std::vector<std::string> reservedPhonemes)
         : ContribSpec(context), m_avatar(std::move(avatar)), m_background(std::move(background)),
-          m_demoAudio(std::move(demoAudio)) {
+          m_demoAudio(std::move(demoAudio)), m_languages(std::move(languages)),
+          m_defaultLanguage(std::move(defaultLanguage)),
+          m_reservedPhonemes(std::move(reservedPhonemes)) {
     }
 
     SingerSpec::~SingerSpec() = default;
@@ -121,8 +194,20 @@ namespace srt {
         return m_demoAudio;
     }
 
+    const std::map<std::string, std::string> &SingerSpec::languages() const {
+        return m_languages;
+    }
+
+    const std::string &SingerSpec::defaultLanguage() const {
+        return m_defaultLanguage;
+    }
+
+    const std::vector<std::string> &SingerSpec::reservedPhonemes() const {
+        return m_reservedPhonemes;
+    }
+
     SingerCategory::SingerCategory()
-        : ContribCategory("singer", ModuleDeclaration, SingerProviderPlugin::IID) {
+        : ContribCategory(NAME, ModuleDeclaration, SingerProviderPlugin::IID) {
     }
 
     SingerCategory::~SingerCategory() = default;
@@ -145,11 +230,24 @@ namespace srt {
         if (!context.manifestDeclaration() || !context.declarationPath()) {
             return Error(Error::InvalidFormat, "singer contribution requires a declaration");
         }
-        if (auto result = validateDeclaration(*context.manifestDeclaration()); !result) {
-            return result.takeError();
-        }
-
+        // Unrecognized fields are retained and ignored, as the JSON profile of the specification
+        // requires for every framework defined object. A newer package may contain fields that
+        // this runtime does not support, and rejecting such a package would break forward
+        // compatibility. Each unrecognized field is logged at debug level so that a misspelled
+        // optional field can be diagnosed.
         const auto &declaration = *context.manifestDeclaration();
+        static const std::set<std::string_view> known = {
+            "avatar",  "background", "configuration",    "defaultLanguage", "demoAudio",
+            "exports", "imports",    "interface",        "languages",       "level",
+            "name",    "variant",    "reservedPhonemes",
+        };
+        for (const auto &item : declaration) {
+            if (known.find(item.first) == known.end()) {
+                logCategory().srtDebug("singer declaration field \"%1\" is not recognized by "
+                                       "this runtime and is ignored",
+                                       item.first);
+            }
+        }
         const auto base = context.declarationPath()->parent_path();
         const auto readOptionalPath = [&](std::string_view name,
                                           DisplayText *destination) -> Expected<void> {
@@ -176,11 +274,23 @@ namespace srt {
         if (auto result = readOptionalPath("demoAudio", &demoAudio); !result) {
             return result.takeError();
         }
+        std::map<std::string, std::string> languages;
+        std::string defaultLanguage;
+        if (auto result =
+                readLanguages(declaration, context.imports(), &languages, &defaultLanguage);
+            !result) {
+            return result.takeError();
+        }
+        std::vector<std::string> reservedPhonemes;
+        if (auto result = readReservedPhonemes(declaration, &reservedPhonemes); !result) {
+            return result.takeError();
+        }
         return std::unique_ptr<ContribSpec>(new SingerSpec(
-            context, std::move(avatar), std::move(background), std::move(demoAudio)));
+            context, std::move(avatar), std::move(background), std::move(demoAudio),
+            std::move(languages), std::move(defaultLanguage), std::move(reservedPhonemes)));
     }
 
 }
 
-static srt::ContribCategoryRegistry::Add<srt::SingerCategory> singerCategoryRegistration("singer",
-                                                                                         "");
+static srt::ContribCategoryRegistry::Add<srt::SingerCategory>
+    singerCategoryRegistration(srt::SingerCategory::NAME, "");

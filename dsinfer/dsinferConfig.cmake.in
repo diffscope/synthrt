@@ -5,3 +5,21 @@ include(CMakeFindDependencyMacro)
 find_dependency(synthrt CONFIG REQUIRED)
 
 include("${CMAKE_CURRENT_LIST_DIR}/dsinferTargets.cmake")
+
+# DSINFER_PLUGINS_DIR is the directory of the installed plugin bundles, with one subdirectory per
+# category. A host passes the category directories to SynthUnit::setPluginPaths and the driver
+# directory to InferenceDriverFactory. Neither directory is a link target, so the variable is a
+# path rather than an imported target. The path is the plugin destination of the install rules,
+# so the value is also correct for an install tree whose library directory is not lib.
+set(DSINFER_PLUGINS_DIR "${PACKAGE_PREFIX_DIR}/@DSINFER_INSTALL_PLUGINS_DIR@")
+
+# A vcpkg install tree places its Debug build under a separate debug/ prefix. A Debug host must
+# load the plugins under that prefix, because on Windows a plugin and a host built against
+# different runtime libraries are incompatible. DSINFER_PLUGINS_DIR always refers to the release
+# tree, which is the only tree in a plain install and the tree that existing consumers use.
+# DSINFER_PLUGINS_DIR_DEBUG is defined only if a debug tree exists. A consumer can therefore
+# select the directory per configuration, and a consumer that uses only DSINFER_PLUGINS_DIR is
+# unaffected.
+if(IS_DIRECTORY "${PACKAGE_PREFIX_DIR}/debug/@DSINFER_INSTALL_PLUGINS_DIR@")
+    set(DSINFER_PLUGINS_DIR_DEBUG "${PACKAGE_PREFIX_DIR}/debug/@DSINFER_INSTALL_PLUGINS_DIR@")
+endif()

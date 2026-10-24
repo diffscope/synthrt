@@ -104,6 +104,13 @@ namespace ds {
             parser.parse_path_required(result->predictor, "predictor");
         } // predictor
 
+        // dur_type, enum (json value is string)
+        // [DECLARES the word level inputs of the predictor]
+        {
+            static_assert(std::is_same_v<decltype(result->durType), Dur::DurationType>);
+            parser.parse_durType_optional(result->durType);
+        } // dur_type
+
         // [REQUIRED] frameWidth, double
         // json value can be either:
         //   frameWidth (double)

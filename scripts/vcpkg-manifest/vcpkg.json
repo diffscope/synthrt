@@ -10,6 +10,12 @@
         "bit7z"
     ],
     "features": {
+        "onnx": {
+            "description": "Build the ONNX inference driver and the tests that exercise it",
+            "dependencies": [
+                "onnxruntime-builds"
+            ]
+        },
         "tests": {
             "description": "Enable test cases support",
             "dependencies": [

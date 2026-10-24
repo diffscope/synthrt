@@ -36,6 +36,21 @@ namespace ds::Api::Duration::L1 {
         std::vector<std::string> speakers;
     };
 
+    /// Selects the word level inputs declared by a duration predictor.
+    enum class DurationType {
+        /// Declares no word level input. This is the state of a configuration that omits the
+        /// \c dur_type field, and it behaves like \c Abs.
+        None,
+        /// Declares no word level input. The predictor predicts absolute phoneme durations
+        /// without the word structure of the score, which is how the convolutional predictors of
+        /// the current DiffSinger exports work.
+        Abs,
+        /// Declares `word_div` and `word_dur` inputs. The predictor splits the frame budget of
+        /// every word instead of predicting absolute durations. It reads the budget at the word
+        /// each phoneme belongs to, which it locates with the word division.
+        Rel,
+    };
+
     /// Contains the interpreted configuration of an ONNX duration model.
     class DurationConfiguration : public srt::ContribConfiguration {
     public:
@@ -69,6 +84,14 @@ namespace ds::Api::Duration::L1 {
 
         /// Width of the encoder state and each speaker embedding vector.
         int hiddenSize = 256;
+
+        /// Selects the word level inputs that the duration predictor consumes.
+        ///
+        /// Only a predictor that splits the frame budget of every word declares word level inputs,
+        /// namely \c word_div and \c word_dur together. A configuration that omits this field
+        /// selects no word level input, which is the behavior of \c Abs, and the session rejects an
+        /// input the model does not expect.
+        DurationType durType = DurationType::None;
     };
 
     /// Configures one import of a duration inference contribution.

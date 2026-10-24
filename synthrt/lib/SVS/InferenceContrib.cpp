@@ -8,6 +8,7 @@
 #include "InferenceInterpreterPlugin.h"
 #include "ContribExecutive.h"
 #include "ContribImportBinding.h"
+#include "Logging.h"
 
 namespace srt {
 
@@ -56,19 +57,6 @@ namespace srt {
             return {};
         }
 
-        Expected<void> validateDeclaration(const JsonObject &declaration) {
-            static const std::set<std::string_view> fields = {
-                "configuration", "exports", "imports", "interface", "level", "name", "variant",
-            };
-            for (const auto &item : declaration) {
-                if (fields.find(item.first) == fields.end()) {
-                    return Error(Error::InvalidFormat,
-                                 "inference declaration has an unknown field");
-                }
-            }
-            return {};
-        }
-
     }
 
     InferenceSpec::InferenceSpec(const ContribCreateContext &context) : ContribSpec(context) {
@@ -108,7 +96,7 @@ namespace srt {
     }
 
     InferenceCategory::InferenceCategory()
-        : ContribCategory("inference", ModuleDeclaration, InferenceInterpreterPlugin::IID) {
+        : ContribCategory(NAME, ModuleDeclaration, InferenceInterpreterPlugin::IID) {
     }
 
     InferenceCategory::~InferenceCategory() = default;
@@ -131,8 +119,18 @@ namespace srt {
         if (!context.manifestDeclaration() || !context.declarationPath()) {
             return Error(Error::InvalidFormat, "inference contribution requires a declaration");
         }
-        if (auto result = validateDeclaration(*context.manifestDeclaration()); !result) {
-            return result.takeError();
+        // Unrecognized fields are retained and ignored, as the JSON profile of the specification
+        // requires for every framework defined object. Each unrecognized field is logged at debug
+        // level so that a misspelled optional field can be diagnosed.
+        static const std::set<std::string_view> known = {
+            "configuration", "exports", "imports", "interface", "level", "name", "variant",
+        };
+        for (const auto &item : *context.manifestDeclaration()) {
+            if (known.find(item.first) == known.end()) {
+                logCategory().srtDebug("inference declaration field \"%1\" is not recognized by "
+                                       "this runtime and is ignored",
+                                       item.first);
+            }
         }
         return std::unique_ptr<ContribSpec>(new InferenceSpec(context));
     }
@@ -145,4 +143,4 @@ namespace srt {
 }
 
 static srt::ContribCategoryRegistry::Add<srt::InferenceCategory>
-    inferenceCategoryRegistration("inference", "");
+    inferenceCategoryRegistration(srt::InferenceCategory::NAME, "");
