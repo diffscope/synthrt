@@ -101,7 +101,7 @@ namespace {
     fs::path defaultPluginRoot() {
         // The build and install layouts both place bin and lib beside each other.
         return stdc::system::application_directory().parent_path() / STDC_TSTR("lib") /
-               STDC_TSTR("plugins") / STDC_TSTR("dsinfer");
+               STDC_TSTR("dsinfer") / STDC_TSTR("plugins");
     }
 
     std::string exceptionMessage(const std::exception &exception) {

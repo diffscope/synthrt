@@ -9,10 +9,6 @@ set(DSINFER_INCLUDE_DIR "include")
 # The generic helpers gate both on <proj>_DEVEL, which defaults to off.
 set(DSINFER_DEVEL ON)
 
-# Keep the plugin layout: <lib>/plugins/<name>/<category>.
-set(DSINFER_BUILD_PLUGINS_DIR ${QMSETUP_BUILD_DIR}/lib/plugins/${DSINFER_INSTALL_NAME})
-set(DSINFER_INSTALL_PLUGINS_DIR ${CMAKE_INSTALL_LIBDIR}/plugins/${DSINFER_INSTALL_NAME})
-
 # Windows resource metadata.
 set(DSINFER_RC_DESCRIPTION "${PROJECT_DESCRIPTION}")
 set(DSINFER_RC_COPYRIGHT "Copyright (c) 2023-present Team OpenVPI")
