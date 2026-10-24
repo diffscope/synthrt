@@ -94,7 +94,7 @@ See [Project status](docs/Status.md) for the maintained task list.
 - CMake 3.19 or later
 - A C++17-capable compiler
 - Ninja or another CMake-supported build tool
-- vcpkg for the manifest-managed dependencies
+- Git, with which vcpkg and its overlays are checked out for the manifest-managed dependencies
 
 ## Dependencies
 
@@ -115,28 +115,20 @@ Additional dependencies are required for particular targets:
 
 ## Prepare Dependencies
 
-Run the following commands from the repository root.
-
-### Windows
-
-```powershell
-git clone https://github.com/microsoft/vcpkg.git vcpkg
-.\vcpkg\bootstrap-vcpkg.bat
-.\vcpkg\vcpkg.exe install --x-manifest-root=scripts/vcpkg-manifest --x-install-root=vcpkg/installed --x-feature=tests
-```
-
-### Unix-Like Systems
+The dependencies are installed with [vcpkg-workspace.cmake](https://github.com/stdware/dev-scripts/blob/main/docs/about-scripts/vcpkg-workspace.md), downloaded into `scripts/`. The script checks out vcpkg and the overlays that `scripts/vcpkg-sources.json` specifies into `deps/`, and installs the dependencies there. Run the following commands from the repository root.
 
 ```sh
-git clone https://github.com/microsoft/vcpkg.git vcpkg
-./vcpkg/bootstrap-vcpkg.sh
-./vcpkg/vcpkg install \
-    --x-manifest-root=scripts/vcpkg-manifest \
-    --x-install-root=vcpkg/installed \
-    --x-feature=tests
+curl -fsSL -o scripts/vcpkg-workspace.cmake https://raw.githubusercontent.com/stdware/dev-scripts/main/scripts/vcpkg-workspace.cmake
+cmake -P scripts/vcpkg-workspace.cmake install -- --x-feature=tests
 ```
 
-Omit `--x-feature=tests` if automated tests are not required.
+On Windows, the script is downloaded in PowerShell or in cmd with
+
+```bat
+powershell -Command "Invoke-WebRequest -OutFile scripts/vcpkg-workspace.cmake https://raw.githubusercontent.com/stdware/dev-scripts/main/scripts/vcpkg-workspace.cmake"
+```
+
+Omit `-- --x-feature=tests` if automated tests are not required. `cmake -P scripts/vcpkg-workspace.cmake help` lists the other commands. `--dry-run` prints the commands without running them. `scripts/vcpkg-sources.local.json` takes precedence over `scripts/vcpkg-sources.json`, for example to use a local overlay.
 
 ## Prepare ONNX Runtime
 
@@ -170,7 +162,7 @@ The following example uses a single-configuration Ninja build:
 cmake -S . -B build/Release -G Ninja \
     -DCMAKE_INSTALL_PREFIX=<install-dir> \
     -DCMAKE_BUILD_TYPE=Release \
-    -DCMAKE_TOOLCHAIN_FILE=vcpkg/scripts/buildsystems/vcpkg.cmake \
+    -DCMAKE_TOOLCHAIN_FILE=deps/vcpkg/scripts/buildsystems/vcpkg.cmake \
     -DSYNTHRT_BUILD_TESTS=ON
 
 cmake --build build/Release --target all

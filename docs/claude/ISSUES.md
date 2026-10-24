@@ -859,7 +859,7 @@ Rust `std::error::Error::source()` + `anyhow`/`thiserror`、C++ `std::nested_exc
 写它的两个 registrar 在**别的 TU**：[SingerContrib.cpp:763](../../synthrt/lib/SVS/SingerContrib.cpp#L763)、
 [InferenceContrib.cpp:456](../../synthrt/lib/SVS/InferenceContrib.cpp#L456)。跨 TU 动态初始化顺序未定义。
 
-**已核实 `stdc::vlarray` 的默认构造不是常量初始化**（[vlarray.h:426](../../vcpkg/installed/x64-windows/include/stdcorelib/adt/vlarray.h#L426)
+**已核实 `stdc::vlarray` 的默认构造不是常量初始化**（[vlarray.h:426](../../deps/vcpkg/installed/x64-windows/include/stdcorelib/adt/vlarray.h#L426)
 调用 `adopt_inline_buffer()`），所以这不是理论风险。registrar 先跑时：
 
 | 步骤 | 状态 |
@@ -873,7 +873,7 @@ Rust `std::error::Error::source()` + `anyhow`/`thiserror`、C++ `std::nested_exc
 
 > **判定更正记录**：我最初写成"容器声称持有 2 个元素、指向未初始化的内联缓冲，随后把垃圾当函数指针调用"。
 > **这是错的。** 依据是"`adopt_inline_buffer` 不碰 `m_size`"，但我没去看成员声明——
-> [vlarray.h:391-395](../../vcpkg/installed/x64-windows/include/stdcorelib/adt/vlarray.h#L391-L395)
+> [vlarray.h:391-395](../../deps/vcpkg/installed/x64-windows/include/stdcorelib/adt/vlarray.h#L391-L395)
 > 五个成员全部带 NSDMI，而 `vlarray_base(const Alloc &)` 的初始化列表只提了 `m_alloc`，
 > 所以 `m_size` 必然被重设为 0。**vlarray 的实现没有问题**，两段式的
 > "基类构造完、派生类再登记内联缓冲"在正常对象上没有窗口。
