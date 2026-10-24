@@ -15,7 +15,7 @@ SynthRT is a package-oriented runtime for singing voice synthesis. Packages desc
 ### Packages and Contributions
 
 - A package is currently an installed directory containing a `desc.json` manifest.
-- A package is identified by its package ID and four-part normalized version.
+- A package is identified by its package ID and a version of one to four numeric parts, compared as integers after padding on the right.
 - The root `contributions` object groups declarations by contribution category.
 - Built-in categories currently include `inference` and `singer`.
 - Applications may register additional categories before loading their first package.
@@ -61,12 +61,14 @@ plugins/
 └── dsinfer/
     ├── inferencedrivers/
     │   └── onnx/
-    └── inferenceinterpreters/
-        ├── acoustic/
-        ├── duration/
-        ├── pitch/
-        ├── variance/
-        └── vocoder/
+    ├── inferenceinterpreters/
+    │   ├── acoustic/
+    │   ├── duration/
+    │   ├── pitch/
+    │   ├── variance/
+    │   └── vocoder/
+    └── singerproviders/
+        └── diffsinger/
 ```
 
 ## Current Status
@@ -140,27 +142,17 @@ Omit `--x-feature=tests` if automated tests are not required.
 
 ## Prepare ONNX Runtime
 
-Choose one ONNX Runtime distribution and run the corresponding command from the repository root.
+ONNX Runtime is provided by the `onnxruntime-builds` overlay port. The `onnx` feature of the vcpkg manifest installs it together with the other dependencies:
 
-1. CPU build:
+```sh
+vcpkg install --x-manifest-root=scripts/vcpkg-manifest --x-install-root=vcpkg/installed --x-feature=onnx
+```
 
-   ```sh
-   cmake -E chdir third-party cmake -P ../scripts/setup-onnxruntime.cmake
-   ```
+The CUDA 12 build of ONNX Runtime is the `cuda12` feature of that port, `onnxruntime-builds[cuda12]`.
 
-2. CUDA 11 build:
+This repository specifies no ONNX Runtime version. The overlay port alone determines the installed version, so a different ONNX Runtime payload requires no change to this repository. If the `onnx` feature is not installed, CMake omits the ONNX utility and driver targets, and the remaining libraries can still be built.
 
-   ```sh
-   cmake -E chdir third-party cmake -Dep=cuda11 -P ../scripts/setup-onnxruntime.cmake
-   ```
-
-3. CUDA 12 build:
-
-   ```sh
-   cmake -E chdir third-party cmake -Dep=cuda12 -P ../scripts/setup-onnxruntime.cmake
-   ```
-
-Without a prepared ONNX Runtime distribution, CMake omits the ONNX utility and driver targets while the remaining libraries may still be built.
+The build deploys no ONNX Runtime libraries beside the driver plugin. The driver loads ONNX Runtime from the directory that the host passes in `DriverInitArgs::runtimePath`, so the run-time location of ONNX Runtime is the responsibility of the host application. The tests in this repository pass `ONNXRUNTIME_BUILDS_RUNTIME_DIR`, which the `onnxruntime-builds` package defines.
 
 ## Build From Source
 
@@ -176,6 +168,22 @@ cmake -S . -B build/Release -G Ninja \
 cmake --build build/Release --target all
 cmake --install build/Release
 ```
+
+## Running the Automated Tests
+
+`SYNTHRT_BUILD_TESTS=ON` registers the Boost.Test targets with CTest. On Windows the test
+executables link Boost.Test and the vcpkg runtime libraries dynamically, so the loader cannot
+find them unless the matching directories are on `PATH` first; without that, every test aborts
+with `0xc0000135` (`STATUS_DLL_NOT_FOUND`) before it starts.
+
+```powershell
+$env:PATH = "vcpkg\installed\x64-windows\debug\bin;$env:PATH"
+ctest --test-dir build/Release --output-on-failure
+```
+
+Add the prefix that actually holds the runtime libraries when it is not `vcpkg/installed`
+(for example a second prefix that provides Boost), and add the `onnxruntime-builds` runtime
+directory when the driver tests run against a locally installed ONNX Runtime.
 
 ## Consume the Libraries with CMake
 

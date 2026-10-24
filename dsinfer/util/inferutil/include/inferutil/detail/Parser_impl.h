@@ -338,6 +338,26 @@ namespace ds::inferutil {
         }
     }
 
+    inline void ConfigurationParser::parse_durType_optional(DurationType &out) {
+        const auto &config = *pConfig;
+
+        if (const auto it = config.find("dur_type"); it != config.end()) {
+            const auto durType = it->second.toString();
+            const auto durTypeLower = stdc::to_lower(durType);
+            if (durTypeLower == "abs") {
+                out = DurationType::Abs;
+            } else if (durTypeLower == "rel") {
+                out = DurationType::Rel;
+            } else {
+                collectError(stdc::format(R"(enum string field "dur_type" invalid: )"
+                                          R"(expect "abs", "rel"; got "%1")",
+                                          durType));
+            }
+        } else {
+            // Nothing to do
+        }
+    }
+
     inline void ConfigurationParser::parse_languages(bool useLanguageId,
                                                      std::map<std::string, int> &out) {
         const auto &config = *pConfig;
@@ -486,7 +506,7 @@ namespace ds::inferutil {
     inline bool ConfigurationParser::loadIdMapping(const std::string &fieldName,
                                                    const std::filesystem::path &path,
                                                    std::map<std::string, int> &out) {
-        std::ifstream file(path);
+        std::ifstream file(path, std::ios::binary);
         if (!file.is_open()) {
             collectError(stdc::formatN(R"(error loading "%1": %2 file not found)", fieldName,
                                        stdc::path::to_utf8(path)));
@@ -494,6 +514,15 @@ namespace ds::inferutil {
         }
         file.seekg(0, std::ios::end);
         auto size = file.tellg();
+        // \c tellg() returns -1 for a non-seekable stream such as a pipe. The function returns
+        // before the buffer is allocated, because \c std::string(size_t(-1), '\0') throws instead
+        // of reporting an invalid file. PhonemeDict.cpp and the Session of the ONNX driver guard
+        // their equivalent reads in the same way.
+        if (size < 0) {
+            collectError(stdc::formatN(R"(error loading "%1": %2 not seekable)", fieldName,
+                                       stdc::path::to_utf8(path)));
+            return false;
+        }
         std::string buffer(size, '\0');
         file.seekg(0);
         file.read(buffer.data(), size);

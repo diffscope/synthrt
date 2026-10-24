@@ -720,6 +720,36 @@ BOOST_AUTO_TEST_CASE(test_missing_dependency_reports_not_found) {
 
     BOOST_REQUIRE(!opened);
     BOOST_CHECK(opened.error().code() == srt::Error::FileNotFound);
+    // The message has to say that the identifier is absent, and not merely that nothing satisfied
+    // it: the two cases call for different actions by whoever reads the failure.
+    BOOST_CHECK(opened.error().toString().find("no installed Package carries that identifier") !=
+                std::string::npos);
+    BOOST_CHECK(unit.loadedPackages().empty());
+}
+
+BOOST_AUTO_TEST_CASE(test_dependency_reports_the_floor_that_moved_past_it) {
+    TemporaryDirectory temporary;
+    // A consumer names the compatibility floor it was packaged against. A later release of the
+    // dependency raises its own floor above that version, which is the shape of the failure that an
+    // unmodified voicebank meets once the runtime adopts a repackaged language package. The failure
+    // is correct; what the message must do is name the requirement and the installed candidate, so
+    // that the reader can see which side moved.
+    writePackage(temporary.path(), "lib", "lib", "2.0.0.4", "2.0.0.0");
+    const auto dependencies = R"([{"id":"lib","version":"1.0.1.0"}])";
+    const auto root = writePackage(temporary.path(), "root", "root", "1", {}, dependencies);
+
+    auto unit = makeUnit();
+    const std::vector<fs::path> paths = {temporary.path()};
+    unit.setPackagePaths(paths);
+    auto opened = unit.openPackage(root, srt::SynthUnit::Load);
+
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::FileNotFound);
+    const auto text = opened.error().toString();
+    BOOST_CHECK(text.find("no installed Package satisfies dependency lib") != std::string::npos);
+    BOOST_CHECK(text.find("the installed candidates are") != std::string::npos);
+    // The installed candidate's version, which is the value that moved.
+    BOOST_CHECK(text.find("2.0.0.4") != std::string::npos);
     BOOST_CHECK(unit.loadedPackages().empty());
 }
 

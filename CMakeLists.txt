@@ -69,7 +69,6 @@ endif()
 # ----------------------------------
 # Add source modules
 # ----------------------------------
-add_subdirectory(third-party)
 
 add_subdirectory(synthrt)
 

@@ -168,6 +168,7 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
                   "interface":"com.example.svs.Acoustic",
                   "variant":"default",
                   "level":1,
+                  "aFieldThisRuntimeDoesNotKnow":true,
                   "exports":{},
                   "configuration":{}
               })");
@@ -179,8 +180,16 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
                   "avatar":{"_":"../assets/singer1/avatar.png","zh-CN":"../assets/singer1/avatar-zh.png"},
                   "background":"../assets/singer1/background.png",
                   "demoAudio":"../assets/singer1/demo.wav",
+                  "languages":{"cmn":"lang/cmn","eng":"lang/eng"},
+                  "defaultLanguage":"cmn",
+                  "reservedPhonemes":["AP","SP"],
+                  "aFieldThisRuntimeDoesNotKnow":true,
                   "exports":{},
-                  "configuration":{}
+                  "configuration":{},
+                  "imports":[
+                    {"role":"lang/cmn","ref":":inference/acoustic"},
+                    {"role":"lang/eng","ref":":inference/acoustic"}
+                  ]
               })");
 
     srt::SynthUnit unit;
@@ -207,9 +216,73 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
                       (root / "assets" / "singer1" / "avatar.png").string());
     BOOST_CHECK_EQUAL(singer->avatar().text("zh-CN"),
                       (root / "assets" / "singer1" / "avatar-zh.png").string());
+    // The singer category reads the language map before any provider is selected.
+    BOOST_REQUIRE_EQUAL(singer->languages().size(), 2u);
+    BOOST_CHECK_EQUAL(singer->languages().at("cmn"), "lang/cmn");
+    BOOST_CHECK_EQUAL(singer->languages().at("eng"), "lang/eng");
+    BOOST_CHECK_EQUAL(singer->defaultLanguage(), "cmn");
+    BOOST_REQUIRE_EQUAL(singer->reservedPhonemes().size(), 2u);
+    BOOST_CHECK_EQUAL(singer->reservedPhonemes()[0], "AP");
     BOOST_CHECK_EQUAL(unit.category("inference")->interpreterIid(),
                       srt::InferenceInterpreterPlugin::IID);
     BOOST_CHECK_EQUAL(unit.category("singer")->interpreterIid(), srt::SingerProviderPlugin::IID);
+}
+
+// The singer category validates the structure of the language map and the existence of each
+// role. A handle whose role is not among the imports, a default language that is not a key of
+// the map, a missing default language and invalid reserved phonemes are rejected in DataOnly
+// mode, before any provider is loaded.
+BOOST_AUTO_TEST_CASE(test_singer_language_map_must_name_existing_roles) {
+    TemporaryDirectory temporary;
+    const auto root = temporary.path();
+    const auto write = [&](const std::string &singer) {
+        writeText(root / "desc.json",
+                  R"({
+                      "$version":"1.0",
+                      "id":"voice",
+                      "version":"1",
+                      "runtimeLevel":1,
+                      "contributions":{
+                        "inference":[{"id":"acoustic","path":"modules/inference.json"}],
+                        "singer":[{"id":"singer1","path":"modules/singer.json"}]
+                      }
+                  })");
+        writeText(root / "modules" / "inference.json",
+                  R"({"interface":"com.example.svs.Acoustic","variant":"default","level":1})");
+        writeText(root / "modules" / "singer.json", singer);
+    };
+
+    srt::SynthUnit unit;
+    write(R"({"interface":"com.example.svs.Singer","variant":"d","level":1,
+              "languages":{"cmn":"lang/missing"},"defaultLanguage":"cmn",
+              "imports":[{"role":"lang/cmn","ref":":inference/acoustic"}]})");
+    BOOST_CHECK(!unit.openPackage(root, srt::SynthUnit::DataOnly));
+
+    write(R"({"interface":"com.example.svs.Singer","variant":"d","level":1,
+              "languages":{"cmn":"lang/cmn"},"defaultLanguage":"eng",
+              "imports":[{"role":"lang/cmn","ref":":inference/acoustic"}]})");
+    BOOST_CHECK(!unit.openPackage(root, srt::SynthUnit::DataOnly));
+
+    write(R"({"interface":"com.example.svs.Singer","variant":"d","level":1,
+              "languages":{"cmn":"lang/cmn"},
+              "imports":[{"role":"lang/cmn","ref":":inference/acoustic"}]})");
+    BOOST_CHECK(!unit.openPackage(root, srt::SynthUnit::DataOnly));
+
+    write(R"({"interface":"com.example.svs.Singer","variant":"d","level":1,
+              "reservedPhonemes":["AP","AP"]})");
+    BOOST_CHECK(!unit.openPackage(root, srt::SynthUnit::DataOnly));
+
+    write(R"({"interface":"com.example.svs.Singer","variant":"d","level":1,
+              "reservedPhonemes":["AP",""]})");
+    BOOST_CHECK(!unit.openPackage(root, srt::SynthUnit::DataOnly));
+
+    write(R"({"interface":"com.example.svs.Singer","variant":"d","level":1})");
+    auto plain = unit.openPackage(root, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(plain);
+    auto singer = plain->contribution("singer", "singer1")->as<srt::SingerSpec>();
+    BOOST_CHECK(singer->languages().empty());
+    BOOST_CHECK(singer->defaultLanguage().empty());
+    BOOST_CHECK(singer->reservedPhonemes().empty());
 }
 
 BOOST_AUTO_TEST_CASE(test_inference_compatibility_defaults_to_supported) {

@@ -221,7 +221,7 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     BOOST_CHECK(invalidInitialization.error().code() == srt::Error::InvalidArgument);
 
     ds::Api::Onnx::DriverInitArgs initArgs;
-    initArgs.runtimePath = bundlePath / "runtimes" / "onnx" / "default";
+    initArgs.runtimePath = DSINFER_TEST_ORT_RUNTIME_DIR;
     BOOST_REQUIRE(driver->initialize(initArgs));
     auto duplicateInitialization = driver->initialize(initArgs);
     BOOST_REQUIRE(!duplicateInitialization);
@@ -311,7 +311,7 @@ BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
     BOOST_REQUIRE(driverResult);
     auto driver = driverResult.take();
     ds::Api::Onnx::DriverInitArgs initArgs;
-    initArgs.runtimePath = bundlePath / "runtimes" / "onnx" / "default";
+    initArgs.runtimePath = DSINFER_TEST_ORT_RUNTIME_DIR;
     BOOST_REQUIRE(driver->initialize(initArgs));
 
     ds::Api::Onnx::SessionOpenArgs openArgs;

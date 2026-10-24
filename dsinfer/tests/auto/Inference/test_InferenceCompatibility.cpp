@@ -47,7 +47,8 @@ namespace {
     }
 
     void writePackage(const fs::path &root, int acousticSampleRate, int vocoderSampleRate,
-                      bool includeAcousticImport = true, bool includeVocoderImport = true) {
+                      bool includeAcousticImport = true, bool includeVocoderImport = true,
+                      const std::string &reservedPhonemes = "") {
         writeText(root / "desc.json",
                   R"({
                       "$version":"1.0",
@@ -119,7 +120,11 @@ namespace {
                       "interface":"org.openvpi.dsinfer.singer.DiffSinger",
                       "variant":"openvpi",
                       "level":1,
-                      "exports":{},
+                      "exports":{},)" +
+                      (reservedPhonemes.empty()
+                           ? std::string()
+                           : "\"reservedPhonemes\":" + reservedPhonemes + ",") +
+                      R"(
                       "configuration":{"dict":"dictionary.txt"},
                       "imports":[)" +
                       imports + R"(]
@@ -199,6 +204,36 @@ BOOST_AUTO_TEST_CASE(test_vocoder_rejects_non_acoustic_compatibility_source) {
     auto compatible = vocoder->validateCompatibilityWith(*pitch);
     BOOST_REQUIRE(!compatible);
     BOOST_CHECK(compatible.error().code() == srt::Error::InvalidArgument);
+}
+
+// A singer may declare reserved phonemes, which a lyric contains directly and no language
+// produces. The provider checks each reserved phoneme at load time against the phoneme table of
+// every imported model, because a token absent from a model produces silence and no later stage
+// detects the error.
+BOOST_AUTO_TEST_CASE(test_reserved_phonemes_present_in_every_model_commit) {
+    TemporaryDirectory temporary;
+    writePackage(temporary.path(), 44100, 44100, true, true, R"(["SP"])");
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(temporary.path(), srt::SynthUnit::Load);
+    const std::string why = opened ? std::string() : opened.error().toString();
+    BOOST_REQUIRE_MESSAGE(bool(opened), why);
+}
+
+BOOST_AUTO_TEST_CASE(test_reserved_phoneme_missing_from_a_model_does_not_commit) {
+    TemporaryDirectory temporary;
+    writePackage(temporary.path(), 44100, 44100, true, true, R"(["SP","ZZ"])");
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(temporary.path(), srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    const auto message = opened.error().toString();
+    BOOST_CHECK_MESSAGE(message.find("ZZ") != std::string::npos, message);
+}
+
+BOOST_AUTO_TEST_CASE(test_reserved_phonemes_must_be_distinct_non_empty_strings) {
+    TemporaryDirectory temporary;
+    writePackage(temporary.path(), 44100, 44100, true, true, R"(["SP","SP"])");
+    auto unit = makeUnit();
+    BOOST_CHECK(!unit.openPackage(temporary.path(), srt::SynthUnit::Load));
 }
 
 BOOST_AUTO_TEST_SUITE_END()

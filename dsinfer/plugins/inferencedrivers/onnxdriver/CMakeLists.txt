@@ -10,10 +10,6 @@ project(onnxdriver
 
 file(GLOB_RECURSE _src *.h *.cpp)
 
-set(_onnxruntime_dir ${SYNTHRT_SOURCE_DIR}/third-party/onnxruntime)
-set(_onnxruntime_default_dir ${_onnxruntime_dir}/default)
-set(_onnxruntime_cuda_dir ${_onnxruntime_dir}/cuda)
-
 if(WIN32 AND DSINFER_ENABLE_DIRECTML)
     set(_onnxdriver_ep_macro_dml "ONNXDRIVER_ENABLE_DML")
 endif()
@@ -38,39 +34,12 @@ dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/onnx NO_E
 
 dsinfer_add_plugin_metadata(${PROJECT_NAME} ${CURRENT_PLUGIN_IID})
 
-if(WIN32)
-    set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dll)
-elseif(APPLE)
-    set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.dylib)
-else()
-    set(_ort_default_lib_files ${_onnxruntime_default_dir}/lib/*.so ${_onnxruntime_default_dir}/lib/*.so.*)
-endif()
-
-if(DSINFER_INSTALL)
-    set(_ort_copy_install_args INSTALL_DIR .)
-else()
-    set(_ort_copy_install_args SKIP_INSTALL)
-endif()
-
-# Copy onnxruntime shared libraries
-qm_add_copy_command(${PROJECT_NAME}
-    SOURCES ${_ort_default_lib_files}
-    DESTINATION runtimes/onnx/default
-    ${_ort_copy_install_args}
-)
-
-if(EXISTS ${_onnxruntime_cuda_dir} AND IS_DIRECTORY ${_onnxruntime_cuda_dir})
-    if(WIN32)
-        set(_ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.dll)
-    else()
-        set(_ort_cuda_lib_files ${_onnxruntime_cuda_dir}/lib/*.so ${_onnxruntime_cuda_dir}/lib/*.so.*)
-    endif()
-
-    if(NOT APPLE)
-        qm_add_copy_command(${PROJECT_NAME}
-            SOURCES ${_ort_cuda_lib_files}
-            DESTINATION runtimes/onnx/cuda
-            ${_ort_copy_install_args}
-        )
-    endif()
-endif()
+# This plugin neither deploys ONNX Runtime nor refers to an ONNX Runtime path.
+#
+# The driver does not search for ONNX Runtime. It loads ONNX Runtime from the directory that the
+# host passes in DriverInitArgs::runtimePath, and an empty path falls back to the search of the
+# platform loader. Deployment is therefore the responsibility of the application, which is the
+# editor if synthrt is embedded and the test executable if synthrt is built alone.
+#
+# The ONNX Runtime headers used by this plugin are provided by onnxutil, which links the
+# onnxruntime-builds imported target publicly.
