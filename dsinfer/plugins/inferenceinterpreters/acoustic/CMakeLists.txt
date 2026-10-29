@@ -10,7 +10,7 @@ find_package(stduuid CONFIG REQUIRED)
 dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/acoustic NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_17
-    LINKS dsinfer
+    LINKS synthrt-dsinfer
     LINKS_PRIVATE stduuid $<BUILD_INTERFACE:inferutil>
     INCLUDE_PRIVATE *
 )

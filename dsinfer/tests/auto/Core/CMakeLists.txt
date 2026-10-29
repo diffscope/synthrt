@@ -1,2 +1,2 @@
-add_auto_test(test_Tensor.cpp dsinfer)
-add_auto_test(test_ParamTag.cpp dsinfer)
+add_auto_test(test_Tensor.cpp synthrt-dsinfer)
+add_auto_test(test_ParamTag.cpp synthrt-dsinfer)

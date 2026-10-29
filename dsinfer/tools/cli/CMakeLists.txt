@@ -8,7 +8,7 @@ file(GLOB_RECURSE _src "*.cpp")
 
 add_executable(${PROJECT_NAME} ${_src})
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    dsinfer
+    synthrt-dsinfer
     inputparser
     wavfile
 )

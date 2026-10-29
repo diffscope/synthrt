@@ -26,7 +26,7 @@ find_package(blake3 CONFIG REQUIRED)
 dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/onnx NO_EXPORT
     SOURCES ${_src}
     FEATURES cxx_std_17
-    LINKS dsinfer
+    LINKS synthrt-dsinfer
     LINKS_PRIVATE stduuid BLAKE3::blake3 $<BUILD_INTERFACE:onnxutil>
     INCLUDE_PRIVATE *
     DEFINES ORT_API_MANUAL_INIT ${_onnxdriver_ep_macros}

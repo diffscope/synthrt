@@ -1,4 +1,4 @@
-project(dsinfer
+project(synthrt-dsinfer
     LANGUAGES CXX
     VERSION 0.0.1.3
     DESCRIPTION "DiffSinger Inference Framework"
@@ -17,6 +17,7 @@ option(DSINFER_ENABLE_STATIC_PLUGINS "Enable static plugin linking" OFF) # TODO:
 set(DSINFER_INSTALL ${SYNTHRT_INSTALL})
 set(DSINFER_VERSION ${PROJECT_VERSION})
 set(DSINFER_INSTALL_NAME ${PROJECT_NAME})
+set(DSINFER_INSTALL_NAMESPACE synthrt)
 
 include("conf.cmake")
 
