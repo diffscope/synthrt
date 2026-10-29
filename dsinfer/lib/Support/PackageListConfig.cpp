@@ -6,7 +6,7 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/path.h>
 
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 #include <synthrt/Core/ContribLocator.h>
 
 using srt::JsonArray;

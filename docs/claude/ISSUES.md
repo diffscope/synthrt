@@ -66,7 +66,7 @@
 | *(本轮)* | 跟上 `JsonValue` 迁往 stdcorelib | 见下 |
 
 > **`JsonValue` 已经不在这个仓库了。** stdcorelib 那边 `c701124` 把它收了过去，
-> `d830c7c` 把两套语料工具一并带走，[Support/JSON.h](../../synthrt/include/synthrt/Support/JSON.h)
+> `d830c7c` 把两套语料工具一并带走，[Support/Json.h](../../synthrt/include/synthrt/Support/Json.h)
 > 现在只剩三个 `using`。同一次升级里 stdcorelib 把宏前缀 `STDCORELIB_*` 改成了 `STDC_*`
 > ——**这个改名和 JSON 无关，但它和 JSON 在同一个 REF 里**，所以升级 port 之后
 > synthrt / dsinfer / wolf 一起编不过，六个宏共 18 处。已全部跟上。
@@ -565,7 +565,7 @@ return {reinterpret_cast<const T *>(rawData()), elementCount()};
 - [x] **A22** — 已修（`fcb94ce`）。**跑外部语料时发现**
 
 > **代码已不在本仓库**：`JsonValue` 连同两套语料测试一起迁进了 stdcorelib
-> （`stdcorelib` 侧 `c701124` + `d830c7c`），synthrt 这边 `Support/JSON.h` 只剩三个别名。
+> （`stdcorelib` 侧 `c701124` + `d830c7c`），synthrt 这边 `Support/Json.h` 只剩三个别名。
 > 下面这些 `JSON.cpp` 的行号指向的是迁移前的状态，作为「当时发生了什么」的记录保留。
 
 拿 [nlohmann/json_test_data](https://github.com/nlohmann/json_test_data) 整个语料跑我们自己实现的

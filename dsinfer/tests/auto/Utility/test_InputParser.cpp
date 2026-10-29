@@ -3,7 +3,7 @@
 #include <stdexcept>
 #include <string>
 
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 

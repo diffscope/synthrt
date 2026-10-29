@@ -4,7 +4,7 @@
 #include <memory>
 
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
 

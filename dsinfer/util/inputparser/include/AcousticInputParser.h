@@ -4,7 +4,7 @@
 #include <memory>
 
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 

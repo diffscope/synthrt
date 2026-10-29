@@ -12,6 +12,8 @@
 
 文件名采用大驼峰命名并与其中的主要类型一致，例如 `PackageHandle.h` 与 `PackageHandle.cpp`。程序入口 `main.cpp` 保持小写。
 
+文件名、类型名和函数名中的缩写按普通单词书写，只大写首字母，例如 `Support/Json.h` 与其中的 `JsonValue`，以及 `OnnxDriver`、`JsonValue::fromJson()`。这一点与 LLVM 不同，LLVM 把同样的头文件写作 `Support/JSON.h`。接口类型的前缀 `I` 不是缩写，`ITask`、`ITensor` 保持原样。宏与常量全部大写，不受这条规则约束，例如 `SYNTHRT_EXPORT` 与 `API_LEVEL`。模块目录 `SVS` 以及 `ExecutionProvider_CUDA.cpp`、`ExecutionProvider_DML.cpp` 早于这条规则，保留原名，新增的文件与类型不再仿照它们命名。
+
 ## C++ 命名
 
 - 类名及其他类型名使用大驼峰命名。

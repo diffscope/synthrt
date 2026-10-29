@@ -12,7 +12,7 @@
 
 #include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Support/DisplayText.h>
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 namespace srt {
 

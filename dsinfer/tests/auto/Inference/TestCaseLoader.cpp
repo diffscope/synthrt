@@ -9,7 +9,7 @@
 
 #include <stdcorelib/str.h>
 
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 #include <dsinfer/Core/Tensor.h>
 

@@ -7,7 +7,7 @@
 #include <synthrt/Core/ContribImportBinding.h>
 #include <synthrt/Core/ContribSpec.h>
 #include <synthrt/Support/Expected.h>
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 namespace srt {
 

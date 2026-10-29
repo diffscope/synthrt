@@ -30,7 +30,7 @@ graph TB
 `ds::` 和 `wolf::` 都是**从外面插上来的**——走的是同一组扩展点（第六节）。
 
 `JsonValue`、`any`、`VersionNumber`、`SharedLibrary`、`StaticRegistry` 全在 stdcorelib，
-synthrt 侧 `Support/JSON.h` 只剩三个 `using`。
+synthrt 侧 `Support/Json.h` 只剩三个 `using`。
 
 ---
 
@@ -67,7 +67,7 @@ graph BT
 | 层 | 头文件 | 依赖的上一层 |
 |---|---|---|
 | **0** | `synthrt_global.h` | 仅 `stdcorelib/stdc_global.h` |
-| | `Support/JSON.h` | 仅 `stdcorelib/support/json.h` |
+| | `Support/Json.h` | 仅 `stdcorelib/support/json.h` |
 | **1** | `Support/Error.h` | `synthrt_global` |
 | | `Support/Logging.h` | `synthrt_global`（叶子，无人包含） |
 | | `Core/NamedObject.h` | `synthrt_global` |

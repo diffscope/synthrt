@@ -7,7 +7,7 @@
 #include <stdcorelib/str.h>
 #include <stdcorelib/support/json.h>
 
-#include <synthrt/Support/JSON.h>
+#include <synthrt/Support/Json.h>
 
 #include <AcousticInputParser.h>
 
