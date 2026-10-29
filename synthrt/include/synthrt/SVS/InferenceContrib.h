@@ -43,6 +43,10 @@ namespace srt {
     /// Parses and indexes contributions in the built in \c inference category.
     class SYNTHRT_EXPORT InferenceCategory : public ContribCategory {
     public:
+        /// Name of the category, as passed by a host to \c SynthUnit::setPluginPaths and as used
+        /// in a \c ModuleReference.
+        static constexpr const char *NAME = "inference";
+
         InferenceCategory();
         ~InferenceCategory();
 

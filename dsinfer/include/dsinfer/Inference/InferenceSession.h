@@ -58,6 +58,11 @@ namespace ds {
                                          const InferenceSessionOpenArgs &args) = 0;
 
         /// Releases the opened model and its session resources.
+        ///
+        /// \warning The caller must ensure that no execution is in progress by calling stop() and
+        ///          then waitForFinished() before this function. An implementation is not required
+        ///          to wait for a running execution, and closing the session during a running
+        ///          execution is undefined behavior.
         virtual srt::Expected<void> close() = 0;
 
         /// Returns whether this session currently holds an open model.

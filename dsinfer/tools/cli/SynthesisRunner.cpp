@@ -60,7 +60,7 @@ namespace ds::cli {
         }
 
         srt::SingerSpec &findSinger(srt::PackageHandle &package, std::string_view singerId) {
-            for (auto contribution : package.contributions("singer")) {
+            for (auto contribution : package.contributions(srt::SingerCategory::NAME)) {
                 if (contribution->locator().contributionId() == singerId) {
                     return *contribution->as<srt::SingerSpec>();
                 }

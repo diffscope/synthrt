@@ -51,3 +51,7 @@ CMakeSettings.json
 # Python caches
 __pycache__/
 *.pyc
+
+# Local scratch space and the agent skills that only exist on this machine
+.tmp/
+.agents/

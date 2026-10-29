@@ -22,6 +22,16 @@ namespace srt {
     class PackageLoader;
 
     /// Owns Package resolution, interpreter discovery, and committed runtime state.
+    ///
+    /// Every member function that reads or changes runtime state, including addCategory(),
+    /// openPackage(), loadedPackages(), findLoadedPackage(), the path setters and the runtime
+    /// service functions, takes one internal recursive lock, so these functions may be called
+    /// from any thread. The lock is held for the whole of a package load, including plugin
+    /// loading, and every other call blocks until the load completes. category() is the only
+    /// exception. It reads the category table without the lock, which is safe because the table
+    /// is fixed once the first load has begun and addCategory() rejects changes afterwards.
+    /// Borrowed pointers into committed state (contributions, specs, extensions) remain valid
+    /// until the package that owns them is released.
     class SYNTHRT_EXPORT SynthUnit {
     public:
         /// Constructs a unit with every category in \c ContribCategoryRegistry.

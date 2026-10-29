@@ -96,6 +96,21 @@ namespace ds {
         }
     }
 
+    // Hands the duration predictor one word level input that the word level linguistic encoder
+    // already built. Both models describe the same word structure of the score, so the tensor is
+    // shared instead of rebuilt and the two cannot disagree about the division or the budget.
+    static inline srt::Expected<void> shareWordInput(const Onnx::SessionStartInput &source,
+                                                     Onnx::SessionStartInput &target,
+                                                     const char *name) {
+        const auto it = source.inputs.find(name);
+        if (it == source.inputs.end()) {
+            return srt::Error(ds::ErrorCode::ProcessingFailed,
+                              stdc::formatN(R"(the linguistic encoder input lacks "%1")", name));
+        }
+        target.inputs.emplace(it->first, it->second);
+        return {};
+    }
+
     DurationTask::DurationTask(DurationInference &inference) : m_inference(&inference) {
     }
 
@@ -246,6 +261,22 @@ namespace ds {
                 setState(Failed);
                 return encoderSessionExp.takeError().withContext("the linguistic encoder failed");
             }
+
+            // The predictor receives the word tensors that the encoder already built, so a
+            // configuration that does not describe the exported predictor is reported by the
+            // session instead of running the predictor on a wrong word structure.
+            if (config->useWordDiv) {
+                if (auto res = shareWordInput(*linguisticInput, *sessionInput, "word_div"); !res) {
+                    setState(Failed);
+                    return res.takeError();
+                }
+            }
+            if (config->useWordDur) {
+                if (auto res = shareWordInput(*linguisticInput, *sessionInput, "word_dur"); !res) {
+                    setState(Failed);
+                    return res.takeError();
+                }
+            }
         } else {
             setState(Failed);
             return exp.takeError().withContext("failed to build the linguistic input");
@@ -356,7 +387,8 @@ namespace ds {
             }
             auto &durationVector = durationResult->durations;
             durationVector.assign(view.begin(), view.end());
-            // Scale the results to adapt to original word sizes
+            // Scale the results to adapt to original word sizes. Only the shares of one word are
+            // kept, so this step is independent of the unit the model predicts in.
             size_t begin = 0;
             size_t end = 0;
             for (const auto &word : durationInput.words) {
