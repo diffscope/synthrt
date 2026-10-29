@@ -52,9 +52,7 @@ namespace srt {
         /// \{
 
         const DisplayText &name() const;
-        const std::string &interfaceId() const;
-        const std::string &variant() const;
-        int level() const;
+        const ContribTriplet &triplet() const;
         const JsonValue &manifestExports() const;
         const JsonValue &manifestConfiguration() const;
         stdc::array_view<ContribImport> imports() const;

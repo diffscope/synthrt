@@ -29,7 +29,7 @@ namespace ds::Api::Vocoder::L1 {
     class VocoderImportOptions : public srt::ContribImportOptions {
     public:
         inline VocoderImportOptions()
-            : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribImportOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
     };
 
@@ -37,14 +37,14 @@ namespace ds::Api::Vocoder::L1 {
     class VocoderRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline VocoderRuntimeOptions()
-            : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::InferenceRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
     };
 
     /// Describes the capabilities exported by a vocoder inference contribution.
     class VocoderSchema : public srt::ContribExports {
     public:
-        inline VocoderSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
+        inline VocoderSchema() : srt::ContribExports({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
     };
 
@@ -52,7 +52,7 @@ namespace ds::Api::Vocoder::L1 {
     class VocoderConfiguration : public srt::ContribConfiguration {
     public:
         inline VocoderConfiguration()
-            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Path of the vocoder model.

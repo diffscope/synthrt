@@ -29,7 +29,7 @@ namespace ds::Api::Duration::L1 {
     /// Describes the capabilities exported by a duration inference contribution.
     class DurationSchema : public srt::ContribExports {
     public:
-        inline DurationSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
+        inline DurationSchema() : srt::ContribExports({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Speaker identifiers accepted by this contribution.
@@ -40,7 +40,7 @@ namespace ds::Api::Duration::L1 {
     class DurationConfiguration : public srt::ContribConfiguration {
     public:
         inline DurationConfiguration()
-            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Maps phoneme tokens to model input identifiers.
@@ -91,7 +91,7 @@ namespace ds::Api::Duration::L1 {
     class DurationImportOptions : public srt::ContribImportOptions {
     public:
         inline DurationImportOptions()
-            : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribImportOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Maps singer level speaker identifiers to contribution level identifiers.
@@ -102,7 +102,7 @@ namespace ds::Api::Duration::L1 {
     class DurationRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline DurationRuntimeOptions()
-            : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::InferenceRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
     };
 

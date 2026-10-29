@@ -32,19 +32,9 @@ namespace srt {
         return m_data->name;
     }
 
-    const std::string &ContribCreateContext::interfaceId() const {
+    const ContribTriplet &ContribCreateContext::triplet() const {
         assert(m_data->manifestDeclaration);
-        return m_data->interfaceId;
-    }
-
-    const std::string &ContribCreateContext::variant() const {
-        assert(m_data->manifestDeclaration);
-        return m_data->variant;
-    }
-
-    int ContribCreateContext::level() const {
-        assert(m_data->manifestDeclaration);
-        return m_data->level;
+        return m_data->triplet;
     }
 
     const JsonValue &ContribCreateContext::manifestExports() const {

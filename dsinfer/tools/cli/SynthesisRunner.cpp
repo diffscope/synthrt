@@ -71,9 +71,9 @@ namespace ds::cli {
 
         std::unique_ptr<srt::SingerPipelineExecutive> createPipeline(srt::SingerSpec &singerSpec,
                                                                      std::string_view singerId) {
-            if (singerSpec.interfaceId() != DiffSinger::API_INTERFACE ||
-                singerSpec.variant() != DiffSinger::API_VARIANT ||
-                singerSpec.level() != DiffSinger::API_LEVEL) {
+            if (singerSpec.triplet() != srt::ContribTriplet(DiffSinger::API_INTERFACE,
+                                                            DiffSinger::API_LEVEL,
+                                                            DiffSinger::API_VARIANT)) {
                 throw std::runtime_error(stdc::formatN(
                     R"(singer "%1" does not implement the DiffSinger Level 1 contract)", singerId));
             }

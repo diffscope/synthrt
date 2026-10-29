@@ -43,9 +43,8 @@ namespace ds {
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "variance configuration is nullptr");
         }
-        if (genericConfig->interfaceId() != Var::API_INTERFACE ||
-            genericConfig->variant() != Var::API_VARIANT ||
-            genericConfig->level() != Var::API_LEVEL) {
+        if (genericConfig->triplet() !=
+            srt::ContribTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance configuration");
         }
         return static_cast<const Var::VarianceConfiguration *>(genericConfig);
@@ -58,9 +57,8 @@ namespace ds {
         if (!genericSchema) {
             return srt::Error(srt::Error::InvalidArgument, "variance schema is nullptr");
         }
-        if (genericSchema->interfaceId() != Var::API_INTERFACE ||
-            genericSchema->variant() != Var::API_VARIANT ||
-            genericSchema->level() != Var::API_LEVEL) {
+        if (genericSchema->triplet() !=
+            srt::ContribTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance schema");
         }
         return static_cast<const Var::VarianceSchema *>(genericSchema);

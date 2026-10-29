@@ -11,10 +11,10 @@ namespace ds {
         DiffSingerProviderPlugin() = default;
 
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
+            create(const srt::ContribTriplet &triplet) override {
             namespace DiffSinger = Api::DiffSinger::L1;
-            if (interfaceName != DiffSinger::API_INTERFACE || level != DiffSinger::API_LEVEL ||
-                variant != DiffSinger::API_VARIANT) {
+            if (triplet != srt::ContribTriplet(DiffSinger::API_INTERFACE, DiffSinger::API_LEVEL,
+                                               DiffSinger::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported DiffSinger provider contract");
             }

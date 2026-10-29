@@ -32,7 +32,7 @@ namespace ds::Api::Pitch::L1 {
     /// Describes the capabilities exported by a pitch inference contribution.
     class PitchSchema : public srt::ContribExports {
     public:
-        inline PitchSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
+        inline PitchSchema() : srt::ContribExports({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Speaker identifiers accepted by this contribution.
@@ -46,7 +46,7 @@ namespace ds::Api::Pitch::L1 {
     class PitchConfiguration : public srt::ContribConfiguration {
     public:
         inline PitchConfiguration()
-            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Maps phoneme tokens to model input identifiers.
@@ -93,7 +93,7 @@ namespace ds::Api::Pitch::L1 {
     class PitchImportOptions : public srt::ContribImportOptions {
     public:
         inline PitchImportOptions()
-            : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribImportOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Maps singer level speaker identifiers to contribution level identifiers.
@@ -104,7 +104,7 @@ namespace ds::Api::Pitch::L1 {
     class PitchRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline PitchRuntimeOptions()
-            : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::InferenceRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
     };
 

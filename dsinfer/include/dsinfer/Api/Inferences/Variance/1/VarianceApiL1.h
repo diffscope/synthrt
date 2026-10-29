@@ -34,7 +34,7 @@ namespace ds::Api::Variance::L1 {
     /// Describes the capabilities exported by a variance inference contribution.
     class VarianceSchema : public srt::ContribExports {
     public:
-        inline VarianceSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
+        inline VarianceSchema() : srt::ContribExports({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Speaker identifiers accepted by this contribution.
@@ -48,7 +48,7 @@ namespace ds::Api::Variance::L1 {
     class VarianceConfiguration : public srt::ContribConfiguration {
     public:
         inline VarianceConfiguration()
-            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Maps phoneme tokens to model input identifiers.
@@ -89,7 +89,7 @@ namespace ds::Api::Variance::L1 {
     class VarianceImportOptions : public srt::ContribImportOptions {
     public:
         inline VarianceImportOptions()
-            : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribImportOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Maps singer level speaker identifiers to contribution level identifiers.
@@ -103,7 +103,7 @@ namespace ds::Api::Variance::L1 {
     class VarianceRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline VarianceRuntimeOptions()
-            : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::InferenceRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
     };
 

@@ -3,15 +3,15 @@
 
 #include <map>
 #include <memory>
-#include <string>
 #include <string_view>
-#include <tuple>
+#include <utility>
 
 #include <stdcorelib/adt/array_view.h>
 #include <stdcorelib/adt/vlarray.h>
 #include <stdcorelib/plugin/pluginfactory.h>
 
 #include <synthrt/Core/ContribInterpreter.h>
+#include <synthrt/Core/ContribTriplet.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
@@ -21,13 +21,11 @@ namespace srt {
     public:
         /// Returns the first plugin whose valid metadata declares the requested interpreter.
         stdc::plugin::PluginLoader *findInterpreter(std::string_view iid,
-                                                    std::string_view interfaceName, int level,
-                                                    std::string_view variant) const;
+                                                    const ContribTriplet &triplet) const;
 
         /// Loads the selected plugin and returns its retained interpreter for one contract.
         Expected<ContribInterpreter *> loadInterpreter(stdc::plugin::PluginLoader *loader,
-                                                       std::string_view interfaceName, int level,
-                                                       std::string_view variant);
+                                                       const ContribTriplet &triplet);
 
         /// Returns the interpreters selected in this SynthUnit.
         stdc::array_view<ContribInterpreter *> interpreters() const;
@@ -36,8 +34,7 @@ namespace srt {
         stdc::array_view<ContribImportValidator *> importValidators() const;
 
     private:
-        using InterpreterKey =
-            std::tuple<stdc::plugin::PluginLoader *, std::string, int, std::string>;
+        using InterpreterKey = std::pair<stdc::plugin::PluginLoader *, ContribTriplet>;
 
         std::map<InterpreterKey, std::unique_ptr<ContribInterpreter>> m_interpreters;
         stdc::vlarray<ContribInterpreter *> m_interpreterViews;

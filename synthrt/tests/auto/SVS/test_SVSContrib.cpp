@@ -25,21 +25,21 @@ namespace {
 
     class TestInferenceExports : public srt::ContribExports {
     public:
-        TestInferenceExports() : ContribExports(testInferenceInterface, testInferenceVariant, 1) {
+        TestInferenceExports() : ContribExports({testInferenceInterface, 1, testInferenceVariant}) {
         }
     };
 
     class TestInferenceConfiguration : public srt::ContribConfiguration {
     public:
         TestInferenceConfiguration()
-            : ContribConfiguration(testInferenceInterface, testInferenceVariant, 1) {
+            : ContribConfiguration({testInferenceInterface, 1, testInferenceVariant}) {
         }
     };
 
     class TestInferenceImportOptions : public srt::ContribImportOptions {
     public:
         TestInferenceImportOptions()
-            : ContribImportOptions(testInferenceInterface, testInferenceVariant, 1) {
+            : ContribImportOptions({testInferenceInterface, 1, testInferenceVariant}) {
         }
     };
 
@@ -71,9 +71,8 @@ namespace {
     class TestInferenceInterpreterPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
-            if (interfaceName != testInferenceInterface || variant != testInferenceVariant ||
-                level != 1) {
+            create(const srt::ContribTriplet &triplet) override {
+            if (triplet != srt::ContribTriplet(testInferenceInterface, 1, testInferenceVariant)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unexpected test inference contract");
             }
@@ -92,14 +91,14 @@ namespace {
 
     class TestRuntimeOptions final : public srt::InferenceRuntimeOptions {
     public:
-        TestRuntimeOptions() : InferenceRuntimeOptions("com.example.svs.Acoustic", "default", 1) {
+        TestRuntimeOptions() : InferenceRuntimeOptions({"com.example.svs.Acoustic", 1, "default"}) {
         }
     };
 
     class TestSingerPipelineRuntimeOptions final : public srt::SingerPipelineRuntimeOptions {
     public:
         TestSingerPipelineRuntimeOptions()
-            : SingerPipelineRuntimeOptions("com.example.svs.Singer", "test", 1) {
+            : SingerPipelineRuntimeOptions({"com.example.svs.Singer", 1, "test"}) {
         }
     };
 
@@ -139,14 +138,14 @@ BOOST_AUTO_TEST_SUITE(test_SVSContrib)
 BOOST_AUTO_TEST_CASE(test_runtime_options_carry_contract_identity) {
     TestRuntimeOptions options;
 
-    BOOST_CHECK_EQUAL(options.interfaceId(), "com.example.svs.Acoustic");
-    BOOST_CHECK_EQUAL(options.variant(), "default");
-    BOOST_CHECK_EQUAL(options.level(), 1);
+    BOOST_CHECK_EQUAL(options.triplet().interfaceId(), "com.example.svs.Acoustic");
+    BOOST_CHECK_EQUAL(options.triplet().variant(), "default");
+    BOOST_CHECK_EQUAL(options.triplet().level(), 1);
 
     TestSingerPipelineRuntimeOptions singerOptions;
-    BOOST_CHECK_EQUAL(singerOptions.interfaceId(), "com.example.svs.Singer");
-    BOOST_CHECK_EQUAL(singerOptions.variant(), "test");
-    BOOST_CHECK_EQUAL(singerOptions.level(), 1);
+    BOOST_CHECK_EQUAL(singerOptions.triplet().interfaceId(), "com.example.svs.Singer");
+    BOOST_CHECK_EQUAL(singerOptions.triplet().variant(), "test");
+    BOOST_CHECK_EQUAL(singerOptions.triplet().level(), 1);
 }
 
 BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
@@ -205,7 +204,7 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
     BOOST_REQUIRE(inference);
     BOOST_CHECK(inferenceContribution->declarationPath() == root / "modules" / "inference.json");
     BOOST_CHECK(inference->declarationPath() == root / "modules" / "inference.json");
-    BOOST_CHECK_EQUAL(inference->interfaceId(), "com.example.svs.Acoustic");
+    BOOST_CHECK_EQUAL(inference->triplet().interfaceId(), "com.example.svs.Acoustic");
 
     auto singerContribution = package.contribution("singer", "singer1");
     BOOST_REQUIRE(singerContribution);

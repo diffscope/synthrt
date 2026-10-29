@@ -2,11 +2,11 @@
 #define SYNTHRT_CORE_CONTRIBINTERPRETERPLUGIN_H
 
 #include <memory>
-#include <string_view>
 
 #include <stdcorelib/plugin/plugin.h>
 
 #include <synthrt/Core/ContribInterpreter.h>
+#include <synthrt/Core/ContribTriplet.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
@@ -16,9 +16,10 @@ namespace srt {
     public:
         ~ContribInterpreterPlugin() = default;
 
-        /// Creates the interpreter for the requested contract implementation.
+        /// Creates the interpreter for  triplet, one of the triplets that the metadata of the
+        /// plugin declares.
         virtual Expected<std::unique_ptr<ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) = 0;
+            create(const ContribTriplet &triplet) = 0;
 
     protected:
         ContribInterpreterPlugin() = default;

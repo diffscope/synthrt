@@ -35,9 +35,7 @@ namespace srt {
         std::optional<std::filesystem::path> declarationPath;
         std::optional<JsonObject> manifestDeclaration;
         DisplayText name;
-        std::string interfaceId;
-        std::string variant;
-        int level = 0;
+        ContribTriplet triplet;
         JsonValue manifestExports;
         JsonValue manifestConfiguration;
         stdc::vlarray<ContribImport> imports;

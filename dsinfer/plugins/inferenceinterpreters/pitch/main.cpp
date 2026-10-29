@@ -12,10 +12,10 @@ namespace ds {
 
 
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
+            create(const srt::ContribTriplet &triplet) override {
             namespace Pit = Api::Pitch::L1;
-            if (interfaceName != Pit::API_INTERFACE || level != Pit::API_LEVEL ||
-                variant != Pit::API_VARIANT) {
+            if (triplet !=
+                srt::ContribTriplet(Pit::API_INTERFACE, Pit::API_LEVEL, Pit::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported pitch interpreter contract");
             }

@@ -5,7 +5,6 @@
 #include <set>
 #include <string>
 #include <string_view>
-#include <tuple>
 #include <utility>
 
 #include <stdcorelib/support/json.h>
@@ -18,8 +17,7 @@ namespace srt {
     namespace {
 
         bool metadataProvidesInterpreter(const stdc::json::Value &metadata,
-                                         std::string_view interfaceName, int level,
-                                         std::string_view variant) {
+                                         const ContribTriplet &triplet) {
             if (!metadata.isObject()) {
                 return false;
             }
@@ -34,7 +32,7 @@ namespace srt {
                 return false;
             }
 
-            std::set<std::tuple<std::string, int64_t, std::string>> declarations;
+            std::set<ContribTriplet> declarations;
             bool matches = false;
             for (const auto &value : interpreters.toArray()) {
                 if (!value.isObject()) {
@@ -56,14 +54,14 @@ namespace srt {
                     return false;
                 }
 
-                const auto declaration = std::make_tuple(declaredInterface.toString(), levelValue,
-                                                         declaredVariant.toString());
-                if (!declarations.insert(declaration).second) {
-                    return false;
-                }
-                if (declaredInterface.toString() == interfaceName &&
-                    declaredVariant.toString() == variant && levelValue == level) {
+                ContribTriplet declaration(declaredInterface.toString(),
+                                           static_cast<int>(levelValue),
+                                           declaredVariant.toString());
+                if (declaration == triplet) {
                     matches = true;
+                }
+                if (!declarations.insert(std::move(declaration)).second) {
+                    return false;
                 }
             }
             return matches;
@@ -72,10 +70,10 @@ namespace srt {
     }
 
     stdc::plugin::PluginLoader *
-        ContribPluginFactory::findInterpreter(std::string_view iid, std::string_view interfaceName,
-                                              int level, std::string_view variant) const {
+        ContribPluginFactory::findInterpreter(std::string_view iid,
+                                              const ContribTriplet &triplet) const {
         for (auto loader : plugins(iid)) {
-            if (metadataProvidesInterpreter(loader->metadata(), interfaceName, level, variant)) {
+            if (metadataProvidesInterpreter(loader->metadata(), triplet)) {
                 return loader;
             }
         }
@@ -84,13 +82,12 @@ namespace srt {
 
     Expected<ContribInterpreter *>
         ContribPluginFactory::loadInterpreter(stdc::plugin::PluginLoader *loader,
-                                              std::string_view interfaceName, int level,
-                                              std::string_view variant) {
+                                              const ContribTriplet &triplet) {
         if (!loader) {
             return Error(Error::InvalidArgument, "interpreter plugin loader must not be null");
         }
 
-        InterpreterKey key(loader, std::string(interfaceName), level, std::string(variant));
+        InterpreterKey key(loader, triplet);
         const auto cached = m_interpreters.find(key);
         if (cached != m_interpreters.end()) {
             return cached->second.get();
@@ -102,7 +99,7 @@ namespace srt {
         }
 
         auto plugin = static_cast<ContribInterpreterPlugin *>(loader->plugin());
-        auto result = plugin->create(interfaceName, level, variant);
+        auto result = plugin->create(triplet);
         if (!result) {
             return result.takeError().withContext("failed to create contribution interpreter");
         }

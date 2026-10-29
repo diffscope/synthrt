@@ -48,26 +48,26 @@ namespace {
     class TestExports final : public srt::ContribExports {
     public:
         TestExports()
-            : ContribExports(returnWrongPayloadIdentity ? "com.example.Wrong" : testInterface,
-                             "test", 1) {
+            : ContribExports(
+                  {returnWrongPayloadIdentity ? "com.example.Wrong" : testInterface, 1, "test"}) {
         }
     };
 
     class TestConfiguration final : public srt::ContribConfiguration {
     public:
-        TestConfiguration() : ContribConfiguration(testInterface, "test", 1) {
+        TestConfiguration() : ContribConfiguration({testInterface, 1, "test"}) {
         }
     };
 
     class TestOptions final : public srt::ContribImportOptions {
     public:
-        TestOptions() : ContribImportOptions(testInterface, "test", 1) {
+        TestOptions() : ContribImportOptions({testInterface, 1, "test"}) {
         }
     };
 
     class TestRuntimeOptions final : public srt::ContribRuntimeOptions {
     public:
-        TestRuntimeOptions() : ContribRuntimeOptions(testInterface, "test", 1) {
+        TestRuntimeOptions() : ContribRuntimeOptions({testInterface, 1, "test"}) {
         }
     };
 
@@ -194,8 +194,8 @@ namespace {
     class TestInterpreterPlugin final : public srt::ContribInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
-            if (interfaceName != testInterface || level != 1 || variant != "test") {
+            create(const srt::ContribTriplet &triplet) override {
+            if (triplet != srt::ContribTriplet(testInterface, 1, "test")) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unexpected test interpreter contract");
             }
@@ -597,9 +597,9 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(rootSpec->findExtension(testSecondExtensionId) != nullptr);
     BOOST_CHECK(extension->as<TestExtension>() != nullptr);
     BOOST_CHECK(validatorSawPreparedImports);
-    BOOST_CHECK_EQUAL(rootSpec->exports()->interfaceId(), testInterface);
-    BOOST_CHECK_EQUAL(rootSpec->exports()->variant(), "test");
-    BOOST_CHECK_EQUAL(rootSpec->exports()->level(), 1);
+    BOOST_CHECK_EQUAL(rootSpec->exports()->triplet().interfaceId(), testInterface);
+    BOOST_CHECK_EQUAL(rootSpec->exports()->triplet().variant(), "test");
+    BOOST_CHECK_EQUAL(rootSpec->exports()->triplet().level(), 1);
     BOOST_REQUIRE_EQUAL(rootSpec->imports().size(), 2u);
     BOOST_CHECK_EQUAL(rootSpec->imports()[0].role(), "test/first");
     BOOST_CHECK_EQUAL(rootSpec->imports()[1].role(), "test/second");
@@ -614,7 +614,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(rootSpec->imports()[1].manifestOptions().toObject().empty());
     BOOST_CHECK(rootSpec->imports()[0].options());
     BOOST_CHECK(rootSpec->imports()[1].options());
-    BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->interfaceId(), testInterface);
+    BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->triplet().interfaceId(), testInterface);
     BOOST_REQUIRE(rootSpec->imports()[0].binding());
     BOOST_REQUIRE(rootSpec->imports()[1].binding());
     BOOST_CHECK(rootSpec->imports()[0].binding()->state() ==

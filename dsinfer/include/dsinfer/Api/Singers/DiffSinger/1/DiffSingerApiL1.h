@@ -28,7 +28,7 @@ namespace ds::Api::DiffSinger::L1 {
     class DiffSingerConfiguration : public srt::ContribConfiguration {
     public:
         DiffSingerConfiguration()
-            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Path of the singer pronunciation dictionary.
@@ -46,7 +46,7 @@ namespace ds::Api::DiffSinger::L1 {
     class DiffSingerPipelineRuntimeOptions : public srt::SingerPipelineRuntimeOptions {
     public:
         DiffSingerPipelineRuntimeOptions()
-            : SingerPipelineRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : SingerPipelineRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
     };
 

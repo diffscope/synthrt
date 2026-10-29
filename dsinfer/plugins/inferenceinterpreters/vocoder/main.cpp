@@ -12,10 +12,9 @@ namespace ds {
 
 
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
+            create(const srt::ContribTriplet &triplet) override {
             namespace Vo = Api::Vocoder::L1;
-            if (interfaceName != Vo::API_INTERFACE || level != Vo::API_LEVEL ||
-                variant != Vo::API_VARIANT) {
+            if (triplet != srt::ContribTriplet(Vo::API_INTERFACE, Vo::API_LEVEL, Vo::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported vocoder interpreter contract");
             }

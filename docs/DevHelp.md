@@ -444,8 +444,7 @@ stdc_add_plugin_metadata(
 `as<T>()` 最终是静态转换，不做 RTTI 检查。正确用法是先检查身份，再转换：
 
 ```cpp
-if (spec.interface() != MyApi::Interface || spec.variant() != MyApi::Variant ||
-    spec.level() != MyApi::Level) {
+if (spec.triplet() != srt::ContribTriplet(MyApi::Interface, MyApi::Level, MyApi::Variant)) {
     return srt::Error(srt::Error::InvalidArgument, "unexpected contract");
 }
 
@@ -481,8 +480,7 @@ srt::Expected<MyExecutive *> MyPipeline::createLanguage(
 
     auto executive = *result;
     const auto &target = executive->spec();
-    if (target.interface() != MyApi::Interface || target.variant() != MyApi::Variant ||
-        target.level() != MyApi::Level) {
+    if (target.triplet() != srt::ContribTriplet(MyApi::Interface, MyApi::Level, MyApi::Variant)) {
         delete executive;
         return srt::Error(srt::Error::InvalidFormat, "factory returned an incompatible Executive");
     }
@@ -731,8 +729,7 @@ public:
     static constexpr const char *IID = "com.example.LanguageInterpreter";
 
     srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-        create(std::string_view interfaceName, int level,
-               std::string_view variant) override;
+        create(const srt::ContribTriplet &triplet) override;
 };
 ```
 

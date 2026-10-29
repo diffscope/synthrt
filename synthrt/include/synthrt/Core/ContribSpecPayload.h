@@ -1,9 +1,9 @@
 #ifndef SYNTHRT_CORE_CONTRIBSPECPAYLOAD_H
 #define SYNTHRT_CORE_CONTRIBSPECPAYLOAD_H
 
-#include <string>
 #include <utility>
 
+#include <synthrt/Core/ContribTriplet.h>
 #include <synthrt/synthrt_global.h>
 
 namespace srt {
@@ -13,29 +13,19 @@ namespace srt {
     public:
         virtual ~ContribSpecPayload() = default;
 
-        inline const std::string &interfaceId() const {
-            return m_interface;
-        }
-
-        inline const std::string &variant() const {
-            return m_variant;
-        }
-
-        inline int level() const noexcept {
-            return m_level;
+        /// Returns the triplet of the contract this value belongs to.
+        const ContribTriplet &triplet() const {
+            return m_triplet;
         }
 
         SYNTHRT_DECLARE_AS_METHODS(ContribSpecPayload)
 
     protected:
-        ContribSpecPayload(std::string interfaceId, std::string variant, int level)
-            : m_interface(std::move(interfaceId)), m_variant(std::move(variant)), m_level(level) {
+        explicit ContribSpecPayload(ContribTriplet triplet) : m_triplet(std::move(triplet)) {
         }
 
     private:
-        std::string m_interface;
-        std::string m_variant;
-        int m_level;
+        ContribTriplet m_triplet;
 
         STDC_DISABLE_COPY(ContribSpecPayload)
     };

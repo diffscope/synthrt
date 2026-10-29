@@ -36,7 +36,7 @@ namespace ds::Api::Acoustic::L1 {
     /// Describes the capabilities exported by an acoustic inference contribution.
     class AcousticSchema : public srt::ContribExports {
     public:
-        inline AcousticSchema() : srt::ContribExports(API_INTERFACE, API_VARIANT, API_LEVEL) {
+        inline AcousticSchema() : srt::ContribExports({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Speaker identifiers accepted by this contribution.
@@ -53,7 +53,7 @@ namespace ds::Api::Acoustic::L1 {
     class AcousticConfiguration : public srt::ContribConfiguration {
     public:
         inline AcousticConfiguration()
-            : srt::ContribConfiguration(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Maps phoneme tokens to model input identifiers.
@@ -121,7 +121,7 @@ namespace ds::Api::Acoustic::L1 {
     class AcousticImportOptions : public srt::ContribImportOptions {
     public:
         inline AcousticImportOptions()
-            : srt::ContribImportOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::ContribImportOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
 
         /// Maps singer level speaker identifiers to contribution level identifiers.
@@ -132,7 +132,7 @@ namespace ds::Api::Acoustic::L1 {
     class AcousticRuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
         inline AcousticRuntimeOptions()
-            : srt::InferenceRuntimeOptions(API_INTERFACE, API_VARIANT, API_LEVEL) {
+            : srt::InferenceRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
         }
     };
 

@@ -12,6 +12,7 @@
 #include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpecExtension.h>
 #include <synthrt/Core/ContribSpecPayload.h>
+#include <synthrt/Core/ContribTriplet.h>
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/Expected.h>
@@ -143,20 +144,8 @@ namespace srt {
         /// Returns the contribution name for display purposes.
         const DisplayText &name() const;
 
-        /// Returns the contract identifier serialized as \c interface.
-        ///
-        /// \note Not named after the field it carries. The Windows SDK defines \c interface as a
-        ///       macro for \c struct in \c combaseapi.h, unconditionally, so a member of that name
-        ///       fails to compile in any translation unit that has reached a COM header. Pushing
-        ///       and popping the macro around this header would not help, because the call sites
-        ///       are in callers' translation units. The serialized field keeps its own name.
-        const std::string &interfaceId() const;
-
-        /// Returns the implementation variant within the interface contract.
-        const std::string &variant() const;
-
-        /// Returns the API Level of the interface contract.
-        int level() const;
+        /// Returns the \c interface, \c level and \c variant of the declaration.
+        const ContribTriplet &triplet() const;
 
         /// Returns the exports value read from the manifest.
         const JsonValue &manifestExports() const;

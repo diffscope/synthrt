@@ -12,10 +12,9 @@ namespace ds {
 
 
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(std::string_view interfaceName, int level, std::string_view variant) override {
+            create(const srt::ContribTriplet &triplet) override {
             namespace Ac = Api::Acoustic::L1;
-            if (interfaceName != Ac::API_INTERFACE || level != Ac::API_LEVEL ||
-                variant != Ac::API_VARIANT) {
+            if (triplet != srt::ContribTriplet(Ac::API_INTERFACE, Ac::API_LEVEL, Ac::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported acoustic interpreter contract");
             }

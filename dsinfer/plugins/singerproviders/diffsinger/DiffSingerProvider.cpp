@@ -28,8 +28,8 @@ namespace ds {
 
         bool isDiffSingerSpec(const srt::ContribSpec &spec) {
             return spec.locator().category() == srt::SingerCategory::NAME &&
-                   spec.interfaceId() == Ds::API_INTERFACE && spec.variant() == Ds::API_VARIANT &&
-                   spec.level() == Ds::API_LEVEL;
+                   spec.triplet() ==
+                       srt::ContribTriplet(Ds::API_INTERFACE, Ds::API_LEVEL, Ds::API_VARIANT);
         }
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec);
@@ -54,9 +54,8 @@ namespace ds {
 
             srt::Expected<std::unique_ptr<srt::SingerPipelineExecutive>>
                 createPipeline(const srt::SingerPipelineRuntimeOptions &runtimeOptions) override {
-                if (runtimeOptions.interfaceId() != Ds::API_INTERFACE ||
-                    runtimeOptions.variant() != Ds::API_VARIANT ||
-                    runtimeOptions.level() != Ds::API_LEVEL) {
+                if (runtimeOptions.triplet() !=
+                    srt::ContribTriplet(Ds::API_INTERFACE, Ds::API_LEVEL, Ds::API_VARIANT)) {
                     return srt::Error(
                         srt::Error::InvalidArgument,
                         "DiffSinger pipeline options have an incompatible contract identity");
@@ -68,9 +67,8 @@ namespace ds {
 
         srt::Expected<srt::InferenceSpec *> resolveKnownImport(const srt::ContribSpec &spec,
                                                                std::string_view role,
-                                                               std::string_view expectedInterface,
-                                                               std::string_view expectedVariant,
-                                                               int expectedLevel, bool required) {
+                                                               const srt::ContribTriplet &expected,
+                                                               bool required) {
             const auto import = spec.findImport(role);
             if (!import) {
                 if (required) {
@@ -90,8 +88,7 @@ namespace ds {
             }
             auto target = &import->binding()->target();
             if (target->locator().category() != srt::InferenceCategory::NAME ||
-                target->interfaceId() != expectedInterface || target->variant() != expectedVariant ||
-                target->level() != expectedLevel) {
+                target->triplet() != expected) {
                 return srt::Error(
                     srt::Error::InvalidFormat,
                     "DiffSinger inference import has an incompatible contract identity");
@@ -183,33 +180,43 @@ namespace ds {
         }
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec) {
-            auto duration = resolveKnownImport(
-                spec, "singer/duration", Api::Duration::L1::API_INTERFACE,
-                Api::Duration::L1::API_VARIANT, Api::Duration::L1::API_LEVEL, false);
+            auto duration =
+                resolveKnownImport(spec, "singer/duration",
+                                   {Api::Duration::L1::API_INTERFACE, Api::Duration::L1::API_LEVEL,
+                                    Api::Duration::L1::API_VARIANT},
+                                   false);
             if (!duration) {
                 return duration.takeError();
             }
             auto pitch =
-                resolveKnownImport(spec, "singer/pitch", Api::Pitch::L1::API_INTERFACE,
-                                   Api::Pitch::L1::API_VARIANT, Api::Pitch::L1::API_LEVEL, false);
+                resolveKnownImport(spec, "singer/pitch",
+                                   {Api::Pitch::L1::API_INTERFACE, Api::Pitch::L1::API_LEVEL,
+                                    Api::Pitch::L1::API_VARIANT},
+                                   false);
             if (!pitch) {
                 return pitch.takeError();
             }
-            auto variance = resolveKnownImport(
-                spec, "singer/variance", Api::Variance::L1::API_INTERFACE,
-                Api::Variance::L1::API_VARIANT, Api::Variance::L1::API_LEVEL, false);
+            auto variance =
+                resolveKnownImport(spec, "singer/variance",
+                                   {Api::Variance::L1::API_INTERFACE, Api::Variance::L1::API_LEVEL,
+                                    Api::Variance::L1::API_VARIANT},
+                                   false);
             if (!variance) {
                 return variance.takeError();
             }
-            auto acoustic = resolveKnownImport(
-                spec, "singer/acoustic", Api::Acoustic::L1::API_INTERFACE,
-                Api::Acoustic::L1::API_VARIANT, Api::Acoustic::L1::API_LEVEL, true);
+            auto acoustic =
+                resolveKnownImport(spec, "singer/acoustic",
+                                   {Api::Acoustic::L1::API_INTERFACE, Api::Acoustic::L1::API_LEVEL,
+                                    Api::Acoustic::L1::API_VARIANT},
+                                   true);
             if (!acoustic) {
                 return acoustic.takeError();
             }
-            auto vocoder = resolveKnownImport(
-                spec, "singer/vocoder", Api::Vocoder::L1::API_INTERFACE,
-                Api::Vocoder::L1::API_VARIANT, Api::Vocoder::L1::API_LEVEL, true);
+            auto vocoder =
+                resolveKnownImport(spec, "singer/vocoder",
+                                   {Api::Vocoder::L1::API_INTERFACE, Api::Vocoder::L1::API_LEVEL,
+                                    Api::Vocoder::L1::API_VARIANT},
+                                   true);
             if (!vocoder) {
                 return vocoder.takeError();
             }

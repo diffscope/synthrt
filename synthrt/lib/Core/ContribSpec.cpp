@@ -62,19 +62,9 @@ namespace srt {
         return _impl->name;
     }
 
-    const std::string &ContribSpec::interfaceId() const {
+    const ContribTriplet &ContribSpec::triplet() const {
         assert(_impl->hasModuleDeclaration);
-        return _impl->interfaceId;
-    }
-
-    const std::string &ContribSpec::variant() const {
-        assert(_impl->hasModuleDeclaration);
-        return _impl->variant;
-    }
-
-    int ContribSpec::level() const {
-        assert(_impl->hasModuleDeclaration);
-        return _impl->level;
+        return _impl->triplet;
     }
 
     const JsonValue &ContribSpec::manifestExports() const {
@@ -133,9 +123,7 @@ namespace srt {
         _impl->declarationPath = *context.m_data->declarationPath;
         _impl->manifestDeclaration = *context.m_data->manifestDeclaration;
         _impl->name = context.m_data->name;
-        _impl->interfaceId = context.m_data->interfaceId;
-        _impl->variant = context.m_data->variant;
-        _impl->level = context.m_data->level;
+        _impl->triplet = context.m_data->triplet;
         _impl->manifestExports = context.m_data->manifestExports;
         _impl->manifestConfiguration = context.m_data->manifestConfiguration;
         _impl->imports.reserve(context.m_data->imports.size());

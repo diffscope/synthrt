@@ -31,8 +31,7 @@ namespace ds {
     private:
         srt::Expected<srt::InferenceExecutive *>
             createInference(std::string_view role, const srt::InferenceRuntimeOptions &options,
-                            std::string_view expectedInterface, std::string_view expectedVariant,
-                            int expectedLevel);
+                            const srt::ContribTriplet &expected);
     };
 
 }

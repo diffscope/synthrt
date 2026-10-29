@@ -39,9 +39,8 @@ namespace ds {
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "duration configuration is nullptr");
         }
-        if (genericConfig->interfaceId() != Dur::API_INTERFACE ||
-            genericConfig->variant() != Dur::API_VARIANT ||
-            genericConfig->level() != Dur::API_LEVEL) {
+        if (genericConfig->triplet() !=
+            srt::ContribTriplet(Dur::API_INTERFACE, Dur::API_LEVEL, Dur::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid duration configuration");
         }
         return static_cast<const Dur::DurationConfiguration *>(genericConfig);

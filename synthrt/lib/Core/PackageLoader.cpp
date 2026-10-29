@@ -62,14 +62,11 @@ namespace srt {
                 return Error(Error::InvalidFormat,
                              std::string("interpreter returned null ") + std::string(payloadName));
             }
-            if (payload->interfaceId() != spec.interfaceId() || payload->variant() != spec.variant() ||
-                payload->level() != spec.level()) {
+            if (payload->triplet() != spec.triplet()) {
                 return Error(Error::InvalidFormat,
-                             stdc::formatN(
-                                 "interpreter returned %1 for contract %2/%3/%4 instead of "
-                                 "%5/%6/%7",
-                                 payloadName, payload->interfaceId(), payload->variant(),
-                                 payload->level(), spec.interfaceId(), spec.variant(), spec.level()));
+                             stdc::formatN("interpreter returned %1 for %2 instead of %3",
+                                           payloadName, payload->triplet().toString(),
+                                           spec.triplet().toString()));
             }
             return {};
         }
@@ -748,8 +745,7 @@ namespace srt {
                 }
                 for (auto spec : categoryEntry.second) {
                     auto loader = m_synthUnit->_impl->pluginFactory.findInterpreter(
-                        category->interpreterIid(), spec->interfaceId(), spec->level(),
-                        spec->variant());
+                        category->interpreterIid(), spec->triplet());
                     if (!loader) {
                         return Error(Error::FeatureNotSupported,
                                      "no interpreter provides the requested module triple");
@@ -804,8 +800,7 @@ namespace srt {
                 }
                 for (auto spec : categoryEntry.second) {
                     auto interpreterResult = m_synthUnit->_impl->pluginFactory.loadInterpreter(
-                        spec->_impl->pluginLoader, spec->interfaceId(), spec->level(),
-                        spec->variant());
+                        spec->_impl->pluginLoader, spec->triplet());
                     if (!interpreterResult) {
                         return interpreterResult.takeError();
                     }
@@ -1279,9 +1274,9 @@ namespace srt {
 
                     context.declarationPath = declarationPath;
                     context.manifestDeclaration = declaration;
-                    context.interfaceId = interfaceIt->second.toString();
-                    context.variant = variantIt->second.toString();
-                    context.level = static_cast<int>(levelIt->second.toInt());
+                    context.triplet = ContribTriplet(interfaceIt->second.toString(),
+                                                     static_cast<int>(levelIt->second.toInt()),
+                                                     variantIt->second.toString());
                     if (const auto it = declaration.find("name"); it != declaration.end()) {
                         auto name = readDisplayText(it->second, "module name");
                         if (!name) {

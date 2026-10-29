@@ -123,8 +123,8 @@ namespace ds {
     srt::Expected<void>
         VocoderInterpreter::validateCompatibility(const srt::InferenceSpec &spec,
                                                   const srt::InferenceSpec &other) const {
-        if (other.interfaceId() != Ac::API_INTERFACE || other.variant() != Ac::API_VARIANT ||
-            other.level() != Ac::API_LEVEL) {
+        if (other.triplet() !=
+            srt::ContribTriplet(Ac::API_INTERFACE, Ac::API_LEVEL, Ac::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument,
                               "vocoder compatibility requires an Acoustic Level 1 ONNX inference");
         }
