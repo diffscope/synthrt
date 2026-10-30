@@ -6,4 +6,4 @@ add_subdirectory(Inference)
 
 add_subdirectory(Support)
 
-add_subdirectory(Utility)
+add_subdirectory(util)
