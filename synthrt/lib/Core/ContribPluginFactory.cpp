@@ -1,8 +1,5 @@
 #include "ContribPluginFactory_p.h"
 
-#include <cstdint>
-#include <limits>
-#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -10,7 +7,6 @@
 #include <stdcorelib/support/json.h>
 
 #include "ContribInterpreterPlugin.h"
-#include "ContribLocator.h"
 
 namespace srt {
 
@@ -18,53 +14,19 @@ namespace srt {
 
         bool metadataProvidesInterpreter(const stdc::json::Value &metadata,
                                          const ContribTriplet &triplet) {
-            if (!metadata.isObject()) {
+            // Metadata that breaks a rule makes the plugin no candidate at all, rather than a
+            // candidate for the triplets it does spell correctly.
+            const auto declarations =
+                ContribInterpreterPlugin::readInterpreterDeclarations(metadata);
+            if (!declarations) {
                 return false;
             }
-
-            const auto &name = metadata["name"];
-            if (!name.isString() || !ContribLocator::isValidSegment(name.toString())) {
-                return false;
-            }
-
-            const auto &interpreters = metadata["interpreters"];
-            if (!interpreters.isArray() || interpreters.toArray().empty()) {
-                return false;
-            }
-
-            std::set<ContribTriplet> declarations;
-            bool matches = false;
-            for (const auto &value : interpreters.toArray()) {
-                if (!value.isObject()) {
-                    return false;
-                }
-
-                const auto &declaredInterface = value["interface"];
-                const auto &declaredVariant = value["variant"];
-                const auto &declaredLevel = value["level"];
-                if (!declaredInterface.isString() || !declaredVariant.isString() ||
-                    !declaredLevel.isInt() ||
-                    !ContribLocator::isValidDottedId(declaredInterface.toString()) ||
-                    !ContribLocator::isValidDottedId(declaredVariant.toString())) {
-                    return false;
-                }
-
-                const auto levelValue = declaredLevel.toInt();
-                if (levelValue <= 0 || levelValue > std::numeric_limits<int>::max()) {
-                    return false;
-                }
-
-                ContribTriplet declaration(declaredInterface.toString(),
-                                           static_cast<int>(levelValue),
-                                           declaredVariant.toString());
+            for (const auto &declaration : declarations.value()) {
                 if (declaration == triplet) {
-                    matches = true;
-                }
-                if (!declarations.insert(std::move(declaration)).second) {
-                    return false;
+                    return true;
                 }
             }
-            return matches;
+            return false;
         }
 
     }
