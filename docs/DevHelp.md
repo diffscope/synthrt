@@ -413,6 +413,8 @@ IID 由 Category 决定，并通过 `stdc_add_plugin_metadata()` 嵌入动态库
 
 `plugin.json` 的格式由 `srt::ContribInterpreterPlugin::readInterpreterDeclarations()` 规定，Provider 发现也是用它读取 metadata：`name` 是合法段名，`interpreters` 是非空数组，每项的 `interface` 与 `variant` 是合法的点分标识，`level` 是正整数，且三元组互不重复。违反任何一条的 bundle 不会成为候选，发现过程也不报错，所以该函数返回的错误就是插件为何从不被选中的说明。
 
+插件类在 `create()` 中比较三元组，拒绝自己不服务的三元组。规范没有规定拒绝时用什么错误码，dsinfer 的插件用 `InvalidArgument`，消息中带上 `ContribTriplet::toString()`。
+
 插件目标应在所属 category 的 CMake 层设置 IID，并在创建目标后声明插件二进制：
 
 ```cmake

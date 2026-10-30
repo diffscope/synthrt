@@ -16,7 +16,7 @@ namespace ds {
             if (triplet !=
                 srt::ContribTriplet(Dur::API_INTERFACE, Dur::API_LEVEL, Dur::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
-                                  "unsupported duration interpreter contract");
+                                  "unsupported contract: " + triplet.toString());
             }
             return std::unique_ptr<srt::ContribInterpreter>(new DurationInterpreter());
         }

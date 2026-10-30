@@ -17,7 +17,7 @@ namespace ds {
             if (triplet !=
                 srt::ContribTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
-                                  "unsupported variance interpreter contract");
+                                  "unsupported contract: " + triplet.toString());
             }
             return std::unique_ptr<srt::ContribInterpreter>(new VarianceInterpreter());
         }

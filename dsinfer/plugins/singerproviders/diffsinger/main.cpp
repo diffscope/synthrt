@@ -16,7 +16,7 @@ namespace ds {
             if (triplet != srt::ContribTriplet(DiffSinger::API_INTERFACE, DiffSinger::API_LEVEL,
                                                DiffSinger::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
-                                  "unsupported DiffSinger provider contract");
+                                  "unsupported contract: " + triplet.toString());
             }
             return std::unique_ptr<srt::ContribInterpreter>(new DiffSingerProvider());
         }

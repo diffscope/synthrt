@@ -18,8 +18,11 @@ namespace srt {
     public:
         ~ContribInterpreterPlugin() = default;
 
-        /// Creates the interpreter for  triplet, one of the triplets that the metadata of the
+        /// Creates the interpreter for \a triplet, one of the triplets that the metadata of the
         /// plugin declares.
+        ///
+        /// The runtime passes only declared triplets. A plugin refuses any other with an error of
+        /// its own choosing, since the specification names no code for that refusal.
         virtual Expected<std::unique_ptr<ContribInterpreter>>
             create(const ContribTriplet &triplet) = 0;
 

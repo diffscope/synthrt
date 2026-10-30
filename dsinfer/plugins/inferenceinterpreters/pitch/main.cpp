@@ -17,7 +17,7 @@ namespace ds {
             if (triplet !=
                 srt::ContribTriplet(Pit::API_INTERFACE, Pit::API_LEVEL, Pit::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
-                                  "unsupported pitch interpreter contract");
+                                  "unsupported contract: " + triplet.toString());
             }
             return std::unique_ptr<srt::ContribInterpreter>(new PitchInterpreter());
         }

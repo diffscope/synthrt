@@ -16,7 +16,7 @@ namespace ds {
             namespace Vo = Api::Vocoder::L1;
             if (triplet != srt::ContribTriplet(Vo::API_INTERFACE, Vo::API_LEVEL, Vo::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
-                                  "unsupported vocoder interpreter contract");
+                                  "unsupported contract: " + triplet.toString());
             }
             return std::unique_ptr<srt::ContribInterpreter>(new VocoderInterpreter());
         }

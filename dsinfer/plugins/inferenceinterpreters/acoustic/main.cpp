@@ -16,7 +16,7 @@ namespace ds {
             namespace Ac = Api::Acoustic::L1;
             if (triplet != srt::ContribTriplet(Ac::API_INTERFACE, Ac::API_LEVEL, Ac::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
-                                  "unsupported acoustic interpreter contract");
+                                  "unsupported contract: " + triplet.toString());
             }
             return std::unique_ptr<srt::ContribInterpreter>(new AcousticInterpreter());
         }
