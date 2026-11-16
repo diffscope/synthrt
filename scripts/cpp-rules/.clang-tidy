@@ -1,0 +1,38 @@
+# LLVM 21.1.0 is the tested baseline. Enable individual checks only after their
+# accepted and rejected examples pass tests/Run.cmake.
+Checks: '-*,readability-identifier-naming'
+WarningsAsErrors: 'readability-identifier-naming'
+# Project headers must be checked along with translation units. The runner
+# supplies a repository-specific header filter. System headers remain excluded.
+SystemHeaders: false
+CheckOptions:
+  readability-identifier-naming.ClassCase: CamelCase
+  readability-identifier-naming.StructCase: CamelCase
+  readability-identifier-naming.UnionCase: CamelCase
+  readability-identifier-naming.EnumCase: CamelCase
+  readability-identifier-naming.EnumConstantCase: CamelCase
+  readability-identifier-naming.TypedefCase: CamelCase
+  readability-identifier-naming.TypeAliasCase: CamelCase
+  readability-identifier-naming.FunctionCase: camelBack
+  readability-identifier-naming.MethodCase: camelBack
+  readability-identifier-naming.ParameterCase: camelBack
+  readability-identifier-naming.VariableCase: camelBack
+  readability-identifier-naming.NamespaceCase: camelBack
+  # Constants take precedence over storage prefixes. This uses clang-tidy's
+  # constant classification. Existing API spellings are reviewed separately.
+  readability-identifier-naming.ConstantCase: UPPER_CASE
+  readability-identifier-naming.ConstantPrefix: ''
+  readability-identifier-naming.PrivateMemberCase: camelBack
+  readability-identifier-naming.PrivateMemberPrefix: 'm_'
+  # These two names identify the declaration and implementation in a PImpl pair.
+  readability-identifier-naming.PrivateMemberIgnoredRegexp: '^(_impl|_decl)$'
+  readability-identifier-naming.GlobalVariableCase: camelBack
+  readability-identifier-naming.GlobalVariablePrefix: 'g_'
+  readability-identifier-naming.GlobalVariableIgnoredRegexp: '^s_[a-z][a-zA-Z0-9]*$'
+  # LLVM's naming check does not distinguish namespace static storage here.
+  # s_ is accepted explicitly, but enforcing static versus external storage
+  # remains a coverage gap.
+  readability-identifier-naming.ParameterIgnoredRegexp: '^(LHS|RHS)$'
+  readability-identifier-naming.VariableIgnoredRegexp: '^(LHS|RHS)$'
+  # Exemptions for project API namespaces belong in repository configuration,
+  # not in this reusable policy. No automatic rename is performed by the runner.

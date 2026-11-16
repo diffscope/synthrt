@@ -1,3 +1,4 @@
+# Maintained in scripts/cpp-rules/.clang-format. Run Check.cmake with SYNC_FORMAT=ON after editing.
 # References:
 #   https://clang.llvm.org/docs/ClangFormatStyleOptions.html
 #   https://code.qt.io/cgit/qt/qt5.git/tree/_clang-format
