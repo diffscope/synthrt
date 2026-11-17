@@ -1,4 +1,4 @@
-#include <inferutil/LinguisticEncoder.h>
+#include "LinguisticEncoder.h"
 
 #include <dsinfer/Support/ErrorCode.h>
 
@@ -8,8 +8,8 @@
 
 #include <stdcorelib/stdc_global.h>
 
-#include <inferutil/TensorHelper.h>
-#include <inferutil/InputWord.h>
+#include "TensorHelper.h"
+#include "InputWord.h"
 
 namespace ds::inferutil {
 

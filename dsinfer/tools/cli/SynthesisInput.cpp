@@ -9,7 +9,7 @@
 
 #include <synthrt/Support/Json.h>
 
-#include <AcousticInputParser.h>
+#include <inputparser/AcousticInputParser.h>
 
 namespace ds::cli {
 

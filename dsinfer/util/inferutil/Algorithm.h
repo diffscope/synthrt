@@ -119,8 +119,8 @@ namespace ds::inferutil {
     }
 
     inline std::vector<double> resample(const stdc::array_view<double> &samples, double timestep,
-                                               double targetTimestep, int64_t targetLength,
-                                               bool fillLast) {
+                                        double targetTimestep, int64_t targetLength,
+                                        bool fillLast) {
         if (samples.empty() || targetLength == 0) {
             return {};
         }
@@ -174,7 +174,7 @@ namespace ds::inferutil {
                                                const std::vector<uint8_t> &isRest) {
 
         static_assert(std::is_floating_point_v<T> ||
-            (std::is_integral_v<T> && !std::is_same_v<T, bool>));
+                      (std::is_integral_v<T> && !std::is_same_v<T, bool>) );
 
         if (midi.size() != isRest.size()) {
             return false;

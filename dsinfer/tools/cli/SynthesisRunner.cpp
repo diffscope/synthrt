@@ -26,7 +26,7 @@
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
 
-#include <WavFile.h>
+#include <wavfile/WavFile.h>
 
 namespace ds::cli {
 

@@ -16,8 +16,8 @@ namespace ds::inferutil {
 
     srt::Expected<std::shared_ptr<ITensor>> preprocessSpeakerEmbeddingFrames(
         const std::vector<Api::Common::L1::InputSpeakerInfo> &speakers,
-        const std::map<std::string, std::vector<float>> &embMap, int hiddenSize,
-        double frameWidth, int64_t targetLength);
+        const std::map<std::string, std::vector<float>> &embMap, int hiddenSize, double frameWidth,
+        int64_t targetLength);
 }
 
 #endif // DSINFER_INFERUTIL_SPEAKEREMBEDDING_H

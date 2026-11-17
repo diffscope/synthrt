@@ -1,4 +1,4 @@
-#include "inferutil/Driver.h"
+#include "Driver.h"
 
 #include <synthrt/Core/SynthUnit.h>
 

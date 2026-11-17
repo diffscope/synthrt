@@ -23,7 +23,7 @@
 
 #include <dsinfer/Support/ErrorCode.h>
 
-#include "OnnxTensor.h"
+#include <onnxutil/OnnxTensor.h>
 
 #include "OnnxDriverLogging.h"
 #include "Runtime/DriverContext.h"

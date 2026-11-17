@@ -9,5 +9,5 @@ dsinfer_add_library(${PROJECT_NAME} STATIC NO_INSTALL
     SOURCES ${_src}
     FEATURES cxx_std_17
     LINKS synthrt-dsinfer
-    INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/include
+    INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/..
 )

@@ -1,5 +1,5 @@
-#ifndef DSINFER_WAVFILE_H
-#define DSINFER_WAVFILE_H
+#ifndef DSINFER_WAVFILE_WAVFILE_H
+#define DSINFER_WAVFILE_WAVFILE_H
 
 #include <cstdint>
 #include <filesystem>
@@ -50,4 +50,4 @@ namespace ds {
     };
 
 }
-#endif // DSINFER_WAVFILE_H
+#endif // DSINFER_WAVFILE_WAVFILE_H

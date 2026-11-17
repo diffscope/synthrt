@@ -1,6 +1,6 @@
 project(wavfile)
 
-file(GLOB_RECURSE _src "src/*.cpp")
+file(GLOB_RECURSE _src "*.cpp")
 
 dsinfer_add_library(${PROJECT_NAME} STATIC NO_INSTALL
     SOURCES
@@ -8,7 +8,7 @@ dsinfer_add_library(${PROJECT_NAME} STATIC NO_INSTALL
     FEATURES
         cxx_std_17
     INCLUDE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/..
     INCLUDE_PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/include
 )

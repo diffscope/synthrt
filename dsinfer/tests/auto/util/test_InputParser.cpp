@@ -7,10 +7,10 @@
 
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
-#include <AcousticInputParser.h>
-#include <DurationInputParser.h>
-#include <PitchInputParser.h>
-#include <VarianceInputParser.h>
+#include <inputparser/AcousticInputParser.h>
+#include <inputparser/DurationInputParser.h>
+#include <inputparser/PitchInputParser.h>
+#include <inputparser/VarianceInputParser.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>

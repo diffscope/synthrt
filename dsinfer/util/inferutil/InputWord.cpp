@@ -1,4 +1,4 @@
-#include <inferutil/InputWord.h>
+#include "InputWord.h"
 
 #include <cmath>
 #include <cstdint>
@@ -7,7 +7,7 @@
 
 #include <dsinfer/Support/ErrorCode.h>
 
-#include <inferutil/TensorHelper.h>
+#include "TensorHelper.h"
 
 namespace ds::inferutil {
 

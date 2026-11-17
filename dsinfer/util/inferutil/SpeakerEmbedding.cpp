@@ -1,4 +1,4 @@
-#include <inferutil/SpeakerEmbedding.h>
+#include "SpeakerEmbedding.h"
 
 #include <fstream>
 #include <utility>
@@ -7,7 +7,7 @@
 
 #include <dsinfer/Support/ErrorCode.h>
 
-#include <inferutil/Algorithm.h>
+#include "Algorithm.h"
 
 namespace ds::inferutil {
     namespace Co = Api::Common::L1;

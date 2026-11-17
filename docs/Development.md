@@ -6,6 +6,8 @@
 
 ## 目录与文件
 
+内部辅助库放在 `模块/util/辅助库/`，头文件与源文件在其中平铺，可以按职责增加子目录。目标提供 `模块/util/` 作为 include 根，调用方使用 `<辅助库/头文件.h>`。第三方代码保留上游布局。
+
 公开头文件放在 `synthrt/include/synthrt/模块` 下，源文件放在 `synthrt/lib/模块` 下。公开头文件与源文件应按模块保持对应关系。例如，`synthrt/include/synthrt/Core/PackageHandle.h` 对应 `synthrt/lib/Core/PackageHandle.cpp`。
 
 仅供实现使用的私有头文件放在对应的 `synthrt/lib/模块` 目录中，并使用 `_p.h` 后缀。私有头文件会增加实现之间的耦合，应尽量少用。
@@ -86,5 +88,5 @@
 - 插件的头文件取模块名与 `plugins/` 之后的路径，各级目录都计入：`dsinfer/plugins/inferencedrivers/onnxdriver/Runtime/DriverContext.h` 为 `DSINFER_INFERENCEDRIVERS_ONNXDRIVER_RUNTIME_DRIVERCONTEXT_H`。
 - 测试的辅助头文件取模块名、`TESTS` 与 `tests/auto/` 之后的路径：`dsinfer/tests/auto/Inference/TestCaseLoader.h` 为 `DSINFER_TESTS_INFERENCE_TESTCASELOADER_H`。
 - 独立程序（`tools/` 与 `tests/manual/` 下的各个程序）的头文件以程序目录名开头，取其后的路径：`dsinfer/tools/cli/SynthesisRunner.h` 为 `CLI_SYNTHESISRUNNER_H`。
-- `util/` 下子库的 include 根目录是子库自己的名字，不带模块名，故补回模块名。没有 include 目录时 `src/` 与 `lib/` 同等看待：`dsinfer/util/inferutil/include/inferutil/Algorithm.h` 为 `DSINFER_INFERUTIL_ALGORITHM_H`，`dsinfer/util/inputparser/src/InputParserCommon_p.h` 为 `DSINFER_INPUTPARSER_INPUTPARSERCOMMON_P_H`。
+- `util/` 下子库的 include 根目录是子库自己的名字，不带模块名，故补回模块名。头文件与源文件直接放在辅助库目录内，不再分 include 与 src：`dsinfer/util/inferutil/Algorithm.h` 为 `DSINFER_INFERUTIL_ALGORITHM_H`，`dsinfer/util/inputparser/InputParserCommon_p.h` 为 `DSINFER_INPUTPARSER_INPUTPARSERCOMMON_P_H`。
 - 第三方代码（如 `dsinfer/util/wavfile/thirdparty/`）沿用上游的保护名，不按本节改写。

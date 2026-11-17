@@ -20,7 +20,8 @@
 #include <dsinfer/Inference/InferenceSession.h>
 #include <dsinfer/Support/ErrorCode.h>
 
-#include "OnnxTensor.h"
+#include <onnxutil/OnnxTensor.h>
+
 #include "TestCaseLoader.h"
 
 #define BOOST_TEST_MAIN
