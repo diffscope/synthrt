@@ -1,5 +1,5 @@
-#ifndef CLI_SYNTHESISRUNNER_H
-#define CLI_SYNTHESISRUNNER_H
+#ifndef DSINFER_TOOLS_CLI_SYNTHESISRUNNER_H
+#define DSINFER_TOOLS_CLI_SYNTHESISRUNNER_H
 
 #include <filesystem>
 
@@ -25,4 +25,4 @@ namespace ds::cli {
 
 }
 
-#endif // CLI_SYNTHESISRUNNER_H
+#endif // DSINFER_TOOLS_CLI_SYNTHESISRUNNER_H
