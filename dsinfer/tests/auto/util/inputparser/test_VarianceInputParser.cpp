@@ -21,3 +21,11 @@ BOOST_AUTO_TEST_CASE(rejects_malformed_input) {
     BOOST_REQUIRE(!bad);
     BOOST_CHECK(bad.error().code() == srt::Error::InvalidFormat);
 }
+
+BOOST_AUTO_TEST_CASE(rejects_malformed_nested_score_fields_with_their_paths) {
+    checkMalformedWordInputs(ds::parseVarianceStartInput);
+}
+
+BOOST_AUTO_TEST_CASE(rejects_malformed_parameter_and_speaker_curves_with_their_paths) {
+    checkMalformedCurveInputs(ds::parseVarianceStartInput);
+}

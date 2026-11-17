@@ -17,3 +17,7 @@ BOOST_AUTO_TEST_CASE(rejects_malformed_input) {
     BOOST_REQUIRE(!invalid);
     BOOST_CHECK(invalid.error().code() == srt::Error::InvalidFormat);
 }
+
+BOOST_AUTO_TEST_CASE(rejects_malformed_nested_score_fields_with_their_paths) {
+    checkMalformedWordInputs(ds::parseDurationStartInput);
+}
