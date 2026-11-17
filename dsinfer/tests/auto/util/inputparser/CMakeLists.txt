@@ -1,1 +1,4 @@
-add_auto_test(test_InputParser.cpp inputparser)
+add_auto_test(test_AcousticInputParser.cpp inputparser)
+add_auto_test(test_DurationInputParser.cpp inputparser)
+add_auto_test(test_PitchInputParser.cpp inputparser)
+add_auto_test(test_VarianceInputParser.cpp inputparser)

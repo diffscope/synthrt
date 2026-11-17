@@ -1,0 +1,8 @@
+add_auto_test(test_ErrorCollector.cpp inferutil)
+add_auto_test(test_TensorHelper.cpp inferutil)
+add_auto_test(test_Algorithm.cpp inferutil)
+add_auto_test(test_Speedup.cpp inferutil)
+add_auto_test(test_InputWord.cpp inferutil)
+add_auto_test(test_SpeakerEmbedding.cpp inferutil)
+add_auto_test(test_LinguisticEncoder.cpp inferutil)
+add_auto_test(test_Parser.cpp inferutil)
