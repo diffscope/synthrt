@@ -29,3 +29,7 @@ if(TARGET test_DurationInterpreter)
         DSINFER_TEST_DURATION_MANIFEST="$<TARGET_PROPERTY:duration,SOURCE_DIR>/plugin.json"
     )
 endif()
+
+if(TARGET test_DurationTask)
+    set_tests_properties(test_DurationTask PROPERTIES TIMEOUT 30)
+endif()
