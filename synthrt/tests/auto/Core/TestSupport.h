@@ -198,8 +198,8 @@ namespace {
     class TestInterpreterPlugin final : public srt::ContribInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
-            if (triplet != srt::ContribTriplet(testInterface, 1, "test")) {
+            create(const srt::ContribContractTriplet &triplet) override {
+            if (triplet != srt::ContribContractTriplet(testInterface, 1, "test")) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unexpected test interpreter contract");
             }

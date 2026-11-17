@@ -72,7 +72,7 @@ namespace ds {
     srt::Expected<srt::InferenceExecutive *>
         DiffSingerPipelineExecutive::createInference(std::string_view role,
                                                      const srt::InferenceRuntimeOptions &options,
-                                                     const srt::ContribTriplet &expected) {
+                                                     const srt::ContribContractTriplet &expected) {
         auto result = createChild(role, options);
         if (!result) {
             return result.takeError();

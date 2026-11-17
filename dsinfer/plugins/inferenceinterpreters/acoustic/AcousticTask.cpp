@@ -40,7 +40,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "acoustic configuration is nullptr");
         }
         if (genericConfig->triplet() !=
-            srt::ContribTriplet(Ac::API_INTERFACE, Ac::API_LEVEL, Ac::API_VARIANT)) {
+            srt::ContribContractTriplet(Ac::API_INTERFACE, Ac::API_LEVEL, Ac::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid acoustic configuration");
         }
         return static_cast<const Ac::AcousticConfiguration *>(genericConfig);

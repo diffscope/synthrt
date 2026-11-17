@@ -8,7 +8,7 @@
 #include <stdcorelib/support/json.h>
 
 #include <synthrt/Core/ContribInterpreter.h>
-#include <synthrt/Core/ContribTriplet.h>
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
@@ -24,7 +24,7 @@ namespace srt {
         /// The runtime passes only declared triplets. A plugin refuses any other with an error of
         /// its own choosing, since the specification names no code for that refusal.
         virtual Expected<std::unique_ptr<ContribInterpreter>>
-            create(const ContribTriplet &triplet) = 0;
+            create(const ContribContractTriplet &triplet) = 0;
 
         /// Reads the triplets that the metadata of an interpreter plugin declares.
         ///
@@ -39,7 +39,7 @@ namespace srt {
         ///
         /// \return The declarations in the order of the array, or an \c InvalidFormat error that
         ///         names the first rule the metadata breaks.
-        SYNTHRT_EXPORT static Expected<std::vector<ContribTriplet>>
+        SYNTHRT_EXPORT static Expected<std::vector<ContribContractTriplet>>
             readInterpreterDeclarations(const stdc::json::Value &metadata);
 
     protected:

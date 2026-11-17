@@ -31,7 +31,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "vocoder configuration is nullptr");
         }
         if (genericConfig->triplet() !=
-            srt::ContribTriplet(Vo::API_INTERFACE, Vo::API_LEVEL, Vo::API_VARIANT)) {
+            srt::ContribContractTriplet(Vo::API_INTERFACE, Vo::API_LEVEL, Vo::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid vocoder configuration");
         }
         return static_cast<const Vo::VocoderConfiguration *>(genericConfig);

@@ -418,7 +418,7 @@ IID 由 Category 决定，并通过 `stdc_add_plugin_metadata()` 嵌入动态库
 
 `plugin.json` 的格式由 `srt::ContribInterpreterPlugin::readInterpreterDeclarations()` 规定，Provider 发现也是用它读取 metadata：`name` 是合法段名，`interpreters` 是非空数组，每项的 `interface` 与 `variant` 是合法的点分标识，`level` 是正整数，且三元组互不重复。违反任何一条的 bundle 不会成为候选，发现过程也不报错，所以该函数返回的错误就是插件为何从不被选中的说明。
 
-插件类在 `create()` 中比较三元组，拒绝自己不服务的三元组。规范没有规定拒绝时用什么错误码，dsinfer 的插件用 `InvalidArgument`，消息中带上 `ContribTriplet::toString()`。
+插件类在 `create()` 中比较三元组，拒绝自己不服务的三元组。规范没有规定拒绝时用什么错误码，dsinfer 的插件用 `InvalidArgument`，消息中带上 `ContribContractTriplet::toString()`。
 
 插件所属 category 的 CMake 层设置 `CURRENT_PLUGIN_CATEGORY` 与 `CURRENT_PLUGIN_IID`。插件本身仍由本仓库 qmsetup 辅助函数生成的 `<前缀>_add_plugin()` 声明，`cmake/AddPlugin.cmake` 只提供它不做的几件事，由调用方组合：
 
@@ -471,7 +471,7 @@ dsinfer 把这几步合成 `dsinfer/plugins/CMakeLists.txt` 里的 `dsinfer_add_
 `as<T>()` 最终是静态转换，不做 RTTI 检查。正确用法是先检查身份，再转换：
 
 ```cpp
-if (spec.triplet() != srt::ContribTriplet(MyApi::Interface, MyApi::Level, MyApi::Variant)) {
+if (spec.triplet() != srt::ContribContractTriplet(MyApi::Interface, MyApi::Level, MyApi::Variant)) {
     return srt::Error(srt::Error::InvalidArgument, "unexpected contract");
 }
 
@@ -507,7 +507,7 @@ srt::Expected<MyExecutive *> MyPipeline::createLanguage(
 
     auto executive = *result;
     const auto &target = executive->spec();
-    if (target.triplet() != srt::ContribTriplet(MyApi::Interface, MyApi::Level, MyApi::Variant)) {
+    if (target.triplet() != srt::ContribContractTriplet(MyApi::Interface, MyApi::Level, MyApi::Variant)) {
         delete executive;
         return srt::Error(srt::Error::InvalidFormat, "factory returned an incompatible Executive");
     }
@@ -571,9 +571,9 @@ if (!base) {
 }
 
 auto singer = base->as<srt::SingerSpec>();
-if (singer->interface() != ds::Api::DiffSinger::L1::API_INTERFACE ||
-    singer->variant() != ds::Api::DiffSinger::L1::API_VARIANT ||
-    singer->level() != ds::Api::DiffSinger::L1::API_LEVEL) {
+if (singer->triplet().interfaceId() != ds::Api::DiffSinger::L1::API_INTERFACE ||
+    singer->triplet().variant() != ds::Api::DiffSinger::L1::API_VARIANT ||
+    singer->triplet().level() != ds::Api::DiffSinger::L1::API_LEVEL) {
     // 不是调用方理解的契约
 }
 
@@ -756,7 +756,7 @@ public:
     static constexpr const char *IID = "com.example.LanguageInterpreter";
 
     srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-        create(const srt::ContribTriplet &triplet) override;
+        create(const srt::ContribContractTriplet &triplet) override;
 };
 ```
 

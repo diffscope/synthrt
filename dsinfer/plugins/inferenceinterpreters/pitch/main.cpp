@@ -9,10 +9,10 @@ namespace ds {
     class PitchInterpreterPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
-            if (triplet != srt::ContribTriplet(Api::Pitch::L1::API_INTERFACE,
-                                               Api::Pitch::L1::API_LEVEL,
-                                               Api::Pitch::L1::API_VARIANT)) {
+            create(const srt::ContribContractTriplet &triplet) override {
+            if (triplet != srt::ContribContractTriplet(Api::Pitch::L1::API_INTERFACE,
+                                                       Api::Pitch::L1::API_LEVEL,
+                                                       Api::Pitch::L1::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

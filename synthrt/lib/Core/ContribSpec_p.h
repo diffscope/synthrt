@@ -41,7 +41,7 @@ namespace srt {
         ContribInterpreter *interpreter = nullptr;
         JsonObject manifestDeclaration;
         DisplayText name;
-        ContribTriplet triplet;
+        ContribContractTriplet triplet;
         JsonValue manifestExports;
         std::unique_ptr<ContribExports> exports;
         JsonValue manifestConfiguration;

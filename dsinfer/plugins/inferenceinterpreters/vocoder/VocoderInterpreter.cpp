@@ -124,7 +124,7 @@ namespace ds {
         VocoderInterpreter::validateCompatibility(const srt::InferenceSpec &spec,
                                                   const srt::InferenceSpec &other) const {
         if (other.triplet() !=
-            srt::ContribTriplet(Ac::API_INTERFACE, Ac::API_LEVEL, Ac::API_VARIANT)) {
+            srt::ContribContractTriplet(Ac::API_INTERFACE, Ac::API_LEVEL, Ac::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument,
                               "vocoder compatibility requires an Acoustic Level 1 ONNX inference");
         }

@@ -8,7 +8,7 @@
 
 namespace srt {
 
-    Expected<std::vector<ContribTriplet>>
+    Expected<std::vector<ContribContractTriplet>>
         ContribInterpreterPlugin::readInterpreterDeclarations(const stdc::json::Value &metadata) {
         if (!metadata.isObject()) {
             return Error(Error::InvalidFormat, "plugin metadata is not an object");
@@ -25,8 +25,8 @@ namespace srt {
                          "plugin metadata declares no interpreters array, or an empty one");
         }
 
-        std::vector<ContribTriplet> declarations;
-        std::set<ContribTriplet> seen;
+        std::vector<ContribContractTriplet> declarations;
+        std::set<ContribContractTriplet> seen;
         for (const auto &value : interpreters.toArray()) {
             const auto position = "interpreter " + std::to_string(declarations.size());
             if (!value.isObject()) {
@@ -56,8 +56,8 @@ namespace srt {
                                  std::to_string(std::numeric_limits<int>::max()));
             }
 
-            ContribTriplet triplet(declaredInterface.toString(), static_cast<int>(level),
-                                   declaredVariant.toString());
+            ContribContractTriplet triplet(declaredInterface.toString(), static_cast<int>(level),
+                                           declaredVariant.toString());
             if (!seen.insert(triplet).second) {
                 return Error(Error::InvalidFormat, position + " repeats an earlier declaration");
             }

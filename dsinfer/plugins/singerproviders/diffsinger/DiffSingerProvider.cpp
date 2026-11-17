@@ -28,8 +28,8 @@ namespace ds {
 
         bool isDiffSingerSpec(const srt::ContribSpec &spec) {
             return spec.locator().category() == srt::SingerCategory::NAME &&
-                   spec.triplet() ==
-                       srt::ContribTriplet(Ds::API_INTERFACE, Ds::API_LEVEL, Ds::API_VARIANT);
+                   spec.triplet() == srt::ContribContractTriplet(Ds::API_INTERFACE, Ds::API_LEVEL,
+                                                                 Ds::API_VARIANT);
         }
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec);
@@ -54,8 +54,9 @@ namespace ds {
 
             srt::Expected<std::unique_ptr<srt::SingerPipelineExecutive>>
                 createPipeline(const srt::SingerPipelineRuntimeOptions &runtimeOptions) override {
-                if (runtimeOptions.triplet() !=
-                    srt::ContribTriplet(Ds::API_INTERFACE, Ds::API_LEVEL, Ds::API_VARIANT)) {
+                if (runtimeOptions.triplet() != srt::ContribContractTriplet(Ds::API_INTERFACE,
+                                                                            Ds::API_LEVEL,
+                                                                            Ds::API_VARIANT)) {
                     return srt::Error(
                         srt::Error::InvalidArgument,
                         "DiffSinger pipeline options have an incompatible contract identity");
@@ -65,10 +66,9 @@ namespace ds {
             }
         };
 
-        srt::Expected<srt::InferenceSpec *> resolveKnownImport(const srt::ContribSpec &spec,
-                                                               std::string_view role,
-                                                               const srt::ContribTriplet &expected,
-                                                               bool required) {
+        srt::Expected<srt::InferenceSpec *>
+            resolveKnownImport(const srt::ContribSpec &spec, std::string_view role,
+                               const srt::ContribContractTriplet &expected, bool required) {
             const auto import = spec.findImport(role);
             if (!import) {
                 if (required) {

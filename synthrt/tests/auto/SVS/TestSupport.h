@@ -75,8 +75,9 @@ namespace {
     class TestInferenceInterpreterPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
-            if (triplet != srt::ContribTriplet(testInferenceInterface, 1, testInferenceVariant)) {
+            create(const srt::ContribContractTriplet &triplet) override {
+            if (triplet !=
+                srt::ContribContractTriplet(testInferenceInterface, 1, testInferenceVariant)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unexpected test inference contract");
             }

@@ -44,7 +44,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "variance configuration is nullptr");
         }
         if (genericConfig->triplet() !=
-            srt::ContribTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
+            srt::ContribContractTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance configuration");
         }
         return static_cast<const Var::VarianceConfiguration *>(genericConfig);
@@ -58,7 +58,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "variance schema is nullptr");
         }
         if (genericSchema->triplet() !=
-            srt::ContribTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
+            srt::ContribContractTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance schema");
         }
         return static_cast<const Var::VarianceSchema *>(genericSchema);

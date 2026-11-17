@@ -99,9 +99,9 @@ namespace {
     class InterpreterPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
-            create(const srt::ContribTriplet &triplet) override {
-            if (triplet != srt::ContribTriplet(Contract::API_INTERFACE, Contract::API_LEVEL,
-                                               Contract::API_VARIANT)) {
+            create(const srt::ContribContractTriplet &triplet) override {
+            if (triplet != srt::ContribContractTriplet(Contract::API_INTERFACE, Contract::API_LEVEL,
+                                                       Contract::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument, "unexpected test contract");
             }
             return std::make_unique<TestInterpreter>();

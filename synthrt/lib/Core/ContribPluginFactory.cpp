@@ -13,7 +13,7 @@ namespace srt {
     namespace {
 
         bool metadataProvidesInterpreter(const stdc::json::Value &metadata,
-                                         const ContribTriplet &triplet) {
+                                         const ContribContractTriplet &triplet) {
             // Metadata that breaks a rule makes the plugin no candidate at all, rather than a
             // candidate for the triplets it does spell correctly.
             const auto declarations =
@@ -33,7 +33,7 @@ namespace srt {
 
     stdc::plugin::PluginLoader *
         ContribPluginFactory::findInterpreter(std::string_view iid,
-                                              const ContribTriplet &triplet) const {
+                                              const ContribContractTriplet &triplet) const {
         for (auto loader : plugins(iid)) {
             if (metadataProvidesInterpreter(loader->metadata(), triplet)) {
                 return loader;
@@ -44,7 +44,7 @@ namespace srt {
 
     Expected<ContribInterpreter *>
         ContribPluginFactory::loadInterpreter(stdc::plugin::PluginLoader *loader,
-                                              const ContribTriplet &triplet) {
+                                              const ContribContractTriplet &triplet) {
         if (!loader) {
             return Error(Error::InvalidArgument, "interpreter plugin loader must not be null");
         }

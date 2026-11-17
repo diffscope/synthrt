@@ -6,7 +6,9 @@
 
 ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设备环境。CLI 的直接测试覆盖输入转换、失败出口及使用记录型后端的完整五阶段合成。真实训练模型仍需相应集成夹具。
 
-本轮完整工作区验证：先确认构建退出码为 0，再运行 CTest。synthrt 注册 71 项测试，Boost.Test 实际执行 14290 条断言。全部通过，无跳过。
+身份类型重构前的完整工作区验证：先确认构建退出码为 0，再运行 CTest。synthrt 注册 71 项测试，Boost.Test 实际执行 14290 条断言。全部通过，无跳过。
+
+2026-11-17 身份类型重构验证：构建退出码为 0，71 项 CTest 全部通过。test_ContribContract 的 4 个用例、30 条断言通过。本轮未重新统计全库 Boost.Test 断言总数。
 
 | 产品文件 | 类及内部类型 | 测试入口 | 验证方式 |
 |---|---|---|---|
@@ -19,7 +21,7 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 | [synthrt/include/synthrt/Core/ContribSpec.h](../../synthrt/include/synthrt/Core/ContribSpec.h) | `ContribExports, ContribImportOptions, ContribConfiguration, ContribImportValidator, ContribImport, ContribSpec` | [test_SynthUnit](../../synthrt/tests/auto/Core/test_SynthUnit.cpp)、[test_InferenceContrib](../../synthrt/tests/auto/SVS/test_InferenceContrib.cpp) | 通过所属接口或集成流程验证 |
 | [synthrt/include/synthrt/Core/ContribSpecExtension.h](../../synthrt/include/synthrt/Core/ContribSpecExtension.h) | `ContribSpecExtension` | [test_SynthUnit](../../synthrt/tests/auto/Core/test_SynthUnit.cpp)、[test_DiffSingerProvider](../../dsinfer/tests/auto/plugins/singerproviders/diffsinger/test_DiffSingerProvider.cpp) | 通过所属接口或集成流程验证 |
 | [synthrt/include/synthrt/Core/ContribSpecPayload.h](../../synthrt/include/synthrt/Core/ContribSpecPayload.h) | `ContribSpecPayload` | [test_ContribSpecPayload](../../synthrt/tests/auto/Core/test_ContribSpecPayload.cpp) | 直接测试 |
-| [synthrt/include/synthrt/Core/ContribTriplet.h](../../synthrt/include/synthrt/Core/ContribTriplet.h) | `ContribTriplet` | [test_ContribTriplet](../../synthrt/tests/auto/Core/test_ContribTriplet.cpp) | 直接测试 |
+| [synthrt/include/synthrt/Core/ContribContract.h](../../synthrt/include/synthrt/Core/ContribContract.h) | `ContribContract`、`ContribContractTriplet` | [test_ContribContract](../../synthrt/tests/auto/Core/test_ContribContract.cpp) | 直接测试 |
 | [synthrt/include/synthrt/Core/PackageHandle.h](../../synthrt/include/synthrt/Core/PackageHandle.h) | `PackageDependency, PackageHandle` | [test_PackageHandle](../../synthrt/tests/auto/Core/test_PackageHandle.cpp) | 直接测试 |
 | [synthrt/include/synthrt/Core/RuntimeService.h](../../synthrt/include/synthrt/Core/RuntimeService.h) | `RuntimeService` | [test_RuntimeService](../../synthrt/tests/auto/Core/test_RuntimeService.cpp) | 直接测试 |
 | [synthrt/include/synthrt/Core/SynthUnit.h](../../synthrt/include/synthrt/Core/SynthUnit.h) | `SynthUnit` | [test_SynthUnit](../../synthrt/tests/auto/Core/test_SynthUnit.cpp) | 直接测试 |

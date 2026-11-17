@@ -32,7 +32,7 @@ namespace srt {
         return m_data->name;
     }
 
-    const ContribTriplet &ContribCreateContext::triplet() const {
+    const ContribContractTriplet &ContribCreateContext::triplet() const {
         assert(m_data->manifestDeclaration);
         return m_data->triplet;
     }

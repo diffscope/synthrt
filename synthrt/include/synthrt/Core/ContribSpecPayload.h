@@ -3,7 +3,7 @@
 
 #include <utility>
 
-#include <synthrt/Core/ContribTriplet.h>
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/synthrt_global.h>
 
 namespace srt {
@@ -14,18 +14,19 @@ namespace srt {
         virtual ~ContribSpecPayload() = default;
 
         /// Returns the triplet of the contract this value belongs to.
-        const ContribTriplet &triplet() const {
+        const ContribContractTriplet &triplet() const {
             return m_triplet;
         }
 
         SYNTHRT_DECLARE_AS_METHODS(ContribSpecPayload)
 
     protected:
-        explicit ContribSpecPayload(ContribTriplet triplet) : m_triplet(std::move(triplet)) {
+        explicit ContribSpecPayload(ContribContractTriplet triplet)
+            : m_triplet(std::move(triplet)) {
         }
 
     private:
-        ContribTriplet m_triplet;
+        ContribContractTriplet m_triplet;
 
         STDC_DISABLE_COPY(ContribSpecPayload)
     };

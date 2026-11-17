@@ -11,7 +11,7 @@
 #include <stdcorelib/plugin/pluginfactory.h>
 
 #include <synthrt/Core/ContribInterpreter.h>
-#include <synthrt/Core/ContribTriplet.h>
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/Support/Expected.h>
 
 namespace srt {
@@ -21,11 +21,11 @@ namespace srt {
     public:
         /// Returns the first plugin whose valid metadata declares the requested interpreter.
         stdc::plugin::PluginLoader *findInterpreter(std::string_view iid,
-                                                    const ContribTriplet &triplet) const;
+                                                    const ContribContractTriplet &triplet) const;
 
         /// Loads the selected plugin and returns its retained interpreter for one contract.
         Expected<ContribInterpreter *> loadInterpreter(stdc::plugin::PluginLoader *loader,
-                                                       const ContribTriplet &triplet);
+                                                       const ContribContractTriplet &triplet);
 
         /// Returns the interpreters selected in this SynthUnit.
         stdc::array_view<ContribInterpreter *> interpreters() const;
@@ -34,7 +34,7 @@ namespace srt {
         stdc::array_view<ContribImportValidator *> importValidators() const;
 
     private:
-        using InterpreterKey = std::pair<stdc::plugin::PluginLoader *, ContribTriplet>;
+        using InterpreterKey = std::pair<stdc::plugin::PluginLoader *, ContribContractTriplet>;
 
         std::map<InterpreterKey, std::unique_ptr<ContribInterpreter>> m_interpreters;
         stdc::vlarray<ContribInterpreter *> m_interpreterViews;

@@ -41,7 +41,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "pitch configuration is nullptr");
         }
         if (genericConfig->triplet() !=
-            srt::ContribTriplet(Pit::API_INTERFACE, Pit::API_LEVEL, Pit::API_VARIANT)) {
+            srt::ContribContractTriplet(Pit::API_INTERFACE, Pit::API_LEVEL, Pit::API_VARIANT)) {
             return srt::Error(srt::Error::InvalidArgument, "invalid pitch configuration");
         }
         return static_cast<const Pit::PitchConfiguration *>(genericConfig);

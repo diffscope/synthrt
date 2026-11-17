@@ -12,7 +12,7 @@
 #include <synthrt/Core/ContribLocator.h>
 #include <synthrt/Core/ContribSpecExtension.h>
 #include <synthrt/Core/ContribSpecPayload.h>
-#include <synthrt/Core/ContribTriplet.h>
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/Core/PackageHandle.h>
 #include <synthrt/Support/DisplayText.h>
 #include <synthrt/Support/Expected.h>
@@ -145,7 +145,7 @@ namespace srt {
         const DisplayText &name() const;
 
         /// Returns the \c interface, \c level and \c variant of the declaration.
-        const ContribTriplet &triplet() const;
+        const ContribContractTriplet &triplet() const;
 
         /// Returns the exports value read from the manifest.
         const JsonValue &manifestExports() const;

@@ -69,4 +69,4 @@ SynthRT 的 Package 基础设施目前已经实现：
 3. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
 4. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。
 5. 为发行产物固定 `Phonetic-Suite-Eng` 门禁：在来源修订、转换流程、模型检查点、训练数据与再分发许可全部记录并复核之前，该套件不得进入发行产物。`Phonetic-Suite-Multi` 是否包含 Eng 的权重尚未核实，核实后一并纳入门禁。
-6. 按 [`docs/claude/contract-variant-plan.md`](claude/contract-variant-plan.md) 分离契约与变体：契约 payload 只携带 `interface` 与 `level`，configuration 移入变体头文件，并引入 `StaticContribContract` 与 `StaticContribTriplet`。
+6. 按 [重构计划](codex/ContractVariantPlan.md) 分离契约与变体：契约 payload 只携带 `interface` 与 `level`，configuration 移入变体头文件，身份类型使用同一 `ContribContract.h` 中的 `ContribContract` 与 `ContribContractTriplet`。

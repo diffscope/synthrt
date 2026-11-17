@@ -62,7 +62,7 @@ namespace srt {
         return _impl->name;
     }
 
-    const ContribTriplet &ContribSpec::triplet() const {
+    const ContribContractTriplet &ContribSpec::triplet() const {
         assert(_impl->hasModuleDeclaration);
         return _impl->triplet;
     }

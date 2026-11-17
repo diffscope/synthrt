@@ -1280,9 +1280,9 @@ namespace srt {
 
                     context.declarationPath = declarationPath;
                     context.manifestDeclaration = declaration;
-                    context.triplet = ContribTriplet(interfaceIt->second.toString(),
-                                                     static_cast<int>(levelIt->second.toInt()),
-                                                     variantIt->second.toString());
+                    context.triplet = ContribContractTriplet(
+                        interfaceIt->second.toString(), static_cast<int>(levelIt->second.toInt()),
+                        variantIt->second.toString());
                     if (const auto it = declaration.find("name"); it != declaration.end()) {
                         auto name = readDisplayText(it->second, "module name");
                         if (!name) {

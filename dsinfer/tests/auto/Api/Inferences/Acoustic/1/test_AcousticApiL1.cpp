@@ -8,7 +8,8 @@
 namespace Api = ds::Api::Acoustic::L1;
 
 BOOST_AUTO_TEST_CASE(payloads_preserve_contract_identity_across_base_views) {
-    const srt::ContribTriplet expected(Api::API_INTERFACE, Api::API_LEVEL, Api::API_VARIANT);
+    const srt::ContribContractTriplet expected(Api::API_INTERFACE, Api::API_LEVEL,
+                                               Api::API_VARIANT);
     Api::AcousticSchema schema;
     Api::AcousticConfiguration configuration;
     Api::AcousticImportOptions options;
