@@ -224,3 +224,119 @@ BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
     BOOST_CHECK(result.error().code() == srt::Error::InvalidArgument);
     BOOST_CHECK(task.state() == srt::ITask::Failed);
 }
+namespace {
+    class UnsupportedInit : public srt::TaskInitArgs {
+    public:
+        UnsupportedInit() : TaskInitArgs(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        }
+    };
+    class UnsupportedInput : public srt::TaskStartInput {
+    public:
+        UnsupportedInput() : TaskStartInput(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        }
+    };
+}
+
+BOOST_AUTO_TEST_CASE(initializedTasksRefuseUnsupportedInputVersions) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::PitchInference executive(declaration.spec());
+    ds::PitchTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::PitchInitArgs()));
+    UnsupportedInit init;
+    auto initialization = task.initialize(static_cast<const srt::TaskInitArgs &>(init));
+    BOOST_REQUIRE(!initialization);
+    BOOST_CHECK(initialization.error().code() == srt::Error::InvalidArgument);
+    UnsupportedInput input;
+    auto started = task.start(static_cast<const srt::TaskStartInput &>(input));
+    BOOST_REQUIRE(!started);
+    BOOST_CHECK(started.error().code() == srt::Error::InvalidArgument);
+    bool called = false;
+    auto asynchronous = task.startAsync(std::make_shared<const UnsupportedInput>(),
+                                        srt::ITask::AsyncCallback([&](auto) { called = true; }));
+    BOOST_REQUIRE(!asynchronous);
+    BOOST_CHECK(asynchronous.error().code() == srt::Error::InvalidArgument);
+    BOOST_CHECK(!called);
+    BOOST_CHECK(trace->calls.empty());
+}
+BOOST_AUTO_TEST_CASE(noteRestsCentsAndRetakeMasksReachThePredictor) {
+    namespace Co = ds::Api::Common::L1;
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::PitchInference executive(declaration.spec());
+    ds::PitchTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::PitchInitArgs()));
+    auto input = makeInput();
+    input.words[0].notes = {
+        {0, 0, 0.01, Co::GlideType::None, true},
+        {69, 50, 0.02},
+        {0, 0, 0.01, Co::GlideType::None, true}
+    };
+    input.parameters[0].retake = Co::InputParameterInfo::RetakeRange{0.01, 0.03};
+    input.parameters.push_back({Co::Tags::Expr, {0.25}, 0.01});
+    BOOST_REQUIRE(task.start(input));
+    const auto &inputs = trace->calls.back().inputs;
+    BOOST_CHECK_EQUAL(inputs.at("expr")->data<float>()[0], 0.25f);
+    BOOST_CHECK_EQUAL(inputs.at("note_midi")->data<float>()[0], 69.5f);
+    BOOST_CHECK_EQUAL(inputs.at("note_midi")->data<float>()[2], 69.5f);
+    BOOST_CHECK_EQUAL(inputs.at("note_dur")->data<int64_t>()[1], 2);
+    BOOST_CHECK(inputs.at("note_rest")->data<bool>()[0]);
+    BOOST_CHECK(!inputs.at("note_rest")->data<bool>()[1]);
+    const auto retake = inputs.at("retake")->data<bool>();
+    BOOST_CHECK(!retake[0]);
+    BOOST_CHECK(retake[1]);
+    BOOST_CHECK(retake[2]);
+    BOOST_CHECK(!retake[3]);
+}
+
+BOOST_AUTO_TEST_CASE(absentPitchAndExpressionProduceDefaultPredictorInputs) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::PitchInference executive(declaration.spec());
+    ds::PitchTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::PitchInitArgs()));
+    auto input = makeInput();
+    input.parameters.clear();
+    BOOST_REQUIRE(task.start(input));
+    const auto &inputs = trace->calls.back().inputs;
+    for (size_t i = 0; i < 4; ++i) {
+        BOOST_CHECK_EQUAL(inputs.at("pitch")->data<float>()[i], 0);
+        BOOST_CHECK_EQUAL(inputs.at("expr")->data<float>()[i], 1);
+        BOOST_CHECK(inputs.at("retake")->data<bool>()[i]);
+    }
+}
+BOOST_AUTO_TEST_CASE(linguisticModesLanguageIdsAndSpeakerEmbeddingsReachTheirModels) {
+    for (const auto mode : {"word", "phoneme"}) {
+        auto trace = std::make_shared<ds::test::DriverTrace>();
+        auto configuration = executionConfiguration();
+        configuration["linguisticMode"] = mode;
+        configuration["useContinuousAcceleration"] = true;
+        configuration["useLanguageId"] = true;
+        configuration["languages"] = "languages.json";
+        configuration["useSpeakerEmbedding"] = true;
+        configuration["hiddenSize"] = 2;
+        configuration["speakers"] = srt::JsonObject{
+            {"lead", "speaker.emb"}
+        };
+        ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                                configuration);
+        ds::PitchInference executive(declaration.spec());
+        ds::PitchTask task(executive);
+        BOOST_REQUIRE(task.initialize(Contract::PitchInitArgs()));
+        auto input = makeInput();
+        input.words[0].phones[0].language = "eng";
+        input.speakers.push_back({"lead", 0.01, {1}});
+        BOOST_REQUIRE(task.start(input));
+        BOOST_REQUIRE_EQUAL(trace->calls.size(), 2u);
+        const auto &encoder = trace->calls[0].inputs;
+        BOOST_CHECK_EQUAL(encoder.at("languages")->data<int64_t>()[0], 7);
+        BOOST_CHECK_EQUAL(encoder.count("word_div"), std::string(mode) == "word" ? 1u : 0u);
+        const auto &predictor = trace->calls[1].inputs;
+        BOOST_CHECK_EQUAL(predictor.at("steps")->data<int64_t>()[0], 20);
+        BOOST_CHECK(predictor.at("spk_embed")->shape() == std::vector<int64_t>({1, 4, 2}));
+        BOOST_CHECK_EQUAL(predictor.at("spk_embed")->data<float>()[1], 3);
+    }
+}

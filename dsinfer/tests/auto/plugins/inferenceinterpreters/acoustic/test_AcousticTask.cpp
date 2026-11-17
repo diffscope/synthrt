@@ -228,3 +228,140 @@ BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
     BOOST_CHECK(result.error().code() == srt::Error::InvalidArgument);
     BOOST_CHECK(task.state() == srt::ITask::Failed);
 }
+namespace {
+    class UnsupportedInit : public srt::TaskInitArgs {
+    public:
+        UnsupportedInit() : TaskInitArgs(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        }
+    };
+    class UnsupportedInput : public srt::TaskStartInput {
+    public:
+        UnsupportedInput() : TaskStartInput(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        }
+    };
+}
+
+BOOST_AUTO_TEST_CASE(initializedTasksRefuseUnsupportedInputVersions) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    UnsupportedInit init;
+    auto initialization = task.initialize(static_cast<const srt::TaskInitArgs &>(init));
+    BOOST_REQUIRE(!initialization);
+    BOOST_CHECK(initialization.error().code() == srt::Error::InvalidArgument);
+    UnsupportedInput input;
+    auto started = task.start(static_cast<const srt::TaskStartInput &>(input));
+    BOOST_REQUIRE(!started);
+    BOOST_CHECK(started.error().code() == srt::Error::InvalidArgument);
+    bool called = false;
+    auto asynchronous = task.startAsync(std::make_shared<const UnsupportedInput>(),
+                                        srt::ITask::AsyncCallback([&](auto) { called = true; }));
+    BOOST_REQUIRE(!asynchronous);
+    BOOST_CHECK(asynchronous.error().code() == srt::Error::InvalidArgument);
+    BOOST_CHECK(!called);
+    BOOST_CHECK(trace->calls.empty());
+}
+BOOST_AUTO_TEST_CASE(f0PrecedenceToneShiftAndContinuousAcceleration) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    auto configuration = executionConfiguration();
+    configuration["useContinuousAcceleration"] = true;
+    configuration["useVariableDepth"] = true;
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            configuration);
+    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    auto input = makeInput();
+    input.parameters.push_back({ds::Api::Common::L1::Tags::F0, {220}, 0.01});
+    input.parameters.push_back({ds::Api::Common::L1::Tags::ToneShift, {1200}, 0.01});
+    auto result = task.start(input);
+    BOOST_REQUIRE(result);
+    BOOST_CHECK_CLOSE(result.value()->f0->data<float>()[0], 440.0f, 0.0001);
+    const auto &inputs = trace->calls.back().inputs;
+    BOOST_CHECK_EQUAL(inputs.at("steps")->data<int64_t>()[0], 20);
+    BOOST_CHECK_EQUAL(inputs.at("depth")->data<float>()[0], 0.75f);
+    BOOST_CHECK_EQUAL(inputs.count("speedup"), 0u);
+    for (const auto steps : {0, -1}) {
+        input.steps = steps;
+        auto rejected = task.start(input);
+        BOOST_REQUIRE(!rejected);
+        BOOST_CHECK(rejected.error().code() == srt::Error::InvalidArgument);
+    }
+    BOOST_CHECK_EQUAL(trace->calls.size(), 1u);
+}
+
+BOOST_AUTO_TEST_CASE(languageAndSpeakerInputsAreResolvedAndValidated) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    auto configuration = executionConfiguration();
+    configuration["useLanguageId"] = true;
+    configuration["languages"] = "languages.json";
+    configuration["useSpeakerEmbedding"] = true;
+    configuration["hiddenSize"] = 2;
+    configuration["speakers"] = srt::JsonObject{
+        {"lead", "speaker.emb"}
+    };
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            configuration);
+    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    auto input = makeInput();
+    input.words[0].phones[0].language = "eng";
+    input.speakers.push_back({"lead", 0.01, {1}});
+    BOOST_REQUIRE(task.start(input));
+    const auto &inputs = trace->calls.back().inputs;
+    BOOST_CHECK_EQUAL(inputs.at("languages")->data<int64_t>()[0], 7);
+    BOOST_CHECK(inputs.at("spk_embed")->shape() == std::vector<int64_t>({1, 4, 2}));
+    BOOST_CHECK_EQUAL(inputs.at("spk_embed")->data<float>()[0], 1);
+    BOOST_CHECK_EQUAL(inputs.at("spk_embed")->data<float>()[1], 3);
+    input.words[0].phones[0].language = "unknown";
+    auto language = task.start(input);
+    BOOST_REQUIRE(!language);
+    BOOST_CHECK(language.error().code() == srt::Error::InvalidArgument);
+    input.words[0].phones[0].language = "eng";
+    input.speakers[0].name = "unknown";
+    auto speaker = task.start(input);
+    BOOST_REQUIRE(!speaker);
+    BOOST_CHECK(speaker.error().code() == srt::Error::InvalidArgument);
+    input.speakers.clear();
+    auto absent = task.start(input);
+    BOOST_REQUIRE(!absent);
+    BOOST_CHECK(absent.error().code() == ds::ErrorCode::InvalidInput);
+    BOOST_CHECK_EQUAL(trace->calls.size(), 1u);
+}
+
+BOOST_AUTO_TEST_CASE(requiredControlsAndEmptyOptionalControlsFollowTheirContracts) {
+    namespace Tags = ds::Api::Common::L1::Tags;
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    auto configuration = executionConfiguration();
+    configuration["parameters"] = srt::JsonArray{
+        "gender", "velocity", "energy", "breathiness", "voicing", "tension", "mouth_opening"};
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            configuration);
+    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    auto input = makeInput();
+    input.parameters.push_back({Tags::Gender, {}, 0.01});
+    input.parameters.push_back({Tags::Velocity, {}, 0.01});
+    for (const auto &tag :
+         {Tags::Energy, Tags::Breathiness, Tags::Voicing, Tags::Tension, Tags::MouthOpening}) {
+        input.parameters.push_back({tag, {0.5}, 0.01});
+    }
+    BOOST_REQUIRE(task.start(input));
+    BOOST_CHECK_EQUAL(trace->calls.back().inputs.at("gender")->data<float>()[0], 0);
+    BOOST_CHECK_EQUAL(trace->calls.back().inputs.at("velocity")->data<float>()[0], 1);
+    BOOST_CHECK_EQUAL(trace->calls.back().inputs.at("mouth_opening")->data<float>()[0], 0.5f);
+    const auto complete = input.parameters;
+    for (size_t index = 3; index < 7; ++index) {
+        input.parameters = complete;
+        input.parameters.erase(input.parameters.begin() + index);
+        auto missing = task.start(input);
+        BOOST_REQUIRE(!missing);
+        BOOST_CHECK(missing.error().code() == ds::ErrorCode::InvalidInput);
+    }
+    BOOST_CHECK_EQUAL(trace->calls.size(), 1u);
+}

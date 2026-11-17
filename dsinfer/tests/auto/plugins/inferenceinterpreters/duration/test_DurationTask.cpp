@@ -220,3 +220,59 @@ BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
     BOOST_CHECK(result.error().code() == srt::Error::InvalidArgument);
     BOOST_CHECK(task.state() == srt::ITask::Failed);
 }
+namespace {
+    class UnsupportedInit : public srt::TaskInitArgs {
+    public:
+        UnsupportedInit() : TaskInitArgs(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        }
+    };
+    class UnsupportedInput : public srt::TaskStartInput {
+    public:
+        UnsupportedInput() : TaskStartInput(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        }
+    };
+}
+
+BOOST_AUTO_TEST_CASE(initializedTasksRefuseUnsupportedInputVersions) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::DurationInference executive(declaration.spec());
+    ds::DurationTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::DurationInitArgs()));
+    UnsupportedInit init;
+    auto initialization = task.initialize(static_cast<const srt::TaskInitArgs &>(init));
+    BOOST_REQUIRE(!initialization);
+    BOOST_CHECK(initialization.error().code() == srt::Error::InvalidArgument);
+    UnsupportedInput input;
+    auto started = task.start(static_cast<const srt::TaskStartInput &>(input));
+    BOOST_REQUIRE(!started);
+    BOOST_CHECK(started.error().code() == srt::Error::InvalidArgument);
+    bool called = false;
+    auto asynchronous = task.startAsync(std::make_shared<const UnsupportedInput>(),
+                                        srt::ITask::AsyncCallback([&](auto) { called = true; }));
+    BOOST_REQUIRE(!asynchronous);
+    BOOST_CHECK(asynchronous.error().code() == srt::Error::InvalidArgument);
+    BOOST_CHECK(!called);
+    BOOST_CHECK(trace->calls.empty());
+}
+BOOST_AUTO_TEST_CASE(unknownTokensAndShortPredictionsAreReported) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::DurationInference executive(declaration.spec());
+    ds::DurationTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::DurationInitArgs()));
+    auto input = makeInput();
+    input.words[0].phones[0].token = "unknown";
+    auto invalid = task.start(input);
+    BOOST_REQUIRE(!invalid);
+    BOOST_CHECK(invalid.error().code() == srt::Error::InvalidArgument);
+    BOOST_CHECK(trace->calls.empty());
+    input.words[0].phones[0].token = "a";
+    input.words[0].phones.push_back({"a", "", 0, 0.02});
+    auto shortResult = task.start(input);
+    BOOST_REQUIRE(!shortResult);
+    BOOST_CHECK(shortResult.error().code() == ds::ErrorCode::ShapeMismatch);
+    BOOST_CHECK(task.state() == srt::ITask::Failed);
+}

@@ -225,3 +225,122 @@ BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
     BOOST_CHECK(result.error().code() == srt::Error::InvalidArgument);
     BOOST_CHECK(task.state() == srt::ITask::Failed);
 }
+namespace {
+    class UnsupportedInit : public srt::TaskInitArgs {
+    public:
+        UnsupportedInit() : TaskInitArgs(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        }
+    };
+    class UnsupportedInput : public srt::TaskStartInput {
+    public:
+        UnsupportedInput() : TaskStartInput(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        }
+    };
+}
+
+BOOST_AUTO_TEST_CASE(initializedTasksRefuseUnsupportedInputVersions) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::VarianceInference executive(declaration.spec());
+    ds::VarianceTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::VarianceInitArgs()));
+    UnsupportedInit init;
+    auto initialization = task.initialize(static_cast<const srt::TaskInitArgs &>(init));
+    BOOST_REQUIRE(!initialization);
+    BOOST_CHECK(initialization.error().code() == srt::Error::InvalidArgument);
+    UnsupportedInput input;
+    auto started = task.start(static_cast<const srt::TaskStartInput &>(input));
+    BOOST_REQUIRE(!started);
+    BOOST_CHECK(started.error().code() == srt::Error::InvalidArgument);
+    bool called = false;
+    auto asynchronous = task.startAsync(std::make_shared<const UnsupportedInput>(),
+                                        srt::ITask::AsyncCallback([&](auto) { called = true; }));
+    BOOST_REQUIRE(!asynchronous);
+    BOOST_CHECK(asynchronous.error().code() == srt::Error::InvalidArgument);
+    BOOST_CHECK(!called);
+    BOOST_CHECK(trace->calls.empty());
+}
+BOOST_AUTO_TEST_CASE(eachPredictionHasAnIndependentRetakeMask) {
+    namespace Co = ds::Api::Common::L1;
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    const srt::JsonObject exports{
+        {"predictions", srt::JsonArray{"energy", "breathiness"}}
+    };
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration(), exports);
+    ds::VarianceInference executive(declaration.spec());
+    ds::VarianceTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::VarianceInitArgs()));
+    auto input = makeInput();
+    input.parameters.push_back({
+        Co::Tags::Energy, {4},
+         0.01, Co::InputParameterInfo::RetakeRange{0.01, 0.03}
+    });
+    auto result = task.start(input);
+    BOOST_REQUIRE(result);
+    BOOST_REQUIRE_EQUAL(result.value()->predictions.size(), 2u);
+    BOOST_CHECK(result.value()->predictions[0].tag == Co::Tags::Energy);
+    BOOST_CHECK(result.value()->predictions[1].tag == Co::Tags::Breathiness);
+    const auto &inputs = trace->calls.back().inputs;
+    BOOST_CHECK_EQUAL(inputs.at("energy")->data<float>()[0], 4);
+    BOOST_CHECK_EQUAL(inputs.at("breathiness")->data<float>()[0], 0);
+    BOOST_CHECK(inputs.at("retake")->shape() == std::vector<int64_t>({1, 4, 2}));
+    const auto mask = inputs.at("retake")->data<bool>();
+    const std::vector<bool> expected{false, true, true, true, true, true, false, true};
+    for (size_t i = 0; i < expected.size(); ++i)
+        BOOST_CHECK_EQUAL(mask[i], expected[i]);
+}
+
+BOOST_AUTO_TEST_CASE(missingPitchAndZeroLengthScoresAreRejected) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::VarianceInference executive(declaration.spec());
+    ds::VarianceTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::VarianceInitArgs()));
+    auto input = makeInput();
+    input.parameters.clear();
+    auto missing = task.start(input);
+    BOOST_REQUIRE(!missing);
+    BOOST_CHECK(missing.error().code() == ds::ErrorCode::InvalidInput);
+    input = makeInput();
+    input.words[0].notes[0].duration = 0;
+    auto empty = task.start(input);
+    BOOST_REQUIRE(!empty);
+    BOOST_CHECK(empty.error().code() == ds::ErrorCode::InvalidInput);
+    for (const auto &call : trace->calls)
+        BOOST_CHECK(call.model.filename() != "predictor.onnx");
+}
+BOOST_AUTO_TEST_CASE(linguisticModesLanguageIdsAndSpeakerEmbeddingsReachTheirModels) {
+    for (const auto mode : {"word", "phoneme"}) {
+        auto trace = std::make_shared<ds::test::DriverTrace>();
+        auto configuration = executionConfiguration();
+        configuration["linguisticMode"] = mode;
+        configuration["useContinuousAcceleration"] = true;
+        configuration["useLanguageId"] = true;
+        configuration["languages"] = "languages.json";
+        configuration["useSpeakerEmbedding"] = true;
+        configuration["hiddenSize"] = 2;
+        configuration["speakers"] = srt::JsonObject{
+            {"lead", "speaker.emb"}
+        };
+        ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                                configuration);
+        ds::VarianceInference executive(declaration.spec());
+        ds::VarianceTask task(executive);
+        BOOST_REQUIRE(task.initialize(Contract::VarianceInitArgs()));
+        auto input = makeInput();
+        input.words[0].phones[0].language = "eng";
+        input.speakers.push_back({"lead", 0.01, {1}});
+        BOOST_REQUIRE(task.start(input));
+        BOOST_REQUIRE_EQUAL(trace->calls.size(), 2u);
+        const auto &encoder = trace->calls[0].inputs;
+        BOOST_CHECK_EQUAL(encoder.at("languages")->data<int64_t>()[0], 7);
+        BOOST_CHECK_EQUAL(encoder.count("word_div"), std::string(mode) == "word" ? 1u : 0u);
+        const auto &predictor = trace->calls[1].inputs;
+        BOOST_CHECK_EQUAL(predictor.at("steps")->data<int64_t>()[0], 20);
+        BOOST_CHECK(predictor.at("spk_embed")->shape() == std::vector<int64_t>({1, 4, 2}));
+        BOOST_CHECK_EQUAL(predictor.at("spk_embed")->data<float>()[1], 3);
+    }
+}
