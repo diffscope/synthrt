@@ -8410,7 +8410,7 @@ v0.14.0 - TBD
   - Fix compilation for AIX OS.
 
 v0.13.17 - 2024-12-17
-  - Fix a possible crash when reading from MS-ADPCM encoded files.
+  - Fix a possible abnormal termination when reading from MS-ADPCM encoded files.
   - Improve detection of ARM64EC
 
 v0.13.16 - 2024-02-27
@@ -8426,7 +8426,7 @@ v0.13.13 - 2023-11-02
   - Fix a warning when compiling with Clang.
 
 v0.13.12 - 2023-08-07
-  - Fix a possible crash in drwav_read_pcm_frames().
+  - Fix a possible abnormal termination in drwav_read_pcm_frames().
 
 v0.13.11 - 2023-07-07
   - AIFF compatibility improvements.
@@ -8443,7 +8443,7 @@ v0.13.9 - 2023-05-22
 
 v0.13.8 - 2023-03-25
   - Fix a possible null pointer dereference.
-  - Fix a crash when loading files with badly formed metadata.
+  - Fix an abnormal termination when loading files with badly formed metadata.
 
 v0.13.7 - 2022-09-17
   - Fix compilation with DJGPP.
@@ -8572,7 +8572,7 @@ v0.11.3 - 2020-01-12
   - Minor bug fix for ADPCM conversion when end of file is reached.
 
 v0.11.2 - 2019-12-02
-  - Fix a possible crash when using custom memory allocators without a custom realloc() implementation.
+  - Fix a possible abnormal termination when using custom memory allocators without a custom realloc() implementation.
   - Fix an integer overflow bug.
   - Fix a null pointer dereference bug.
   - Add limits to sample rate, channels and bits per sample to tighten up some validation.
@@ -8714,7 +8714,7 @@ v0.9.0 - 2018-12-16
 
 v0.8.5 - 2018-09-11
   - Const correctness.
-  - Fix a potential stack overflow.
+  - Fix a potential excessive-depth case.
 
 v0.8.4 - 2018-08-07
   - Improve 64-bit detection.
@@ -8739,14 +8739,14 @@ v0.7f - 2018-02-05
   - Restrict ADPCM formats to a maximum of 2 channels.
 
 v0.7e - 2018-02-02
-  - Fix a crash.
+  - Fix an abnormal termination.
 
 v0.7d - 2018-02-01
-  - Fix a crash.
+  - Fix an abnormal termination.
 
 v0.7c - 2018-02-01
   - Set drwav.bytesPerSample to 0 for all compressed formats.
-  - Fix a crash when reading 16-bit floating point WAV files. In this case dr_wav will output silence for
+  - Fix an abnormal termination when reading 16-bit floating point WAV files. In this case dr_wav will output silence for
     all format conversion reading APIs (*_s16, *_s32, *_f32 APIs).
   - Fix some divide-by-zero errors.
 

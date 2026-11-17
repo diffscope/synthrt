@@ -378,7 +378,7 @@ package.reset();
 
 Executive 具有 `Running`、`Stopping`、`Stopped` 生命周期状态。卸载协议要求先 quit 所有入口，再 wait 到静止。当前顶层 Package API 通过“所有 Executive 必须先由调用者销毁”保证这一点，具体 Executive 和其中 Task 的析构函数必须停止并等待自己的执行活动。
 
-`ContribExecutive` 基类析构函数不会调用虚 `quit()` 或 `wait()`。C++ 基类析构期间也不能再安全分派到派生实现。因此具体 Executive 必须在自己的析构过程或成员对象析构过程中完成停止和等待。当前 dsinfer Executive 由内部 Task 析构函数完成这道屏障。
+`ContribExecutive` 基类析构函数不会调用虚 `quit()` 或 `wait()`。C++ 基类析构期间也不能再正确分派到派生实现。因此具体 Executive 必须在自己的析构过程或成员对象析构过程中完成停止和等待。当前 dsinfer Executive 由内部 Task 析构函数完成这道屏障。
 
 ### 6.4 Binding 生命周期
 

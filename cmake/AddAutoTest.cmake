@@ -1,8 +1,8 @@
 # Boost.Test based automatic tests.
 #
-# One executable per test source, rather than a single binary linking every case. A crash, a hang or
-# a static initialization failure then isolates to the class under test instead of taking the whole
-# suite down with it, and \c ctest can run the cases in parallel.
+# One executable per test source, rather than a single binary linking every case. An abnormal exit,
+# a hang or a static initialization failure then isolates to the class under test instead of taking
+# the whole suite down with it, and \c ctest can run the cases in parallel.
 
 set(Boost_USE_STATIC_LIBS OFF)
 find_package(Boost 1.67.0 QUIET COMPONENTS unit_test_framework CONFIG)

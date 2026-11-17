@@ -42,7 +42,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - ONNX Driver Factory 和基于 Backend 的插件元数据
 - 支持内部加载 ONNX Runtime，或借用由外部持有生命周期的 ONNX Runtime API
 - ONNX Runtime API 与 Environment 的进程内一致性、按 Driver 隔离的模型缓存以及由 Session 共同持有的运行时生命周期
-- ONNX Session 的同步与异步执行、终止与等待、输入输出 Tensor 转换，以及回调期间销毁 Session 的安全边界
+- ONNX Session 的同步与异步执行、终止与等待、输入输出 Tensor 转换，以及回调期间销毁 Session 的生命周期边界
 - 使用真实 ONNX 模型覆盖内部与外部 Runtime API、并发打开、同步与异步推理、错误输入和无效模型的自动化测试
 - 已迁移到当前 Driver、Task 和 Tensor API 的 ONNX Driver 手动测试
 - Duration、Pitch、Variance、Acoustic 和 Vocoder Interpreter 均已迁移为类型化 Executive，并将模型执行拆分为独立 Task

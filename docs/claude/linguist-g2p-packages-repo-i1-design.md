@@ -221,18 +221,18 @@ wolf-g2p-packages/                # 资源仓（独立仓库，main 分支, 6130
 - **真实数据平面（主力）**：`g2p-tests` feature 装得 port 数据（spec 2.4 包）， 测试经 `WOLF_G2P_PACKAGES_DIR` → `SynthUnit::setPackagePaths` + `openPackage(path, OpenMode::Load)` 走**真实语言包 E2E**：Provider discovery → Package Load 事务 → Executive 创建与父子销毁（`docs/Status.md` 接下来第 4 条）； 覆盖三类变体链（algo-pinyin / pipe-chain / pipe-chain × multig2p-onnx）；
 - **仓内夹具（辅）**：负例与错误语义仍用 wolf 仓内合成夹具（沿 main `test_SynthUnit.cpp:363/441` 的运行期合成 `desc.json` 先例 + `AddAutoTest` RESOURCES 机制），覆盖 L1 声明解析错误面、依赖区间反例、未知开放 role 等—— 正例走真数据、反例走夹具，各得其所；
 - **测试矩阵**：第一轮 L1-L5 表保留，L5 从「过渡期冒烟」升级为真数据 E2E； L4 依赖的 provider（G2P/S2P/Onset interpreter 插件）落地前，L5 中相关用例按 D-W3 配置期门控 + 目标缺失门控双闸处理；
-- **接线骨架**（第一轮 §4.3 代码原样适用，变量名不变：`WOLF_G2P_PACKAGES_DIR` / `WOLF_G2P_PACKAGES_SOURCE` 逃生口 / `ENVIRONMENT` 注入 / 配置期门控）。
+- **接线骨架**（第一轮 §4.3 代码原样适用，变量名不变：`WOLF_G2P_PACKAGES_DIR` / `WOLF_G2P_PACKAGES_SOURCE` 逃生口 / `ENVIRONMENT` 配置 / 配置期门控）。
 
 ### 4.1 宿主模拟层 HostSim（D-W9）
 
-E2E 测试统一经 `src/tests/support/HostSim.{h,cpp}` 执行，调用序列镜像宿主集成模式—— **锚定 lite `SynthrtEngine::initialize`（`src/libs/SynthrtEngine/SynthrtEngine.cpp:298` 起）的宿主语义**：lite 侧「插件路径注入（`g2pPluginPaths`）→ 官方包路径注入 （`officialG2pPackages`，部署源自 `InferEngine.cpp:219` 的 `srt-g2p/G2pPackages`）→ 会话装配扫描（`VoicebankSession::refresh`）」的三段式，在 main 框架的等价物为：
+E2E 测试统一经 `src/tests/support/HostSim.{h,cpp}` 执行，调用序列镜像宿主集成模式—— **锚定 lite `SynthrtEngine::initialize`（`src/libs/SynthrtEngine/SynthrtEngine.cpp:298` 起）的宿主语义**：lite 侧「插件路径传入（`g2pPluginPaths`）→ 官方包路径传入 （`officialG2pPackages`，部署源自 `InferEngine.cpp:219` 的 `srt-g2p/G2pPackages`）→ 会话装配扫描（`VoicebankSession::refresh`）」的三段式，在 main 框架的等价物为：
 
 | # | lite（refactor 栈，今日） | HostSim（main 框架，测试） |
 | :-- | :-- | :-- |
 | 1 | 链接 langCore/wolf-midi 等注册方 | 链接 wolf → `linguist` 类别静态注册（先于一切 unit 构造） |
 | 2 | Runtime + LanguageService 装配 | `SynthUnit unit`（构造即收集全部注册类别） |
-| 3 | `resources.g2pPluginPaths` 注入 | `unit.setPluginPaths("linguist", {wolf provider 插件目录})`（类别级，`SynthUnit.h:65-67`） |
-| 4 | `resources.officialG2pPackages` 注入 | `unit.setPackagePaths({WOLF_G2P_PACKAGES_DIR, …})` |
+| 3 | `resources.g2pPluginPaths` 传入 | `unit.setPluginPaths("linguist", {wolf provider 插件目录})`（类别级，`SynthUnit.h:65-67`） |
+| 4 | `resources.officialG2pPackages` 传入 | `unit.setPackagePaths({WOLF_G2P_PACKAGES_DIR, …})` |
 | 5 | VoicebankSession 扫描声库 | `openPackage(path, OpenMode::Load)`：校验→依赖求解→提交 |
 | 6 | LanguageRoute 选择语言模块 | 贡献解析 `package->contribution("linguist", id)->as<LinguistSpec>()` |
 | 7 | 语言服务调用与释放 | `LinguistExecutive` 创建 / 父子销毁 |

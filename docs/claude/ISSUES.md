@@ -251,7 +251,7 @@ iterator_base(const iterator_base &RHS) : it(RHS.it) {
 iterator erase(iterator pos)       { return buf.erase(pos.it); }   // 对
 iterator erase(const_iterator pos) { return erase(pos.it); }       // 少了 buf.
 ```
-`pos.it` 是 `JsonObject::const_iterator`，会隐式转回 `proxy_map::const_iterator` → 调用自己 → 栈溢出。
+`pos.it` 是 `JsonObject::const_iterator`，会隐式转回 `proxy_map::const_iterator`，随后重复调用自身而无法正常返回。
 
 同一个类里 [`T &at(const Key&)`（非 const 版，:365）](../../synthrt/lib/Support/JSON.cpp#L365) 只声明未定义，一旦被 nlohmann 实例化就是链接错误。
 
@@ -317,7 +317,7 @@ map.clear();                            // 太晚了
 [dsinfer/plugins/inferenceinterpreters/acoustic/AcousticInference.cpp](../../dsinfer/plugins/inferenceinterpreters/acoustic/AcousticInference.cpp)
 
 **a)** [:220](../../dsinfer/plugins/inferenceinterpreters/acoustic/AcousticInference.cpp#L220) `intDepth = intDepth / acceleration * acceleration;`
-`acceleration` 直接来自用户输入的 `acousticInput->steps`（:191），为 0 时整数除零 → 崩溃。入口处应校验 `steps >= 1`。
+`acceleration` 直接来自用户输入的 `acousticInput->steps`（:191），为 0 时发生整数除零。入口处应校验 `steps >= 1`。
 
 **b)** 🔒 **保留**：[:248](../../dsinfer/plugins/inferenceinterpreters/acoustic/AcousticInference.cpp#L248) 算出了 `satisfyMouthOpening`，
 但 [:440](../../dsinfer/plugins/inferenceinterpreters/acoustic/AcousticInference.cpp#L440) 的校验块只查 energy / breathiness / voicing / tension。
@@ -577,9 +577,9 @@ BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会�
 只跳最前面的一个——出现在别处它就是文本里的字符，在字符串外面不构成文档。
 
 **b. 嵌套上限 200 太低。** `json_testsuite/sample.json` 实际嵌套 **468 层**，被拒。
-上限提到 512。这个数不是随手定的：**实测** debug 构建（帧最宽、栈 1 MB）在约 **950 层**上栈溢出，
+上限提到 512。这个数不是随手定的：**实测** debug 构建（帧最宽、可用调用空间最小）在约 **950 层**时无法完成，
 512 在最坏情况下仍留了将近一倍余量，release 下余量大得多。
-> 中途一度改成 Qt 的 1024，**当场栈溢出**（`0xC00000FD`）——所以这个限制必须按最坏构建来定，不能照抄别人的数字。
+> 中途一度改成 Qt 的 1024，**测试进程当场退出**（`0xC00000FD`），所以这个限制必须按最坏构建来定，不能照抄别人的数字。
 
 **c. CBOR 不定长（indefinite length）整个不支持。** 我们自己从不写，
 但**别人会写**，解不了就读不了别人的输出。现已支持：字符串拼接各段、数组与映射读到 break 为止。
@@ -626,7 +626,7 @@ BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会�
 或让 configure 与 build 使用同一代码页。
 
 **影响**：本轮所有涉及头文件的改动（Algorithm.h、JSON.cpp 的模板等）都只能靠**全量重建**验证。
-在修好之前，增量构建的结果不可信。
+在修好之前，增量构建的结果不能作为有效验证依据。
 
 ### A23. `dsinfer-cli` 找 ONNX Runtime 的目录与当前部署不一致
 
@@ -668,7 +668,7 @@ BOM 在 UTF-8 里不携带任何信息，但**Windows 上的编辑器就是会�
 - [x] **B2a** `explicit operator bool()` 非 const，const 对象无法判真假 — 已修（`e17c7bb`，加 `const`）
 - [x] **B2b** `valueOr(const U&) const &` 对 const 左值做 `std::forward<U>`，一旦实例化编译不过 — 已修（`e17c7bb`，两个重载都改成转发引用）
 - [x] **B2c** placement new 写成 `&_storage` 而非 `&_storage.err` — 已修（`e17c7bb`，四处统一）
-- [x] **B2d** `moveAssign` 非异常安全 — **不修，改为写进文档**
+- [x] **B2d** `moveAssign` 的异常处理保证不足 — **不修，改为写进文档**
 
 > **B2d 的处置（用户质疑后修正）**：我最初加了 try/catch 兜底，用户问"为什么 moveAssign 要 try catch"。
 > 重新检视后我自己也否定了这个补丁——catch 分支只能把对象留在一个 `NoError` 的错误态，
@@ -774,7 +774,7 @@ InferenceSpec *inference;   // 没有 = nullptr
 
 **b)** 🔒 **保留**：`importList` 持有指向 `importDataList` 元素的裸指针（[:723](../../synthrt/lib/SVS/SingerContrib.cpp#L723)），
 `importDataList` 一旦再被 push_back 触发重分配就全部失效。
-**目前时序上是安全的**（`importDataList` 在 `read()` 里一次性构建完，`importList` 在 `Ready` 阶段才建），
+**目前时序上不会产生悬空引用**（`importDataList` 在 `read()` 里一次性构建完，`importList` 在 `Ready` 阶段才建），
 所以这不是 bug，只是我认为"很脆"——属于主观判断，不动。真要改需要重新设计 `SingerImport` 的所有权模型，归 D 组。
 
 ---
@@ -1399,7 +1399,7 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
 | ~~A5~~ | ~~`JsonValue::Undefined`~~ | **已解锁并解决**（`56eae97`，删掉了这个概念本身） |
 | **A11b** | `satisfyMouthOpening` | 只写不读已确认，但属于"必需/可选/有意不校验"哪一类未知；文档里没有该参数 |
 | **B5** | `createOrtValueFromTensor` | 作者明确暂不处理；且"未使用参数"可能是有意（规避 A9 的生命周期约束） |
-| **B8b** | `SingerImport` 裸指针 | 当前时序安全，"脆弱"是主观判断 |
+| **B8b** | `SingerImport` 裸指针 | 当前时序上不会产生悬空引用，"脆弱"是主观判断 |
 | ~~B4~~ | ~~sparsepp 迭代器~~ | **已裁定不修**，且原评估过重（改名会编译期报错，非静默失效） |
 | ~~C9b~~ | ~~README 用法示例~~ | **已消失**（`e71f029`）——我的"不符"判断本身就是错的 |
 | **C11** | `parseLibrosaPitch` | 纯推测的规格偏差，非 bug |
@@ -1446,14 +1446,14 @@ pimpl 的 `Impl` 本来就不该可拷贝，已对 `NamedObject::Impl` 与 `Obje
 
 ### 已裁定不修
 - **B4** sparsepp 迭代器内部字段 — 作者裁定保持现状，我的原评估过重（详见该条）
-- **B2d** `moveAssign` 异常安全 — 两种修法都比现状差，改为文档说明（详见该条）
+- **B2d** `moveAssign` 的异常处理保证不足 — 两种修法都比现状差，改为文档说明（详见该条）
 
 ### 验证方式
 - 全量重建（`ninja -t clean` + build）：**exit 0**
 - **`ctest` 全过**（一个头文件一个可执行文件，见 `33d1189`）。用例数只保留在 `docs/Status.md` 的当前状态段，此处不再重复记数
 - 手动套件 `dsinfer/tests/manual/` 已随迁移删除，其有效场景由自动测试覆盖（迁移记录见 `docs/Status.md`），此处不再单独记数
 - **JSON 与两套语料测试已随 `JsonValue` 迁往 stdcorelib**（见下），本仓库不再有它们
-- ⚠️ 由于 A16，增量构建不可信；每轮改动后必须全量重建。
+- ⚠️ 由于 A16，增量构建结果可能失真；每轮改动后必须全量重建。
 - 断言总数约 **540**（`test_AlignedAllocator` 1019 的循环断言不计入此数）。
   `ContribLocator` 有 `_Parse` / `_Reject` / `_RoundTrip` / `_VersionIsNormalized` / `_Segments`；
   **A 组早期修复里 A1、A8–A15 仍无测试覆盖**，D6 依旧成立。
