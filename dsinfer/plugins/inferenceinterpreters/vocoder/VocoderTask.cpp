@@ -187,7 +187,7 @@ namespace ds {
         }
         auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
         if (auto waveformIt = sessionResult->outputs.find(outParamWaveform);
-            waveformIt != sessionResult->outputs.end()) {
+            waveformIt != sessionResult->outputs.end() && waveformIt->second) {
             const auto &waveformTensor = waveformIt->second;
             const auto size = waveformTensor->byteSize();
             vocoderResult->audioData.resize(size);

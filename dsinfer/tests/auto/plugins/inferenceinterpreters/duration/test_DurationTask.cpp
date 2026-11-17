@@ -276,3 +276,22 @@ BOOST_AUTO_TEST_CASE(unknownTokensAndShortPredictionsAreReported) {
     BOOST_CHECK(shortResult.error().code() == ds::ErrorCode::ShapeMismatch);
     BOOST_CHECK(task.state() == srt::ITask::Failed);
 }
+
+BOOST_AUTO_TEST_CASE(nullOutputTensorsFailWithoutDereferencingThem) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    trace->fault = ds::test::SessionFault::NullTensor;
+    trace->faultModel = "predictor.onnx";
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::DurationInference executive(declaration.spec());
+    ds::DurationTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::DurationInitArgs()));
+    auto failed = task.start(makeInput());
+    BOOST_REQUIRE(!failed);
+    BOOST_CHECK(failed.error().code() == ds::ErrorCode::SessionFailed);
+    BOOST_CHECK(task.state() == srt::ITask::Failed);
+    trace->fault = ds::test::SessionFault::None;
+    auto recovered = task.start(makeInput());
+    BOOST_REQUIRE(recovered);
+    BOOST_CHECK(task.state() == srt::ITask::Succeeded);
+}

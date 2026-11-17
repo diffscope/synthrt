@@ -548,7 +548,7 @@ namespace ds {
         }
         auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
         if (auto melIt = sessionResult->outputs.find(outParamMel);
-            melIt != sessionResult->outputs.end()) {
+            melIt != sessionResult->outputs.end() && melIt->second) {
             acousticResult->mel = melIt->second;
         } else {
             updateState(srt::ITask::Failed);

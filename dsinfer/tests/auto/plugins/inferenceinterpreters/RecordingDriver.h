@@ -22,7 +22,16 @@
 namespace ds::test {
 
     /// Selects the response of the session whose file name is faultModel.
-    enum class SessionFault { None, Open, Run, NullResult, WrongType, WrongVersion, MissingOutput };
+    enum class SessionFault {
+        None,
+        Open,
+        Run,
+        NullResult,
+        WrongType,
+        WrongVersion,
+        MissingOutput,
+        NullTensor
+    };
 
     /// One request observed at the model boundary.
     struct ModelCall {
@@ -128,6 +137,10 @@ namespace ds::test {
             auto result = std::make_unique<Api::Onnx::SessionResult>();
             if (fault != SessionFault::MissingOutput) {
                 for (const auto &name : typed->outputs) {
+                    if (fault == SessionFault::NullTensor) {
+                        result->outputs.emplace(name, nullptr);
+                        continue;
+                    }
                     std::vector<int64_t> shape{1, 4};
                     if (name == "encoder_out") {
                         shape = {1, 1, 2};

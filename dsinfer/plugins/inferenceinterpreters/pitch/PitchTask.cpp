@@ -498,7 +498,7 @@ namespace ds {
         }
         auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
         if (auto predictionIt = sessionResult->outputs.find(outParamPitchPred);
-            predictionIt != sessionResult->outputs.end()) {
+            predictionIt != sessionResult->outputs.end() && predictionIt->second) {
             // Extract onnx model result and copy to pitch final result vector (float -> double)
             auto output = std::move(predictionIt->second);
             if (output->dataType() != ITensor::Float) {
