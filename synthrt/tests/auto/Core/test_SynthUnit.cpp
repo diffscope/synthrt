@@ -356,6 +356,26 @@ BOOST_AUTO_TEST_CASE(test_manifest_profile_distinguishes_invalid_and_extensible_
     BOOST_CHECK(unit.loadedPackages().empty());
 }
 
+BOOST_AUTO_TEST_CASE(test_manifest_limits_json_nesting) {
+    TemporaryDirectory temporary;
+    const auto nestedArray = [](std::size_t depth) {
+        return std::string(depth, '[') + "0" + std::string(depth, ']');
+    };
+
+    auto unit = makeUnit();
+    const auto accepted = writePackage(temporary.path(), "accepted", "accepted", "1", {}, "[]",
+                                       "[]", R"(,"probe":)" + nestedArray(400));
+    auto opened = unit.openPackage(accepted, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(opened);
+
+    const auto rejected = writePackage(temporary.path(), "rejected", "rejected", "1", {}, "[]",
+                                       "[]", R"(,"probe":)" + nestedArray(100000));
+    opened = unit.openPackage(rejected, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
+    BOOST_CHECK(opened.error().toString().find("nested too deeply") != std::string::npos);
+}
+
 BOOST_AUTO_TEST_CASE(test_failed_prepared_import_validation_rolls_back_package_state) {
     TemporaryDirectory temporary;
     const auto root = writePackage(temporary.path(), "root", "root", "1");

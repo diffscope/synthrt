@@ -80,10 +80,13 @@ namespace srt {
 
             bool hasDuplicateObjectKey() {
                 skipSpace();
-                return scanValue() && m_duplicate;
+                return scanValue(0) && m_duplicate;
             }
 
         private:
+            // Match the parser's limit so the pre-scan cannot descend farther than parsing will.
+            static constexpr int maxDepth = 512;
+
             void skipSpace() {
                 while (m_offset < m_source.size() && stdc::str::is_space(m_source[m_offset])) {
                     ++m_offset;
@@ -123,16 +126,19 @@ namespace srt {
                 return false;
             }
 
-            bool scanValue() {
+            bool scanValue(int depth) {
+                if (depth > maxDepth) {
+                    return false;
+                }
                 skipSpace();
                 if (m_offset >= m_source.size()) {
                     return false;
                 }
                 if (m_source[m_offset] == '{') {
-                    return scanObject();
+                    return scanObject(depth);
                 }
                 if (m_source[m_offset] == '[') {
-                    return scanArray();
+                    return scanArray(depth);
                 }
                 if (m_source[m_offset] == '"') {
                     return scanString();
@@ -147,7 +153,7 @@ namespace srt {
                 return true;
             }
 
-            bool scanObject() {
+            bool scanObject(int depth) {
                 ++m_offset;
                 skipSpace();
                 std::set<std::string, std::less<>> keys;
@@ -167,7 +173,7 @@ namespace srt {
                     if (m_offset >= m_source.size() || m_source[m_offset++] != ':') {
                         return false;
                     }
-                    if (!scanValue()) {
+                    if (!scanValue(depth + 1)) {
                         return false;
                     }
                     skipSpace();
@@ -185,7 +191,7 @@ namespace srt {
                 }
             }
 
-            bool scanArray() {
+            bool scanArray(int depth) {
                 ++m_offset;
                 skipSpace();
                 if (m_offset < m_source.size() && m_source[m_offset] == ']') {
@@ -193,7 +199,7 @@ namespace srt {
                     return true;
                 }
                 for (;;) {
-                    if (!scanValue()) {
+                    if (!scanValue(depth + 1)) {
                         return false;
                     }
                     skipSpace();
