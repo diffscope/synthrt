@@ -35,7 +35,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 
 已经完成的迁移包括：
 
-- 将库文件命名为 `synthrt-dsinfer`，同时保留 `dsinfer::dsinfer` CMake Target
+- 将库文件、CMake 包与安装目录都命名为 `synthrt-dsinfer`，Target 为 `synthrt::dsinfer`
 - 基于 stdcorelib Allocator 和 View 的类型化 Tensor 存储
 - 自己持有标识符文本的 ParamTag
 - 公开的 Inference Driver、Session、Interpreter 和 Singer Provider 接口
@@ -60,7 +60,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - 真实插件的 Package 加载和兼容性拒绝已有自动化覆盖，Pipeline 创建、子实例执行与 Package 卸载仍缺少端到端测试
 - Core 已将每条 Import Binding 的 typed options 传入 Executive 创建流程，但 Duration、Pitch、Acoustic 与 Variance 插件尚未将 per-import options 保存到具体 Executive 并在 Task 中消费。插件作者仍需实现 `speakerMapping`，并让 Variance 按 import `predictions` 选择预测子集，同时补充同一 target 经不同 role 创建不同 Executive 的回归测试
 
-当前完整 `all` 构建可以通过，16 个自动测试均已通过。
+当前完整 `all` 构建可以通过，21 个自动测试均已通过。
 
 ## 后续工作
 

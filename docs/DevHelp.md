@@ -171,13 +171,18 @@ Category 名称在一个 SynthUnit 内唯一。两个 Module Category 也不能�
 
 ### 3.2 插件和 Package 搜索路径
 
-每个 Module Category 有独立的有序插件搜索路径：
+每个 Module Category 有独立的有序插件搜索路径。dsinfer 的插件安装在前缀下的 `lib/synthrt-dsinfer/plugins`，每个类别一个子目录。宿主把需要的类别目录加入插件搜索路径。CMake 包把每个安装的插件导出为导入目标，例如 `synthrt::onnxdriver`，CMake 工程可以用 `$<TARGET_FILE_DIR:...>` 取得插件所在目录：
 
 ```cpp
-unit.setPluginPaths("singer", {pluginRoot / "singerproviders"});
-unit.setPluginPaths("inference", {pluginRoot / "inferenceinterpreters"});
+const auto dsinferPlugins = prefix / "lib" / "synthrt-dsinfer" / "plugins";
+const auto wolfPlugins = prefix / "lib" / "synthrt-wolf" / "plugins";
+unit.setPluginPaths("singer", {dsinferPlugins / "singerproviders"});
+unit.setPluginPaths("inference", {dsinferPlugins / "inferenceinterpreters",
+                                  wolfPlugins / "inferenceinterpreters"});
 unit.setPackagePaths({installedPackagesA, installedPackagesB});
 ```
+
+`setPluginPaths()` 与 `setPackagePaths()` 整体替换序列。一个 Category 的解释器可以来自多个库，例如 dsinfer、wolf 与 otter 都提供 `inference` 解释器，宿主把各库的目录列在同一个序列里。
 
 插件路径的直接子目录是 bundle。每个 bundle 包含 `plugin.json` 和由 `name` 定位的动态库。插件 IID 嵌入动态库，`plugin.json` 只保存该扩展点拥有的用户 metadata。Provider 发现会读取动态库中的 IID 和 sidecar metadata，但不会执行插件代码。
 
@@ -193,7 +198,7 @@ Inference Driver 是 Runtime Service，不是 Contribution，也不通过 `infer
 ds::InferenceDriverFactory driverFactory;
 srt::SynthUnit unit;
 
-driverFactory.addPluginPath(pluginRoot / "inferencedrivers");
+driverFactory.addPluginPath(dsinferPlugins / "inferencedrivers");
 auto driverLoader = driverFactory.find(ds::Api::Onnx::API_NAME);
 if (!driverLoader) {
     return srt::Error(srt::Error::FileNotFound, "ONNX inference driver plugin was not found");
@@ -415,18 +420,36 @@ IID 由 Category 决定，并通过 `stdc_add_plugin_metadata()` 嵌入动态库
 
 插件类在 `create()` 中比较三元组，拒绝自己不服务的三元组。规范没有规定拒绝时用什么错误码，dsinfer 的插件用 `InvalidArgument`，消息中带上 `ContribTriplet::toString()`。
 
-插件目标应在所属 category 的 CMake 层设置 IID，并在创建目标后声明插件二进制：
+插件所属 category 的 CMake 层设置 `CURRENT_PLUGIN_CATEGORY` 与 `CURRENT_PLUGIN_IID`。插件本身仍由本仓库 qmsetup 辅助函数生成的 `<前缀>_add_plugin()` 声明，`cmake/AddPlugin.cmake` 只提供它不做的几件事，由调用方组合：
 
 ```cmake
-set(CURRENT_PLUGIN_IID org.openvpi.synthrt.plugin.InferenceInterpreter)
-
-stdc_add_plugin_metadata(
-    TARGET ${PROJECT_NAME}
-    IID ${CURRENT_PLUGIN_IID}
+synthrt_add_plugin_objects(acoustic
+    FEATURES cxx_std_17
+    LINKS synthrt-dsinfer
+    LINKS_PRIVATE $<BUILD_INTERFACE:inferutil>
+    INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/..
+    INCLUDE_PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/*
 )
+dsinfer_add_plugin(acoustic CATEGORY ${CURRENT_PLUGIN_CATEGORY}/acoustic NO_EXPORT
+    SOURCES main.cpp
+    FEATURES cxx_std_17
+    LINKS_PRIVATE acoustic_objects $<BUILD_INTERFACE:inferutil>
+)
+stdc_add_plugin_metadata(TARGET acoustic IID ${CURRENT_PLUGIN_IID})
+synthrt_configure_plugin_manifest(acoustic dsinfer)
 ```
 
-本仓库的 dsinfer 插件通过 `dsinfer_add_plugin_metadata(target, iid)` 包装上述调用，并负责把同目录的 `plugin.json` 复制或安装到 bundle 输出目录。
+- `synthrt_add_plugin_objects()` 建对象库 `<目标>_objects`，除 `DIRECTORY` 外的参数原样转给 `qm_configure_target()`。不给 `SOURCES` 时，源文件是插件目录下除 `main.cpp` 外的全部头文件与源文件。include 目录、编译特性等使用要求都由调用方给出，类别目录作为 `INCLUDE` 即 include 根，`INCLUDE_PRIVATE <插件目录>/*` 供源文件用引号引用本插件的头文件。`LINKS` 是插件头文件也用到的依赖，链接对象库的测试一并获得。`LINKS_PRIVATE` 只有源文件用到，测试只链接它而不继承其编译要求，插件自己也要再私有链接一次，使入口与对象在同样的编译要求下编译。插件声明集中写在类别目录 CMakeLists 里的仓库，用 `DIRECTORY <插件目录>` 指出插件目录（相对当前源码目录），目录名同样是 include 命名空间。
+- `stdc_add_plugin_metadata()` 来自 stdcorelib-plugin，把 IID 嵌入插件。
+- `synthrt_configure_plugin_manifest()` 把同目录的 `plugin.json` 配置到插件的输出目录，即构建树中的 bundle 目录，并随插件一起安装。第二个参数是本仓库 qmsetup 辅助函数的前缀，用来找到安装目录。
+
+dsinfer 把这几步合成 `dsinfer/plugins/CMakeLists.txt` 里的 `dsinfer_add_interpreter_plugin()`，各插件目录只写一行。onnxdriver 的 bundle 名与目录名不同，所以直接组合这几步。
+
+插件保留构建的 Debug 后缀。各仓库只在 MSVC 下设置后缀 `d`，stdcorelib-plugin 的 bundle 加载器在 MSVC 的 Debug 构建中先找带 `d` 的库，再找不带后缀的库。不支持多配置生成器，因为它会把库生成到按配置划分的子目录里，而 bundle 加载器只在 `plugin.json` 旁边找库。
+
+插件按库的方式测试：`tests/auto/plugins/<插件目录>/` 下每个头文件一个 `test_<头文件名>.cpp`，链接该插件的 `<目标>_objects`，与库的测试链接库一样。确需按行为拆分文件时使用 `test_<头文件名>_<行为>.cpp`。入口 `main.cpp` 里的插件类通常只转发到解释器，不单独测试。
+
+解释器类只能经由 Package 驱动，因为 `ContribSpec` 只由 Package 加载过程构造。测试 `XxxInterpreter` 时，测试照 `main.cpp` 写一个插件类，用 `STDC_EXPORT_STATIC_PLUGIN(插件类, IID, metadata)` 注册为静态插件，metadata 读取插件目录中的 `plugin.json`（路径经编译定义传入），再打开 Package。SynthUnit 注册 category 时加入该 IID 的静态插件，静态插件排在插件路径扫描出的插件之前，所以 Package 运行的是测试链接的类，而不是构建出的插件。被测插件之外的插件，例如 ONNX 驱动，仍从构建树的插件目录加载。`plugins/duration/test_DurationInterpreter.cpp` 是一个例子。
 
 插件加载成功后在 SynthUnit 内常驻，Package rollback 和卸载不会卸载它。SynthUnit 销毁时会先销毁 Package 弱索引、Category 和 Runtime Service，最后才释放内部插件 Factory 及其解释器和动态库。
 

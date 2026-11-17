@@ -1,5 +1,7 @@
 # SynthRT
 
+[中文](docs/README.zh_CN.md)
+
 SynthRT is a package-oriented runtime for singing voice synthesis. Packages describe the contributions they provide, while category implementations and plugins interpret those declarations and perform the actual work.
 
 > [!WARNING]
@@ -8,7 +10,7 @@ SynthRT is a package-oriented runtime for singing voice synthesis. Packages desc
 ## Repository Contents
 
 - **synthrt** provides the host runtime. It reads package manifests, resolves dependencies and contribution references, discovers interpreters, and manages package loading.
-- **dsinfer** provides the DiffSinger-facing inference contracts and implementations. Its installed CMake target remains `dsinfer::dsinfer`.
+- **dsinfer** provides the DiffSinger-facing inference contracts and implementations. It installs as the CMake package `synthrt-dsinfer` and its target is `synthrt::dsinfer`.
 
 ## Runtime Model
 
@@ -54,22 +56,33 @@ If any step before Commit fails, the package is not made visible as loaded. The 
 - One plugin bundle may advertise and create more than one supported contract.
 - Each plugin category has its own ordered search path sequence.
 
-Plugin bundles contain a shared library and a neighboring `plugin.json`. Build and installation paths follow this layout:
+Plugin bundles contain a shared library and a neighboring `plugin.json`. Each library keeps its plugins beside its own library directory, in the build tree and in the install tree alike:
 
 ```text
-plugins/
-└── dsinfer/
-    ├── inferencedrivers/
-    │   └── onnx/
-    ├── inferenceinterpreters/
-    │   ├── acoustic/
-    │   ├── duration/
-    │   ├── pitch/
-    │   ├── variance/
-    │   └── vocoder/
-    └── singerproviders/
-        └── diffsinger/
+lib/
+└── synthrt-dsinfer/
+    └── plugins/
+        ├── inferencedrivers/
+        │   └── onnx/
+        ├── inferenceinterpreters/
+        │   ├── acoustic/
+        │   ├── duration/
+        │   ├── pitch/
+        │   ├── variance/
+        │   └── vocoder/
+        └── singerproviders/
+            └── diffsinger/
 ```
+
+A host passes the category directories under `lib/synthrt-dsinfer/plugins` of the prefix that it installs dsinfer into to `SynthUnit::setPluginPaths()`. When several libraries ship interpreters of one category, the host lists the directory of each in the same call:
+
+```cpp
+const auto plugins = prefix / "lib" / "synthrt-dsinfer" / "plugins";
+unit.setPluginPaths("inference", {plugins / "inferenceinterpreters"});
+unit.setPluginPaths("singer", {plugins / "singerproviders"});
+```
+
+The CMake package exports every installed plugin as an imported target, such as `synthrt::acoustic` and `synthrt::onnxdriver`. A CMake project that deploys the plugins, or needs the directory of one, reads it with `$<TARGET_FILE_DIR:synthrt::onnxdriver>`, which also resolves the Debug tree of a vcpkg installation.
 
 ## Current Status
 
@@ -105,7 +118,6 @@ The vcpkg manifest supplies the project's library and build dependencies:
 - [qmsetup](https://github.com/stdware/qmsetup)
 - [stdcorelib](https://github.com/stdware/stdcorelib)
 - [stdcorelib.plugin](https://github.com/stdware/stdcorelib.plugin)
-- [stduuid](https://github.com/mariusbancila/stduuid)
 - [BLAKE3](https://github.com/BLAKE3-team/BLAKE3)
 - [sparsepp](https://github.com/greg7mdp/sparsepp)
 - [bit7z](https://github.com/rikyoz/bit7z)
@@ -137,7 +149,7 @@ Omit `-- --x-feature=tests` if automated tests are not required. `cmake -P scrip
 ONNX Runtime is provided by the `onnxruntime-builds` overlay port. The `onnx` feature of the vcpkg manifest installs it together with the other dependencies:
 
 ```sh
-vcpkg install --x-manifest-root=scripts/vcpkg-manifest --x-install-root=vcpkg/installed --x-feature=onnx
+cmake -P scripts/vcpkg-workspace.cmake install -- --x-feature=tests --x-feature=onnx
 ```
 
 The CUDA 12 build of ONNX Runtime is the `cuda12` feature of that port, `onnxruntime-builds[cuda12]`.
@@ -163,19 +175,16 @@ cmake --install build/Release
 
 ## Running the Automated Tests
 
-`SYNTHRT_BUILD_TESTS=ON` registers the Boost.Test targets with CTest. On Windows the test
-executables link Boost.Test and the vcpkg runtime libraries dynamically, so the loader cannot
-find them unless the matching directories are on `PATH` first; without that, every test aborts
-with `0xc0000135` (`STATUS_DLL_NOT_FOUND`) before it starts.
+`SYNTHRT_BUILD_TESTS=ON` registers the Boost.Test targets with CTest. On Windows the test executables link Boost.Test and the vcpkg runtime libraries dynamically, so the loader cannot find them unless the matching directory is on `PATH` first. Without it, every test aborts with `0xc0000135` (`STATUS_DLL_NOT_FOUND`) before it starts.
 
 ```powershell
-$env:PATH = "vcpkg\installed\x64-windows\debug\bin;$env:PATH"
+$env:PATH = "deps\vcpkg\installed\x64-windows\bin;$env:PATH"
 ctest --test-dir build/Release --output-on-failure
 ```
 
-Add the prefix that actually holds the runtime libraries when it is not `vcpkg/installed`
-(for example a second prefix that provides Boost), and add the `onnxruntime-builds` runtime
-directory when the driver tests run against a locally installed ONNX Runtime.
+A Debug build takes the runtime libraries from `deps\vcpkg\installed\x64-windows\debug\bin` instead.
+
+`tests/auto/plugins` of dsinfer holds the tests of single plugins, one `test_<header>.cpp` for each header, which links the objects of the plugin as the test of a library class links the library.
 
 ## Consume the Libraries with CMake
 
@@ -191,18 +200,19 @@ target_link_libraries(example PRIVATE synthrt::synthrt)
 ### DiffSinger Inference Support
 
 ```cmake
-find_package(dsinfer CONFIG REQUIRED)
+find_package(synthrt-dsinfer CONFIG REQUIRED)
 
 add_executable(example main.cpp)
-target_link_libraries(example PRIVATE dsinfer::dsinfer)
+target_link_libraries(example PRIVATE synthrt::dsinfer)
 ```
 
-Point `CMAKE_PREFIX_PATH` at the installation prefix when CMake cannot find the packages automatically. The dsinfer library file is named `synthrt-dsinfer`, while its public CMake target is `dsinfer::dsinfer`.
+Point `CMAKE_PREFIX_PATH` at the installation prefix when CMake cannot find the packages automatically. The dsinfer library file, its CMake package and its install directories are all named `synthrt-dsinfer`, while the target keeps the short name, `synthrt::dsinfer`.
 
 ## Documentation
 
 - [DS package specification 2.4](docs/ds-spec-2.4.md)
 - [dsinfer level 1 revised contracts](docs/dsinfer-level-1-revised.md)
+- [Development guide](docs/DevHelp.md)
 - [Development conventions](docs/Development.md)
 
 ## License
