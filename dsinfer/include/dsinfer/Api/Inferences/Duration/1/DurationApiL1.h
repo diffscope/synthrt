@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <filesystem>
 
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/InferenceExecutive.h>
 
@@ -15,83 +15,27 @@
 
 namespace ds::Api::Duration::L1 {
 
-    /// Identifies the duration inference contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.dsinfer.inference.Duration";
-
-    /// Identifies the ONNX implementation variant.
-    inline constexpr char API_VARIANT[] = "onnx";
-
-    /// Identifies Level 1 of the duration inference contract.
-    inline constexpr int API_LEVEL = 1;
+    /// Identifies the Duration interface contract.
+    inline const srt::ContribContract Contract{"org.openvpi.dsinfer.inference.Duration", 1};
 
     using InputWordInfo = Common::L1::InputWordInfo;
 
     /// Describes the capabilities exported by a duration inference contribution.
-    class DurationSchema : public srt::ContribExports {
+    class Schema : public srt::ContribExports {
     public:
-        inline DurationSchema() : srt::ContribExports({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        inline Schema() : srt::ContribExports(Contract) {
         }
 
         /// Speaker identifiers accepted by this contribution.
         std::vector<std::string> speakers;
     };
 
-    /// Contains the interpreted configuration of an ONNX duration model.
-    class DurationConfiguration : public srt::ContribConfiguration {
-    public:
-        inline DurationConfiguration()
-            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
-        }
 
-        /// Maps phoneme tokens to model input identifiers.
-        std::map<std::string, int> phonemes;
-
-        /// Maps language identifiers to model input identifiers.
-        std::map<std::string, int> languages;
-
-        /// Maps speaker identifiers to their embedding vectors.
-        std::map<std::string, std::vector<float>> speakers;
-
-        /// Path of the linguistic encoder model.
-        std::filesystem::path encoder;
-
-        /// Path of the duration predictor model.
-        std::filesystem::path predictor;
-
-        /// Duration of one model frame in seconds.
-        double frameWidth = 512.0 / 44100.0;
-
-        /// Indicates whether the encoder consumes language identifiers.
-        bool useLanguageId = false;
-
-        /// Indicates whether the predictor consumes speaker embeddings.
-        bool useSpeakerEmbedding = false;
-
-        /// Width of the encoder state and each speaker embedding vector.
-        int hiddenSize = 256;
-
-        /// Indicates whether the predictor consumes the word division of the score.
-        ///
-        /// A predictor that splits the frame budget of every word or that adds the position of a
-        /// phoneme inside its word declares a \c word_div input. Each element of that input is the
-        /// number of phonemes of one word. Models trained before those architectures existed do not
-        /// declare it, and the session rejects an input the model does not expect.
-        bool useWordDiv = false;
-
-        /// Indicates whether the predictor also consumes the frame budget of every word.
-        ///
-        /// Declared together with \c word_div by a predictor that splits the frame budget of every
-        /// word instead of predicting absolute phoneme durations. The predictor reads the budget at
-        /// the word each phoneme belongs to, which it locates with the word division, so this
-        /// requires \c useWordDiv.
-        bool useWordDur = false;
-    };
 
     /// Configures one import of a duration inference contribution.
-    class DurationImportOptions : public srt::ContribImportOptions {
+    class ImportOptions : public srt::ContribImportOptions {
     public:
-        inline DurationImportOptions()
-            : srt::ContribImportOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        inline ImportOptions() : srt::ContribImportOptions(Contract) {
         }
 
         /// Maps singer level speaker identifiers to contribution level identifiers.
@@ -99,24 +43,23 @@ namespace ds::Api::Duration::L1 {
     };
 
     /// Contains runtime options used when creating a duration inference executive.
-    class DurationRuntimeOptions : public srt::InferenceRuntimeOptions {
+    class RuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
-        inline DurationRuntimeOptions()
-            : srt::InferenceRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        inline RuntimeOptions() : srt::InferenceRuntimeOptions(Contract) {
         }
     };
 
     /// Contains arguments used to initialize a duration inference executive.
-    class DurationInitArgs : public srt::InferenceInitArgs {
+    class InitArgs : public srt::InferenceInitArgs {
     public:
-        inline DurationInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
+        inline InitArgs() : InferenceInitArgs(Contract.interfaceId(), Contract.level()) {
         }
     };
 
     /// Supplies the score and timing context for duration prediction.
-    class DurationStartInput : public srt::TaskStartInput {
+    class StartInput : public srt::TaskStartInput {
     public:
-        inline DurationStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
+        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
         }
 
         /// Total input duration in seconds.
@@ -127,9 +70,9 @@ namespace ds::Api::Duration::L1 {
     };
 
     /// Contains predicted phoneme durations.
-    class DurationResult : public srt::TaskResult {
+    class Result : public srt::TaskResult {
     public:
-        inline DurationResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
+        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
         }
 
         /// Predicted duration of each input phoneme in seconds.
@@ -139,20 +82,18 @@ namespace ds::Api::Duration::L1 {
     /// Executes one duration model using Level 1 typed payloads.
     ///
     /// An interpreter implementing this contract must create executives derived from this class.
-    class DurationExecutive : public srt::InferenceExecutive {
+    class Executive : public srt::InferenceExecutive {
     public:
-        using AsyncCallback =
-            std::function<void(srt::Expected<std::unique_ptr<DurationResult>> result)>;
+        using AsyncCallback = std::function<void(srt::Expected<std::unique_ptr<Result>> result)>;
 
         /// Initializes the duration model instance.
-        virtual srt::Expected<void> initialize(const DurationInitArgs &args) = 0;
+        virtual srt::Expected<void> initialize(const InitArgs &args) = 0;
 
         /// Executes duration inference synchronously.
-        virtual srt::Expected<std::unique_ptr<DurationResult>>
-            start(const DurationStartInput &input) = 0;
+        virtual srt::Expected<std::unique_ptr<Result>> start(const StartInput &input) = 0;
 
         /// Starts one asynchronous duration inference execution.
-        virtual srt::Expected<void> startAsync(std::shared_ptr<const DurationStartInput> input,
+        virtual srt::Expected<void> startAsync(std::shared_ptr<const StartInput> input,
                                                AsyncCallback callback) = 0;
 
     protected:

@@ -17,7 +17,7 @@ BOOST_AUTO_TEST_CASE(interpreter_reads_typed_declaration) {
     auto &spec = declaration.spec();
     auto exports = interpreter.createExports(spec);
     BOOST_REQUIRE(exports);
-    BOOST_CHECK(exports.value()->triplet() == spec.triplet());
+    BOOST_CHECK(exports.value()->contract() == spec.triplet().contract());
     auto configuration = interpreter.createConfiguration(spec);
     BOOST_REQUIRE(configuration);
     BOOST_CHECK(configuration.value()->triplet() == spec.triplet());
@@ -26,8 +26,8 @@ BOOST_AUTO_TEST_CASE(interpreter_reads_typed_declaration) {
                                                   {"predictions", srt::JsonArray{"energy"}}
     });
     BOOST_REQUIRE(options);
-    BOOST_CHECK(options.value()->triplet() == spec.triplet());
-    Contract::AcousticRuntimeOptions runtime;
+    BOOST_CHECK(options.value()->contract() == spec.triplet().contract());
+    Contract::RuntimeOptions runtime;
     auto executive = interpreter.createInference(spec, *options.value(), runtime);
     BOOST_REQUIRE(executive);
     BOOST_CHECK(&executive.value()->spec() == &spec);

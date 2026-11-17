@@ -49,7 +49,9 @@ BOOST_AUTO_TEST_CASE(default_import_bindings_activate_and_factories_preserve_con
     const std::string declaration = R"({"interface":")" + std::string(testInferenceInterface) +
                                     R"(","variant":")" + testInferenceVariant +
                                     R"(","level":1,"exports":{},"configuration":{})";
-    writeText(root / "producer.json", declaration + "}");
+    writeText(
+        root / "producer.json",
+        R"({"interface":"com.example.Inference","level":1,"variant":"remote","exports":{},"configuration":{}})");
     writeText(root / "consumer.json",
               declaration + R"(,"imports":[{"role":"model","ref":":inference/producer"}]})");
     srt::SynthUnit unit;
@@ -68,7 +70,7 @@ BOOST_AUTO_TEST_CASE(default_import_bindings_activate_and_factories_preserve_con
     BOOST_CHECK(&binding->importer() == consumer);
     BOOST_CHECK(&binding->target() == producer);
     BOOST_CHECK(&binding->declaration() == &consumer->imports()[0]);
-    BOOST_CHECK(binding->options().triplet() == producer->triplet());
+    BOOST_CHECK(binding->options().contract() == producer->triplet().contract());
     auto factory = imported->executiveFactory();
     BOOST_REQUIRE(factory);
     auto mismatched = factory->create(TestRuntimeOptions());
@@ -76,10 +78,10 @@ BOOST_AUTO_TEST_CASE(default_import_bindings_activate_and_factories_preserve_con
     BOOST_CHECK(mismatched.error().code() == srt::Error::InvalidArgument);
     class RuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
-        RuntimeOptions()
-            : InferenceRuntimeOptions({testInferenceInterface, 1, testInferenceVariant}) {
+        RuntimeOptions() : InferenceRuntimeOptions({testInferenceInterface, 1}) {
         }
     };
+    BOOST_CHECK(consumer->triplet() != producer->triplet());
     auto refused = factory->create(RuntimeOptions());
     BOOST_REQUIRE(!refused);
     BOOST_CHECK(refused.error().code() == srt::Error::FeatureNotSupported);

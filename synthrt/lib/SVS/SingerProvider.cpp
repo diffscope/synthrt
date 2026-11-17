@@ -8,14 +8,15 @@ namespace srt {
 
         class SingerExports : public ContribExports {
         public:
-            explicit SingerExports(const ContribSpec &spec) : ContribExports(spec.triplet()) {
+            explicit SingerExports(const ContribSpec &spec)
+                : ContribExports(spec.triplet().contract()) {
             }
         };
 
         class SingerImportOptions : public ContribImportOptions {
         public:
             explicit SingerImportOptions(const ContribSpec &target)
-                : ContribImportOptions(target.triplet()) {
+                : ContribImportOptions(target.triplet().contract()) {
             }
         };
 

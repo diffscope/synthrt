@@ -13,6 +13,7 @@
 #include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
+#include <dsinfer/Api/Inferences/Pitch/1/PitchOnnxApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
@@ -33,18 +34,17 @@ namespace ds {
     namespace Pit = Api::Pitch::L1;
     namespace Onnx = Api::Onnx;
 
-    static inline srt::Expected<const Pit::PitchConfiguration *>
+    static inline srt::Expected<const Pit::Onnx::Configuration *>
         getConfig(const srt::InferenceSpec &spec) {
 
         const auto genericConfig = spec.configuration();
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "pitch configuration is nullptr");
         }
-        if (genericConfig->triplet() !=
-            srt::ContribContractTriplet(Pit::API_INTERFACE, Pit::API_LEVEL, Pit::API_VARIANT)) {
+        if (genericConfig->triplet() != Pit::Onnx::Triplet) {
             return srt::Error(srt::Error::InvalidArgument, "invalid pitch configuration");
         }
-        return static_cast<const Pit::PitchConfiguration *>(genericConfig);
+        return static_cast<const Pit::Onnx::Configuration *>(genericConfig);
     }
 
     PitchTask::PitchTask(PitchInference &inference) : m_inference(&inference) {
@@ -57,22 +57,20 @@ namespace ds {
         std::ignore = waitForFinished();
     }
 
-    srt::Expected<void> PitchTask::initialize(const Pit::PitchInitArgs &args) {
+    srt::Expected<void> PitchTask::initialize(const Pit::InitArgs &args) {
         return initialize(static_cast<const srt::TaskInitArgs &>(args));
     }
 
-    srt::Expected<std::unique_ptr<Pit::PitchResult>>
-        PitchTask::start(const Pit::PitchStartInput &input) {
+    srt::Expected<std::unique_ptr<Pit::Result>> PitchTask::start(const Pit::StartInput &input) {
         auto result = start(static_cast<const srt::TaskStartInput &>(input));
         if (!result) {
             return result.takeError();
         }
-        return std::unique_ptr<Pit::PitchResult>(
-            static_cast<Pit::PitchResult *>(result.take().release()));
+        return std::unique_ptr<Pit::Result>(static_cast<Pit::Result *>(result.take().release()));
     }
 
-    srt::Expected<void> PitchTask::startAsync(std::shared_ptr<const Pit::PitchStartInput> input,
-                                              Pit::PitchExecutive::AsyncCallback callback) {
+    srt::Expected<void> PitchTask::startAsync(std::shared_ptr<const Pit::StartInput> input,
+                                              Pit::Executive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "pitch asynchronous callback must not be empty");
@@ -85,18 +83,19 @@ namespace ds {
                                   callback(result.takeError());
                                   return;
                               }
-                              callback(std::unique_ptr<Pit::PitchResult>(
-                                  static_cast<Pit::PitchResult *>(result.take().release())));
+                              callback(std::unique_ptr<Pit::Result>(
+                                  static_cast<Pit::Result *>(result.take().release())));
                           });
     }
 
     srt::Expected<void> PitchTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Pit::API_INTERFACE || args.version() != Pit::API_LEVEL) {
+        if (args.type() != Pit::Contract.interfaceId() || args.version() != Pit::Contract.level()) {
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid pitch initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Pit::API_INTERFACE, Pit::API_LEVEL, args.type(), args.version()));
+                    Pit::Contract.interfaceId(), Pit::Contract.level(), args.type(),
+                    args.version()));
         }
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
@@ -159,16 +158,18 @@ namespace ds {
         const auto config = expConfig.take();
 
 
-        if (input.type() != Pit::API_INTERFACE || input.version() != Pit::API_LEVEL) {
+        if (input.type() != Pit::Contract.interfaceId() ||
+            input.version() != Pit::Contract.level()) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid pitch start payload: expected "%1" level %2, got "%3" level %4)",
-                    Pit::API_INTERFACE, Pit::API_LEVEL, input.type(), input.version()));
+                    Pit::Contract.interfaceId(), Pit::Contract.level(), input.type(),
+                    input.version()));
         }
 
-        const auto &pitchInput = *input.as<Pit::PitchStartInput>();
+        const auto &pitchInput = *input.as<Pit::StartInput>();
 
         auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
 
@@ -483,7 +484,7 @@ namespace ds {
             sessionTaskResult = sessionExp.take();
         }
 
-        auto pitchResult = std::make_unique<Pit::PitchResult>();
+        auto pitchResult = std::make_unique<Pit::Result>();
 
         // Get session results
         if (!sessionTaskResult) {
@@ -491,8 +492,8 @@ namespace ds {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "pitch predictor session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::API_NAME ||
-            sessionTaskResult->version() != Onnx::API_VERSION) {
+        if (sessionTaskResult->type() != Onnx::Name ||
+            sessionTaskResult->version() != Onnx::Version) {
             ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
@@ -522,7 +523,8 @@ namespace ds {
 
     srt::Expected<void> PitchTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
                                               AsyncCallback callback) {
-        if (!input || input->type() != Pit::API_INTERFACE || input->version() != Pit::API_LEVEL) {
+        if (!input || input->type() != Pit::Contract.interfaceId() ||
+            input->version() != Pit::Contract.level()) {
             return srt::Error(srt::Error::InvalidArgument,
                               "invalid pitch asynchronous input payload");
         }

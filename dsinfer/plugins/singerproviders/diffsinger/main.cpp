@@ -1,6 +1,7 @@
 #include <synthrt/SVS/SingerProviderPlugin.h>
 
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
+#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerOpenVpiApiL1.h>
 
 #include "DiffSingerProvider.h"
 
@@ -10,9 +11,7 @@ namespace ds {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(Api::DiffSinger::L1::API_INTERFACE,
-                                                       Api::DiffSinger::L1::API_LEVEL,
-                                                       Api::DiffSinger::L1::API_VARIANT)) {
+            if (triplet != Api::DiffSinger::L1::OpenVpi::Triplet) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

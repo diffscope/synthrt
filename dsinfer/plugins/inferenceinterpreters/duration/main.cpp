@@ -1,6 +1,7 @@
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
+#include <dsinfer/Api/Inferences/Duration/1/DurationOnnxApiL1.h>
 
 #include "DurationInterpreter.h"
 
@@ -10,9 +11,7 @@ namespace ds {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(Api::Duration::L1::API_INTERFACE,
-                                                       Api::Duration::L1::API_LEVEL,
-                                                       Api::Duration::L1::API_VARIANT)) {
+            if (triplet != Api::Duration::L1::Onnx::Triplet) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

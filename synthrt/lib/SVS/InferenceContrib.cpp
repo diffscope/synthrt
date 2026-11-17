@@ -23,7 +23,7 @@ namespace srt {
             Expected<std::unique_ptr<ContribExecutive>>
                 create(const ContribRuntimeOptions &runtimeOptions) override {
                 auto &target = m_binding->target();
-                if (runtimeOptions.triplet() != target.triplet()) {
+                if (runtimeOptions.contract() != target.triplet().contract()) {
                     return Error(Error::InvalidArgument,
                                  "inference runtime options do not match the target contract");
                 }
@@ -79,11 +79,11 @@ namespace srt {
             return Error(Error::FeatureNotSupported,
                          "cannot create inference from a contribution that is not loaded");
         }
-        if (importOptions.triplet() != triplet()) {
+        if (importOptions.contract() != triplet().contract()) {
             return Error(Error::InvalidArgument,
                          "inference import options do not match the contribution contract");
         }
-        if (runtimeOptions.triplet() != triplet()) {
+        if (runtimeOptions.contract() != triplet().contract()) {
             return Error(Error::InvalidArgument,
                          "inference runtime options do not match the contribution contract");
         }

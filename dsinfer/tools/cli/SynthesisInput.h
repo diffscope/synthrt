@@ -90,7 +90,7 @@ namespace ds::cli {
     /// but ignored by the input conversion.
     struct SynthesisInput {
         std::string singer;
-        std::unique_ptr<Api::Acoustic::L1::AcousticStartInput> acoustic;
+        std::unique_ptr<Api::Acoustic::L1::StartInput> acoustic;
 
         /// Reads one synthesis request from a path.
         static srt::Expected<SynthesisInput> load(const std::filesystem::path &path);

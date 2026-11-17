@@ -3,83 +3,67 @@
 namespace ds {
 
     DiffSingerPipelineExecutive::DiffSingerPipelineExecutive(srt::SingerSpec &spec)
-        : Api::DiffSinger::L1::DiffSingerPipelineExecutive(spec) {
+        : Api::DiffSinger::L1::PipelineExecutive(spec) {
     }
 
     DiffSingerPipelineExecutive::~DiffSingerPipelineExecutive() = default;
 
-    srt::Expected<Api::Duration::L1::DurationExecutive *>
-        DiffSingerPipelineExecutive::createDuration(
-            const Api::Duration::L1::DurationRuntimeOptions &options) {
-        auto result =
-            createInference("singer/duration", options,
-                            {Api::Duration::L1::API_INTERFACE, Api::Duration::L1::API_LEVEL,
-                             Api::Duration::L1::API_VARIANT});
+    srt::Expected<Api::Duration::L1::Executive *> DiffSingerPipelineExecutive::createDuration(
+        const Api::Duration::L1::RuntimeOptions &options) {
+        auto result = createInference("singer/duration", options, Api::Duration::L1::Contract);
         if (!result) {
             return result.takeError();
         }
-        return (*result)->as<Api::Duration::L1::DurationExecutive>();
+        return (*result)->as<Api::Duration::L1::Executive>();
     }
 
-    srt::Expected<Api::Pitch::L1::PitchExecutive *> DiffSingerPipelineExecutive::createPitch(
-        const Api::Pitch::L1::PitchRuntimeOptions &options) {
-        auto result = createInference("singer/pitch", options,
-                                      {Api::Pitch::L1::API_INTERFACE, Api::Pitch::L1::API_LEVEL,
-                                       Api::Pitch::L1::API_VARIANT});
+    srt::Expected<Api::Pitch::L1::Executive *>
+        DiffSingerPipelineExecutive::createPitch(const Api::Pitch::L1::RuntimeOptions &options) {
+        auto result = createInference("singer/pitch", options, Api::Pitch::L1::Contract);
         if (!result) {
             return result.takeError();
         }
-        return (*result)->as<Api::Pitch::L1::PitchExecutive>();
+        return (*result)->as<Api::Pitch::L1::Executive>();
     }
 
-    srt::Expected<Api::Variance::L1::VarianceExecutive *>
-        DiffSingerPipelineExecutive::createVariance(
-            const Api::Variance::L1::VarianceRuntimeOptions &options) {
-        auto result =
-            createInference("singer/variance", options,
-                            {Api::Variance::L1::API_INTERFACE, Api::Variance::L1::API_LEVEL,
-                             Api::Variance::L1::API_VARIANT});
+    srt::Expected<Api::Variance::L1::Executive *> DiffSingerPipelineExecutive::createVariance(
+        const Api::Variance::L1::RuntimeOptions &options) {
+        auto result = createInference("singer/variance", options, Api::Variance::L1::Contract);
         if (!result) {
             return result.takeError();
         }
-        return (*result)->as<Api::Variance::L1::VarianceExecutive>();
+        return (*result)->as<Api::Variance::L1::Executive>();
     }
 
-    srt::Expected<Api::Acoustic::L1::AcousticExecutive *>
-        DiffSingerPipelineExecutive::createAcoustic(
-            const Api::Acoustic::L1::AcousticRuntimeOptions &options) {
-        auto result =
-            createInference("singer/acoustic", options,
-                            {Api::Acoustic::L1::API_INTERFACE, Api::Acoustic::L1::API_LEVEL,
-                             Api::Acoustic::L1::API_VARIANT});
+    srt::Expected<Api::Acoustic::L1::Executive *> DiffSingerPipelineExecutive::createAcoustic(
+        const Api::Acoustic::L1::RuntimeOptions &options) {
+        auto result = createInference("singer/acoustic", options, Api::Acoustic::L1::Contract);
         if (!result) {
             return result.takeError();
         }
-        return (*result)->as<Api::Acoustic::L1::AcousticExecutive>();
+        return (*result)->as<Api::Acoustic::L1::Executive>();
     }
 
-    srt::Expected<Api::Vocoder::L1::VocoderExecutive *> DiffSingerPipelineExecutive::createVocoder(
-        const Api::Vocoder::L1::VocoderRuntimeOptions &options) {
-        auto result = createInference("singer/vocoder", options,
-                                      {Api::Vocoder::L1::API_INTERFACE, Api::Vocoder::L1::API_LEVEL,
-                                       Api::Vocoder::L1::API_VARIANT});
+    srt::Expected<Api::Vocoder::L1::Executive *> DiffSingerPipelineExecutive::createVocoder(
+        const Api::Vocoder::L1::RuntimeOptions &options) {
+        auto result = createInference("singer/vocoder", options, Api::Vocoder::L1::Contract);
         if (!result) {
             return result.takeError();
         }
-        return (*result)->as<Api::Vocoder::L1::VocoderExecutive>();
+        return (*result)->as<Api::Vocoder::L1::Executive>();
     }
 
     srt::Expected<srt::InferenceExecutive *>
         DiffSingerPipelineExecutive::createInference(std::string_view role,
                                                      const srt::InferenceRuntimeOptions &options,
-                                                     const srt::ContribContractTriplet &expected) {
+                                                     const srt::ContribContract &expected) {
         auto result = createChild(role, options);
         if (!result) {
             return result.takeError();
         }
         auto executive = *result;
         const auto &executiveSpec = executive->spec();
-        if (executiveSpec.triplet() != expected) {
+        if (executiveSpec.triplet().contract() != expected) {
             delete executive;
             return srt::Error(srt::Error::InvalidFormat,
                               "inference factory returned an incompatible executive");

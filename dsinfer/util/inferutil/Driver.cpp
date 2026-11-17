@@ -9,7 +9,7 @@
 namespace ds::inferutil {
     srt::Expected<InferenceDriver *> getInferenceDriver(const srt::InferenceExecutive *obj) {
         namespace Onnx = Api::Onnx;
-        auto service = obj->synthUnit().runtimeService(InferenceDriverPlugin::IID, Onnx::API_NAME);
+        auto service = obj->synthUnit().runtimeService(InferenceDriverPlugin::IID, Onnx::Name);
         if (!service) {
             return srt::Error(ds::ErrorCode::NotInitialized,
                               "could not find the ONNX inference driver");
@@ -17,7 +17,7 @@ namespace ds::inferutil {
         auto onnxDriver = service->as<InferenceDriver>();
 
         const auto backend = onnxDriver->backend();
-        constexpr auto expectedBackend = Onnx::API_NAME;
+        constexpr auto expectedBackend = Onnx::Name;
         if (backend != expectedBackend) {
             return srt::Error(ds::ErrorCode::DriverMismatch,
                               "inference driver does not implement the ONNX backend contract");

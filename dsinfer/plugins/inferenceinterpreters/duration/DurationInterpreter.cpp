@@ -4,6 +4,7 @@
 #include <utility>
 
 #include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
+#include <dsinfer/Api/Inferences/Duration/1/DurationOnnxApiL1.h>
 #include <stdcorelib/str.h>
 
 #include <inferutil/Parser.h>
@@ -21,7 +22,7 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         DurationInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto result = std::make_unique<Dur::DurationSchema>();
+        auto result = std::make_unique<Dur::Schema>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -45,7 +46,7 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
         DurationInterpreter::createConfiguration(const srt::ContribSpec &spec) const {
-        auto result = std::make_unique<Dur::DurationConfiguration>();
+        auto result = std::make_unique<Dur::Onnx::Configuration>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -152,7 +153,7 @@ namespace ds {
             };
         }
         const auto &obj = options.toObject();
-        auto result = std::make_unique<Dur::DurationImportOptions>();
+        auto result = std::make_unique<Dur::ImportOptions>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;

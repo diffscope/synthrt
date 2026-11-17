@@ -29,21 +29,20 @@ namespace {
 
     class TestInferenceExports : public srt::ContribExports {
     public:
-        TestInferenceExports() : ContribExports({testInferenceInterface, 1, testInferenceVariant}) {
+        TestInferenceExports() : ContribExports({testInferenceInterface, 1}) {
         }
     };
 
     class TestInferenceConfiguration : public srt::ContribConfiguration {
     public:
-        TestInferenceConfiguration()
-            : ContribConfiguration({testInferenceInterface, 1, testInferenceVariant}) {
+        explicit TestInferenceConfiguration(srt::ContribContractTriplet triplet)
+            : ContribConfiguration(std::move(triplet)) {
         }
     };
 
     class TestInferenceImportOptions : public srt::ContribImportOptions {
     public:
-        TestInferenceImportOptions()
-            : ContribImportOptions({testInferenceInterface, 1, testInferenceVariant}) {
+        TestInferenceImportOptions() : ContribImportOptions({testInferenceInterface, 1}) {
         }
     };
 
@@ -55,8 +54,8 @@ namespace {
         }
 
         srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
-            createConfiguration(const srt::ContribSpec &) const override {
-            return std::make_unique<TestInferenceConfiguration>();
+            createConfiguration(const srt::ContribSpec &spec) const override {
+            return std::make_unique<TestInferenceConfiguration>(spec.triplet());
         }
 
         srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
@@ -77,7 +76,8 @@ namespace {
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
             if (triplet !=
-                srt::ContribContractTriplet(testInferenceInterface, 1, testInferenceVariant)) {
+                    srt::ContribContractTriplet(testInferenceInterface, 1, testInferenceVariant) &&
+                triplet != srt::ContribContractTriplet(testInferenceInterface, 1, "remote")) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unexpected test inference contract");
             }
@@ -87,23 +87,27 @@ namespace {
 
     STDC_EXPORT_STATIC_PLUGIN(TestInferenceInterpreterPlugin, srt::InferenceInterpreterPlugin::IID,
                               (stdc::json::Object{
-                                  {"name",         "test-inference-interpreter"                                                             },
-                                  {"interpreters", stdc::json::Array{stdc::json::Object{
-                                                       {"interface", testInferenceInterface},
-                                                       {"level", 1},
-                                                       {"variant", testInferenceVariant}}}},
+                                  {"name",         "test-inference-interpreter"  },
+                                  {"interpreters",
+                                   stdc::json::Array{
+                                       stdc::json::Object{{"interface", testInferenceInterface},
+                                                          {"level", 1},
+                                                          {"variant", testInferenceVariant}},
+                                       stdc::json::Object{{"interface", testInferenceInterface},
+                                                          {"level", 1},
+                                                          {"variant", "remote"}}}},
     }))
 
     class TestRuntimeOptions final : public srt::InferenceRuntimeOptions {
     public:
-        TestRuntimeOptions() : InferenceRuntimeOptions({"com.example.svs.Acoustic", 1, "default"}) {
+        TestRuntimeOptions() : InferenceRuntimeOptions({"com.example.svs.Acoustic", 1}) {
         }
     };
 
     class TestSingerPipelineRuntimeOptions final : public srt::SingerPipelineRuntimeOptions {
     public:
         TestSingerPipelineRuntimeOptions()
-            : SingerPipelineRuntimeOptions({"com.example.svs.Singer", 1, "test"}) {
+            : SingerPipelineRuntimeOptions({"com.example.svs.Singer", 1}) {
         }
     };
 

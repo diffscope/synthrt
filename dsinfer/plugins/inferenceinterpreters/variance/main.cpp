@@ -1,6 +1,7 @@
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
+#include <dsinfer/Api/Inferences/Variance/1/VarianceOnnxApiL1.h>
 
 #include "VarianceInterpreter.h"
 
@@ -10,9 +11,7 @@ namespace ds {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(Api::Variance::L1::API_INTERFACE,
-                                                       Api::Variance::L1::API_LEVEL,
-                                                       Api::Variance::L1::API_VARIANT)) {
+            if (triplet != Api::Variance::L1::Onnx::Triplet) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

@@ -20,7 +20,7 @@ namespace ds::cli {
 
         // Drivers are runtime services rather than contributions, so they use a separate factory.
         m_driverFactory.addPluginPath(pluginRoot / STDC_TSTR("inferencedrivers"));
-        auto driverLoader = m_driverFactory.find(Api::Onnx::API_NAME);
+        auto driverLoader = m_driverFactory.find(Api::Onnx::Name);
         if (!driverLoader) {
             throw std::runtime_error("failed to find the ONNX inference driver plugin");
         }

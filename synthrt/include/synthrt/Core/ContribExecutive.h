@@ -5,6 +5,7 @@
 #include <memory>
 #include <string_view>
 #include <vector>
+#include <utility>
 
 #include <stdcorelib/adt/vlarray.h>
 
@@ -22,8 +23,17 @@ namespace srt {
     public:
         ~ContribRuntimeOptions() = default;
 
+        /// Returns the interface contract this value belongs to.
+        const ContribContract &contract() const override {
+            return m_contract;
+        }
+
     protected:
-        using ContribSpecPayload::ContribSpecPayload;
+        explicit ContribRuntimeOptions(ContribContract contract) : m_contract(std::move(contract)) {
+        }
+
+    private:
+        ContribContract m_contract;
     };
 
     /// A top level executive created from one contribution declaration.

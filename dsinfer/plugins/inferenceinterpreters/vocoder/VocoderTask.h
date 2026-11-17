@@ -26,12 +26,11 @@ namespace ds {
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
-        srt::Expected<void> initialize(const Api::Vocoder::L1::VocoderInitArgs &args);
-        srt::Expected<std::unique_ptr<Api::Vocoder::L1::VocoderResult>>
-            start(const Api::Vocoder::L1::VocoderStartInput &input);
-        srt::Expected<void>
-            startAsync(std::shared_ptr<const Api::Vocoder::L1::VocoderStartInput> input,
-                       Api::Vocoder::L1::VocoderExecutive::AsyncCallback callback);
+        srt::Expected<void> initialize(const Api::Vocoder::L1::InitArgs &args);
+        srt::Expected<std::unique_ptr<Api::Vocoder::L1::Result>>
+            start(const Api::Vocoder::L1::StartInput &input);
+        srt::Expected<void> startAsync(std::shared_ptr<const Api::Vocoder::L1::StartInput> input,
+                                       Api::Vocoder::L1::Executive::AsyncCallback callback);
 
     private:
         VocoderInference *m_inference;

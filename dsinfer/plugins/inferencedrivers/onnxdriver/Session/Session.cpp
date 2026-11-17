@@ -684,7 +684,7 @@ namespace ds::onnxdriver {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>> Session::run(const srt::TaskStartInput &input) {
-        if (input.type() != Api::Onnx::API_NAME || input.version() != Api::Onnx::API_VERSION) {
+        if (input.type() != Api::Onnx::Name || input.version() != Api::Onnx::Version) {
             return srt::Error(srt::Error::InvalidArgument, "invalid task start input");
         }
         if (!m_group) {
@@ -695,8 +695,7 @@ namespace ds::onnxdriver {
 
     srt::Expected<void> Session::runAsync(std::shared_ptr<const srt::TaskStartInput> input,
                                           srt::ITask::AsyncCallback callback) {
-        if (!input || input->type() != Api::Onnx::API_NAME ||
-            input->version() != Api::Onnx::API_VERSION) {
+        if (!input || input->type() != Api::Onnx::Name || input->version() != Api::Onnx::Version) {
             return srt::Error(srt::Error::InvalidArgument, "invalid task start input");
         }
         if (!m_group) {

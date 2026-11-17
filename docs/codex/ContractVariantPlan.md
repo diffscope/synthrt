@@ -1,12 +1,12 @@
 # 契约与三元组重构计划
 
-状态：身份类型、关联命名及单头文件布局已于 2026-11-17 经用户确认。第一阶段身份类型及三库调用方迁移已完成并通过验证，后续 payload 语义拆分尚未实施。本计划承接 docs/claude/contract-variant-plan.md，身份类型与目录布局以本文为准。
+状态：身份类型、关联命名及单头文件布局已于 2026-11-17 经用户确认。第一阶段身份类型及三库调用方迁移已完成并通过验证，payload 与 API 迁移已实现并通过三库验证。本计划承接 docs/claude/contract-variant-plan.md，身份类型与目录布局以本文为准。
 
 ## 已确认的设计
 
 公开身份类型只有两个：ContribContract 表示 interface 与 level，ContribContractTriplet 表示 contract 与 variant。两个类型统一定义在 synthrt/Core/ContribContract.h 中，不保留 ContribTriplet 类型和头文件，也不引入 static 身份类型。
 
-两种类型均拥有字符串。契约与变体头文件分别使用 inline const Contract 和 inline const Variant 常量，接受运行期初始化，不提供编译期常量保证。当前构造 payload、注册实现和校验身份的用途不要求额外的静态类型体系。
+两种类型均拥有字符串。契约与变体头文件分别使用 inline const Contract 和 inline const Triplet 常量，接受运行期初始化，不提供编译期常量保证。当前构造 payload、注册实现和校验身份的用途不要求额外的静态类型体系。
 
 toString() 用于诊断文本，字段以逗号分隔，例如 com.example.Contract, level 2, variant native。该文本不定义序列化或解析协议。
 
@@ -16,9 +16,9 @@ exports、import options 与 runtime options 只持有契约身份。configurati
 
 ## API 组织
 
-契约头文件包含 Contract、exports、options、输入、结果及 executive。公开变体头文件包含 Variant 与 Configuration。契约和变体头文件平铺在同一个 level 目录，例如 Acoustic/1/AcousticApiL1.h 和 Acoustic/1/AcousticOnnxApiL1.h。
+契约头文件包含 Contract、exports、options、输入、结果及 executive。公开变体头文件包含 Triplet 与 Configuration。契约和变体头文件平铺在同一个 level 目录，例如 Acoustic/1/AcousticApiL1.h 和 Acoustic/1/AcousticOnnxApiL1.h。
 
-类名去掉命名空间已经表达的契约前缀，例如 AcousticImportOptions 改为 ImportOptions。需要跨模块读取的 configuration 公开，仅供插件使用的 configuration 留在插件内部。Contract、Variant 常量命名与身份迁移一起实施，并同步开发规范。
+类名去掉命名空间已经表达的契约前缀，例如 AcousticImportOptions 改为 ImportOptions。需要跨模块读取的 configuration 公开，仅供插件使用的 configuration 留在插件内部。Contract、Triplet 常量命名与身份迁移一起实施，并同步开发规范。
 
 ## 实施顺序
 
@@ -54,4 +54,18 @@ exports、import options 与 runtime options 只持有契约身份。configurati
 
 下游均使用 D:/GitHub/synthrt/build/contract-identity-install 中的新安装产物。安装目录只有 ContribContract.h，没有 ContribTriplet.h。三库源码中的旧类型 ContribTriplet、过渡类型 ContribContractVariant 均已清零。完整身份保留 triplet() 访问器，变体字符串使用 variant()。
 
-本阶段保留 payload 的完整三元组校验行为。尚未切换为第二阶段的契约 payload 校验，也尚未拆分契约与变体 API 头文件。
+以上为第一阶段验证记录。第二阶段按下文实施。
+
+## 第二阶段实现
+
+ContribSpecPayload 只提供虚 contract() 接口。ContribExports、ContribImportOptions、ContribRuntimeOptions 各自拥有契约，ContribConfiguration 拥有完整三元组并返回其中的契约引用，不重复保存身份字符串。加载器依据静态 payload 类型选择契约或三元组校验，runtime options 在执行入口按契约校验。
+
+dsinfer 五个 ONNX configuration 与 DiffSinger OpenVpi configuration 移入同 level 下的独立头文件，分别使用 Onnx::Triplet、OpenVpi::Triplet。wolf 既有公开 LinguistConfiguration 移入 LinguistWolfApiL1.h 的 Wolf::Configuration。其余 wolf、otter configuration 继续保留在插件内部。契约统一提供 Contract，类名去掉契约前缀。Onnx 驱动身份仍由名称和版本组成，常量命名为 Name、Version。
+
+wolf S2p 的 Exports::preservesSymbols 是解释器生成的能力，不增加清单字段。direct 声明 true，其他内置实现保持 false，wolflinguist 读取该能力。第三方实现可声明同一能力。
+
+## 第二阶段验证结果
+
+2026-11-17：三库构建退出码均为 0。synthrt 71 项通过，wolf 40 项通过，otter 28 项通过、2 项 RealEngine 测试跳过。test_SynthUnit 的 16 个用例和 321 条断言通过，test_InferenceInterpreter 的 2 个用例和 33 条断言通过，wolf test_S2pInterpreter 的 5 个用例和 38 条断言通过。7 个新增公开变体头文件分别以单独翻译单元通过语法编译。
+
+源码中的 API_INTERFACE、API_LEVEL、API_VARIANT 实际出现次数分别从 synthrt 的 309、wolf 的 189、otter 的 153 降至 0。下游继续使用 build/contract-identity-install 的同一份新安装产物。私有端口的远端版本固定与发布验证仍按独立工作项处理。

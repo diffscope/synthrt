@@ -6,6 +6,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include <stdcorelib/adt/array_view.h>
 
@@ -25,8 +26,17 @@ namespace srt {
     public:
         virtual ~ContribExports() = default;
 
+        /// Returns the interface contract this value belongs to.
+        const ContribContract &contract() const override {
+            return m_contract;
+        }
+
     protected:
-        using ContribSpecPayload::ContribSpecPayload;
+        explicit ContribExports(ContribContract contract) : m_contract(std::move(contract)) {
+        }
+
+    private:
+        ContribContract m_contract;
     };
 
     /// A typed interpretation of one import entry's manifest \c options value.
@@ -34,8 +44,17 @@ namespace srt {
     public:
         virtual ~ContribImportOptions() = default;
 
+        /// Returns the interface contract this value belongs to.
+        const ContribContract &contract() const override {
+            return m_contract;
+        }
+
     protected:
-        using ContribSpecPayload::ContribSpecPayload;
+        explicit ContribImportOptions(ContribContract contract) : m_contract(std::move(contract)) {
+        }
+
+    private:
+        ContribContract m_contract;
     };
 
     /// A typed interpretation of one contribution's manifest \c configuration value.
@@ -43,8 +62,23 @@ namespace srt {
     public:
         virtual ~ContribConfiguration() = default;
 
+        /// Returns the interface contract this value belongs to.
+        const ContribContract &contract() const override {
+            return m_triplet.contract();
+        }
+
+        /// Returns the complete identity of the configuration's implementation.
+        const ContribContractTriplet &triplet() const {
+            return m_triplet;
+        }
+
     protected:
-        using ContribSpecPayload::ContribSpecPayload;
+        explicit ContribConfiguration(ContribContractTriplet triplet)
+            : m_triplet(std::move(triplet)) {
+        }
+
+    private:
+        ContribContractTriplet m_triplet;
     };
 
     class ContribCreateContext;

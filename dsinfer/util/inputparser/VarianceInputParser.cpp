@@ -6,10 +6,10 @@ namespace ds {
 
     namespace Var = Api::Variance::L1;
 
-    srt::Expected<std::unique_ptr<Var::VarianceStartInput>>
+    srt::Expected<std::unique_ptr<Var::StartInput>>
         parseVarianceStartInput(const srt::JsonObject &obj) {
 
-        auto input = std::make_unique<Var::VarianceStartInput>();
+        auto input = std::make_unique<Var::StartInput>();
 
         if (auto result = parseOptionalNumber(obj, "duration", input->duration); !result) {
             return result.takeError();

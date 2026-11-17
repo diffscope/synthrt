@@ -94,7 +94,7 @@ Module Category 的条目使用 `path` 指向声明文件。公共 envelope 为�
 
 `ContribSpec` 保存公共字段和模块声明文件的 `declarationPath()`。解释器加载前，`manifestExports()`、`manifestConfiguration()` 和 `ContribImport::manifestOptions()` 提供展开后的 JSON。成功 Load 后，`exports()`、`configuration()` 和 `ContribImport::options()` 提供解释器创建的类型化对象。
 
-`ContribSpecPayload` 是这些类型化对象的公共身份基类。每个派生对象必须携带与目标 Module 完全一致的 `interface`、`variant` 和 `level`。Loader 会检查这组三元组，错误或空返回值会使整个加载事务失败。
+`ContribSpecPayload` 通过 `contract()` 提供公共契约身份。exports、import options 和 runtime options 保存 `ContribContract`，只要求 interface 与 level 匹配。configuration 保存 `ContribContractTriplet`，还要求 variant 匹配，并通过 `triplet()` 提供完整身份。Loader 按 payload 类型校验，错误或空返回值会使整个加载事务失败。
 
 ### 2.3 Locator、Dependency 与 role
 
@@ -199,7 +199,7 @@ ds::InferenceDriverFactory driverFactory;
 srt::SynthUnit unit;
 
 driverFactory.addPluginPath(dsinferPlugins / "inferencedrivers");
-auto driverLoader = driverFactory.find(ds::Api::Onnx::API_NAME);
+auto driverLoader = driverFactory.find(ds::Api::Onnx::Name);
 if (!driverLoader) {
     return srt::Error(srt::Error::FileNotFound, "ONNX inference driver plugin was not found");
 }
@@ -302,7 +302,7 @@ Acquire 才真正加载 Provider 插件。一个已加载插件中的同一个�
 
 1. `ContribInterpreter::createExports(spec)`。
 2. `ContribInterpreter::createConfiguration(spec)`。
-3. 校验返回 payload 非空且三元组与 Spec 一致。
+3. 校验返回 payload 非空，exports 的契约与 Spec 一致，configuration 的完整三元组与 Spec 一致。
 
 因此即使一个 Module 从未被 import，它自己的 exports 和 configuration 也必须有效，否则整个事务失败。
 
@@ -311,7 +311,7 @@ Acquire 才真正加载 Provider 插件。一个已加载插件中的同一个�
 所有新 Module Acquire 成功后，Loader 对每个 import 执行：
 
 1. 用目标 Module 的解释器调用 `createImportOptions(target, manifestOptions)`。
-2. 校验 options payload 的三元组与目标 Module 一致。
+2. 校验 options payload 的契约与目标 Module 的 interface、level 一致。
 3. 用 importing Module 的解释器调用 `createImportBinding(importer, declaration, target, options)`。
 4. 用目标 Category 调用 `createExecutiveFactory(binding)`，把目标 Category 的运行时创建能力挂到该 role。
 
@@ -471,14 +471,14 @@ dsinfer 把这几步合成 `dsinfer/plugins/CMakeLists.txt` 里的 `dsinfer_add_
 `as<T>()` 最终是静态转换，不做 RTTI 检查。正确用法是先检查身份，再转换：
 
 ```cpp
-if (spec.triplet() != srt::ContribContractTriplet(MyApi::Interface, MyApi::Level, MyApi::Variant)) {
+if (spec.triplet() != MyApi::Onnx::Triplet) {
     return srt::Error(srt::Error::InvalidArgument, "unexpected contract");
 }
 
 auto configuration = spec.configuration()->as<MyConfiguration>();
 ```
 
-Category 名称确定 `ContribSpec` 的派生类型，三元组确定 payload、解释器和 Executive 的派生类型。身份未验证时调用 `as<T>()` 是调用方错误。
+Category 名称确定 `ContribSpec` 的派生类型，契约确定 exports、options 和 Executive 的接口，完整三元组确定 configuration 和解释器的实现。身份未验证时调用 `as<T>()` 是调用方错误。
 
 ## 8. ImportBinding、Executive Factory 与开放 role
 
@@ -507,7 +507,7 @@ srt::Expected<MyExecutive *> MyPipeline::createLanguage(
 
     auto executive = *result;
     const auto &target = executive->spec();
-    if (target.triplet() != srt::ContribContractTriplet(MyApi::Interface, MyApi::Level, MyApi::Variant)) {
+    if (target.triplet() != MyApi::Onnx::Triplet) {
         delete executive;
         return srt::Error(srt::Error::InvalidFormat, "factory returned an incompatible Executive");
     }
@@ -538,7 +538,7 @@ Factory 的 `create(runtimeOptions)` 必须验证 runtime options 的三元组�
 
 每个契约定义自己的：
 
-- `API_INTERFACE`、`API_VARIANT`、`API_LEVEL`
+- `Contract` 和具体变体头文件中的 `Triplet`
 - exports 类型
 - configuration 类型
 - import options 类型
@@ -571,29 +571,27 @@ if (!base) {
 }
 
 auto singer = base->as<srt::SingerSpec>();
-if (singer->triplet().interfaceId() != ds::Api::DiffSinger::L1::API_INTERFACE ||
-    singer->triplet().variant() != ds::Api::DiffSinger::L1::API_VARIANT ||
-    singer->triplet().level() != ds::Api::DiffSinger::L1::API_LEVEL) {
+if (singer->triplet() != ds::Api::DiffSinger::L1::OpenVpi::Triplet) {
     // 不是调用方理解的契约
 }
 
 auto extension = srt::ContribSpecExtension::findFromSpec<
-    ds::Api::DiffSinger::L1::DiffSingerPipelineExecutive>(*singer);
+    ds::Api::DiffSinger::L1::PipelineExecutive>(*singer);
 if (!extension) {
     // 当前 Singer 没有 DiffSinger Pipeline
 }
 
 auto pipelineResult = extension->as<srt::SingerPipelineExtension>()->createPipeline(
-    ds::Api::DiffSinger::L1::DiffSingerPipelineRuntimeOptions());
+    ds::Api::DiffSinger::L1::PipelineRuntimeOptions());
 if (!pipelineResult) {
     return pipelineResult.takeError();
 }
 auto pipeline = pipelineResult.take();
 auto typedPipeline =
-    pipeline->as<ds::Api::DiffSinger::L1::DiffSingerPipelineExecutive>();
+    pipeline->as<ds::Api::DiffSinger::L1::PipelineExecutive>();
 
 auto acousticResult = typedPipeline->createAcoustic(
-    ds::Api::Acoustic::L1::AcousticRuntimeOptions());
+    ds::Api::Acoustic::L1::RuntimeOptions());
 if (!acousticResult) {
     return acousticResult.takeError();
 }

@@ -26,12 +26,11 @@ namespace ds {
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
-        srt::Expected<void> initialize(const Api::Duration::L1::DurationInitArgs &args);
-        srt::Expected<std::unique_ptr<Api::Duration::L1::DurationResult>>
-            start(const Api::Duration::L1::DurationStartInput &input);
-        srt::Expected<void>
-            startAsync(std::shared_ptr<const Api::Duration::L1::DurationStartInput> input,
-                       Api::Duration::L1::DurationExecutive::AsyncCallback callback);
+        srt::Expected<void> initialize(const Api::Duration::L1::InitArgs &args);
+        srt::Expected<std::unique_ptr<Api::Duration::L1::Result>>
+            start(const Api::Duration::L1::StartInput &input);
+        srt::Expected<void> startAsync(std::shared_ptr<const Api::Duration::L1::StartInput> input,
+                                       Api::Duration::L1::Executive::AsyncCallback callback);
 
     private:
         DurationInference *m_inference;

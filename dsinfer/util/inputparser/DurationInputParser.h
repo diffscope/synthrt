@@ -11,7 +11,7 @@
 namespace ds {
 
     /// Parses a Duration level 1 Task input from a obj.
-    srt::Expected<std::unique_ptr<Api::Duration::L1::DurationStartInput>>
+    srt::Expected<std::unique_ptr<Api::Duration::L1::StartInput>>
         parseDurationStartInput(const srt::JsonObject &obj);
 
 }

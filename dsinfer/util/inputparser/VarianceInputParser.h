@@ -11,7 +11,7 @@
 namespace ds {
 
     /// Parses a Variance level 1 Task input from a obj.
-    srt::Expected<std::unique_ptr<Api::Variance::L1::VarianceStartInput>>
+    srt::Expected<std::unique_ptr<Api::Variance::L1::StartInput>>
         parseVarianceStartInput(const srt::JsonObject &obj);
 
 }

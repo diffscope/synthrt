@@ -44,6 +44,10 @@ namespace {
     int bindingCloseCount = 0;
     int bindingWaitCount = 0;
     bool returnWrongPayloadIdentity = false;
+    int wrongContractLevel = 1;
+    bool wrongImportContract = false;
+    bool wrongConfigurationVariant = false;
+    bool skipTestExtensions = false;
     int preparedImportValidationCount = 0;
     int extensionCreateCount = 0;
     bool rejectPreparedImports = false;
@@ -52,26 +56,30 @@ namespace {
     class TestExports final : public srt::ContribExports {
     public:
         TestExports()
-            : ContribExports(
-                  {returnWrongPayloadIdentity ? "com.example.Wrong" : testInterface, 1, "test"}) {
+            : ContribExports({returnWrongPayloadIdentity ? "com.example.Wrong" : testInterface,
+                              wrongContractLevel}) {
         }
     };
 
     class TestConfiguration final : public srt::ContribConfiguration {
     public:
-        TestConfiguration() : ContribConfiguration({testInterface, 1, "test"}) {
+        explicit TestConfiguration(const srt::ContribContractTriplet &triplet)
+            : ContribConfiguration(
+                  {triplet.contract(), wrongConfigurationVariant ? "wrong" : triplet.variant()}) {
         }
     };
 
     class TestOptions final : public srt::ContribImportOptions {
     public:
-        TestOptions() : ContribImportOptions({testInterface, 1, "test"}) {
+        TestOptions()
+            : ContribImportOptions(
+                  {wrongImportContract ? "com.example.Other" : testInterface, wrongContractLevel}) {
         }
     };
 
     class TestRuntimeOptions final : public srt::ContribRuntimeOptions {
     public:
-        TestRuntimeOptions() : ContribRuntimeOptions({testInterface, 1, "test"}) {
+        TestRuntimeOptions() : ContribRuntimeOptions({testInterface, 1}) {
         }
     };
 
@@ -174,9 +182,10 @@ namespace {
         }
 
         srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
-            createConfiguration(const srt::ContribSpec &) const override {
+            createConfiguration(const srt::ContribSpec &spec) const override {
             ++configurationCount;
-            return std::unique_ptr<srt::ContribConfiguration>(new TestConfiguration());
+            return std::unique_ptr<srt::ContribConfiguration>(
+                new TestConfiguration(spec.triplet()));
         }
 
         srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
@@ -199,7 +208,8 @@ namespace {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(testInterface, 1, "test")) {
+            if (triplet != srt::ContribContractTriplet(testInterface, 1, "test") &&
+                triplet != srt::ContribContractTriplet(testInterface, 1, "remote")) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unexpected test interpreter contract");
             }
@@ -224,7 +234,7 @@ namespace {
     class TestImportValidator final : public srt::ContribImportValidator {
     public:
         srt::Expected<void> validateImports(const srt::ContribSpec &spec) const override {
-            if (spec.locator().category() != testCategoryName) {
+            if (skipTestExtensions || spec.locator().category() != testCategoryName) {
                 return {};
             }
             ++preparedImportValidationCount;
@@ -253,7 +263,7 @@ namespace {
     srt::Expected<std::vector<std::unique_ptr<srt::ContribSpecExtension>>>
         TestInterpreter::createExtensions(srt::ContribSpec &spec) const {
         std::vector<std::unique_ptr<srt::ContribSpecExtension>> result;
-        if (spec.locator().category() != testCategoryName) {
+        if (skipTestExtensions || spec.locator().category() != testCategoryName) {
             return result;
         }
         ++extensionCreateCount;
@@ -321,6 +331,9 @@ namespace {
                                        stdc::json::Object{{"interface", testInterface},
                                                           {"level", 1},
                                                           {"variant", "test"}},
+                                       stdc::json::Object{{"interface", testInterface},
+                                                          {"level", 1},
+                                                          {"variant", "remote"}},
                                    }                                 },
     }))
 

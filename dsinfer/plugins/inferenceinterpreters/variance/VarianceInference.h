@@ -9,17 +9,16 @@
 
 namespace ds {
 
-    class VarianceInference : public Api::Variance::L1::VarianceExecutive {
+    class VarianceInference : public Api::Variance::L1::Executive {
     public:
         explicit VarianceInference(srt::InferenceSpec &spec);
         ~VarianceInference();
 
-        srt::Expected<void> initialize(const Api::Variance::L1::VarianceInitArgs &args) override;
-        srt::Expected<std::unique_ptr<Api::Variance::L1::VarianceResult>>
-            start(const Api::Variance::L1::VarianceStartInput &input) override;
-        srt::Expected<void>
-            startAsync(std::shared_ptr<const Api::Variance::L1::VarianceStartInput> input,
-                       AsyncCallback callback) override;
+        srt::Expected<void> initialize(const Api::Variance::L1::InitArgs &args) override;
+        srt::Expected<std::unique_ptr<Api::Variance::L1::Result>>
+            start(const Api::Variance::L1::StartInput &input) override;
+        srt::Expected<void> startAsync(std::shared_ptr<const Api::Variance::L1::StartInput> input,
+                                       AsyncCallback callback) override;
 
         srt::ITask::State state() const noexcept override;
         srt::Expected<void> stop() override;

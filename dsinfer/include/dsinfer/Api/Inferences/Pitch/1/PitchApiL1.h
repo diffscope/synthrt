@@ -6,8 +6,8 @@
 #include <string>
 #include <vector>
 #include <map>
-#include <filesystem>
 
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/InferenceExecutive.h>
 
@@ -15,14 +15,8 @@
 
 namespace ds::Api::Pitch::L1 {
 
-    /// Identifies the pitch inference contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.dsinfer.inference.Pitch";
-
-    /// Identifies the ONNX implementation variant.
-    inline constexpr char API_VARIANT[] = "onnx";
-
-    /// Identifies Level 1 of the pitch inference contract.
-    inline constexpr int API_LEVEL = 1;
+    /// Identifies the Pitch interface contract.
+    inline const srt::ContribContract Contract{"org.openvpi.dsinfer.inference.Pitch", 1};
 
     using LinguisticMode = Common::L1::LinguisticMode;
     using InputWordInfo = Common::L1::InputWordInfo;
@@ -30,9 +24,9 @@ namespace ds::Api::Pitch::L1 {
     using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
 
     /// Describes the capabilities exported by a pitch inference contribution.
-    class PitchSchema : public srt::ContribExports {
+    class Schema : public srt::ContribExports {
     public:
-        inline PitchSchema() : srt::ContribExports({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        inline Schema() : srt::ContribExports(Contract) {
         }
 
         /// Speaker identifiers accepted by this contribution.
@@ -42,58 +36,10 @@ namespace ds::Api::Pitch::L1 {
         bool allowExpressiveness = true;
     };
 
-    /// Contains the interpreted configuration of an ONNX pitch model.
-    class PitchConfiguration : public srt::ContribConfiguration {
-    public:
-        inline PitchConfiguration()
-            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
-        }
-
-        /// Maps phoneme tokens to model input identifiers.
-        std::map<std::string, int> phonemes;
-
-        /// Maps language identifiers to model input identifiers.
-        std::map<std::string, int> languages;
-
-        /// Maps speaker identifiers to their embedding vectors.
-        std::map<std::string, std::vector<float>> speakers;
-
-        /// Path of the linguistic encoder model.
-        std::filesystem::path encoder;
-
-        /// Path of the pitch predictor model.
-        std::filesystem::path predictor;
-
-        /// Duration of one model frame in seconds.
-        double frameWidth = 512.0 / 44100.0;
-
-        /// Granularity accepted by the linguistic encoder.
-        LinguisticMode linguisticMode = LinguisticMode::Phoneme;
-
-        /// Width of the encoder state and each speaker embedding vector.
-        int hiddenSize = 256;
-
-        /// Indicates whether the encoder consumes language identifiers.
-        bool useLanguageId = false;
-
-        /// Indicates whether the predictor consumes speaker embeddings.
-        bool useSpeakerEmbedding = false;
-
-        /// Indicates whether the predictor consumes an expressiveness curve.
-        bool useExpressiveness = true;
-
-        /// Indicates whether the predictor consumes explicit rest flags.
-        bool useRestFlags = true;
-
-        /// Selects continuous sampling acceleration instead of discrete acceleration.
-        bool useContinuousAcceleration = true;
-    };
-
     /// Configures one import of a pitch inference contribution.
-    class PitchImportOptions : public srt::ContribImportOptions {
+    class ImportOptions : public srt::ContribImportOptions {
     public:
-        inline PitchImportOptions()
-            : srt::ContribImportOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        inline ImportOptions() : srt::ContribImportOptions(Contract) {
         }
 
         /// Maps singer level speaker identifiers to contribution level identifiers.
@@ -101,24 +47,23 @@ namespace ds::Api::Pitch::L1 {
     };
 
     /// Contains runtime options used when creating a pitch inference executive.
-    class PitchRuntimeOptions : public srt::InferenceRuntimeOptions {
+    class RuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
-        inline PitchRuntimeOptions()
-            : srt::InferenceRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        inline RuntimeOptions() : srt::InferenceRuntimeOptions(Contract) {
         }
     };
 
     /// Contains arguments used to initialize a pitch inference executive.
-    class PitchInitArgs : public srt::InferenceInitArgs {
+    class InitArgs : public srt::InferenceInitArgs {
     public:
-        inline PitchInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
+        inline InitArgs() : InferenceInitArgs(Contract.interfaceId(), Contract.level()) {
         }
     };
 
     /// Supplies score, control curves, and sampling parameters for pitch prediction.
-    class PitchStartInput : public srt::TaskStartInput {
+    class StartInput : public srt::TaskStartInput {
     public:
-        inline PitchStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
+        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
         }
 
         /// Total input duration in seconds.
@@ -138,9 +83,9 @@ namespace ds::Api::Pitch::L1 {
     };
 
     /// Contains the predicted pitch curve.
-    class PitchResult : public srt::TaskResult {
+    class Result : public srt::TaskResult {
     public:
-        inline PitchResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
+        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
         }
 
         /// Predicted pitch samples in semitones.
@@ -153,19 +98,18 @@ namespace ds::Api::Pitch::L1 {
     /// Executes one pitch model using Level 1 typed payloads.
     ///
     /// An interpreter implementing this contract must create executives derived from this class.
-    class PitchExecutive : public srt::InferenceExecutive {
+    class Executive : public srt::InferenceExecutive {
     public:
-        using AsyncCallback =
-            std::function<void(srt::Expected<std::unique_ptr<PitchResult>> result)>;
+        using AsyncCallback = std::function<void(srt::Expected<std::unique_ptr<Result>> result)>;
 
         /// Initializes the pitch model instance.
-        virtual srt::Expected<void> initialize(const PitchInitArgs &args) = 0;
+        virtual srt::Expected<void> initialize(const InitArgs &args) = 0;
 
         /// Executes pitch inference synchronously.
-        virtual srt::Expected<std::unique_ptr<PitchResult>> start(const PitchStartInput &input) = 0;
+        virtual srt::Expected<std::unique_ptr<Result>> start(const StartInput &input) = 0;
 
         /// Starts one asynchronous pitch inference execution.
-        virtual srt::Expected<void> startAsync(std::shared_ptr<const PitchStartInput> input,
+        virtual srt::Expected<void> startAsync(std::shared_ptr<const StartInput> input,
                                                AsyncCallback callback) = 0;
 
     protected:

@@ -9,11 +9,18 @@
 #include <stdcorelib/path.h>
 
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
+#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerOpenVpiApiL1.h>
 #include <synthrt/Core/ContribImportBinding.h>
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/SingerContrib.h>
 
 #include "DiffSingerPipelineExecutive.h"
+
+#include <dsinfer/Api/Inferences/Acoustic/1/AcousticOnnxApiL1.h>
+#include <dsinfer/Api/Inferences/Duration/1/DurationOnnxApiL1.h>
+#include <dsinfer/Api/Inferences/Pitch/1/PitchOnnxApiL1.h>
+#include <dsinfer/Api/Inferences/Variance/1/VarianceOnnxApiL1.h>
+#include <dsinfer/Api/Inferences/Vocoder/1/VocoderOnnxApiL1.h>
 
 namespace ds {
 
@@ -28,8 +35,7 @@ namespace ds {
 
         bool isDiffSingerSpec(const srt::ContribSpec &spec) {
             return spec.locator().category() == srt::SingerCategory::NAME &&
-                   spec.triplet() == srt::ContribContractTriplet(Ds::API_INTERFACE, Ds::API_LEVEL,
-                                                                 Ds::API_VARIANT);
+                   spec.triplet() == Ds::OpenVpi::Triplet;
         }
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec);
@@ -48,15 +54,13 @@ namespace ds {
         public:
             explicit DiffSingerPipelineExtension(srt::SingerSpec &spec)
                 : SingerPipelineExtension(
-                      spec, srt::ContribSpecExtensionTraits<srt::SingerSpec,
-                                                            Ds::DiffSingerPipelineExecutive>::ID) {
+                      spec,
+                      srt::ContribSpecExtensionTraits<srt::SingerSpec, Ds::PipelineExecutive>::ID) {
             }
 
             srt::Expected<std::unique_ptr<srt::SingerPipelineExecutive>>
                 createPipeline(const srt::SingerPipelineRuntimeOptions &runtimeOptions) override {
-                if (runtimeOptions.triplet() != srt::ContribContractTriplet(Ds::API_INTERFACE,
-                                                                            Ds::API_LEVEL,
-                                                                            Ds::API_VARIANT)) {
+                if (runtimeOptions.contract() != Ds::Contract) {
                     return srt::Error(
                         srt::Error::InvalidArgument,
                         "DiffSinger pipeline options have an incompatible contract identity");
@@ -162,12 +166,12 @@ namespace ds {
                 }
             };
             check("duration",
-                  missingFrom<Api::Duration::L1::DurationConfiguration>(duration, reserved));
-            check("pitch", missingFrom<Api::Pitch::L1::PitchConfiguration>(pitch, reserved));
+                  missingFrom<Api::Duration::L1::Onnx::Configuration>(duration, reserved));
+            check("pitch", missingFrom<Api::Pitch::L1::Onnx::Configuration>(pitch, reserved));
             check("variance",
-                  missingFrom<Api::Variance::L1::VarianceConfiguration>(variance, reserved));
+                  missingFrom<Api::Variance::L1::Onnx::Configuration>(variance, reserved));
             check("acoustic",
-                  missingFrom<Api::Acoustic::L1::AcousticConfiguration>(acoustic, reserved));
+                  missingFrom<Api::Acoustic::L1::Onnx::Configuration>(acoustic, reserved));
             if (errorList.empty()) {
                 return {};
             }
@@ -180,43 +184,28 @@ namespace ds {
         }
 
         srt::Expected<void> validateKnownImports(const srt::ContribSpec &spec) {
-            auto duration =
-                resolveKnownImport(spec, "singer/duration",
-                                   {Api::Duration::L1::API_INTERFACE, Api::Duration::L1::API_LEVEL,
-                                    Api::Duration::L1::API_VARIANT},
-                                   false);
+            auto duration = resolveKnownImport(spec, "singer/duration",
+                                               Api::Duration::L1::Onnx::Triplet, false);
             if (!duration) {
                 return duration.takeError();
             }
             auto pitch =
-                resolveKnownImport(spec, "singer/pitch",
-                                   {Api::Pitch::L1::API_INTERFACE, Api::Pitch::L1::API_LEVEL,
-                                    Api::Pitch::L1::API_VARIANT},
-                                   false);
+                resolveKnownImport(spec, "singer/pitch", Api::Pitch::L1::Onnx::Triplet, false);
             if (!pitch) {
                 return pitch.takeError();
             }
-            auto variance =
-                resolveKnownImport(spec, "singer/variance",
-                                   {Api::Variance::L1::API_INTERFACE, Api::Variance::L1::API_LEVEL,
-                                    Api::Variance::L1::API_VARIANT},
-                                   false);
+            auto variance = resolveKnownImport(spec, "singer/variance",
+                                               Api::Variance::L1::Onnx::Triplet, false);
             if (!variance) {
                 return variance.takeError();
             }
             auto acoustic =
-                resolveKnownImport(spec, "singer/acoustic",
-                                   {Api::Acoustic::L1::API_INTERFACE, Api::Acoustic::L1::API_LEVEL,
-                                    Api::Acoustic::L1::API_VARIANT},
-                                   true);
+                resolveKnownImport(spec, "singer/acoustic", Api::Acoustic::L1::Onnx::Triplet, true);
             if (!acoustic) {
                 return acoustic.takeError();
             }
             auto vocoder =
-                resolveKnownImport(spec, "singer/vocoder",
-                                   {Api::Vocoder::L1::API_INTERFACE, Api::Vocoder::L1::API_LEVEL,
-                                    Api::Vocoder::L1::API_VARIANT},
-                                   true);
+                resolveKnownImport(spec, "singer/vocoder", Api::Vocoder::L1::Onnx::Triplet, true);
             if (!vocoder) {
                 return vocoder.takeError();
             }
@@ -254,7 +243,7 @@ namespace ds {
         DiffSingerProvider::createConfiguration(const srt::ContribSpec &spec) const {
         const auto &singerSpec = *spec.as<srt::SingerSpec>();
         const auto &config = singerSpec.manifestConfiguration().toObject();
-        auto result = std::make_unique<Ds::DiffSingerConfiguration>();
+        auto result = std::make_unique<Ds::OpenVpi::Configuration>();
 
         // Collect all the errors and return to user
         bool hasErrors = false;

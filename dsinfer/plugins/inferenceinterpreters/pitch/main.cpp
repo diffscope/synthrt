@@ -1,6 +1,7 @@
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
+#include <dsinfer/Api/Inferences/Pitch/1/PitchOnnxApiL1.h>
 
 #include "PitchInterpreter.h"
 
@@ -10,9 +11,7 @@ namespace ds {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(Api::Pitch::L1::API_INTERFACE,
-                                                       Api::Pitch::L1::API_LEVEL,
-                                                       Api::Pitch::L1::API_VARIANT)) {
+            if (triplet != Api::Pitch::L1::Onnx::Triplet) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

@@ -12,6 +12,7 @@
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
+#include <dsinfer/Api/Inferences/Vocoder/1/VocoderOnnxApiL1.h>
 
 #include <inferutil/Driver.h>
 
@@ -23,18 +24,17 @@ namespace ds {
     namespace Vo = Api::Vocoder::L1;
     namespace Onnx = Api::Onnx;
 
-    static inline srt::Expected<const Vo::VocoderConfiguration *>
+    static inline srt::Expected<const Vo::Onnx::Configuration *>
         getConfig(const srt::InferenceSpec &spec) {
 
         const auto genericConfig = spec.configuration();
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "vocoder configuration is nullptr");
         }
-        if (genericConfig->triplet() !=
-            srt::ContribContractTriplet(Vo::API_INTERFACE, Vo::API_LEVEL, Vo::API_VARIANT)) {
+        if (genericConfig->triplet() != Vo::Onnx::Triplet) {
             return srt::Error(srt::Error::InvalidArgument, "invalid vocoder configuration");
         }
-        return static_cast<const Vo::VocoderConfiguration *>(genericConfig);
+        return static_cast<const Vo::Onnx::Configuration *>(genericConfig);
     }
 
     VocoderTask::VocoderTask(VocoderInference &inference) : m_inference(&inference) {
@@ -47,22 +47,20 @@ namespace ds {
         std::ignore = waitForFinished();
     }
 
-    srt::Expected<void> VocoderTask::initialize(const Vo::VocoderInitArgs &args) {
+    srt::Expected<void> VocoderTask::initialize(const Vo::InitArgs &args) {
         return initialize(static_cast<const srt::TaskInitArgs &>(args));
     }
 
-    srt::Expected<std::unique_ptr<Vo::VocoderResult>>
-        VocoderTask::start(const Vo::VocoderStartInput &input) {
+    srt::Expected<std::unique_ptr<Vo::Result>> VocoderTask::start(const Vo::StartInput &input) {
         auto result = start(static_cast<const srt::TaskStartInput &>(input));
         if (!result) {
             return result.takeError();
         }
-        return std::unique_ptr<Vo::VocoderResult>(
-            static_cast<Vo::VocoderResult *>(result.take().release()));
+        return std::unique_ptr<Vo::Result>(static_cast<Vo::Result *>(result.take().release()));
     }
 
-    srt::Expected<void> VocoderTask::startAsync(std::shared_ptr<const Vo::VocoderStartInput> input,
-                                                Vo::VocoderExecutive::AsyncCallback callback) {
+    srt::Expected<void> VocoderTask::startAsync(std::shared_ptr<const Vo::StartInput> input,
+                                                Vo::Executive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "vocoder asynchronous callback must not be empty");
@@ -75,18 +73,18 @@ namespace ds {
                                   callback(result.takeError());
                                   return;
                               }
-                              callback(std::unique_ptr<Vo::VocoderResult>(
-                                  static_cast<Vo::VocoderResult *>(result.take().release())));
+                              callback(std::unique_ptr<Vo::Result>(
+                                  static_cast<Vo::Result *>(result.take().release())));
                           });
     }
 
     srt::Expected<void> VocoderTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Vo::API_INTERFACE || args.version() != Vo::API_LEVEL) {
+        if (args.type() != Vo::Contract.interfaceId() || args.version() != Vo::Contract.level()) {
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid vocoder initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Vo::API_INTERFACE, Vo::API_LEVEL, args.type(), args.version()));
+                    Vo::Contract.interfaceId(), Vo::Contract.level(), args.type(), args.version()));
         }
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
@@ -140,16 +138,17 @@ namespace ds {
         const auto config = expConfig.take();
 
 
-        if (input.type() != Vo::API_INTERFACE || input.version() != Vo::API_LEVEL) {
+        if (input.type() != Vo::Contract.interfaceId() || input.version() != Vo::Contract.level()) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid vocoder start payload: expected "%1" level %2, got "%3" level %4)",
-                    Vo::API_INTERFACE, Vo::API_LEVEL, input.type(), input.version()));
+                    Vo::Contract.interfaceId(), Vo::Contract.level(), input.type(),
+                    input.version()));
         }
 
-        const auto &vocoderInput = *input.as<Vo::VocoderStartInput>();
+        const auto &vocoderInput = *input.as<Vo::StartInput>();
 
         auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
         sessionInput->inputs["mel"] = vocoderInput.mel;
@@ -173,15 +172,15 @@ namespace ds {
             sessionTaskResult = sessionExp.take();
         }
 
-        auto vocoderResult = std::make_unique<Vo::VocoderResult>();
+        auto vocoderResult = std::make_unique<Vo::Result>();
 
         // Get session results
         if (!sessionTaskResult) {
             ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::SessionFailed, "vocoder session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::API_NAME ||
-            sessionTaskResult->version() != Onnx::API_VERSION) {
+        if (sessionTaskResult->type() != Onnx::Name ||
+            sessionTaskResult->version() != Onnx::Version) {
             ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
@@ -204,7 +203,8 @@ namespace ds {
 
     srt::Expected<void> VocoderTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
                                                 AsyncCallback callback) {
-        if (!input || input->type() != Vo::API_INTERFACE || input->version() != Vo::API_LEVEL) {
+        if (!input || input->type() != Vo::Contract.interfaceId() ||
+            input->version() != Vo::Contract.level()) {
             return srt::Error(srt::Error::InvalidArgument,
                               "invalid vocoder asynchronous input payload");
         }

@@ -6,10 +6,10 @@ namespace ds {
 
     namespace Ac = Api::Acoustic::L1;
 
-    srt::Expected<std::unique_ptr<Ac::AcousticStartInput>>
+    srt::Expected<std::unique_ptr<Ac::StartInput>>
         parseAcousticStartInput(const srt::JsonObject &obj) {
 
-        auto input = std::make_unique<Ac::AcousticStartInput>();
+        auto input = std::make_unique<Ac::StartInput>();
 
         if (auto result = parseOptionalNumber(obj, "duration", input->duration); !result) {
             return result.takeError();

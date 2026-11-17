@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/SVS/SingerContrib.h>
 #include <synthrt/SVS/SingerPipelineExecutive.h>
 
@@ -15,38 +16,15 @@
 
 namespace ds::Api::DiffSinger::L1 {
 
-    /// Identifies the DiffSinger contribution contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.dsinfer.singer.DiffSinger";
+    /// Identifies the DiffSinger interface contract.
+    inline const srt::ContribContract Contract{"org.openvpi.dsinfer.singer.DiffSinger", 1};
 
-    /// Identifies the OpenVPI DiffSinger implementation variant.
-    inline constexpr char API_VARIANT[] = "openvpi";
 
-    /// Identifies Level 1 of the singer contribution contract.
-    inline constexpr int API_LEVEL = 1;
-
-    /// Contains the interpreted configuration of a DiffSinger singer contribution.
-    class DiffSingerConfiguration : public srt::ContribConfiguration {
-    public:
-        DiffSingerConfiguration()
-            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
-        }
-
-        /// Path of the singer pronunciation dictionary.
-        ///
-        /// Reserved phonemes, the phoneme tokens that a lyric may contain directly, are not part
-        /// of this configuration. They are a field of the singer category and are read through
-        /// SingerSpec::reservedPhonemes(). At load time the provider requires every reserved
-        /// phoneme to be present in the phoneme table of each imported model and rejects a
-        /// package that violates this requirement, because a token absent from a model produces
-        /// silence instead of the intended marker.
-        std::filesystem::path dict;
-    };
 
     /// Supplies runtime settings when a DiffSinger synthesis pipeline is created.
-    class DiffSingerPipelineRuntimeOptions : public srt::SingerPipelineRuntimeOptions {
+    class PipelineRuntimeOptions : public srt::SingerPipelineRuntimeOptions {
     public:
-        DiffSingerPipelineRuntimeOptions()
-            : SingerPipelineRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        PipelineRuntimeOptions() : SingerPipelineRuntimeOptions(Contract) {
         }
     };
 
@@ -55,27 +33,27 @@ namespace ds::Api::DiffSinger::L1 {
     /// A provider implementing this contract must create executives derived from this class. Each
     /// returned inference executive is owned by its pipeline. The caller may delete an executive
     /// early.
-    class DiffSingerPipelineExecutive : public srt::SingerPipelineExecutive {
+    class PipelineExecutive : public srt::SingerPipelineExecutive {
     public:
         /// Creates the duration inference selected by this singer.
-        virtual srt::Expected<ds::Api::Duration::L1::DurationExecutive *>
-            createDuration(const ds::Api::Duration::L1::DurationRuntimeOptions &options) = 0;
+        virtual srt::Expected<ds::Api::Duration::L1::Executive *>
+            createDuration(const ds::Api::Duration::L1::RuntimeOptions &options) = 0;
 
         /// Creates the pitch inference selected by this singer.
-        virtual srt::Expected<ds::Api::Pitch::L1::PitchExecutive *>
-            createPitch(const ds::Api::Pitch::L1::PitchRuntimeOptions &options) = 0;
+        virtual srt::Expected<ds::Api::Pitch::L1::Executive *>
+            createPitch(const ds::Api::Pitch::L1::RuntimeOptions &options) = 0;
 
         /// Creates the variance inference selected by this singer.
-        virtual srt::Expected<ds::Api::Variance::L1::VarianceExecutive *>
-            createVariance(const ds::Api::Variance::L1::VarianceRuntimeOptions &options) = 0;
+        virtual srt::Expected<ds::Api::Variance::L1::Executive *>
+            createVariance(const ds::Api::Variance::L1::RuntimeOptions &options) = 0;
 
         /// Creates the acoustic inference selected by this singer.
-        virtual srt::Expected<ds::Api::Acoustic::L1::AcousticExecutive *>
-            createAcoustic(const ds::Api::Acoustic::L1::AcousticRuntimeOptions &options) = 0;
+        virtual srt::Expected<ds::Api::Acoustic::L1::Executive *>
+            createAcoustic(const ds::Api::Acoustic::L1::RuntimeOptions &options) = 0;
 
         /// Creates the vocoder inference selected by this singer.
-        virtual srt::Expected<ds::Api::Vocoder::L1::VocoderExecutive *>
-            createVocoder(const ds::Api::Vocoder::L1::VocoderRuntimeOptions &options) = 0;
+        virtual srt::Expected<ds::Api::Vocoder::L1::Executive *>
+            createVocoder(const ds::Api::Vocoder::L1::RuntimeOptions &options) = 0;
 
     protected:
         using SingerPipelineExecutive::SingerPipelineExecutive;
@@ -86,8 +64,7 @@ namespace ds::Api::DiffSinger::L1 {
 namespace srt {
 
     template <>
-    struct ContribSpecExtensionTraits<SingerSpec,
-                                      ds::Api::DiffSinger::L1::DiffSingerPipelineExecutive> {
+    struct ContribSpecExtensionTraits<SingerSpec, ds::Api::DiffSinger::L1::PipelineExecutive> {
         inline static constexpr char ID[] = "org.openvpi.dsinfer.extension.DiffSingerPipeline";
     };
 

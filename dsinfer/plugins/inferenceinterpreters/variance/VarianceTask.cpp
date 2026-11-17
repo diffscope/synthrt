@@ -16,6 +16,7 @@
 #include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
+#include <dsinfer/Api/Inferences/Variance/1/VarianceOnnxApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
@@ -36,32 +37,29 @@ namespace ds {
     namespace Var = Api::Variance::L1;
     namespace Onnx = Api::Onnx;
 
-    static inline srt::Expected<const Var::VarianceConfiguration *>
+    static inline srt::Expected<const Var::Onnx::Configuration *>
         getConfig(const srt::InferenceSpec &spec) {
 
         const auto genericConfig = spec.configuration();
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "variance configuration is nullptr");
         }
-        if (genericConfig->triplet() !=
-            srt::ContribContractTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
+        if (genericConfig->triplet() != Var::Onnx::Triplet) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance configuration");
         }
-        return static_cast<const Var::VarianceConfiguration *>(genericConfig);
+        return static_cast<const Var::Onnx::Configuration *>(genericConfig);
     }
 
-    static inline srt::Expected<const Var::VarianceSchema *>
-        getSchema(const srt::InferenceSpec &spec) {
+    static inline srt::Expected<const Var::Schema *> getSchema(const srt::InferenceSpec &spec) {
 
         const auto genericSchema = spec.exports();
         if (!genericSchema) {
             return srt::Error(srt::Error::InvalidArgument, "variance schema is nullptr");
         }
-        if (genericSchema->triplet() !=
-            srt::ContribContractTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
+        if (genericSchema->contract() != Var::Contract) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance schema");
         }
-        return static_cast<const Var::VarianceSchema *>(genericSchema);
+        return static_cast<const Var::Schema *>(genericSchema);
     }
 
     VarianceTask::VarianceTask(VarianceInference &inference) : m_inference(&inference) {
@@ -74,23 +72,20 @@ namespace ds {
         std::ignore = waitForFinished();
     }
 
-    srt::Expected<void> VarianceTask::initialize(const Var::VarianceInitArgs &args) {
+    srt::Expected<void> VarianceTask::initialize(const Var::InitArgs &args) {
         return initialize(static_cast<const srt::TaskInitArgs &>(args));
     }
 
-    srt::Expected<std::unique_ptr<Var::VarianceResult>>
-        VarianceTask::start(const Var::VarianceStartInput &input) {
+    srt::Expected<std::unique_ptr<Var::Result>> VarianceTask::start(const Var::StartInput &input) {
         auto result = start(static_cast<const srt::TaskStartInput &>(input));
         if (!result) {
             return result.takeError();
         }
-        return std::unique_ptr<Var::VarianceResult>(
-            static_cast<Var::VarianceResult *>(result.take().release()));
+        return std::unique_ptr<Var::Result>(static_cast<Var::Result *>(result.take().release()));
     }
 
-    srt::Expected<void>
-        VarianceTask::startAsync(std::shared_ptr<const Var::VarianceStartInput> input,
-                                 Var::VarianceExecutive::AsyncCallback callback) {
+    srt::Expected<void> VarianceTask::startAsync(std::shared_ptr<const Var::StartInput> input,
+                                                 Var::Executive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "variance asynchronous callback must not be empty");
@@ -103,18 +98,19 @@ namespace ds {
                                   callback(result.takeError());
                                   return;
                               }
-                              callback(std::unique_ptr<Var::VarianceResult>(
-                                  static_cast<Var::VarianceResult *>(result.take().release())));
+                              callback(std::unique_ptr<Var::Result>(
+                                  static_cast<Var::Result *>(result.take().release())));
                           });
     }
 
     srt::Expected<void> VarianceTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Var::API_INTERFACE || args.version() != Var::API_LEVEL) {
+        if (args.type() != Var::Contract.interfaceId() || args.version() != Var::Contract.level()) {
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid variance initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Var::API_INTERFACE, Var::API_LEVEL, args.type(), args.version()));
+                    Var::Contract.interfaceId(), Var::Contract.level(), args.type(),
+                    args.version()));
         }
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
@@ -185,16 +181,18 @@ namespace ds {
         const auto schema = expSchema.take();
 
 
-        if (input.type() != Var::API_INTERFACE || input.version() != Var::API_LEVEL) {
+        if (input.type() != Var::Contract.interfaceId() ||
+            input.version() != Var::Contract.level()) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid variance start payload: expected "%1" level %2, got "%3" level %4)",
-                    Var::API_INTERFACE, Var::API_LEVEL, input.type(), input.version()));
+                    Var::Contract.interfaceId(), Var::Contract.level(), input.type(),
+                    input.version()));
         }
 
-        const auto &varianceInput = *input.as<Var::VarianceStartInput>();
+        const auto &varianceInput = *input.as<Var::StartInput>();
 
         auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
 
@@ -502,7 +500,7 @@ namespace ds {
             sessionTaskResult = sessionExp.take();
         }
 
-        auto varianceResult = std::make_unique<Var::VarianceResult>();
+        auto varianceResult = std::make_unique<Var::Result>();
 
         // Get session results
         if (!sessionTaskResult) {
@@ -510,8 +508,8 @@ namespace ds {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "variance predictor session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::API_NAME ||
-            sessionTaskResult->version() != Onnx::API_VERSION) {
+        if (sessionTaskResult->type() != Onnx::Name ||
+            sessionTaskResult->version() != Onnx::Version) {
             ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid session result contract");
         }
@@ -556,7 +554,8 @@ namespace ds {
 
     srt::Expected<void> VarianceTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
                                                  AsyncCallback callback) {
-        if (!input || input->type() != Var::API_INTERFACE || input->version() != Var::API_LEVEL) {
+        if (!input || input->type() != Var::Contract.interfaceId() ||
+            input->version() != Var::Contract.level()) {
             return srt::Error(srt::Error::InvalidArgument,
                               "invalid variance asynchronous input payload");
         }

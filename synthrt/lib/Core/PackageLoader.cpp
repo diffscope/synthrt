@@ -11,6 +11,7 @@
 #include <string>
 #include <string_view>
 #include <tuple>
+#include <type_traits>
 #include <utility>
 
 #include <stdcorelib/adt/vlarray.h>
@@ -55,18 +56,31 @@ namespace srt {
             }
         }
 
-        Expected<void> validatePayloadIdentity(const ContribSpecPayload *payload,
-                                               const ContribSpec &spec,
+        template <class Payload>
+        Expected<void> validatePayloadIdentity(const Payload *payload, const ContribSpec &spec,
                                                std::string_view payloadName) {
             if (!payload) {
                 return Error(Error::InvalidFormat,
                              std::string("interpreter returned null ") + std::string(payloadName));
             }
-            if (payload->triplet() != spec.triplet()) {
+            const auto &actual = [&]() -> const auto & {
+                if constexpr (std::is_same_v<Payload, ContribConfiguration>) {
+                    return payload->triplet();
+                } else {
+                    return payload->contract();
+                }
+            }();
+            const auto &expected = [&]() -> const auto & {
+                if constexpr (std::is_same_v<Payload, ContribConfiguration>) {
+                    return spec.triplet();
+                } else {
+                    return spec.triplet().contract();
+                }
+            }();
+            if (actual != expected) {
                 return Error(Error::InvalidFormat,
                              stdc::formatN("interpreter returned %1 for %2 instead of %3",
-                                           payloadName, payload->triplet().toString(),
-                                           spec.triplet().toString()));
+                                           payloadName, actual.toString(), expected.toString()));
             }
             return {};
         }

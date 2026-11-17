@@ -18,16 +18,16 @@ BOOST_AUTO_TEST_CASE(pipeline_supervises_imported_executives_and_reports_absent_
     auto singer = package.contribution("singer", "singer");
     BOOST_REQUIRE(singer);
     ds::DiffSingerPipelineExecutive pipeline(*singer->as<srt::SingerSpec>());
-    auto acoustic = pipeline.createAcoustic(ds::Api::Acoustic::L1::AcousticRuntimeOptions());
-    auto vocoder = pipeline.createVocoder(ds::Api::Vocoder::L1::VocoderRuntimeOptions());
+    auto acoustic = pipeline.createAcoustic(ds::Api::Acoustic::L1::RuntimeOptions());
+    auto vocoder = pipeline.createVocoder(ds::Api::Vocoder::L1::RuntimeOptions());
     BOOST_REQUIRE(acoustic);
     BOOST_REQUIRE(vocoder);
     BOOST_CHECK(acoustic.value()->parent() == &pipeline);
     BOOST_CHECK(vocoder.value()->parent() == &pipeline);
     BOOST_CHECK_EQUAL(pipeline.children().size(), 2u);
-    BOOST_CHECK(!pipeline.createDuration(ds::Api::Duration::L1::DurationRuntimeOptions()));
-    BOOST_CHECK(!pipeline.createPitch(ds::Api::Pitch::L1::PitchRuntimeOptions()));
-    BOOST_CHECK(!pipeline.createVariance(ds::Api::Variance::L1::VarianceRuntimeOptions()));
+    BOOST_CHECK(!pipeline.createDuration(ds::Api::Duration::L1::RuntimeOptions()));
+    BOOST_CHECK(!pipeline.createPitch(ds::Api::Pitch::L1::RuntimeOptions()));
+    BOOST_CHECK(!pipeline.createVariance(ds::Api::Variance::L1::RuntimeOptions()));
     delete acoustic.value();
     BOOST_CHECK_EQUAL(pipeline.children().size(), 1u);
 }

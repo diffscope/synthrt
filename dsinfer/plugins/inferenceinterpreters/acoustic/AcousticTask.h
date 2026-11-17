@@ -26,12 +26,11 @@ namespace ds {
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
-        srt::Expected<void> initialize(const Api::Acoustic::L1::AcousticInitArgs &args);
-        srt::Expected<std::unique_ptr<Api::Acoustic::L1::AcousticResult>>
-            start(const Api::Acoustic::L1::AcousticStartInput &input);
-        srt::Expected<void>
-            startAsync(std::shared_ptr<const Api::Acoustic::L1::AcousticStartInput> input,
-                       Api::Acoustic::L1::AcousticExecutive::AsyncCallback callback);
+        srt::Expected<void> initialize(const Api::Acoustic::L1::InitArgs &args);
+        srt::Expected<std::unique_ptr<Api::Acoustic::L1::Result>>
+            start(const Api::Acoustic::L1::StartInput &input);
+        srt::Expected<void> startAsync(std::shared_ptr<const Api::Acoustic::L1::StartInput> input,
+                                       Api::Acoustic::L1::Executive::AsyncCallback callback);
 
         void updateState(State state) noexcept;
 

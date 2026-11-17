@@ -127,7 +127,7 @@ namespace {
         ds::cli::SynthesisInput input(bool supplyCurves = false) {
             ds::cli::SynthesisInput input;
             input.singer = "voice";
-            input.acoustic = std::make_unique<ds::Api::Acoustic::L1::AcousticStartInput>();
+            input.acoustic = std::make_unique<ds::Api::Acoustic::L1::StartInput>();
             input.acoustic->duration = 0.04;
             input.acoustic->steps = 20;
             input.acoustic->depth = 0.75f;

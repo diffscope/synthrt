@@ -16,10 +16,10 @@ BOOST_AUTO_TEST_CASE(executive_reports_missing_backend_and_can_be_stopped) {
     ds::DurationInference executive(declaration.spec());
     BOOST_CHECK(&executive.spec() == &declaration.spec());
     BOOST_CHECK(executive.state() == srt::ITask::Idle);
-    Contract::DurationStartInput input;
+    Contract::StartInput input;
     auto beforeInitialization = executive.start(input);
     BOOST_REQUIRE(!beforeInitialization);
-    Contract::DurationInitArgs args;
+    Contract::InitArgs args;
     auto initialized = executive.initialize(args);
     BOOST_REQUIRE(!initialized);
     BOOST_CHECK(executive.state() == srt::ITask::Failed);

@@ -6,10 +6,10 @@ namespace ds {
 
     namespace Pit = Api::Pitch::L1;
 
-    srt::Expected<std::unique_ptr<Pit::PitchStartInput>>
+    srt::Expected<std::unique_ptr<Pit::StartInput>>
         parsePitchStartInput(const srt::JsonObject &obj) {
 
-        auto input = std::make_unique<Pit::PitchStartInput>();
+        auto input = std::make_unique<Pit::StartInput>();
 
         if (auto result = parseOptionalNumber(obj, "duration", input->duration); !result) {
             return result.takeError();

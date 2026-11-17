@@ -11,7 +11,7 @@
 namespace ds {
 
     /// Parses an Acoustic level 1 Task input from a obj.
-    srt::Expected<std::unique_ptr<Api::Acoustic::L1::AcousticStartInput>>
+    srt::Expected<std::unique_ptr<Api::Acoustic::L1::StartInput>>
         parseAcousticStartInput(const srt::JsonObject &obj);
 
 }

@@ -12,6 +12,11 @@
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
+#include <dsinfer/Api/Inferences/Acoustic/1/AcousticOnnxApiL1.h>
+#include <dsinfer/Api/Inferences/Duration/1/DurationOnnxApiL1.h>
+#include <dsinfer/Api/Inferences/Pitch/1/PitchOnnxApiL1.h>
+#include <dsinfer/Api/Inferences/Variance/1/VarianceOnnxApiL1.h>
+#include <dsinfer/Api/Inferences/Vocoder/1/VocoderOnnxApiL1.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 
 #include <boost/test/unit_test.hpp>
@@ -55,11 +60,11 @@ namespace ds::test {
                 exports.emplace("predictions", srt::JsonArray{"energy"});
             }
             write("model.json", srt::JsonValue(srt::JsonObject{
-                                                   {"interface",     Contract::API_INTERFACE},
-                                                   {"level",         Contract::API_LEVEL    },
-                                                   {"variant",       Contract::API_VARIANT  },
-                                                   {"exports",       std::move(exports)     },
-                                                   {"configuration", std::move(defaults)    }
+                                                   {"interface",     Contract::Contract.interfaceId() },
+                                                   {"level",         Contract::Contract.level()       },
+                                                   {"variant",       Contract::Onnx::Triplet.variant()},
+                                                   {"exports",       std::move(exports)               },
+                                                   {"configuration", std::move(defaults)              }
             })
                                     .toJson());
             if (driver) {
@@ -100,8 +105,9 @@ namespace {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(Contract::API_INTERFACE, Contract::API_LEVEL,
-                                                       Contract::API_VARIANT)) {
+            if (triplet != srt::ContribContractTriplet(Contract::Contract.interfaceId(),
+                                                       Contract::Contract.level(),
+                                                       Contract::Onnx::Triplet.variant())) {
                 return srt::Error(srt::Error::InvalidArgument, "unexpected test contract");
             }
             return std::make_unique<TestInterpreter>();
@@ -110,10 +116,11 @@ namespace {
     STDC_EXPORT_STATIC_PLUGIN(
         InterpreterPlugin, srt::InferenceInterpreterPlugin::IID,
         (srt::JsonObject{
-            {"name",         "class-test-interpreter"                                                                       },
-            {"interpreters", srt::JsonArray{srt::JsonObject{{"interface", Contract::API_INTERFACE},
-                                                            {"level", Contract::API_LEVEL},
-                                                            {"variant", Contract::API_VARIANT}}}}
+            {"name",         "class-test-interpreter"                                       },
+            {"interpreters",
+             srt::JsonArray{srt::JsonObject{{"interface", Contract::Contract.interfaceId()},
+                                            {"level", Contract::Contract.level()},
+                                            {"variant", Contract::Onnx::Triplet.variant()}}}}
     }))
 }
 

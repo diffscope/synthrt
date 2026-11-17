@@ -7,8 +7,8 @@
 #include <vector>
 #include <map>
 #include <set>
-#include <filesystem>
 
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/SVS/InferenceContrib.h>
 #include <synthrt/SVS/InferenceExecutive.h>
 
@@ -18,14 +18,8 @@
 
 namespace ds::Api::Acoustic::L1 {
 
-    /// Identifies the acoustic inference contract.
-    inline constexpr char API_INTERFACE[] = "org.openvpi.dsinfer.inference.Acoustic";
-
-    /// Identifies the ONNX implementation variant.
-    inline constexpr char API_VARIANT[] = "onnx";
-
-    /// Identifies Level 1 of the acoustic inference contract.
-    inline constexpr int API_LEVEL = 1;
+    /// Identifies the Acoustic interface contract.
+    inline const srt::ContribContract Contract{"org.openvpi.dsinfer.inference.Acoustic", 1};
 
     using MelBase = Common::L1::MelBase;
     using MelScale = Common::L1::MelScale;
@@ -34,9 +28,9 @@ namespace ds::Api::Acoustic::L1 {
     using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
 
     /// Describes the capabilities exported by an acoustic inference contribution.
-    class AcousticSchema : public srt::ContribExports {
+    class Schema : public srt::ContribExports {
     public:
-        inline AcousticSchema() : srt::ContribExports({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        inline Schema() : srt::ContribExports(Contract) {
         }
 
         /// Speaker identifiers accepted by this contribution.
@@ -49,79 +43,12 @@ namespace ds::Api::Acoustic::L1 {
         std::set<ParamTag> transitionControls;
     };
 
-    /// Contains the interpreted configuration of an ONNX acoustic model.
-    class AcousticConfiguration : public srt::ContribConfiguration {
-    public:
-        inline AcousticConfiguration()
-            : srt::ContribConfiguration({API_INTERFACE, API_LEVEL, API_VARIANT}) {
-        }
 
-        /// Maps phoneme tokens to model input identifiers.
-        std::map<std::string, int> phonemes;
-
-        /// Maps language identifiers to model input identifiers.
-        std::map<std::string, int> languages;
-
-        /// Maps speaker identifiers to their embedding vectors.
-        std::map<std::string, std::vector<float>> speakers;
-
-        /// Path of the acoustic model.
-        std::filesystem::path model;
-
-        /// Indicates whether the model consumes language identifiers.
-        bool useLanguageId = false;
-
-        /// Indicates whether the model consumes speaker embeddings.
-        bool useSpeakerEmbedding = false;
-
-        /// Width of each speaker embedding vector.
-        int hiddenSize = 256;
-
-        /// Parameters consumed by the acoustic model.
-        std::set<ParamTag> parameters;
-
-        /// Selects continuous sampling acceleration instead of discrete acceleration.
-        bool useContinuousAcceleration = false;
-
-        /// Indicates whether callers may select a sampling depth.
-        bool useVariableDepth = false;
-
-        /// Maximum sampling depth accepted by the model.
-        double maxDepth = 0.0;
-
-        /// Audio sample rate in hertz.
-        int sampleRate = 44100;
-
-        /// Number of audio samples between adjacent mel frames.
-        int hopSize = 2048;
-
-        /// Analysis window size in audio samples.
-        int winSize = 2048;
-
-        /// FFT size used to construct the mel spectrogram.
-        int fftSize = 128;
-
-        /// Number of mel channels produced by the model.
-        int melChannels = 128;
-
-        /// Lower mel filter frequency in hertz.
-        int melMinFreq = 0;
-
-        /// Upper mel filter frequency in hertz.
-        int melMaxFreq = 0;
-
-        /// Logarithmic base used by the mel transform.
-        MelBase melBase = MelBase::E;
-
-        /// Frequency scale used by the mel transform.
-        MelScale melScale = MelScale::Slaney;
-    };
 
     /// Configures one import of an acoustic inference contribution.
-    class AcousticImportOptions : public srt::ContribImportOptions {
+    class ImportOptions : public srt::ContribImportOptions {
     public:
-        inline AcousticImportOptions()
-            : srt::ContribImportOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        inline ImportOptions() : srt::ContribImportOptions(Contract) {
         }
 
         /// Maps singer level speaker identifiers to contribution level identifiers.
@@ -129,24 +56,23 @@ namespace ds::Api::Acoustic::L1 {
     };
 
     /// Contains runtime options used when creating an acoustic inference executive.
-    class AcousticRuntimeOptions : public srt::InferenceRuntimeOptions {
+    class RuntimeOptions : public srt::InferenceRuntimeOptions {
     public:
-        inline AcousticRuntimeOptions()
-            : srt::InferenceRuntimeOptions({API_INTERFACE, API_LEVEL, API_VARIANT}) {
+        inline RuntimeOptions() : srt::InferenceRuntimeOptions(Contract) {
         }
     };
 
     /// Contains arguments used to initialize an acoustic inference executive.
-    class AcousticInitArgs : public srt::InferenceInitArgs {
+    class InitArgs : public srt::InferenceInitArgs {
     public:
-        inline AcousticInitArgs() : InferenceInitArgs(API_INTERFACE, API_LEVEL) {
+        inline InitArgs() : InferenceInitArgs(Contract.interfaceId(), Contract.level()) {
         }
     };
 
     /// Supplies score, control curves, and sampling parameters for acoustic inference.
-    class AcousticStartInput : public srt::TaskStartInput {
+    class StartInput : public srt::TaskStartInput {
     public:
-        inline AcousticStartInput() : srt::TaskStartInput(API_INTERFACE, API_LEVEL) {
+        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
         }
 
         /// Total input duration in seconds.
@@ -169,9 +95,9 @@ namespace ds::Api::Acoustic::L1 {
     };
 
     /// Contains acoustic features produced by the model.
-    class AcousticResult : public srt::TaskResult {
+    class Result : public srt::TaskResult {
     public:
-        inline AcousticResult() : srt::TaskResult(API_INTERFACE, API_LEVEL) {
+        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
         }
 
         /// Mel spectrogram tensor with shape <tt>(1, frames, melChannels)</tt>.
@@ -184,20 +110,18 @@ namespace ds::Api::Acoustic::L1 {
     /// Executes one acoustic model using Level 1 typed payloads.
     ///
     /// An interpreter implementing this contract must create executives derived from this class.
-    class AcousticExecutive : public srt::InferenceExecutive {
+    class Executive : public srt::InferenceExecutive {
     public:
-        using AsyncCallback =
-            std::function<void(srt::Expected<std::unique_ptr<AcousticResult>> result)>;
+        using AsyncCallback = std::function<void(srt::Expected<std::unique_ptr<Result>> result)>;
 
         /// Initializes the acoustic model instance.
-        virtual srt::Expected<void> initialize(const AcousticInitArgs &args) = 0;
+        virtual srt::Expected<void> initialize(const InitArgs &args) = 0;
 
         /// Executes acoustic inference synchronously.
-        virtual srt::Expected<std::unique_ptr<AcousticResult>>
-            start(const AcousticStartInput &input) = 0;
+        virtual srt::Expected<std::unique_ptr<Result>> start(const StartInput &input) = 0;
 
         /// Starts one asynchronous acoustic inference execution.
-        virtual srt::Expected<void> startAsync(std::shared_ptr<const AcousticStartInput> input,
+        virtual srt::Expected<void> startAsync(std::shared_ptr<const StartInput> input,
                                                AsyncCallback callback) = 0;
 
     protected:

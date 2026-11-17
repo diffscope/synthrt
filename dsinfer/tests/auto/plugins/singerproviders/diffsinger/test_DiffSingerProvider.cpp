@@ -1,4 +1,5 @@
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
+#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerOpenVpiApiL1.h>
 
 #include <diffsinger/DiffSingerProvider.h>
 #include <diffsinger/DiffSingerPipelineExecutive.h>
@@ -21,7 +22,7 @@ BOOST_AUTO_TEST_CASE(provider_creates_typed_configuration_validators_and_pipelin
     auto configuration = provider.createConfiguration(*singer);
     BOOST_REQUIRE(configuration);
     BOOST_CHECK(configuration.value()->triplet() == singer->triplet());
-    BOOST_CHECK(configuration.value()->as<Api::DiffSingerConfiguration>()->dict ==
+    BOOST_CHECK(configuration.value()->as<Api::OpenVpi::Configuration>()->dict ==
                 temporary.path() / "dictionary.txt");
     auto validators = provider.createImportValidators();
     BOOST_REQUIRE(validators);
@@ -32,7 +33,7 @@ BOOST_AUTO_TEST_CASE(provider_creates_typed_configuration_validators_and_pipelin
     BOOST_REQUIRE_EQUAL(extensions.value().size(), 1u);
     BOOST_CHECK(&extensions.value()[0]->spec() == singer);
     auto extension = extensions.value()[0]->as<srt::SingerPipelineExtension>();
-    Api::DiffSingerPipelineRuntimeOptions options;
+    Api::PipelineRuntimeOptions options;
     auto pipeline = extension->createPipeline(options);
     BOOST_REQUIRE(pipeline);
     BOOST_CHECK(&pipeline.value()->spec() == singer);

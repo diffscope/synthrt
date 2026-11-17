@@ -18,7 +18,7 @@ namespace ds {
 
     srt::Expected<void> OnnxSession::open(const std::filesystem::path &path,
                                           const InferenceSessionOpenArgs &args) {
-        if (args.type() != Api::Onnx::API_NAME || args.version() != Api::Onnx::API_VERSION) {
+        if (args.type() != Api::Onnx::Name || args.version() != Api::Onnx::Version) {
             return srt::Error{
                 srt::Error::InvalidArgument,
                 "invalid session open arguments",

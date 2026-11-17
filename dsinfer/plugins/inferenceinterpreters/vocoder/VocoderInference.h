@@ -9,17 +9,16 @@
 
 namespace ds {
 
-    class VocoderInference : public Api::Vocoder::L1::VocoderExecutive {
+    class VocoderInference : public Api::Vocoder::L1::Executive {
     public:
         explicit VocoderInference(srt::InferenceSpec &spec);
         ~VocoderInference();
 
-        srt::Expected<void> initialize(const Api::Vocoder::L1::VocoderInitArgs &args) override;
-        srt::Expected<std::unique_ptr<Api::Vocoder::L1::VocoderResult>>
-            start(const Api::Vocoder::L1::VocoderStartInput &input) override;
-        srt::Expected<void>
-            startAsync(std::shared_ptr<const Api::Vocoder::L1::VocoderStartInput> input,
-                       AsyncCallback callback) override;
+        srt::Expected<void> initialize(const Api::Vocoder::L1::InitArgs &args) override;
+        srt::Expected<std::unique_ptr<Api::Vocoder::L1::Result>>
+            start(const Api::Vocoder::L1::StartInput &input) override;
+        srt::Expected<void> startAsync(std::shared_ptr<const Api::Vocoder::L1::StartInput> input,
+                                       AsyncCallback callback) override;
 
         srt::ITask::State state() const noexcept override;
         srt::Expected<void> stop() override;

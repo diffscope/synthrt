@@ -11,7 +11,7 @@
 namespace ds {
 
     /// Parses a Pitch level 1 Task input from a obj.
-    srt::Expected<std::unique_ptr<Api::Pitch::L1::PitchStartInput>>
+    srt::Expected<std::unique_ptr<Api::Pitch::L1::StartInput>>
         parsePitchStartInput(const srt::JsonObject &obj);
 
 }

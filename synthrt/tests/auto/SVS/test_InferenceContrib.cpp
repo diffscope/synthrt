@@ -4,14 +4,12 @@
 BOOST_AUTO_TEST_CASE(test_runtime_options_carry_contract_identity) {
     TestRuntimeOptions options;
 
-    BOOST_CHECK_EQUAL(options.triplet().interfaceId(), "com.example.svs.Acoustic");
-    BOOST_CHECK_EQUAL(options.triplet().variant(), "default");
-    BOOST_CHECK_EQUAL(options.triplet().level(), 1);
+    BOOST_CHECK_EQUAL(options.contract().interfaceId(), "com.example.svs.Acoustic");
+    BOOST_CHECK_EQUAL(options.contract().level(), 1);
 
     TestSingerPipelineRuntimeOptions singerOptions;
-    BOOST_CHECK_EQUAL(singerOptions.triplet().interfaceId(), "com.example.svs.Singer");
-    BOOST_CHECK_EQUAL(singerOptions.triplet().variant(), "test");
-    BOOST_CHECK_EQUAL(singerOptions.triplet().level(), 1);
+    BOOST_CHECK_EQUAL(singerOptions.contract().interfaceId(), "com.example.svs.Singer");
+    BOOST_CHECK_EQUAL(singerOptions.contract().level(), 1);
 }
 
 BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {

@@ -1,6 +1,7 @@
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
+#include <dsinfer/Api/Inferences/Vocoder/1/VocoderOnnxApiL1.h>
 
 #include "VocoderInterpreter.h"
 
@@ -10,9 +11,7 @@ namespace ds {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(Api::Vocoder::L1::API_INTERFACE,
-                                                       Api::Vocoder::L1::API_LEVEL,
-                                                       Api::Vocoder::L1::API_VARIANT)) {
+            if (triplet != Api::Vocoder::L1::Onnx::Triplet) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

@@ -9,17 +9,16 @@
 
 namespace ds {
 
-    class DurationInference : public Api::Duration::L1::DurationExecutive {
+    class DurationInference : public Api::Duration::L1::Executive {
     public:
         explicit DurationInference(srt::InferenceSpec &spec);
         ~DurationInference();
 
-        srt::Expected<void> initialize(const Api::Duration::L1::DurationInitArgs &args) override;
-        srt::Expected<std::unique_ptr<Api::Duration::L1::DurationResult>>
-            start(const Api::Duration::L1::DurationStartInput &input) override;
-        srt::Expected<void>
-            startAsync(std::shared_ptr<const Api::Duration::L1::DurationStartInput> input,
-                       AsyncCallback callback) override;
+        srt::Expected<void> initialize(const Api::Duration::L1::InitArgs &args) override;
+        srt::Expected<std::unique_ptr<Api::Duration::L1::Result>>
+            start(const Api::Duration::L1::StartInput &input) override;
+        srt::Expected<void> startAsync(std::shared_ptr<const Api::Duration::L1::StartInput> input,
+                                       AsyncCallback callback) override;
 
         srt::ITask::State state() const noexcept override;
         srt::Expected<void> stop() override;

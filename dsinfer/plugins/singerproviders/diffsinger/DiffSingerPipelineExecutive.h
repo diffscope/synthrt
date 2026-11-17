@@ -7,31 +7,31 @@
 
 namespace ds {
 
-    class DiffSingerPipelineExecutive : public Api::DiffSinger::L1::DiffSingerPipelineExecutive {
+    class DiffSingerPipelineExecutive : public Api::DiffSinger::L1::PipelineExecutive {
     public:
         explicit DiffSingerPipelineExecutive(srt::SingerSpec &spec);
         ~DiffSingerPipelineExecutive();
 
     public:
-        srt::Expected<Api::Duration::L1::DurationExecutive *>
-            createDuration(const Api::Duration::L1::DurationRuntimeOptions &options) override;
+        srt::Expected<Api::Duration::L1::Executive *>
+            createDuration(const Api::Duration::L1::RuntimeOptions &options) override;
 
-        srt::Expected<Api::Pitch::L1::PitchExecutive *>
-            createPitch(const Api::Pitch::L1::PitchRuntimeOptions &options) override;
+        srt::Expected<Api::Pitch::L1::Executive *>
+            createPitch(const Api::Pitch::L1::RuntimeOptions &options) override;
 
-        srt::Expected<Api::Variance::L1::VarianceExecutive *>
-            createVariance(const Api::Variance::L1::VarianceRuntimeOptions &options) override;
+        srt::Expected<Api::Variance::L1::Executive *>
+            createVariance(const Api::Variance::L1::RuntimeOptions &options) override;
 
-        srt::Expected<Api::Acoustic::L1::AcousticExecutive *>
-            createAcoustic(const Api::Acoustic::L1::AcousticRuntimeOptions &options) override;
+        srt::Expected<Api::Acoustic::L1::Executive *>
+            createAcoustic(const Api::Acoustic::L1::RuntimeOptions &options) override;
 
-        srt::Expected<Api::Vocoder::L1::VocoderExecutive *>
-            createVocoder(const Api::Vocoder::L1::VocoderRuntimeOptions &options) override;
+        srt::Expected<Api::Vocoder::L1::Executive *>
+            createVocoder(const Api::Vocoder::L1::RuntimeOptions &options) override;
 
     private:
         srt::Expected<srt::InferenceExecutive *>
             createInference(std::string_view role, const srt::InferenceRuntimeOptions &options,
-                            const srt::ContribContractTriplet &expected);
+                            const srt::ContribContract &expected);
     };
 
 }

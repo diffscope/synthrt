@@ -3,6 +3,7 @@
 #include <utility>
 
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
+#include <dsinfer/Api/Inferences/Pitch/1/PitchOnnxApiL1.h>
 #include <stdcorelib/str.h>
 
 #include <inferutil/Parser.h>
@@ -21,7 +22,7 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         PitchInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto result = std::make_unique<Pit::PitchSchema>();
+        auto result = std::make_unique<Pit::Schema>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -52,7 +53,7 @@ namespace ds {
     srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
         PitchInterpreter::createConfiguration(const srt::ContribSpec &spec) const {
         const auto &config = spec.manifestConfiguration();
-        auto result = std::make_unique<Pit::PitchConfiguration>();
+        auto result = std::make_unique<Pit::Onnx::Configuration>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -165,7 +166,7 @@ namespace ds {
             };
         }
         const auto &obj = options.toObject();
-        auto result = std::make_unique<Pit::PitchImportOptions>();
+        auto result = std::make_unique<Pit::ImportOptions>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;

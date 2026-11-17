@@ -2,16 +2,16 @@
 #include <string>
 #include <utility>
 
-#include <synthrt/Core/ContribSpecPayload.h>
+#include <synthrt/Core/ContribSpec.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
 
 namespace {
-    class Payload : public srt::ContribSpecPayload {
+    class Payload : public srt::ContribExports {
     public:
-        Payload(srt::ContribContractTriplet triplet, bool &destroyed)
-            : ContribSpecPayload(std::move(triplet)), m_destroyed(destroyed) {
+        Payload(srt::ContribContract triplet, bool &destroyed)
+            : ContribExports(std::move(triplet)), m_destroyed(destroyed) {
         }
         ~Payload() {
             m_destroyed = true;
@@ -25,12 +25,11 @@ namespace {
 
 BOOST_AUTO_TEST_CASE(contract_identity_and_polymorphic_ownership) {
     bool destroyed = false;
-    srt::ContribContractTriplet original("com.example.Contract", 2, "native");
+    srt::ContribContract original("com.example.Contract", 2);
     std::unique_ptr<srt::ContribSpecPayload> payload =
         std::make_unique<Payload>(original, destroyed);
-    original = srt::ContribContractTriplet("com.example.Other", 1, "other");
-    BOOST_CHECK(payload->triplet() ==
-                srt::ContribContractTriplet("com.example.Contract", 2, "native"));
+    original = srt::ContribContract("com.example.Other", 1);
+    BOOST_CHECK(payload->contract() == srt::ContribContract("com.example.Contract", 2));
     BOOST_CHECK_EQUAL(payload->as<Payload>()->value, 42);
     const auto &view = *payload;
     BOOST_CHECK_EQUAL(view.as<Payload>()->value, 42);

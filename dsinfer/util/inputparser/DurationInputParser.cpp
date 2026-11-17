@@ -6,10 +6,10 @@ namespace ds {
 
     namespace Dur = Api::Duration::L1;
 
-    srt::Expected<std::unique_ptr<Dur::DurationStartInput>>
+    srt::Expected<std::unique_ptr<Dur::StartInput>>
         parseDurationStartInput(const srt::JsonObject &obj) {
 
-        auto input = std::make_unique<Dur::DurationStartInput>();
+        auto input = std::make_unique<Dur::StartInput>();
 
         if (auto result = parseOptionalNumber(obj, "duration", input->duration); !result) {
             return result.takeError();

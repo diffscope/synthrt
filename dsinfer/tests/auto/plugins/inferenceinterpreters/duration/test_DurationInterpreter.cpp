@@ -15,6 +15,7 @@
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
+#include <dsinfer/Api/Inferences/Duration/1/DurationOnnxApiL1.h>
 #include <dsinfer/Inference/InferenceDriverFactory.h>
 
 #include <duration/DurationInterpreter.h>
@@ -51,8 +52,7 @@ namespace {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet !=
-                srt::ContribContractTriplet(Dur::API_INTERFACE, Dur::API_LEVEL, Dur::API_VARIANT)) {
+            if (triplet != Dur::Onnx::Triplet) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }
@@ -72,8 +72,8 @@ namespace {
 
     // A payload travels by move and never by copy, and the factory below relies on that when it
     // returns the input it built. A payload type that loses either property breaks this file.
-    static_assert(std::is_move_constructible_v<Dur::DurationStartInput>);
-    static_assert(!std::is_copy_constructible_v<Dur::DurationStartInput>);
+    static_assert(std::is_move_constructible_v<Dur::StartInput>);
+    static_assert(!std::is_copy_constructible_v<Dur::StartInput>);
 
 #ifdef TEST_RESOURCE_DIRECTORY
     const auto testResourceDirectory = fs::path(TEST_RESOURCE_DIRECTORY);
@@ -198,7 +198,7 @@ namespace {
         ConfiguredSynthUnit() {
             const std::array<fs::path, 1> driverPaths = {DSINFER_TEST_DRIVER_PLUGIN_PATH};
             m_factory.setPluginPaths(driverPaths);
-            auto loader = m_factory.find(Onnx::API_NAME);
+            auto loader = m_factory.find(Onnx::Name);
             BOOST_REQUIRE(loader);
             auto driverResult = m_factory.create(loader);
             BOOST_REQUIRE(driverResult);
@@ -221,8 +221,8 @@ namespace {
 #endif
 
 #ifdef TEST_RESOURCE_DIRECTORY
-    Dur::DurationStartInput makeStartInput() {
-        Dur::DurationStartInput input;
+    Dur::StartInput makeStartInput() {
+        Dur::StartInput input;
         for (const auto wordDuration : WORD_DURATION) {
             input.duration += wordDuration;
         }
@@ -279,21 +279,21 @@ namespace {
             auto spec = m_package.contribution("inference", "duration");
             BOOST_REQUIRE(spec);
             auto inference = spec->as<srt::InferenceSpec>();
-            auto executiveResult = inference->createInference(Dur::DurationImportOptions(),
-                                                              Dur::DurationRuntimeOptions());
+            auto executiveResult =
+                inference->createInference(Dur::ImportOptions(), Dur::RuntimeOptions());
             const std::string createWhy =
                 executiveResult ? std::string() : executiveResult.error().toString();
             BOOST_REQUIRE_MESSAGE(bool(executiveResult), createWhy);
             m_executive = executiveResult.take();
-            m_duration = m_executive->as<Dur::DurationExecutive>();
+            m_duration = m_executive->as<Dur::Executive>();
 
-            auto initialized = m_duration->initialize(Dur::DurationInitArgs());
+            auto initialized = m_duration->initialize(Dur::InitArgs());
             const std::string initWhy =
                 initialized ? std::string() : initialized.error().toString();
             BOOST_REQUIRE_MESSAGE(bool(initialized), initWhy);
         }
 
-        Dur::DurationExecutive &duration() {
+        Dur::Executive &duration() {
             return *m_duration;
         }
 
@@ -301,7 +301,7 @@ namespace {
         ConfiguredSynthUnit m_unit;
         srt::PackageHandle m_package;
         std::unique_ptr<srt::InferenceExecutive> m_executive;
-        Dur::DurationExecutive *m_duration = nullptr;
+        Dur::Executive *m_duration = nullptr;
     };
 #endif
 

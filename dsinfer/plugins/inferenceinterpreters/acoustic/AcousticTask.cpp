@@ -11,6 +11,7 @@
 #include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
+#include <dsinfer/Api/Inferences/Acoustic/1/AcousticOnnxApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
@@ -32,18 +33,17 @@ namespace ds {
     namespace Ac = Api::Acoustic::L1;
     namespace Onnx = Api::Onnx;
 
-    static inline srt::Expected<const Ac::AcousticConfiguration *>
+    static inline srt::Expected<const Ac::Onnx::Configuration *>
         getConfig(const srt::InferenceSpec &spec) {
 
         const auto genericConfig = spec.configuration();
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "acoustic configuration is nullptr");
         }
-        if (genericConfig->triplet() !=
-            srt::ContribContractTriplet(Ac::API_INTERFACE, Ac::API_LEVEL, Ac::API_VARIANT)) {
+        if (genericConfig->triplet() != Ac::Onnx::Triplet) {
             return srt::Error(srt::Error::InvalidArgument, "invalid acoustic configuration");
         }
-        return static_cast<const Ac::AcousticConfiguration *>(genericConfig);
+        return static_cast<const Ac::Onnx::Configuration *>(genericConfig);
     }
 
     AcousticTask::AcousticTask(AcousticInference &inference) : m_inference(&inference) {
@@ -57,26 +57,27 @@ namespace ds {
     }
 
     srt::Expected<void> AcousticTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Ac::API_INTERFACE || args.version() != Ac::API_LEVEL) {
+        if (args.type() != Ac::Contract.interfaceId() || args.version() != Ac::Contract.level()) {
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid acoustic initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Ac::API_INTERFACE, Ac::API_LEVEL, args.type(), args.version()));
+                    Ac::Contract.interfaceId(), Ac::Contract.level(), args.type(), args.version()));
         }
-        return initialize(*args.as<Ac::AcousticInitArgs>());
+        return initialize(*args.as<Ac::InitArgs>());
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
         AcousticTask::start(const srt::TaskStartInput &input) {
-        if (input.type() != Ac::API_INTERFACE || input.version() != Ac::API_LEVEL) {
+        if (input.type() != Ac::Contract.interfaceId() || input.version() != Ac::Contract.level()) {
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid acoustic start payload: expected "%1" level %2, got "%3" level %4)",
-                    Ac::API_INTERFACE, Ac::API_LEVEL, input.type(), input.version()));
+                    Ac::Contract.interfaceId(), Ac::Contract.level(), input.type(),
+                    input.version()));
         }
-        auto result = start(*input.as<Ac::AcousticStartInput>());
+        auto result = start(*input.as<Ac::StartInput>());
         if (!result) {
             return result.takeError();
         }
@@ -85,7 +86,8 @@ namespace ds {
 
     srt::Expected<void> AcousticTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
                                                  srt::ITask::AsyncCallback callback) {
-        if (!input || input->type() != Ac::API_INTERFACE || input->version() != Ac::API_LEVEL) {
+        if (!input || input->type() != Ac::Contract.interfaceId() ||
+            input->version() != Ac::Contract.level()) {
             return srt::Error(srt::Error::InvalidArgument,
                               "invalid acoustic asynchronous input payload");
         }
@@ -130,7 +132,7 @@ namespace ds {
     }
 
 
-    srt::Expected<void> AcousticTask::initialize(const Ac::AcousticInitArgs &) {
+    srt::Expected<void> AcousticTask::initialize(const Ac::InitArgs &) {
         std::unique_lock<std::shared_mutex> lock(m_mutex);
 
         if (auto res = inferutil::getInferenceDriver(m_inference); res) {
@@ -160,8 +162,7 @@ namespace ds {
         return {};
     }
 
-    srt::Expected<std::unique_ptr<Ac::AcousticResult>>
-        AcousticTask::start(const Ac::AcousticStartInput &input) {
+    srt::Expected<std::unique_ptr<Ac::Result>> AcousticTask::start(const Ac::StartInput &input) {
 
         {
             std::shared_lock<std::shared_mutex> lock(m_mutex);
@@ -534,15 +535,15 @@ namespace ds {
             sessionTaskResult = sessionExp.take();
         }
 
-        auto acousticResult = std::make_unique<Ac::AcousticResult>();
+        auto acousticResult = std::make_unique<Ac::Result>();
 
         // Get session results
         if (!sessionTaskResult) {
             updateState(srt::ITask::Failed);
             return srt::Error(ds::ErrorCode::SessionFailed, "acoustic session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::API_NAME ||
-            sessionTaskResult->version() != Onnx::API_VERSION) {
+        if (sessionTaskResult->type() != Onnx::Name ||
+            sessionTaskResult->version() != Onnx::Version) {
             updateState(srt::ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
@@ -559,9 +560,8 @@ namespace ds {
         return std::move(acousticResult);
     }
 
-    srt::Expected<void>
-        AcousticTask::startAsync(std::shared_ptr<const Ac::AcousticStartInput> input,
-                                 Ac::AcousticExecutive::AsyncCallback callback) {
+    srt::Expected<void> AcousticTask::startAsync(std::shared_ptr<const Ac::StartInput> input,
+                                                 Ac::Executive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "acoustic asynchronous callback must not be empty");
@@ -574,8 +574,8 @@ namespace ds {
                                   callback(result.takeError());
                                   return;
                               }
-                              callback(std::unique_ptr<Ac::AcousticResult>(
-                                  static_cast<Ac::AcousticResult *>(result.take().release())));
+                              callback(std::unique_ptr<Ac::Result>(
+                                  static_cast<Ac::Result *>(result.take().release())));
                           });
     }
 

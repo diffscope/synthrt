@@ -26,12 +26,11 @@ namespace ds {
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
-        srt::Expected<void> initialize(const Api::Variance::L1::VarianceInitArgs &args);
-        srt::Expected<std::unique_ptr<Api::Variance::L1::VarianceResult>>
-            start(const Api::Variance::L1::VarianceStartInput &input);
-        srt::Expected<void>
-            startAsync(std::shared_ptr<const Api::Variance::L1::VarianceStartInput> input,
-                       Api::Variance::L1::VarianceExecutive::AsyncCallback callback);
+        srt::Expected<void> initialize(const Api::Variance::L1::InitArgs &args);
+        srt::Expected<std::unique_ptr<Api::Variance::L1::Result>>
+            start(const Api::Variance::L1::StartInput &input);
+        srt::Expected<void> startAsync(std::shared_ptr<const Api::Variance::L1::StartInput> input,
+                                       Api::Variance::L1::Executive::AsyncCallback callback);
 
     private:
         VarianceInference *m_inference;

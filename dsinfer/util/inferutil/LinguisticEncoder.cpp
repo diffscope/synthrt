@@ -121,8 +121,8 @@ namespace ds::inferutil {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "linguistic encoder session result is nullptr");
         }
-        if (sessionTaskResult->type() != Api::Onnx::API_NAME ||
-            sessionTaskResult->version() != Api::Onnx::API_VERSION) {
+        if (sessionTaskResult->type() != Api::Onnx::Name ||
+            sessionTaskResult->version() != Api::Onnx::Version) {
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
         auto encoderResult = sessionTaskResult->as<Api::Onnx::SessionResult>();

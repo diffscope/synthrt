@@ -168,9 +168,8 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(rootSpec->findExtension(testSecondExtensionId) != nullptr);
     BOOST_CHECK(extension->as<TestExtension>() != nullptr);
     BOOST_CHECK(validatorSawPreparedImports);
-    BOOST_CHECK_EQUAL(rootSpec->exports()->triplet().interfaceId(), testInterface);
-    BOOST_CHECK_EQUAL(rootSpec->exports()->triplet().variant(), "test");
-    BOOST_CHECK_EQUAL(rootSpec->exports()->triplet().level(), 1);
+    BOOST_CHECK_EQUAL(rootSpec->exports()->contract().interfaceId(), testInterface);
+    BOOST_CHECK_EQUAL(rootSpec->exports()->contract().level(), 1);
     BOOST_REQUIRE_EQUAL(rootSpec->imports().size(), 2u);
     BOOST_CHECK_EQUAL(rootSpec->imports()[0].role(), "test/first");
     BOOST_CHECK_EQUAL(rootSpec->imports()[1].role(), "test/second");
@@ -185,7 +184,7 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
     BOOST_CHECK(rootSpec->imports()[1].manifestOptions().toObject().empty());
     BOOST_CHECK(rootSpec->imports()[0].options());
     BOOST_CHECK(rootSpec->imports()[1].options());
-    BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->triplet().interfaceId(), testInterface);
+    BOOST_CHECK_EQUAL(rootSpec->imports()[0].options()->contract().interfaceId(), testInterface);
     BOOST_REQUIRE(rootSpec->imports()[0].binding());
     BOOST_REQUIRE(rootSpec->imports()[1].binding());
     BOOST_CHECK(rootSpec->imports()[0].binding()->state() ==
@@ -456,6 +455,59 @@ BOOST_AUTO_TEST_CASE(test_entry_only_category_loads_without_an_interpreter) {
 
     package.reset();
     BOOST_CHECK(unit.loadedPackages().empty());
+}
+
+
+BOOST_AUTO_TEST_CASE(test_contract_payloads_accept_distinct_implementation_variants) {
+    TemporaryDirectory temporary;
+    const auto root = temporary.path();
+    writeText(root / "desc.json", R"({"$version":"1.0","id":"contract-variants","version":"1",
+        "runtimeLevel":1,"contributions":{"com.example.test":[
+        {"id":"native","path":"native.json"},{"id":"remote","path":"remote.json"}]}})");
+    writeText(root / "native.json", R"({"interface":"com.example.Contract","level":1,
+        "variant":"test","exports":{},"configuration":{},"imports":[
+        {"role":"model","ref":":com.example.test/remote"}]})");
+    writeText(root / "remote.json", R"({"interface":"com.example.Contract","level":1,
+        "variant":"remote","exports":{},"configuration":{}})");
+    auto unit = makeUnit();
+    skipTestExtensions = true;
+    auto opened = unit.openPackage(root, srt::SynthUnit::Load);
+    skipTestExtensions = false;
+    BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened),
+                          (opened ? std::string() : opened.error().toString()));
+    auto package = opened.take();
+    const auto native = package.contribution(testCategoryName, "native");
+    const auto remote = package.contribution(testCategoryName, "remote");
+    BOOST_REQUIRE(native);
+    BOOST_REQUIRE(remote);
+    BOOST_CHECK(native->triplet() != remote->triplet());
+    BOOST_CHECK(native->exports()->contract() == remote->exports()->contract());
+    BOOST_CHECK(native->configuration()->triplet() == native->triplet());
+    BOOST_CHECK(remote->configuration()->triplet() == remote->triplet());
+    BOOST_REQUIRE_EQUAL(native->imports().size(), 1u);
+    BOOST_CHECK(native->imports()[0].options()->contract() == remote->triplet().contract());
+}
+
+BOOST_AUTO_TEST_CASE(test_payload_identity_mismatches_reject_loading) {
+    for (int kind = 0; kind < 3; ++kind) {
+        TemporaryDirectory temporary;
+        const auto root = writePackage(temporary.path(), "root", "root", "1", {}, "[]",
+                                       R"([{"role":"self","ref":":com.example.test/main"}])");
+        auto unit = makeUnit();
+        wrongContractLevel = kind == 0 ? 2 : 1;
+        wrongImportContract = kind == 1;
+        wrongConfigurationVariant = kind == 2;
+        skipTestExtensions = true;
+        auto opened = unit.openPackage(root, srt::SynthUnit::Load);
+        skipTestExtensions = false;
+        wrongContractLevel = 1;
+        wrongImportContract = false;
+        wrongConfigurationVariant = false;
+        BOOST_REQUIRE(!opened);
+        BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
+        BOOST_CHECK(opened.error().toString().find("instead of") != std::string::npos);
+        BOOST_CHECK(unit.loadedPackages().empty());
+    }
 }
 
 BOOST_AUTO_TEST_SUITE_END()

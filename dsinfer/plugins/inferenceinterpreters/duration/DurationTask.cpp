@@ -14,6 +14,7 @@
 #include <dsinfer/Support/ErrorCode.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
+#include <dsinfer/Api/Inferences/Duration/1/DurationOnnxApiL1.h>
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Inference/InferenceDriver.h>
 #include <dsinfer/Inference/InferenceSession.h>
@@ -32,18 +33,17 @@ namespace ds {
     namespace Dur = Api::Duration::L1;
     namespace Onnx = Api::Onnx;
 
-    static inline srt::Expected<const Dur::DurationConfiguration *>
+    static inline srt::Expected<const Dur::Onnx::Configuration *>
         getConfig(const srt::InferenceSpec &spec) {
 
         const auto genericConfig = spec.configuration();
         if (!genericConfig) {
             return srt::Error(srt::Error::InvalidArgument, "duration configuration is nullptr");
         }
-        if (genericConfig->triplet() !=
-            srt::ContribContractTriplet(Dur::API_INTERFACE, Dur::API_LEVEL, Dur::API_VARIANT)) {
+        if (genericConfig->triplet() != Dur::Onnx::Triplet) {
             return srt::Error(srt::Error::InvalidArgument, "invalid duration configuration");
         }
-        return static_cast<const Dur::DurationConfiguration *>(genericConfig);
+        return static_cast<const Dur::Onnx::Configuration *>(genericConfig);
     }
 
     static inline srt::Expected<std::shared_ptr<ITensor>>
@@ -120,23 +120,20 @@ namespace ds {
         std::ignore = waitForFinished();
     }
 
-    srt::Expected<void> DurationTask::initialize(const Dur::DurationInitArgs &args) {
+    srt::Expected<void> DurationTask::initialize(const Dur::InitArgs &args) {
         return initialize(static_cast<const srt::TaskInitArgs &>(args));
     }
 
-    srt::Expected<std::unique_ptr<Dur::DurationResult>>
-        DurationTask::start(const Dur::DurationStartInput &input) {
+    srt::Expected<std::unique_ptr<Dur::Result>> DurationTask::start(const Dur::StartInput &input) {
         auto result = start(static_cast<const srt::TaskStartInput &>(input));
         if (!result) {
             return result.takeError();
         }
-        return std::unique_ptr<Dur::DurationResult>(
-            static_cast<Dur::DurationResult *>(result.take().release()));
+        return std::unique_ptr<Dur::Result>(static_cast<Dur::Result *>(result.take().release()));
     }
 
-    srt::Expected<void>
-        DurationTask::startAsync(std::shared_ptr<const Dur::DurationStartInput> input,
-                                 Dur::DurationExecutive::AsyncCallback callback) {
+    srt::Expected<void> DurationTask::startAsync(std::shared_ptr<const Dur::StartInput> input,
+                                                 Dur::Executive::AsyncCallback callback) {
         if (!callback) {
             return srt::Error(srt::Error::InvalidArgument,
                               "duration asynchronous callback must not be empty");
@@ -149,18 +146,19 @@ namespace ds {
                                   callback(result.takeError());
                                   return;
                               }
-                              callback(std::unique_ptr<Dur::DurationResult>(
-                                  static_cast<Dur::DurationResult *>(result.take().release())));
+                              callback(std::unique_ptr<Dur::Result>(
+                                  static_cast<Dur::Result *>(result.take().release())));
                           });
     }
 
     srt::Expected<void> DurationTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Dur::API_INTERFACE || args.version() != Dur::API_LEVEL) {
+        if (args.type() != Dur::Contract.interfaceId() || args.version() != Dur::Contract.level()) {
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid duration initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Dur::API_INTERFACE, Dur::API_LEVEL, args.type(), args.version()));
+                    Dur::Contract.interfaceId(), Dur::Contract.level(), args.type(),
+                    args.version()));
         }
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
@@ -222,16 +220,18 @@ namespace ds {
         }
         const auto config = expConfig.take();
 
-        if (input.type() != Dur::API_INTERFACE || input.version() != Dur::API_LEVEL) {
+        if (input.type() != Dur::Contract.interfaceId() ||
+            input.version() != Dur::Contract.level()) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid duration start payload: expected "%1" level %2, got "%3" level %4)",
-                    Dur::API_INTERFACE, Dur::API_LEVEL, input.type(), input.version()));
+                    Dur::Contract.interfaceId(), Dur::Contract.level(), input.type(),
+                    input.version()));
         }
 
-        const auto &durationInput = *input.as<Dur::DurationStartInput>();
+        const auto &durationInput = *input.as<Dur::StartInput>();
 
         auto sessionInput = std::make_shared<Onnx::SessionStartInput>();
 
@@ -357,7 +357,7 @@ namespace ds {
             sessionTaskResult = sessionExp.take();
         }
 
-        auto durationResult = std::make_unique<Dur::DurationResult>();
+        auto durationResult = std::make_unique<Dur::Result>();
 
         // Get session results
         if (!sessionTaskResult) {
@@ -365,8 +365,8 @@ namespace ds {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "duration predictor session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::API_NAME ||
-            sessionTaskResult->version() != Onnx::API_VERSION) {
+        if (sessionTaskResult->type() != Onnx::Name ||
+            sessionTaskResult->version() != Onnx::Version) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
@@ -437,7 +437,8 @@ namespace ds {
 
     srt::Expected<void> DurationTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
                                                  AsyncCallback callback) {
-        if (!input || input->type() != Dur::API_INTERFACE || input->version() != Dur::API_LEVEL) {
+        if (!input || input->type() != Dur::Contract.interfaceId() ||
+            input->version() != Dur::Contract.level()) {
             return srt::Error(srt::Error::InvalidArgument,
                               "invalid duration asynchronous input payload");
         }

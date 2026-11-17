@@ -9,19 +9,18 @@
 
 namespace ds {
 
-    class AcousticInference : public Api::Acoustic::L1::AcousticExecutive {
+    class AcousticInference : public Api::Acoustic::L1::Executive {
     public:
         explicit AcousticInference(srt::InferenceSpec &spec);
         ~AcousticInference();
 
     public:
-        srt::Expected<void> initialize(const Api::Acoustic::L1::AcousticInitArgs &args) override;
+        srt::Expected<void> initialize(const Api::Acoustic::L1::InitArgs &args) override;
 
-        srt::Expected<std::unique_ptr<Api::Acoustic::L1::AcousticResult>>
-            start(const Api::Acoustic::L1::AcousticStartInput &input) override;
-        srt::Expected<void>
-            startAsync(std::shared_ptr<const Api::Acoustic::L1::AcousticStartInput> input,
-                       AsyncCallback callback) override;
+        srt::Expected<std::unique_ptr<Api::Acoustic::L1::Result>>
+            start(const Api::Acoustic::L1::StartInput &input) override;
+        srt::Expected<void> startAsync(std::shared_ptr<const Api::Acoustic::L1::StartInput> input,
+                                       AsyncCallback callback) override;
 
         srt::ITask::State state() const noexcept override;
         srt::Expected<void> stop() override;

@@ -84,7 +84,7 @@ namespace ds::test {
                                  const InferenceSessionOpenArgs &args) override {
             m_path = path;
             m_trace->openedModels.push_back(path);
-            if (args.type() != Api::Onnx::API_NAME || args.version() != Api::Onnx::API_VERSION) {
+            if (args.type() != Api::Onnx::Name || args.version() != Api::Onnx::Version) {
                 return srt::Error(srt::Error::InvalidArgument, "incorrect model open contract");
             }
             if (selectedFault() == SessionFault::Open) {
@@ -106,8 +106,8 @@ namespace ds::test {
 
         srt::Expected<std::unique_ptr<srt::TaskResult>>
             start(const srt::TaskStartInput &input) override {
-            if (!m_open || input.type() != Api::Onnx::API_NAME ||
-                input.version() != Api::Onnx::API_VERSION) {
+            if (!m_open || input.type() != Api::Onnx::Name ||
+                input.version() != Api::Onnx::Version) {
                 return srt::Error(srt::Error::InvalidArgument, "incorrect model start contract");
             }
             setState(Running);
@@ -132,7 +132,7 @@ namespace ds::test {
             }
             if (fault == SessionFault::WrongType || fault == SessionFault::WrongVersion) {
                 return std::make_unique<UnexpectedResult>(
-                    fault == SessionFault::WrongType ? "other.backend" : Api::Onnx::API_NAME, 99);
+                    fault == SessionFault::WrongType ? "other.backend" : Api::Onnx::Name, 99);
             }
             auto result = std::make_unique<Api::Onnx::SessionResult>();
             if (fault != SessionFault::MissingOutput) {
@@ -194,7 +194,7 @@ namespace ds::test {
     class RecordingDriver : public InferenceDriver {
     public:
         explicit RecordingDriver(std::shared_ptr<DriverTrace> trace)
-            : InferenceDriver(Api::Onnx::API_NAME), m_trace(std::move(trace)) {
+            : InferenceDriver(Api::Onnx::Name), m_trace(std::move(trace)) {
         }
         srt::Expected<void> initialize(const InferenceDriverInitArgs &) override {
             return {};

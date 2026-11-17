@@ -51,8 +51,8 @@ BOOST_AUTO_TEST_CASE(task_rejects_wrong_payloads_and_null_async_input) {
 }
 
 namespace {
-    Contract::AcousticStartInput makeInput() {
-        Contract::AcousticStartInput input;
+    Contract::StartInput makeInput() {
+        Contract::StartInput input;
         input.duration = 0.04;
         ds::Api::Common::L1::InputWordInfo word;
         word.phones.push_back({"a", "", 0, 0});
@@ -80,7 +80,7 @@ BOOST_AUTO_TEST_CASE(modelInputsResultsAndReuse) {
                                             executionConfiguration());
     ds::AcousticInference executive(declaration.spec());
     ds::AcousticTask task(executive);
-    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
     auto result = task.start(input);
     BOOST_REQUIRE_MESSAGE(result, (result ? std::string() : result.error().message()));
@@ -110,12 +110,12 @@ BOOST_AUTO_TEST_CASE(openFailuresAreReportedAndInitializationCanBeRetried) {
         ds::AcousticInference executive(declaration.spec());
         {
             ds::AcousticTask task(executive);
-            auto result = task.initialize(Contract::AcousticInitArgs());
+            auto result = task.initialize(Contract::InitArgs());
             BOOST_REQUIRE(!result);
             BOOST_CHECK(result.error().code() == srt::Error::FileNotOpen);
             BOOST_CHECK(task.state() == srt::ITask::Failed);
             trace->fault = ds::test::SessionFault::None;
-            BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+            BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
             BOOST_CHECK(task.state() == srt::ITask::Idle);
         }
         BOOST_CHECK_EQUAL(trace->destroyed.load(), trace->created.load());
@@ -133,7 +133,7 @@ BOOST_AUTO_TEST_CASE(modelFailuresAndMalformedResultsAreRejected) {
                                                 executionConfiguration());
         ds::AcousticInference executive(declaration.spec());
         ds::AcousticTask task(executive);
-        BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+        BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
         auto input = makeInput();
         auto result = task.start(input);
         BOOST_REQUIRE(!result);
@@ -151,12 +151,12 @@ BOOST_AUTO_TEST_CASE(typedAsyncCallbackRunsOnceAndCompletesBeforeWaitReturns) {
                                             executionConfiguration());
     ds::AcousticInference executive(declaration.spec());
     ds::AcousticTask task(executive);
-    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
-    auto input = std::make_shared<Contract::AcousticStartInput>(makeInput());
+    BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
+    auto input = std::make_shared<Contract::StartInput>(makeInput());
     std::atomic<int> callbacks{0};
     bool succeeded = false;
-    BOOST_REQUIRE(task.startAsync(
-        input, [&](srt::Expected<std::unique_ptr<Contract::AcousticResult>> result) {
+    BOOST_REQUIRE(
+        task.startAsync(input, [&](srt::Expected<std::unique_ptr<Contract::Result>> result) {
             succeeded = result && result.value() != nullptr;
             ++callbacks;
         }));
@@ -174,14 +174,14 @@ BOOST_AUTO_TEST_CASE(stopInterruptsAModelAndDoesNotCancelTheNextExecution) {
                                             executionConfiguration());
     ds::AcousticInference executive(declaration.spec());
     ds::AcousticTask task(executive);
-    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
-    auto input = std::make_shared<Contract::AcousticStartInput>(makeInput());
+    BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
+    auto input = std::make_shared<Contract::StartInput>(makeInput());
     std::atomic<int> callbacks{0};
     BOOST_REQUIRE(task.startAsync(
-        input, [&](srt::Expected<std::unique_ptr<Contract::AcousticResult>>) { ++callbacks; }));
+        input, [&](srt::Expected<std::unique_ptr<Contract::Result>>) { ++callbacks; }));
     BOOST_REQUIRE(trace->waitUntilEntered());
     auto duplicate =
-        task.startAsync(input, [](srt::Expected<std::unique_ptr<Contract::AcousticResult>>) {});
+        task.startAsync(input, [](srt::Expected<std::unique_ptr<Contract::Result>>) {});
     BOOST_REQUIRE(!duplicate);
     BOOST_CHECK(duplicate.error().code() == srt::Error::InvalidArgument);
     BOOST_REQUIRE(task.stop());
@@ -201,11 +201,11 @@ BOOST_AUTO_TEST_CASE(destructionStopsAndJoinsAnActiveExecution) {
                                             executionConfiguration());
     ds::AcousticInference executive(declaration.spec());
     auto task = std::make_unique<ds::AcousticTask>(executive);
-    BOOST_REQUIRE(task->initialize(Contract::AcousticInitArgs()));
-    auto input = std::make_shared<Contract::AcousticStartInput>(makeInput());
+    BOOST_REQUIRE(task->initialize(Contract::InitArgs()));
+    auto input = std::make_shared<Contract::StartInput>(makeInput());
     std::atomic<int> callbacks{0};
     BOOST_REQUIRE(task->startAsync(
-        input, [&](srt::Expected<std::unique_ptr<Contract::AcousticResult>>) { ++callbacks; }));
+        input, [&](srt::Expected<std::unique_ptr<Contract::Result>>) { ++callbacks; }));
     BOOST_REQUIRE(trace->waitUntilEntered());
     task.reset();
     BOOST_CHECK_EQUAL(callbacks.load(), 1);
@@ -221,7 +221,7 @@ BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
                                             executionConfiguration());
     ds::AcousticInference executive(declaration.spec());
     ds::AcousticTask task(executive);
-    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
     auto result = task.start(input);
     BOOST_REQUIRE(!result);
@@ -231,12 +231,14 @@ BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
 namespace {
     class UnsupportedInit : public srt::TaskInitArgs {
     public:
-        UnsupportedInit() : TaskInitArgs(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        UnsupportedInit()
+            : TaskInitArgs(Contract::Contract.interfaceId(), Contract::Contract.level() + 1) {
         }
     };
     class UnsupportedInput : public srt::TaskStartInput {
     public:
-        UnsupportedInput() : TaskStartInput(Contract::API_INTERFACE, Contract::API_LEVEL + 1) {
+        UnsupportedInput()
+            : TaskStartInput(Contract::Contract.interfaceId(), Contract::Contract.level() + 1) {
         }
     };
 }
@@ -247,7 +249,7 @@ BOOST_AUTO_TEST_CASE(initializedTasksRefuseUnsupportedInputVersions) {
                                             executionConfiguration());
     ds::AcousticInference executive(declaration.spec());
     ds::AcousticTask task(executive);
-    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     UnsupportedInit init;
     auto initialization = task.initialize(static_cast<const srt::TaskInitArgs &>(init));
     BOOST_REQUIRE(!initialization);
@@ -273,7 +275,7 @@ BOOST_AUTO_TEST_CASE(f0PrecedenceToneShiftAndContinuousAcceleration) {
                                             configuration);
     ds::AcousticInference executive(declaration.spec());
     ds::AcousticTask task(executive);
-    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
     input.parameters.push_back({ds::Api::Common::L1::Tags::F0, {220}, 0.01});
     input.parameters.push_back({ds::Api::Common::L1::Tags::ToneShift, {1200}, 0.01});
@@ -307,7 +309,7 @@ BOOST_AUTO_TEST_CASE(languageAndSpeakerInputsAreResolvedAndValidated) {
                                             configuration);
     ds::AcousticInference executive(declaration.spec());
     ds::AcousticTask task(executive);
-    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
     input.words[0].phones[0].language = "eng";
     input.speakers.push_back({"lead", 0.01, {1}});
@@ -343,7 +345,7 @@ BOOST_AUTO_TEST_CASE(requiredControlsAndEmptyOptionalControlsFollowTheirContract
                                             configuration);
     ds::AcousticInference executive(declaration.spec());
     ds::AcousticTask task(executive);
-    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
     input.parameters.push_back({Tags::Gender, {}, 0.01});
     input.parameters.push_back({Tags::Velocity, {}, 0.01});
@@ -374,7 +376,7 @@ BOOST_AUTO_TEST_CASE(nullOutputTensorsFailWithoutDereferencingThem) {
                                             executionConfiguration());
     ds::AcousticInference executive(declaration.spec());
     ds::AcousticTask task(executive);
-    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto failed = task.start(makeInput());
     BOOST_REQUIRE(!failed);
     BOOST_CHECK(failed.error().code() == ds::ErrorCode::SessionFailed);

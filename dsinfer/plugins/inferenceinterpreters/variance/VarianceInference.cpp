@@ -7,23 +7,22 @@ namespace ds {
     namespace Var = Api::Variance::L1;
 
     VarianceInference::VarianceInference(srt::InferenceSpec &spec)
-        : VarianceExecutive(spec), m_task(*this) {
+        : Executive(spec), m_task(*this) {
     }
 
     VarianceInference::~VarianceInference() = default;
 
-    srt::Expected<void> VarianceInference::initialize(const Var::VarianceInitArgs &args) {
+    srt::Expected<void> VarianceInference::initialize(const Var::InitArgs &args) {
         return m_task.initialize(args);
     }
 
-    srt::Expected<std::unique_ptr<Var::VarianceResult>>
-        VarianceInference::start(const Var::VarianceStartInput &input) {
+    srt::Expected<std::unique_ptr<Var::Result>>
+        VarianceInference::start(const Var::StartInput &input) {
         return m_task.start(input);
     }
 
-    srt::Expected<void>
-        VarianceInference::startAsync(std::shared_ptr<const Var::VarianceStartInput> input,
-                                      AsyncCallback callback) {
+    srt::Expected<void> VarianceInference::startAsync(std::shared_ptr<const Var::StartInput> input,
+                                                      AsyncCallback callback) {
         return m_task.startAsync(std::move(input), std::move(callback));
     }
 

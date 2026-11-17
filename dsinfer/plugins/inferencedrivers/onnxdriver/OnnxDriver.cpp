@@ -25,18 +25,18 @@ namespace ds {
 
     }
 
-    OnnxDriver::OnnxDriver() : InferenceDriver(Api::Onnx::API_NAME) {
+    OnnxDriver::OnnxDriver() : InferenceDriver(Api::Onnx::Name) {
     }
 
     OnnxDriver::~OnnxDriver() = default;
 
     srt::Expected<void> OnnxDriver::initialize(const InferenceDriverInitArgs &args) {
-        if (args.type() != Onnx::API_NAME || args.version() != Onnx::API_VERSION) {
+        if (args.type() != Onnx::Name || args.version() != Onnx::Version) {
             return srt::Error{
                 srt::Error::InvalidArgument,
                 stdc::formatN(
                     R"(invalid driver payload: expected "%1" level %2, got "%3" level %4)",
-                    Onnx::API_NAME, Onnx::API_VERSION, args.type(), args.version()),
+                    Onnx::Name, Onnx::Version, args.type(), args.version()),
             };
         }
 

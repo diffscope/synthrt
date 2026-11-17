@@ -38,7 +38,8 @@
 | 类及其他类型 | 大驼峰 | `PackageHandle`、`JsonValue` |
 | 枚举成员 | 大驼峰 | `DataOnly`、`Load` |
 | 函数、参数、变量、命名空间 | 小驼峰 | `fromJson()`、`value` |
-| 宏与常量 | 全大写，单词以下划线分隔 | `SYNTHRT_EXPORT`、`API_LEVEL` |
+| 宏 | 全大写，单词以下划线分隔 | `SYNTHRT_EXPORT` |
+| 常量 | 大驼峰 | `Contract`、`Triplet` |
 
 - 表示二元操作左右两侧的 `LHS` 与 `RHS` 是全大写变量名的例外。
 - 命名空间结束处不添加注释。
@@ -55,7 +56,7 @@
 
 - 文件名、类型名和函数名中的缩写按普通单词书写，只大写首字母，例如 `Support/Json.h`、`JsonValue`、`OnnxDriver`、`JsonValue::fromJson()`。这一点与 LLVM 不同，LLVM 把同样的头文件写作 `Support/JSON.h`。
 - 接口类型的前缀 `I` 不是缩写，`ITask`、`ITensor` 保持原样。
-- 宏与常量不受缩写规则约束，仍使用全大写。
+- 宏仍使用全大写。常量使用大驼峰，本身为全大写缩写的 `IID`、`ID` 保留原样。既有常量随所属 API 迁移，不进行无关的全库改名。
 - 模块目录 `SVS` 以及 `ExecutionProvider_CUDA.cpp`、`ExecutionProvider_DML.cpp` 保留原名。新增文件与类型不仿照这些保留名称命名。
 
 ## 格式与实现

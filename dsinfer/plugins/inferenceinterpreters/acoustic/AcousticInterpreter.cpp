@@ -1,6 +1,7 @@
 #include "AcousticInterpreter.h"
 
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
+#include <dsinfer/Api/Inferences/Acoustic/1/AcousticOnnxApiL1.h>
 #include <stdcorelib/str.h>
 
 #include <inferutil/ErrorCollector.h>
@@ -21,7 +22,7 @@ namespace ds {
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         AcousticInterpreter::createExports(const srt::ContribSpec &spec) const {
         const auto &schema = spec.manifestExports();
-        auto result = std::make_unique<Ac::AcousticSchema>();
+        auto result = std::make_unique<Ac::Schema>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -60,7 +61,7 @@ namespace ds {
     srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
         AcousticInterpreter::createConfiguration(const srt::ContribSpec &spec) const {
         const auto &config = spec.manifestConfiguration();
-        auto result = std::make_unique<Ac::AcousticConfiguration>();
+        auto result = std::make_unique<Ac::Onnx::Configuration>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -212,7 +213,7 @@ namespace ds {
             };
         }
         const auto &obj = options.toObject();
-        auto result = std::make_unique<Ac::AcousticImportOptions>();
+        auto result = std::make_unique<Ac::ImportOptions>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;

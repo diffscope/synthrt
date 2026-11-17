@@ -1,6 +1,7 @@
 #include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
+#include <dsinfer/Api/Inferences/Acoustic/1/AcousticOnnxApiL1.h>
 
 #include "AcousticInterpreter.h"
 
@@ -10,9 +11,7 @@ namespace ds {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribContractTriplet &triplet) override {
-            if (triplet != srt::ContribContractTriplet(Api::Acoustic::L1::API_INTERFACE,
-                                                       Api::Acoustic::L1::API_LEVEL,
-                                                       Api::Acoustic::L1::API_VARIANT)) {
+            if (triplet != Api::Acoustic::L1::Onnx::Triplet) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

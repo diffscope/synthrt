@@ -6,8 +6,10 @@
 #include <stdcorelib/str.h>
 
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
+#include <dsinfer/Api/Inferences/Acoustic/1/AcousticOnnxApiL1.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
+#include <dsinfer/Api/Inferences/Vocoder/1/VocoderOnnxApiL1.h>
 
 #include <inferutil/ErrorCollector.h>
 #include <inferutil/Parser.h>
@@ -26,13 +28,13 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         VocoderInterpreter::createExports(const srt::ContribSpec &spec) const {
-        return std::make_unique<Vo::VocoderSchema>();
+        return std::make_unique<Vo::Schema>();
     }
 
     srt::Expected<std::unique_ptr<srt::ContribConfiguration>>
         VocoderInterpreter::createConfiguration(const srt::ContribSpec &spec) const {
         const auto &config = spec.manifestConfiguration();
-        auto result = std::make_unique<Vo::VocoderConfiguration>();
+        auto result = std::make_unique<Vo::Onnx::Configuration>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;
@@ -117,20 +119,19 @@ namespace ds {
     srt::Expected<std::unique_ptr<srt::ContribImportOptions>>
         VocoderInterpreter::createImportOptions(const srt::ContribSpec &target,
                                                 const srt::JsonValue &options) const {
-        return std::make_unique<Vo::VocoderImportOptions>();
+        return std::make_unique<Vo::ImportOptions>();
     }
 
     srt::Expected<void>
         VocoderInterpreter::validateCompatibility(const srt::InferenceSpec &spec,
                                                   const srt::InferenceSpec &other) const {
-        if (other.triplet() !=
-            srt::ContribContractTriplet(Ac::API_INTERFACE, Ac::API_LEVEL, Ac::API_VARIANT)) {
+        if (other.triplet() != Ac::Onnx::Triplet) {
             return srt::Error(srt::Error::InvalidArgument,
                               "vocoder compatibility requires an Acoustic Level 1 ONNX inference");
         }
 
-        const auto acoustic = other.configuration()->as<Ac::AcousticConfiguration>();
-        const auto vocoder = spec.configuration()->as<Vo::VocoderConfiguration>();
+        const auto acoustic = other.configuration()->as<Ac::Onnx::Configuration>();
+        const auto vocoder = spec.configuration()->as<Vo::Onnx::Configuration>();
         stdc::vlarray<std::string> mismatches;
 
         if (acoustic->sampleRate != vocoder->sampleRate) {

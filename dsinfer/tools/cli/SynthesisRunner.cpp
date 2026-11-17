@@ -24,7 +24,9 @@
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
+#include <dsinfer/Api/Inferences/Vocoder/1/VocoderOnnxApiL1.h>
 #include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerApiL1.h>
+#include <dsinfer/Api/Singers/DiffSinger/1/DiffSingerOpenVpiApiL1.h>
 
 #include <wavfile/WavFile.h>
 
@@ -71,23 +73,20 @@ namespace ds::cli {
 
         std::unique_ptr<srt::SingerPipelineExecutive> createPipeline(srt::SingerSpec &singerSpec,
                                                                      std::string_view singerId) {
-            if (singerSpec.triplet() != srt::ContribContractTriplet(DiffSinger::API_INTERFACE,
-                                                                    DiffSinger::API_LEVEL,
-                                                                    DiffSinger::API_VARIANT)) {
+            if (singerSpec.triplet() != DiffSinger::OpenVpi::Triplet) {
                 throw std::runtime_error(stdc::formatN(
                     R"(singer "%1" does not implement the DiffSinger Level 1 contract)", singerId));
             }
 
             auto extension =
-                srt::ContribSpecExtension::findFromSpec<DiffSinger::DiffSingerPipelineExecutive>(
-                    singerSpec);
+                srt::ContribSpecExtension::findFromSpec<DiffSinger::PipelineExecutive>(singerSpec);
             if (!extension) {
                 throw std::runtime_error(stdc::formatN(
                     R"(singer "%1" does not provide the DiffSinger synthesis pipeline)", singerId));
             }
 
             auto result = extension->as<srt::SingerPipelineExtension>()->createPipeline(
-                DiffSinger::DiffSingerPipelineRuntimeOptions());
+                DiffSinger::PipelineRuntimeOptions());
             if (!result) {
                 throw std::runtime_error(
                     stdc::formatN(R"(failed to create the synthesis pipeline for singer "%1": %2)",
@@ -96,15 +95,15 @@ namespace ds::cli {
             return result.take();
         }
 
-        void runDuration(Duration::DurationExecutive &inference,
-                         Acoustic::AcousticStartInput &acousticInput, std::string_view singerId) {
-            if (auto result = inference.initialize(Duration::DurationInitArgs()); !result) {
+        void runDuration(Duration::Executive &inference, Acoustic::StartInput &acousticInput,
+                         std::string_view singerId) {
+            if (auto result = inference.initialize(Duration::InitArgs()); !result) {
                 throw std::runtime_error(
                     stdc::formatN(R"(failed to initialize duration inference for singer "%1": %2)",
                                   singerId, result.error().message()));
             }
 
-            Duration::DurationStartInput input;
+            Duration::StartInput input;
             input.duration = acousticInput.duration;
             input.words = acousticInput.words;
 
@@ -129,15 +128,15 @@ namespace ds::cli {
             }
         }
 
-        void runPitch(Pitch::PitchExecutive &inference, Acoustic::AcousticStartInput &acousticInput,
+        void runPitch(Pitch::Executive &inference, Acoustic::StartInput &acousticInput,
                       std::string_view singerId) {
-            if (auto result = inference.initialize(Pitch::PitchInitArgs()); !result) {
+            if (auto result = inference.initialize(Pitch::InitArgs()); !result) {
                 throw std::runtime_error(
                     stdc::formatN(R"(failed to initialize pitch inference for singer "%1": %2)",
                                   singerId, result.error().message()));
             }
 
-            Pitch::PitchStartInput input;
+            Pitch::StartInput input;
             input.duration = acousticInput.duration;
             input.words = acousticInput.words;
             for (const auto &parameter : acousticInput.parameters) {
@@ -170,16 +169,16 @@ namespace ds::cli {
             }
         }
 
-        void runVariance(Variance::VarianceExecutive &inference,
-                         Acoustic::AcousticStartInput &acousticInput, std::string_view singerId) {
-            const auto schema = inference.spec().exports()->as<Variance::VarianceSchema>();
-            if (auto result = inference.initialize(Variance::VarianceInitArgs()); !result) {
+        void runVariance(Variance::Executive &inference, Acoustic::StartInput &acousticInput,
+                         std::string_view singerId) {
+            const auto schema = inference.spec().exports()->as<Variance::Schema>();
+            if (auto result = inference.initialize(Variance::InitArgs()); !result) {
                 throw std::runtime_error(
                     stdc::formatN(R"(failed to initialize variance inference for singer "%1": %2)",
                                   singerId, result.error().message()));
             }
 
-            Variance::VarianceStartInput input;
+            Variance::StartInput input;
             input.duration = acousticInput.duration;
             input.words = acousticInput.words;
             for (const auto &parameter : acousticInput.parameters) {
@@ -221,9 +220,9 @@ namespace ds::cli {
             }
         }
 
-        AcousticOutput runAcoustic(Acoustic::AcousticExecutive &inference,
-                                   Acoustic::AcousticStartInput &input, std::string_view singerId) {
-            if (auto result = inference.initialize(Acoustic::AcousticInitArgs()); !result) {
+        AcousticOutput runAcoustic(Acoustic::Executive &inference, Acoustic::StartInput &input,
+                                   std::string_view singerId) {
+            if (auto result = inference.initialize(Acoustic::InitArgs()); !result) {
                 throw std::runtime_error(
                     stdc::formatN(R"(failed to initialize acoustic inference for singer "%1": %2)",
                                   singerId, result.error().message()));
@@ -238,16 +237,16 @@ namespace ds::cli {
             return {(*result)->mel, (*result)->f0};
         }
 
-        std::vector<uint8_t> runVocoder(Vocoder::VocoderExecutive &inference,
+        std::vector<uint8_t> runVocoder(Vocoder::Executive &inference,
                                         const AcousticOutput &acousticOutput,
                                         std::string_view singerId) {
-            if (auto result = inference.initialize(Vocoder::VocoderInitArgs()); !result) {
+            if (auto result = inference.initialize(Vocoder::InitArgs()); !result) {
                 throw std::runtime_error(
                     stdc::formatN(R"(failed to initialize vocoder inference for singer "%1": %2)",
                                   singerId, result.error().message()));
             }
 
-            Vocoder::VocoderStartInput input;
+            Vocoder::StartInput input;
             input.mel = acousticOutput.mel;
             input.f0 = acousticOutput.f0;
             auto result = inference.start(input);
@@ -295,22 +294,22 @@ namespace ds::cli {
         auto package = packageResult.take();
         auto &singerSpec = findSinger(package, input.singer);
         auto pipelineOwner = createPipeline(singerSpec, input.singer);
-        auto pipeline = pipelineOwner->as<DiffSinger::DiffSingerPipelineExecutive>();
+        auto pipeline = pipelineOwner->as<DiffSinger::PipelineExecutive>();
 
         // Create every required stage before model execution begins.
-        auto duration = requireInference(
-            pipeline->createDuration(Duration::DurationRuntimeOptions()), "duration", input.singer);
-        auto pitch = requireInference(pipeline->createPitch(Pitch::PitchRuntimeOptions()), "pitch",
-                                      input.singer);
-        auto variance = requireInference(
-            pipeline->createVariance(Variance::VarianceRuntimeOptions()), "variance", input.singer);
-        auto acoustic = requireInference(
-            pipeline->createAcoustic(Acoustic::AcousticRuntimeOptions()), "acoustic", input.singer);
-        auto vocoder = requireInference(pipeline->createVocoder(Vocoder::VocoderRuntimeOptions()),
+        auto duration = requireInference(pipeline->createDuration(Duration::RuntimeOptions()),
+                                         "duration", input.singer);
+        auto pitch =
+            requireInference(pipeline->createPitch(Pitch::RuntimeOptions()), "pitch", input.singer);
+        auto variance = requireInference(pipeline->createVariance(Variance::RuntimeOptions()),
+                                         "variance", input.singer);
+        auto acoustic = requireInference(pipeline->createAcoustic(Acoustic::RuntimeOptions()),
+                                         "acoustic", input.singer);
+        auto vocoder = requireInference(pipeline->createVocoder(Vocoder::RuntimeOptions()),
                                         "vocoder", input.singer);
 
         const auto vocoderConfiguration =
-            vocoder->spec().configuration()->as<Vocoder::VocoderConfiguration>();
+            vocoder->spec().configuration()->as<Vocoder::Onnx::Configuration>();
         runDuration(*duration, *input.acoustic, input.singer);
         runPitch(*pitch, *input.acoustic, input.singer);
         runVariance(*variance, *input.acoustic, input.singer);

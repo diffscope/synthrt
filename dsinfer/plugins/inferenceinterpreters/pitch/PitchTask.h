@@ -26,11 +26,11 @@ namespace ds {
         srt::Expected<void> stop() override;
         srt::Expected<void> waitForFinished() override;
 
-        srt::Expected<void> initialize(const Api::Pitch::L1::PitchInitArgs &args);
-        srt::Expected<std::unique_ptr<Api::Pitch::L1::PitchResult>>
-            start(const Api::Pitch::L1::PitchStartInput &input);
-        srt::Expected<void> startAsync(std::shared_ptr<const Api::Pitch::L1::PitchStartInput> input,
-                                       Api::Pitch::L1::PitchExecutive::AsyncCallback callback);
+        srt::Expected<void> initialize(const Api::Pitch::L1::InitArgs &args);
+        srt::Expected<std::unique_ptr<Api::Pitch::L1::Result>>
+            start(const Api::Pitch::L1::StartInput &input);
+        srt::Expected<void> startAsync(std::shared_ptr<const Api::Pitch::L1::StartInput> input,
+                                       Api::Pitch::L1::Executive::AsyncCallback callback);
 
     private:
         PitchInference *m_inference;
