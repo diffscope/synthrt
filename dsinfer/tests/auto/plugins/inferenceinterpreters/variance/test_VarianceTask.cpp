@@ -209,3 +209,19 @@ BOOST_AUTO_TEST_CASE(destructionStopsAndJoinsAnActiveExecution) {
     BOOST_CHECK_GT(trace->stopped.load(), 0);
     BOOST_CHECK_EQUAL(trace->destroyed.load(), trace->created.load());
 }
+
+BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    trace->fault = ds::test::SessionFault::WrongVersion;
+    trace->faultModel = "predictor.onnx";
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::VarianceInference executive(declaration.spec());
+    ds::VarianceTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::VarianceInitArgs()));
+    auto input = makeInput();
+    auto result = task.start(input);
+    BOOST_REQUIRE(!result);
+    BOOST_CHECK(result.error().code() == srt::Error::InvalidArgument);
+    BOOST_CHECK(task.state() == srt::ITask::Failed);
+}

@@ -212,3 +212,19 @@ BOOST_AUTO_TEST_CASE(destructionStopsAndJoinsAnActiveExecution) {
     BOOST_CHECK_GT(trace->stopped.load(), 0);
     BOOST_CHECK_EQUAL(trace->destroyed.load(), trace->created.load());
 }
+
+BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    trace->fault = ds::test::SessionFault::WrongVersion;
+    trace->faultModel = "model.onnx";
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            executionConfiguration());
+    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticTask task(executive);
+    BOOST_REQUIRE(task.initialize(Contract::AcousticInitArgs()));
+    auto input = makeInput();
+    auto result = task.start(input);
+    BOOST_REQUIRE(!result);
+    BOOST_CHECK(result.error().code() == srt::Error::InvalidArgument);
+    BOOST_CHECK(task.state() == srt::ITask::Failed);
+}

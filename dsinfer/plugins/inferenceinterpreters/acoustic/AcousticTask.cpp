@@ -541,7 +541,8 @@ namespace ds {
             updateState(srt::ITask::Failed);
             return srt::Error(ds::ErrorCode::SessionFailed, "acoustic session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::API_NAME) {
+        if (sessionTaskResult->type() != Onnx::API_NAME ||
+            sessionTaskResult->version() != Onnx::API_VERSION) {
             updateState(srt::ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }

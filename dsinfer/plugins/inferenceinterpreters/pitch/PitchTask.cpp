@@ -491,7 +491,8 @@ namespace ds {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "pitch predictor session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::API_NAME) {
+        if (sessionTaskResult->type() != Onnx::API_NAME ||
+            sessionTaskResult->version() != Onnx::API_VERSION) {
             ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }
