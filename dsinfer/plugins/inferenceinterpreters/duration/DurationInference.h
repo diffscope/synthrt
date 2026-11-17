@@ -5,7 +5,7 @@
 
 #include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
 
-#include "DurationTask.h"
+#include <duration/DurationTask.h>
 
 namespace ds {
 

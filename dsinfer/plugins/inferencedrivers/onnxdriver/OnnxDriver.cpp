@@ -15,14 +15,6 @@
 
 #include <onnxruntime_cxx_api.h>
 
-#if defined(_WIN32)
-#  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("onnxruntime.dll")
-#elif defined(__APPLE__)
-#  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("libonnxruntime.dylib")
-#else
-#  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("libonnxruntime.so")
-#endif
-
 namespace ds {
 
     using namespace Api;

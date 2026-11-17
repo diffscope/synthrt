@@ -8,8 +8,6 @@ project(onnxdriver
     LANGUAGES C CXX
 )
 
-file(GLOB_RECURSE _src *.h *.cpp)
-
 if(WIN32 AND DSINFER_ENABLE_DIRECTML)
     set(_onnxdriver_ep_macro_dml "ONNXDRIVER_ENABLE_DML")
 endif()
@@ -20,19 +18,26 @@ endif()
 
 set(_onnxdriver_ep_macros ${_onnxdriver_ep_macro_dml} ${_onnxdriver_ep_macro_cuda})
 
-find_package(stduuid CONFIG REQUIRED)
-find_package(blake3 CONFIG REQUIRED)
+include("${SYNTHRT_SOURCE_DIR}/cmake/find-modules/Blake3.cmake")
+synthrt_find_blake3()
 
-dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/onnx NO_EXPORT
-    SOURCES ${_src}
+# The bundle keeps the plain name onnx under inferencedrivers, while the include namespace and
+# the library are onnxdriver.
+synthrt_add_plugin_objects(${PROJECT_NAME}
     FEATURES cxx_std_17
-    LINKS synthrt-dsinfer
-    LINKS_PRIVATE stduuid BLAKE3::blake3 $<BUILD_INTERFACE:onnxutil>
-    INCLUDE_PRIVATE *
+    LINKS synthrt-dsinfer $<BUILD_INTERFACE:onnxutil>
+    LINKS_PRIVATE BLAKE3::blake3
+    INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/..
+    INCLUDE_PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/*
     DEFINES ORT_API_MANUAL_INIT ${_onnxdriver_ep_macros}
 )
-
-dsinfer_add_plugin_metadata(${PROJECT_NAME} ${CURRENT_PLUGIN_IID})
+dsinfer_add_plugin(${PROJECT_NAME} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/onnx
+    SOURCES main.cpp
+    FEATURES cxx_std_17
+    LINKS_PRIVATE ${PROJECT_NAME}_objects BLAKE3::blake3
+)
+stdc_add_plugin_metadata(TARGET ${PROJECT_NAME} IID ${CURRENT_PLUGIN_IID})
+synthrt_configure_plugin_manifest(${PROJECT_NAME} dsinfer)
 
 # This plugin neither deploys ONNX Runtime nor refers to an ONNX Runtime path.
 #

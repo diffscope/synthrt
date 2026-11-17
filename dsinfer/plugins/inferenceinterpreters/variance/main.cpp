@@ -8,14 +8,11 @@ namespace ds {
 
     class VarianceInterpreterPlugin : public srt::InferenceInterpreterPlugin {
     public:
-        VarianceInterpreterPlugin() = default;
-
-
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribTriplet &triplet) override {
-            namespace Var = Api::Variance::L1;
-            if (triplet !=
-                srt::ContribTriplet(Var::API_INTERFACE, Var::API_LEVEL, Var::API_VARIANT)) {
+            if (triplet != srt::ContribTriplet(Api::Variance::L1::API_INTERFACE,
+                                               Api::Variance::L1::API_LEVEL,
+                                               Api::Variance::L1::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

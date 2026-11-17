@@ -5,7 +5,7 @@
 
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
 
-#include "VarianceTask.h"
+#include <variance/VarianceTask.h>
 
 namespace ds {
 

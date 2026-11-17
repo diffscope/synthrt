@@ -6,6 +6,8 @@
 
 #include <onnxruntime_cxx_api.h>
 
+#include <stdcorelib/stdc_global.h>
+
 #include <synthrt/Support/Expected.h>
 
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
@@ -13,6 +15,16 @@
 namespace stdc {
     class SharedLibrary;
 }
+
+/// The file name of the ONNX Runtime library on this platform, which OnnxRuntime::load() is given
+/// under the runtime path that the host passes.
+#if defined(_WIN32)
+#  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("onnxruntime.dll")
+#elif defined(__APPLE__)
+#  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("libonnxruntime.dylib")
+#else
+#  define ONNXRUNTIME_DYLIB_FILENAME STDC_TSTR("libonnxruntime.so")
+#endif
 
 namespace ds::onnxdriver {
 

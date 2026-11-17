@@ -5,7 +5,7 @@
 
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 
-#include "AcousticTask.h"
+#include <acoustic/AcousticTask.h>
 
 namespace ds {
 

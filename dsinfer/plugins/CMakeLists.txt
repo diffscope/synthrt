@@ -1,25 +1,38 @@
 find_package(stdcorelib-plugin CONFIG REQUIRED)
 
-function(dsinfer_add_plugin_metadata target iid)
-    stdc_add_plugin_metadata(TARGET ${target} IID ${iid})
+# The plugins combine dsinfer_add_plugin() with the building blocks of AddPlugin.cmake, which
+# describes the layout and the include namespace.
+include("${SYNTHRT_SOURCE_DIR}/cmake/AddPlugin.cmake")
 
-    # The file name of a plugin must match the name in its plugin.json, and the bundle loader
-    # searches only for that name with the platform prefix and suffix. The debug postfix of the
-    # library targets would rename onnxdriver.dll to onnxdriverd.dll and make every plugin
-    # undiscoverable in a Debug build on Windows, so plugin targets clear the postfix.
-    set_target_properties(${target} PROPERTIES DEBUG_POSTFIX "")
+# Declares an interpreter plugin of this repository from the directory that contains it:
+#
+#   dsinfer_add_interpreter_plugin(<target> [LINKS <libs>...] [LINKS_PRIVATE <libs>...])
+#
+# The directory name is the name of the bundle within its category and the include namespace of
+# the plugin. The sources but main.cpp are compiled into the object library <target>_objects that
+# the tests link, and plugin.json is configured beside the library. Every plugin links dsinfer.
+# LINKS adds the dependencies that the headers of the plugin use, and LINKS_PRIVATE those that only
+# its sources use.
+#
+# The CMakeLists.txt of the category directory sets CURRENT_PLUGIN_CATEGORY and CURRENT_PLUGIN_IID.
+function(dsinfer_add_interpreter_plugin _target)
+    cmake_parse_arguments(FUNC "" "" "LINKS;LINKS_PRIVATE" ${ARGN})
+    get_filename_component(_name "${CMAKE_CURRENT_SOURCE_DIR}" NAME)
 
-    if(DSINFER_INSTALL)
-        qm_add_copy_command(${target}
-            SOURCES plugin.json
-            INSTALL_DIR .
-        )
-    else()
-        qm_add_copy_command(${target}
-            SKIP_INSTALL
-            SOURCES plugin.json
-        )
-    endif()
+    synthrt_add_plugin_objects(${_target}
+        FEATURES cxx_std_17
+        LINKS synthrt-dsinfer ${FUNC_LINKS}
+        LINKS_PRIVATE ${FUNC_LINKS_PRIVATE}
+        INCLUDE ${CMAKE_CURRENT_SOURCE_DIR}/..
+        INCLUDE_PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/*
+    )
+    dsinfer_add_plugin(${_target} CATEGORY ${CURRENT_PLUGIN_CATEGORY}/${_name}
+        SOURCES main.cpp
+        FEATURES cxx_std_17
+        LINKS_PRIVATE ${_target}_objects ${FUNC_LINKS_PRIVATE}
+    )
+    stdc_add_plugin_metadata(TARGET ${_target} IID ${CURRENT_PLUGIN_IID})
+    synthrt_configure_plugin_manifest(${_target} dsinfer)
 endfunction()
 
 add_subdirectory(singerproviders)

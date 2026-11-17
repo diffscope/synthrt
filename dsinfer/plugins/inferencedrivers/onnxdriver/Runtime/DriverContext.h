@@ -7,8 +7,8 @@
 
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
-#include "OnnxRuntime.h"
-#include "Session/SessionSystem.h"
+#include <onnxdriver/Runtime/OnnxRuntime.h>
+#include <onnxdriver/Session/SessionSystem.h>
 
 namespace ds::onnxdriver {
 

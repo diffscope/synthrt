@@ -12,7 +12,7 @@
 #include <mutex>
 #include <shared_mutex>
 
-#include "SessionImage.h"
+#include <onnxdriver/Session/SessionImage.h>
 
 namespace ds::onnxdriver {
 

@@ -8,13 +8,11 @@ namespace ds {
 
     class DurationInterpreterPlugin : public srt::InferenceInterpreterPlugin {
     public:
-        DurationInterpreterPlugin() = default;
-
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribTriplet &triplet) override {
-            namespace Dur = Api::Duration::L1;
-            if (triplet !=
-                srt::ContribTriplet(Dur::API_INTERFACE, Dur::API_LEVEL, Dur::API_VARIANT)) {
+            if (triplet != srt::ContribTriplet(Api::Duration::L1::API_INTERFACE,
+                                               Api::Duration::L1::API_LEVEL,
+                                               Api::Duration::L1::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

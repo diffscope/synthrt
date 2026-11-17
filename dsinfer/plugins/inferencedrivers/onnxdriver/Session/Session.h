@@ -11,7 +11,7 @@
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Task/ITask.h>
 
-#include "SessionSystem.h"
+#include <onnxdriver/Session/SessionSystem.h>
 
 namespace ds::onnxdriver {
 

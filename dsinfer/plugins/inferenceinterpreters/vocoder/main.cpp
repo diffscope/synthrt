@@ -8,13 +8,11 @@ namespace ds {
 
     class VocoderInterpreterPlugin : public srt::InferenceInterpreterPlugin {
     public:
-        VocoderInterpreterPlugin() = default;
-
-
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribTriplet &triplet) override {
-            namespace Vo = Api::Vocoder::L1;
-            if (triplet != srt::ContribTriplet(Vo::API_INTERFACE, Vo::API_LEVEL, Vo::API_VARIANT)) {
+            if (triplet != srt::ContribTriplet(Api::Vocoder::L1::API_INTERFACE,
+                                               Api::Vocoder::L1::API_LEVEL,
+                                               Api::Vocoder::L1::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

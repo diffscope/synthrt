@@ -8,13 +8,11 @@ namespace ds {
 
     class DiffSingerProviderPlugin : public srt::SingerProviderPlugin {
     public:
-        DiffSingerProviderPlugin() = default;
-
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
             create(const srt::ContribTriplet &triplet) override {
-            namespace DiffSinger = Api::DiffSinger::L1;
-            if (triplet != srt::ContribTriplet(DiffSinger::API_INTERFACE, DiffSinger::API_LEVEL,
-                                               DiffSinger::API_VARIANT)) {
+            if (triplet != srt::ContribTriplet(Api::DiffSinger::L1::API_INTERFACE,
+                                               Api::DiffSinger::L1::API_LEVEL,
+                                               Api::DiffSinger::L1::API_VARIANT)) {
                 return srt::Error(srt::Error::InvalidArgument,
                                   "unsupported contract: " + triplet.toString());
             }

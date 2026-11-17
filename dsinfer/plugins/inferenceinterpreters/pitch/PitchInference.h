@@ -5,7 +5,7 @@
 
 #include <dsinfer/Api/Inferences/Pitch/1/PitchApiL1.h>
 
-#include "PitchTask.h"
+#include <pitch/PitchTask.h>
 
 namespace ds {
 

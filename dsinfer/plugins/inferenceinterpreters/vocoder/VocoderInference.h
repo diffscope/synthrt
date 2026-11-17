@@ -5,7 +5,7 @@
 
 #include <dsinfer/Api/Inferences/Vocoder/1/VocoderApiL1.h>
 
-#include "VocoderTask.h"
+#include <vocoder/VocoderTask.h>
 
 namespace ds {
 

@@ -34,6 +34,11 @@ else()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
 endif()
 
+set(CMAKE_POSITION_INDEPENDENT_CODE TRUE)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN TRUE)
+set(CMAKE_C_VISIBILITY_PRESET "hidden")
+set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
+
 if(SYNTHRT_INSTALL)
     include(GNUInstallDirs)
     include(CMakePackageConfigHelpers)

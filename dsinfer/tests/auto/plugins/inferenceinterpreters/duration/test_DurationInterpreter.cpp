@@ -2,6 +2,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -9,11 +10,14 @@
 
 #include <synthrt/Core/SynthUnit.h>
 #include <synthrt/SVS/InferenceContrib.h>
+#include <synthrt/SVS/InferenceInterpreterPlugin.h>
 
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 #include <dsinfer/Api/Inferences/Duration/1/DurationApiL1.h>
 #include <dsinfer/Inference/InferenceDriverFactory.h>
+
+#include <duration/DurationInterpreter.h>
 
 #define BOOST_TEST_MAIN
 #include <boost/test/unit_test.hpp>
@@ -39,6 +43,32 @@ namespace fs = std::filesystem;
 // it.
 
 namespace {
+
+    // The class under test, registered as a static plugin with the manifest of the plugin. A
+    // static plugin precedes the plugins that a plugin path provides, so the package runs the
+    // interpreter that this test links rather than the built plugin.
+    class DurationInterpreterPlugin : public srt::InferenceInterpreterPlugin {
+    public:
+        srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
+            create(const srt::ContribTriplet &triplet) override {
+            if (triplet !=
+                srt::ContribTriplet(Dur::API_INTERFACE, Dur::API_LEVEL, Dur::API_VARIANT)) {
+                return srt::Error(srt::Error::InvalidArgument,
+                                  "unsupported contract: " + triplet.toString());
+            }
+            return std::unique_ptr<srt::ContribInterpreter>(new ds::DurationInterpreter());
+        }
+    };
+
+    stdc::json::Value readManifest() {
+        std::ifstream stream(DSINFER_TEST_DURATION_MANIFEST, std::ios::binary);
+        const std::string text((std::istreambuf_iterator<char>(stream)),
+                               std::istreambuf_iterator<char>());
+        return stdc::json::Value::fromJson(text, false);
+    }
+
+    STDC_EXPORT_STATIC_PLUGIN(DurationInterpreterPlugin, srt::InferenceInterpreterPlugin::IID,
+                              readManifest())
 
     // A payload travels by move and never by copy, and the factory below relies on that when it
     // returns the input it built. A payload type that loses either property breaks this file.
@@ -160,15 +190,12 @@ namespace {
         writeText(root / "duration.json", configuration);
     }
 
-#if defined(DSINFER_TEST_DRIVER_PLUGIN_PATH) && defined(DSINFER_TEST_INFERENCE_PLUGIN_PATH)
+#ifdef DSINFER_TEST_DRIVER_PLUGIN_PATH
     // Loads the ONNX driver plugin into a SynthUnit. The driver retains the plugin code that the
     // factory loaded, so the factory is released after the unit that owns the driver.
     class ConfiguredSynthUnit final {
     public:
         ConfiguredSynthUnit() {
-            const std::array<fs::path, 1> inferencePaths = {DSINFER_TEST_INFERENCE_PLUGIN_PATH};
-            m_unit.setPluginPaths(srt::InferenceCategory::NAME, inferencePaths);
-
             const std::array<fs::path, 1> driverPaths = {DSINFER_TEST_DRIVER_PLUGIN_PATH};
             m_factory.setPluginPaths(driverPaths);
             auto loader = m_factory.find(Onnx::API_NAME);
@@ -238,8 +265,7 @@ namespace {
     }
 #endif
 
-#if defined(TEST_RESOURCE_DIRECTORY) && defined(DSINFER_TEST_DRIVER_PLUGIN_PATH) &&                \
-    defined(DSINFER_TEST_INFERENCE_PLUGIN_PATH)
+#if defined(TEST_RESOURCE_DIRECTORY) && defined(DSINFER_TEST_DRIVER_PLUGIN_PATH)
     // Holds the package of a case open in a SynthUnit and exposes the initialized task of its
     // duration contribution, so that a case writes only its configuration and its assertion.
     class DurationFixture {
@@ -281,10 +307,9 @@ namespace {
 
 }
 
-BOOST_AUTO_TEST_SUITE(test_DurationInference)
+BOOST_AUTO_TEST_SUITE(test_DurationInterpreter)
 
-#if defined(TEST_RESOURCE_DIRECTORY) && defined(DSINFER_TEST_DRIVER_PLUGIN_PATH) &&                \
-    defined(DSINFER_TEST_INFERENCE_PLUGIN_PATH)
+#if defined(TEST_RESOURCE_DIRECTORY) && defined(DSINFER_TEST_DRIVER_PLUGIN_PATH)
 BOOST_AUTO_TEST_CASE(test_word_budget_predictor_receives_the_word_structure) {
     TemporaryDirectory temporary;
     writePackage(temporary.path(), WORD_PREDICTOR_MODEL, WordInputs::DivisionAndBudget);
@@ -371,7 +396,7 @@ BOOST_AUTO_TEST_CASE(test_unexpected_word_inputs_are_reported) {
 }
 #endif
 
-#if defined(TEST_RESOURCE_DIRECTORY) && defined(DSINFER_TEST_INFERENCE_PLUGIN_PATH)
+#ifdef TEST_RESOURCE_DIRECTORY
 BOOST_AUTO_TEST_CASE(test_word_duration_requires_the_word_division) {
     TemporaryDirectory temporary;
     writePackage(temporary.path(), WORD_PREDICTOR_MODEL, WordInputs::BudgetOnly);
@@ -380,9 +405,6 @@ BOOST_AUTO_TEST_CASE(test_word_duration_requires_the_word_division) {
 
     // A configuration is interpreted while the Package is loaded, so this case needs no driver.
     srt::SynthUnit unit;
-    const std::array<fs::path, 1> inferencePaths = {DSINFER_TEST_INFERENCE_PLUGIN_PATH};
-    unit.setPluginPaths(srt::InferenceCategory::NAME, inferencePaths);
-
     auto opened = unit.openPackage(temporary.path(), srt::SynthUnit::Load);
     BOOST_REQUIRE(!opened);
     const auto message = opened.error().toString();

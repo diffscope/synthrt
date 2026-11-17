@@ -18,6 +18,9 @@ set(DSINFER_INSTALL ${SYNTHRT_INSTALL})
 set(DSINFER_VERSION ${PROJECT_VERSION})
 set(DSINFER_INSTALL_NAME ${PROJECT_NAME})
 set(DSINFER_INSTALL_NAMESPACE synthrt)
+# A plugin is loaded at run time and never linked, so it is a module library, which has no
+# import library to install.
+set(DSINFER_PLUGIN_TYPE MODULE)
 
 include("conf.cmake")
 
