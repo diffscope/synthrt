@@ -36,3 +36,5 @@ if(TARGET test_InferenceCompatibility AND TARGET acoustic AND TARGET pitch AND T
         DSINFER_TEST_SINGER_PLUGIN_PATH="$<TARGET_FILE_DIR:diffsinger>/.."
     )
 endif()
+
+add_auto_test(test_InferenceSession.cpp synthrt-dsinfer)

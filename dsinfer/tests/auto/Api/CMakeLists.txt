@@ -1,0 +1,7 @@
+add_auto_test(Inferences/Acoustic/1/test_AcousticApiL1.cpp synthrt-dsinfer)
+add_auto_test(Inferences/Duration/1/test_DurationApiL1.cpp synthrt-dsinfer)
+add_auto_test(Inferences/Pitch/1/test_PitchApiL1.cpp synthrt-dsinfer)
+add_auto_test(Inferences/Variance/1/test_VarianceApiL1.cpp synthrt-dsinfer)
+add_auto_test(Inferences/Vocoder/1/test_VocoderApiL1.cpp synthrt-dsinfer)
+add_auto_test(Drivers/Onnx/test_OnnxDriverApi.cpp synthrt-dsinfer)
+add_auto_test(Inferences/Common/1/test_CommonApiL1.cpp synthrt-dsinfer)
