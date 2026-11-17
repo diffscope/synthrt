@@ -68,4 +68,4 @@ wolf S2p 的 Exports::preservesSymbols 是解释器生成的能力，不增加�
 
 2026-11-17：三库构建退出码均为 0。synthrt 71 项通过，wolf 40 项通过，otter 28 项通过、2 项 RealEngine 测试跳过。test_SynthUnit 的 16 个用例和 321 条断言通过，test_InferenceInterpreter 的 2 个用例和 33 条断言通过，wolf test_S2pInterpreter 的 5 个用例和 38 条断言通过。7 个新增公开变体头文件分别以单独翻译单元通过语法编译。
 
-源码中的 API_INTERFACE、API_LEVEL、API_VARIANT 实际出现次数分别从 synthrt 的 309、wolf 的 189、otter 的 153 降至 0。下游继续使用 build/contract-identity-install 的同一份新安装产物。私有端口的远端版本固定与发布验证仍按独立工作项处理。
+源码中的 API_INTERFACE、API_LEVEL、API_VARIANT 实际出现次数分别从 synthrt 的 309、wolf 的 189、otter 的 153 降至 0。下游继续使用 build/contract-identity-install 的同一份新安装产物。SynthRT 的版本已升至 0.1.0.0，wolf 与 otter 的私有 synthrt-main port 已指向本轮 SynthRT 提交，并将 port-version 升至 2。远端发布验证仍按独立工作项处理。
