@@ -1,0 +1,28 @@
+#include <memory>
+#include <string>
+
+#include <duration/DurationInterpreter.h>
+#include <duration/DurationInference.h>
+#include <duration/DurationTask.h>
+
+namespace Contract = ds::Api::Duration::L1;
+using TestInterpreter = ds::DurationInterpreter;
+
+#define BOOST_TEST_MAIN
+#include "../TestSupport.h"
+
+BOOST_AUTO_TEST_CASE(executive_reports_missing_backend_and_can_be_stopped) {
+    ds::test::DeclaredInference declaration;
+    ds::DurationInference executive(declaration.spec());
+    BOOST_CHECK(&executive.spec() == &declaration.spec());
+    BOOST_CHECK(executive.state() == srt::ITask::Idle);
+    Contract::DurationStartInput input;
+    auto beforeInitialization = executive.start(input);
+    BOOST_REQUIRE(!beforeInitialization);
+    Contract::DurationInitArgs args;
+    auto initialized = executive.initialize(args);
+    BOOST_REQUIRE(!initialized);
+    BOOST_CHECK(executive.state() == srt::ITask::Failed);
+    BOOST_REQUIRE(executive.stop());
+    BOOST_REQUIRE(executive.waitForFinished());
+}

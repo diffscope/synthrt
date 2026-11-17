@@ -1,0 +1,8 @@
+set(_cli_source "${SYNTHRT_SOURCE_DIR}/dsinfer/tools/cli")
+foreach(_part IN ITEMS SynthesisInput CliRuntime SynthesisRunner)
+    add_auto_test(test_${_part}.cpp synthrt-dsinfer inputparser wavfile)
+    if(TARGET test_${_part})
+        target_sources(test_${_part} PRIVATE "${_cli_source}/${_part}.cpp")
+        target_include_directories(test_${_part} PRIVATE "${_cli_source}")
+    endif()
+endforeach()

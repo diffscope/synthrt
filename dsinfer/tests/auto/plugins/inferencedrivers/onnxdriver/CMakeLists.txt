@@ -18,12 +18,5 @@ if(TARGET test_Session_Cache)
     )
 endif()
 
-# The driver as a host reaches it: through the drivers directory and the backend its manifest
-# names
-add_auto_test(test_InferenceDriverFactory_Plugin.cpp synthrt-dsinfer)
-if(TARGET test_InferenceDriverFactory_Plugin)
-    add_dependencies(test_InferenceDriverFactory_Plugin onnxdriver)
-    target_compile_definitions(test_InferenceDriverFactory_Plugin PRIVATE
-        DSINFER_TEST_DRIVER_PLUGIN_PATH="$<TARGET_FILE_DIR:onnxdriver>/.."
-    )
-endif()
+add_auto_test(test_ScopedTimer.cpp onnxdriver_objects)
+add_auto_test(test_SessionSystem.cpp onnxdriver_objects)

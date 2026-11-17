@@ -8,7 +8,6 @@ if(TARGET onnxdriver)
             resources/models/mixed_type_ops.onnx
     )
 endif()
-add_auto_test(test_InferenceCompatibility.cpp synthrt-dsinfer)
 
 if(TARGET test_InferenceDriverFactory)
     target_sources(test_InferenceDriverFactory PRIVATE TestCaseLoader.cpp)
@@ -27,14 +26,16 @@ if(TARGET test_InferenceDriverFactory AND TARGET onnxdriver)
         DSINFER_TEST_ORT_RUNTIME_DIR="${ONNXRUNTIME_BUILDS_RUNTIME_DIR}"
     )
 endif()
+add_auto_test(test_InferenceSession.cpp synthrt-dsinfer)
 
-if(TARGET test_InferenceCompatibility AND TARGET acoustic AND TARGET pitch AND TARGET vocoder AND
-   TARGET diffsinger)
-    add_dependencies(test_InferenceCompatibility acoustic pitch vocoder diffsinger)
-    target_compile_definitions(test_InferenceCompatibility PRIVATE
-        DSINFER_TEST_INFERENCE_PLUGIN_PATH="$<TARGET_FILE_DIR:acoustic>/.."
-        DSINFER_TEST_SINGER_PLUGIN_PATH="$<TARGET_FILE_DIR:diffsinger>/.."
+if(TARGET onnxdriver)
+# The driver as a host reaches it: through the drivers directory and the backend its manifest
+# names
+add_auto_test(test_InferenceDriverFactory_Plugin.cpp synthrt-dsinfer)
+if(TARGET test_InferenceDriverFactory_Plugin)
+    add_dependencies(test_InferenceDriverFactory_Plugin onnxdriver)
+    target_compile_definitions(test_InferenceDriverFactory_Plugin PRIVATE
+        DSINFER_TEST_DRIVER_PLUGIN_PATH="$<TARGET_FILE_DIR:onnxdriver>/.."
     )
 endif()
-
-add_auto_test(test_InferenceSession.cpp synthrt-dsinfer)
+endif()

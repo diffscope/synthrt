@@ -133,6 +133,7 @@
 | 主库头文件 | `<构建根>/tests/auto/<功能>/test_<头文件名>.cpp` |
 | 插件内部头文件 | `<构建根>/tests/auto/plugins/<类别>/<插件目录>/test_<头文件名>.cpp` |
 | 内部辅助库 | `<构建根>/tests/auto/util/<辅助库>/test_<头文件名>.cpp` |
+| 独立工具内部头文件 | `<构建根>/tests/auto/tools/<程序>/test_<头文件名>.cpp` |
 | 测试专用插件 | `<构建根>/tests/auto/plugins/<类别>/<测试插件目录>/` |
 | 需要人工操作的测试程序 | `<构建根>/tests/manual/<程序>/` |
 

@@ -1,0 +1,5 @@
+if(TARGET acoustic_objects)
+add_auto_test(test_AcousticInterpreter.cpp acoustic_objects)
+add_auto_test(test_AcousticInference.cpp acoustic_objects)
+add_auto_test(test_AcousticTask.cpp acoustic_objects)
+endif()
