@@ -1,5 +1,30 @@
+#include <utility>
+
 #define BOOST_TEST_MAIN
 #include "TestSupport.h"
+
+namespace {
+
+    template <class T>
+    class ScopedValue {
+    public:
+        ScopedValue(T &value, T temporary) : m_value(value), m_original(std::move(value)) {
+            m_value = std::move(temporary);
+        }
+
+        ~ScopedValue() {
+            m_value = std::move(m_original);
+        }
+
+        ScopedValue(const ScopedValue &) = delete;
+        ScopedValue &operator=(const ScopedValue &) = delete;
+
+    private:
+        T &m_value;
+        T m_original;
+    };
+
+}
 
 BOOST_AUTO_TEST_SUITE(test_SynthUnit)
 
@@ -470,9 +495,8 @@ BOOST_AUTO_TEST_CASE(test_contract_payloads_accept_distinct_implementation_varia
     writeText(root / "remote.json", R"({"interface":"com.example.Contract","level":1,
         "variant":"remote","exports":{},"configuration":{}})");
     auto unit = makeUnit();
-    skipTestExtensions = true;
+    const ScopedValue skipTestExtensionsGuard(skipTestExtensions, true);
     auto opened = unit.openPackage(root, srt::SynthUnit::Load);
-    skipTestExtensions = false;
     BOOST_REQUIRE_MESSAGE(static_cast<bool>(opened),
                           (opened ? std::string() : opened.error().toString()));
     auto package = opened.take();
@@ -494,15 +518,11 @@ BOOST_AUTO_TEST_CASE(test_payload_identity_mismatches_reject_loading) {
         const auto root = writePackage(temporary.path(), "root", "root", "1", {}, "[]",
                                        R"([{"role":"self","ref":":com.example.test/main"}])");
         auto unit = makeUnit();
-        wrongContractLevel = kind == 0 ? 2 : 1;
-        wrongImportContract = kind == 1;
-        wrongConfigurationVariant = kind == 2;
-        skipTestExtensions = true;
+        const ScopedValue wrongContractLevelGuard(wrongContractLevel, kind == 0 ? 2 : 1);
+        const ScopedValue wrongImportContractGuard(wrongImportContract, kind == 1);
+        const ScopedValue wrongConfigurationVariantGuard(wrongConfigurationVariant, kind == 2);
+        const ScopedValue skipTestExtensionsGuard(skipTestExtensions, true);
         auto opened = unit.openPackage(root, srt::SynthUnit::Load);
-        skipTestExtensions = false;
-        wrongContractLevel = 1;
-        wrongImportContract = false;
-        wrongConfigurationVariant = false;
         BOOST_REQUIRE(!opened);
         BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
         BOOST_CHECK(opened.error().toString().find("instead of") != std::string::npos);
