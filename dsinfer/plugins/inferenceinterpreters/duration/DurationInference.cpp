@@ -30,11 +30,11 @@ namespace ds {
         return m_task.state();
     }
 
-    srt::Expected<void> DurationInference::stop() {
+    srt::Expected<void> DurationInference::quit() {
         return m_task.stop();
     }
 
-    srt::Expected<void> DurationInference::waitForFinished() {
+    srt::Expected<void> DurationInference::wait() {
         return m_task.waitForFinished();
     }
 

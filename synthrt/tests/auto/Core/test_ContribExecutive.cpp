@@ -24,7 +24,6 @@ BOOST_AUTO_TEST_CASE(null_children_and_missing_import_roles_are_rejected) {
         BOOST_CHECK(created.error().code() == srt::Error::InvalidArgument);
     }
     BOOST_CHECK(parent.children().empty());
-    BOOST_CHECK(parent.lifecycleState() == srt::ContribExecutive::Running);
 }
 
 BOOST_AUTO_TEST_CASE(cross_unit_adoption_destroys_the_rejected_child) {
@@ -119,6 +118,55 @@ BOOST_AUTO_TEST_CASE(deleting_a_subtree_detaches_it_and_destroys_every_descendan
     BOOST_CHECK_EQUAL(unit.loadedPackages().size(), 1u);
     package->reset();
     BOOST_CHECK(unit.loadedPackages().empty());
+}
+
+BOOST_AUTO_TEST_CASE(stop_and_wait_reach_every_executive_in_the_tree) {
+    TemporaryDirectory temporary;
+    auto unit = std::make_unique<ConfiguredSynthUnit>();
+    auto package = unit->openPackage(writePackage(temporary.path(), "root", "root", "1"),
+                                     srt::SynthUnit::Load);
+    BOOST_REQUIRE(package);
+    auto spec = package->contribution(testCategoryName, "main");
+    BOOST_REQUIRE(spec);
+    int quitCount = 0;
+    int waitCount = 0;
+    TestExecutive root(*spec, nullptr, &quitCount, &waitCount);
+    auto child =
+        root.adopt(std::make_unique<TestExecutive>(*spec, nullptr, &quitCount, &waitCount));
+    BOOST_REQUIRE(child);
+    auto grandchild =
+        (*child)->adopt(std::make_unique<TestExecutive>(*spec, nullptr, &quitCount, &waitCount));
+    BOOST_REQUIRE(grandchild);
+
+    BOOST_REQUIRE(root.stop());
+    BOOST_CHECK_EQUAL(quitCount, 3);
+    BOOST_REQUIRE(root.waitForFinished());
+    BOOST_CHECK_EQUAL(waitCount, 3);
+}
+
+BOOST_AUTO_TEST_CASE(destruction_stops_waits_and_deletes_the_whole_tree) {
+    TemporaryDirectory temporary;
+    auto unit = makeUnit();
+    auto package =
+        unit.openPackage(writePackage(temporary.path(), "root", "root", "1"), srt::SynthUnit::Load);
+    BOOST_REQUIRE(package);
+    auto spec = package->contribution(testCategoryName, "main");
+    BOOST_REQUIRE(spec);
+    int destroyCount = 0;
+    int quitCount = 0;
+    int waitCount = 0;
+    {
+        TestExecutive root(*spec, &destroyCount, &quitCount, &waitCount);
+        auto child = root.adopt(
+            std::make_unique<TestExecutive>(*spec, &destroyCount, &quitCount, &waitCount));
+        BOOST_REQUIRE(child);
+        auto grandchild = (*child)->adopt(
+            std::make_unique<TestExecutive>(*spec, &destroyCount, &quitCount, &waitCount));
+        BOOST_REQUIRE(grandchild);
+    }
+    BOOST_CHECK_EQUAL(destroyCount, 3);
+    BOOST_CHECK_EQUAL(quitCount, 2);
+    BOOST_CHECK_EQUAL(waitCount, 2);
 }
 
 BOOST_AUTO_TEST_CASE(executive_lifetime_violation_is_fatal) {

@@ -29,11 +29,11 @@ namespace ds {
         return m_task.state();
     }
 
-    srt::Expected<void> PitchInference::stop() {
+    srt::Expected<void> PitchInference::quit() {
         return m_task.stop();
     }
 
-    srt::Expected<void> PitchInference::waitForFinished() {
+    srt::Expected<void> PitchInference::wait() {
         return m_task.waitForFinished();
     }
 

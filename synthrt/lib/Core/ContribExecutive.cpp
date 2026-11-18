@@ -4,6 +4,7 @@
 #include <cassert>
 
 #include "ContribSpec_p.h"
+#include "Logging.h"
 #include "PackageHandle_p.h"
 #include "SynthUnit_p.h"
 
@@ -18,24 +19,68 @@ namespace srt {
 
     ContribExecutive::~ContribExecutive() {
         assert(m_package && m_package->synthUnit);
-        std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
-        m_destroyingChildren = true;
-        for (auto child : m_children) {
+        std::vector<ContribExecutive *> children;
+        bool childrenPrepared = false;
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
+            m_destroyingChildren = true;
+            children = m_children;
+            childrenPrepared = m_destructionPrepared;
+        }
+        if (!childrenPrepared) {
+            Expected<void> firstResult;
+            for (auto child : children) {
+                if (!child) {
+                    continue;
+                }
+                auto result = child->stop();
+                if (firstResult && !result) {
+                    firstResult = result.takeError();
+                }
+            }
+            for (auto child : children) {
+                if (!child) {
+                    continue;
+                }
+                auto result = child->waitForFinished();
+                if (firstResult && !result) {
+                    firstResult = result.takeError();
+                }
+            }
+            if (!firstResult) {
+                logCategory().srtFatal("failed to stop an executive subtree: %1",
+                                       firstResult.error().toString());
+            }
+            std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
+            for (auto child : children) {
+                if (child) {
+                    child->m_destructionPrepared = true;
+                }
+            }
+        }
+        for (auto child : children) {
+            if (!child) {
+                continue;
+            }
             delete child;
         }
-        m_children.clear();
-        if (m_parent && !m_parent->m_destroyingChildren) {
-            auto &siblings = m_parent->m_children;
-            const auto childIt =
-                std::find_if(siblings.begin(), siblings.end(),
-                             [this](const auto sibling) { return sibling == this; });
-            assert(childIt != siblings.end());
-            // Leave a tombstone because the child is still executing its destructor.
-            *childIt = nullptr;
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
+            m_children.clear();
+            if (m_parent && !m_parent->m_destroyingChildren) {
+                auto &siblings = m_parent->m_children;
+                const auto childIt =
+                    std::find_if(siblings.begin(), siblings.end(),
+                                 [this](const auto sibling) { return sibling == this; });
+                assert(childIt != siblings.end());
+                // Leave a tombstone because the child is still executing its destructor.
+                *childIt = nullptr;
+            }
+            const auto it =
+                std::find(m_package->executives.begin(), m_package->executives.end(), this);
+            assert(it != m_package->executives.end());
+            m_package->executives.erase(it);
         }
-        const auto it = std::find(m_package->executives.begin(), m_package->executives.end(), this);
-        assert(it != m_package->executives.end());
-        m_package->executives.erase(it);
     }
 
     ContribSpec &ContribExecutive::spec() const {
@@ -45,10 +90,6 @@ namespace srt {
     SynthUnit &ContribExecutive::synthUnit() const {
         assert(m_package && m_package->synthUnit);
         return *m_package->synthUnit;
-    }
-
-    ContribExecutive::LifecycleState ContribExecutive::lifecycleState() const noexcept {
-        return m_state.load(std::memory_order_acquire);
     }
 
     ContribExecutive *ContribExecutive::parent() const noexcept {
@@ -82,11 +123,6 @@ namespace srt {
             return Error(Error::InvalidArgument,
                          "parent and child executives belong to different SynthUnits");
         }
-        if (lifecycleState() != LifecycleState::Running ||
-            child->lifecycleState() != LifecycleState::Running) {
-            return Error(Error::InvalidArgument,
-                         "only running executives can form a supervision relation");
-        }
         if (child->m_parent) {
             return Error(Error::InvalidArgument, "executive already has a supervising parent");
         }
@@ -111,9 +147,6 @@ namespace srt {
     Expected<ContribExecutive *>
         ContribExecutive::createChild(std::string_view role,
                                       const ContribRuntimeOptions &runtimeOptions) {
-        if (lifecycleState() != LifecycleState::Running) {
-            return Error(Error::InvalidArgument, "a stopping executive cannot create children");
-        }
         auto import = m_spec->findImport(role);
         if (!import) {
             return Error(Error::InvalidArgument, "executive import role does not exist");
@@ -128,20 +161,18 @@ namespace srt {
         return adoptChild(child.take());
     }
 
-    Expected<void> ContribExecutive::quitForUnload() {
-        assert(m_package && m_package->synthUnit);
-        std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
-        LifecycleState expected = LifecycleState::Running;
-        if (!m_state.compare_exchange_strong(expected, LifecycleState::Stopping,
-                                             std::memory_order_acq_rel)) {
-            return {};
+    Expected<void> ContribExecutive::stop() {
+        std::vector<ContribExecutive *> children;
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
+            children = m_children;
         }
         auto firstResult = quit();
-        for (auto child : m_children) {
+        for (auto child : children) {
             if (!child) {
                 continue;
             }
-            auto result = child->quitForUnload();
+            auto result = child->stop();
             if (firstResult && !result) {
                 firstResult = result.takeError();
             }
@@ -149,19 +180,18 @@ namespace srt {
         return firstResult;
     }
 
-    Expected<void> ContribExecutive::waitForUnload() {
-        assert(m_package && m_package->synthUnit);
-        std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
-        assert(lifecycleState() != LifecycleState::Running);
-        if (lifecycleState() == LifecycleState::Stopped) {
-            return {};
+    Expected<void> ContribExecutive::waitForFinished() {
+        std::vector<ContribExecutive *> children;
+        {
+            std::lock_guard<std::recursive_mutex> lock(m_package->synthUnit->_impl->loadMutex);
+            children = m_children;
         }
         Expected<void> firstResult;
-        for (auto child : m_children) {
+        for (auto child : children) {
             if (!child) {
                 continue;
             }
-            auto result = child->waitForUnload();
+            auto result = child->waitForFinished();
             if (firstResult && !result) {
                 firstResult = result.takeError();
             }
@@ -169,9 +199,6 @@ namespace srt {
         auto ownResult = wait();
         if (firstResult && !ownResult) {
             firstResult = ownResult.takeError();
-        }
-        if (firstResult) {
-            m_state.store(LifecycleState::Stopped, std::memory_order_release);
         }
         return firstResult;
     }

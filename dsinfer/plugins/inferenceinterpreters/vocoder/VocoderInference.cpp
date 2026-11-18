@@ -29,11 +29,11 @@ namespace ds {
         return m_task.state();
     }
 
-    srt::Expected<void> VocoderInference::stop() {
+    srt::Expected<void> VocoderInference::quit() {
         return m_task.stop();
     }
 
-    srt::Expected<void> VocoderInference::waitForFinished() {
+    srt::Expected<void> VocoderInference::wait() {
         return m_task.waitForFinished();
     }
 

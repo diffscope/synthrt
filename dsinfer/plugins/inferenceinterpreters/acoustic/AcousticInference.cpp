@@ -30,11 +30,11 @@ namespace ds {
         return m_task.state();
     }
 
-    srt::Expected<void> AcousticInference::stop() {
+    srt::Expected<void> AcousticInference::quit() {
         return m_task.stop();
     }
 
-    srt::Expected<void> AcousticInference::waitForFinished() {
+    srt::Expected<void> AcousticInference::wait() {
         return m_task.waitForFinished();
     }
 

@@ -234,7 +234,6 @@ BOOST_AUTO_TEST_CASE(test_load_resolves_dependencies_and_commits_once) {
         TestExecutive parent(*rootSpec);
         BOOST_CHECK(&parent.spec() == rootSpec);
         BOOST_CHECK(&parent.synthUnit() == &unit);
-        BOOST_CHECK(parent.lifecycleState() == srt::ContribExecutive::LifecycleState::Running);
         TestRuntimeOptions runtimeOptions;
         auto created = parent.create("test/first", runtimeOptions);
         BOOST_REQUIRE(created);

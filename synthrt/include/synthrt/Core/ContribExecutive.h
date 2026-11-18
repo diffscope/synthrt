@@ -1,7 +1,6 @@
 #ifndef SYNTHRT_CORE_CONTRIBEXECUTIVE_H
 #define SYNTHRT_CORE_CONTRIBEXECUTIVE_H
 
-#include <atomic>
 #include <memory>
 #include <string_view>
 #include <vector>
@@ -39,15 +38,10 @@ namespace srt {
     /// A top level executive created from one contribution declaration.
     ///
     /// An executive owns the sessions, tasks, callbacks, and other execution activity below it.
-    /// It must be destroyed before the Package containing its contribution is released.
+    /// It must be destroyed before its SynthUnit and before every PackageHandle that retains a
+    /// dependency of its supervision tree.
     class SYNTHRT_EXPORT ContribExecutive {
     public:
-        enum LifecycleState {
-            Running,
-            Stopping,
-            Stopped,
-        };
-
         virtual ~ContribExecutive();
 
         /// Returns the declaration from which this executive was created.
@@ -56,14 +50,26 @@ namespace srt {
         /// Returns the SynthUnit that owns this executive and its contribution.
         SynthUnit &synthUnit() const;
 
-        /// Returns whether this executive accepts work, is stopping, or has stopped.
-        LifecycleState lifecycleState() const noexcept;
-
         /// Returns the executive supervising this executive, or null for a root executive.
         ContribExecutive *parent() const noexcept;
 
         /// Returns a snapshot of the executives directly supervised by this executive.
         std::vector<ContribExecutive *> children() const;
+
+        /// Requests all activity in this supervision tree to stop.
+        ///
+        /// This function requests that every executive in the supervision tree stop its own
+        /// activity. A successful return means the request reached every activity owner. It does
+        /// not prove that an activity has already stopped. Call \c waitForFinished() for that
+        /// synchronization. The call is idempotent.
+        Expected<void> stop();
+
+        /// Waits until this executive, its descendants, and their callbacks are quiescent.
+        ///
+        /// This function waits for every executive in the supervision tree. A successful return
+        /// does not destroy the executive. The object remains alive and can be reused. Destruction
+        /// remains the caller's responsibility.
+        Expected<void> waitForFinished();
 
         /// Casts this executive to a contract specific type without a runtime check.
         ///
@@ -77,9 +83,9 @@ namespace srt {
 
         /// Transfers \a child into this executive's supervision tree.
         ///
-        /// Both executives must belong to the same SynthUnit and must still be running. A failure
-        /// destroys \a child. The returned pointer remains owned by this executive. Deleting that
-        /// pointer directly detaches it from this executive before destruction.
+        /// Both executives must belong to the same SynthUnit. A failure destroys \a child. The
+        /// returned pointer remains owned by this executive. Deleting that pointer directly
+        /// detaches it from this executive before destruction.
         Expected<ContribExecutive *> adoptChild(std::unique_ptr<ContribExecutive> child);
 
         /// Creates and adopts one child through the import identified by \a role.
@@ -93,15 +99,12 @@ namespace srt {
         virtual Expected<void> wait() = 0;
 
     private:
-        Expected<void> quitForUnload();
-        Expected<void> waitForUnload();
-
         ContribSpec *m_spec;
         PackageData *m_package;
         ContribExecutive *m_parent = nullptr;
         std::vector<ContribExecutive *> m_children;
         bool m_destroyingChildren = false;
-        std::atomic<LifecycleState> m_state = LifecycleState::Running;
+        bool m_destructionPrepared = false;
 
         STDC_DISABLE_COPY_MOVE(ContribExecutive)
 

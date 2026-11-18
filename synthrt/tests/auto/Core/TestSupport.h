@@ -112,8 +112,10 @@ namespace {
 
     class TestExecutive final : public srt::ContribExecutive {
     public:
-        explicit TestExecutive(srt::ContribSpec &spec, int *destroyCount = nullptr)
-            : ContribExecutive(spec), m_destroyCount(destroyCount) {
+        explicit TestExecutive(srt::ContribSpec &spec, int *destroyCount = nullptr,
+                               int *quitCount = nullptr, int *waitCount = nullptr)
+            : ContribExecutive(spec), m_destroyCount(destroyCount), m_quitCount(quitCount),
+              m_waitCount(waitCount) {
         }
 
         ~TestExecutive() {
@@ -141,14 +143,22 @@ namespace {
 
     private:
         srt::Expected<void> quit() override {
+            if (m_quitCount) {
+                ++*m_quitCount;
+            }
             return {};
         }
 
         srt::Expected<void> wait() override {
+            if (m_waitCount) {
+                ++*m_waitCount;
+            }
             return {};
         }
 
         int *m_destroyCount;
+        int *m_quitCount;
+        int *m_waitCount;
     };
 
     class TestExecutiveFactory final : public srt::ContribExecutiveFactory {

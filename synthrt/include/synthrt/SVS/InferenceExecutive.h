@@ -38,15 +38,12 @@ namespace srt {
         /// Returns the state of the contract-specific Task.
         virtual ITask::State state() const noexcept = 0;
 
-        /// Requests cancellation of the current inference execution.
-        virtual Expected<void> stop() = 0;
+    protected:
+        /// Requests cancellation of activity owned by this executive.
+        Expected<void> quit() override = 0;
 
-        /// Waits for the current inference execution to finish.
-        virtual Expected<void> waitForFinished() = 0;
-
-    private:
-        Expected<void> quit() override;
-        Expected<void> wait() override;
+        /// Waits for activity owned by this executive.
+        Expected<void> wait() override = 0;
     };
 
 }

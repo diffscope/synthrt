@@ -21,8 +21,10 @@ namespace ds {
                                        AsyncCallback callback) override;
 
         srt::ITask::State state() const noexcept override;
-        srt::Expected<void> stop() override;
-        srt::Expected<void> waitForFinished() override;
+
+    protected:
+        srt::Expected<void> quit() override;
+        srt::Expected<void> wait() override;
 
     private:
         mutable DurationTask m_task;

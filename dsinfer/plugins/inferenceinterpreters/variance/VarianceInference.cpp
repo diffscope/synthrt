@@ -30,11 +30,11 @@ namespace ds {
         return m_task.state();
     }
 
-    srt::Expected<void> VarianceInference::stop() {
+    srt::Expected<void> VarianceInference::quit() {
         return m_task.stop();
     }
 
-    srt::Expected<void> VarianceInference::waitForFinished() {
+    srt::Expected<void> VarianceInference::wait() {
         return m_task.waitForFinished();
     }
 
