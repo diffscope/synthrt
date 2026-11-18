@@ -1,3 +1,4 @@
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <future>
@@ -157,23 +158,32 @@ BOOST_AUTO_TEST_CASE(test_callback_may_start_the_next_execution) {
     TestTask task;
     std::promise<void> completed;
     auto future = completed.get_future();
-    int callbacks = 0;
+    std::atomic<int> callbacks = 0;
+    std::atomic<bool> firstSucceeded = false;
+    std::atomic<bool> secondStarted = false;
+    std::atomic<bool> secondSucceeded = false;
 
     auto input = std::make_shared<TestInput>(4);
     BOOST_REQUIRE(task.startAsync(input, [&](auto first) mutable {
-        BOOST_REQUIRE(first);
+        firstSucceeded = static_cast<bool>(first);
         ++callbacks;
         auto second = task.startAsync(input, [&](auto result) mutable {
-            BOOST_REQUIRE(result);
+            secondSucceeded = static_cast<bool>(result);
             ++callbacks;
             completed.set_value();
         });
-        BOOST_REQUIRE(second);
+        secondStarted = static_cast<bool>(second);
+        if (!second) {
+            completed.set_value();
+        }
     }));
 
     BOOST_REQUIRE(future.wait_for(std::chrono::seconds(10)) == std::future_status::ready);
     BOOST_REQUIRE(task.waitForFinished());
-    BOOST_CHECK_EQUAL(callbacks, 2);
+    BOOST_REQUIRE(firstSucceeded.load());
+    BOOST_REQUIRE(secondStarted.load());
+    BOOST_REQUIRE(secondSucceeded.load());
+    BOOST_CHECK_EQUAL(callbacks.load(), 2);
     BOOST_CHECK(task.state() == srt::ITask::Succeeded);
 }
 

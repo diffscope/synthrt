@@ -12,6 +12,8 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 
 2026-11-18 Task 执行拆分验证：构建退出码为 0，synthrt 的 73 项 CTest 全部通过，Boost.Test 实际执行 14441 条断言。wolf 的 41 项测试和 otter 的 30 项测试全部通过，otter 的两个 RealEngine 测试因本机未配置引擎而跳过。
 
+2026-11-18 Task 线程验证：以 GCC ThreadSanitizer 构建 synthrt 与 stdcorelib，test_ITask 的 12 个用例、70 条断言连续执行 100 次，无 TSan 报告。测试中的并发回调计数改为原子变量，Boost 断言移到主线程执行。
+
 | 产品文件 | 类及内部类型 | 测试入口 | 验证方式 |
 |---|---|---|---|
 | [synthrt/include/synthrt/Core/ContribCategory.h](../../synthrt/include/synthrt/Core/ContribCategory.h) | `ContribCreateContext, ContribCategory` | [test_ContribCategory](../../synthrt/tests/auto/Core/test_ContribCategory.cpp)、[test_SynthUnit](../../synthrt/tests/auto/Core/test_SynthUnit.cpp) | 通过所属接口或集成流程验证 |
