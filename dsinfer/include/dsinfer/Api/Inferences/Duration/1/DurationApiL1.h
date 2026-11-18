@@ -30,8 +30,6 @@ namespace ds::Api::Duration::L1 {
         std::vector<std::string> speakers;
     };
 
-
-
     /// Configures one import of a duration inference contribution.
     class ImportOptions : public srt::ContribImportOptions {
     public:

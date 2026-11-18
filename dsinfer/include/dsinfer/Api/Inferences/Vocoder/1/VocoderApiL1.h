@@ -41,8 +41,6 @@ namespace ds::Api::Vocoder::L1 {
         }
     };
 
-
-
     /// Contains arguments used to initialize a vocoder inference executive.
     class InitArgs : public srt::InferenceInitArgs {
     public:

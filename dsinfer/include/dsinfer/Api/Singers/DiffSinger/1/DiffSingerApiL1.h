@@ -19,8 +19,6 @@ namespace ds::Api::DiffSinger::L1 {
     /// Identifies the DiffSinger interface contract.
     inline const srt::ContribContract Contract{"org.openvpi.dsinfer.singer.DiffSinger", 1};
 
-
-
     /// Supplies runtime settings when a DiffSinger synthesis pipeline is created.
     class PipelineRuntimeOptions : public srt::SingerPipelineRuntimeOptions {
     public:

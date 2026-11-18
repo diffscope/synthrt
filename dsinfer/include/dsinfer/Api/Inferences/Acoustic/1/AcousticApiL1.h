@@ -43,8 +43,6 @@ namespace ds::Api::Acoustic::L1 {
         std::set<ParamTag> transitionControls;
     };
 
-
-
     /// Configures one import of an acoustic inference contribution.
     class ImportOptions : public srt::ContribImportOptions {
     public:

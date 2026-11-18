@@ -38,8 +38,6 @@ namespace ds::Api::Variance::L1 {
         std::vector<ParamTag> predictions;
     };
 
-
-
     /// Configures one import of a variance inference contribution.
     class ImportOptions : public srt::ContribImportOptions {
     public:
