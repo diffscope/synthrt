@@ -10,6 +10,8 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 
 2026-11-17 身份类型重构验证：构建退出码为 0，71 项 CTest 全部通过。test_ContribContract 的 4 个用例、30 条断言通过。本轮未重新统计全库 Boost.Test 断言总数。
 
+2026-11-18 Task 执行拆分验证：构建退出码为 0，synthrt 的 73 项 CTest 全部通过，Boost.Test 实际执行 14441 条断言。wolf 的 41 项测试和 otter 的 30 项测试全部通过，otter 的两个 RealEngine 测试因本机未配置引擎而跳过。
+
 | 产品文件 | 类及内部类型 | 测试入口 | 验证方式 |
 |---|---|---|---|
 | [synthrt/include/synthrt/Core/ContribCategory.h](../../synthrt/include/synthrt/Core/ContribCategory.h) | `ContribCreateContext, ContribCategory` | [test_ContribCategory](../../synthrt/tests/auto/Core/test_ContribCategory.cpp)、[test_SynthUnit](../../synthrt/tests/auto/Core/test_SynthUnit.cpp) | 通过所属接口或集成流程验证 |
@@ -36,7 +38,7 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 | [synthrt/include/synthrt/SVS/SingerPipelineExecutive.h](../../synthrt/include/synthrt/SVS/SingerPipelineExecutive.h) | `SingerPipelineRuntimeOptions, SingerPipelineExtension, SingerPipelineExecutive` | [test_DiffSingerPipelineExecutive](../../dsinfer/tests/auto/plugins/singerproviders/diffsinger/test_DiffSingerPipelineExecutive.cpp)、[test_DiffSingerProvider](../../dsinfer/tests/auto/plugins/singerproviders/diffsinger/test_DiffSingerProvider.cpp) | 通过所属接口或集成流程验证 |
 | [synthrt/include/synthrt/SVS/SingerProvider.h](../../synthrt/include/synthrt/SVS/SingerProvider.h) | `SingerProvider` | [test_DiffSingerProvider](../../dsinfer/tests/auto/plugins/singerproviders/diffsinger/test_DiffSingerProvider.cpp) | 通过所属接口或集成流程验证 |
 | [synthrt/include/synthrt/SVS/SingerProviderPlugin.h](../../synthrt/include/synthrt/SVS/SingerProviderPlugin.h) | `SingerProviderPlugin` | [test_DiffSingerProvider_Compatibility](../../dsinfer/tests/auto/plugins/singerproviders/diffsinger/test_DiffSingerProvider_Compatibility.cpp) | 通过所属接口或集成流程验证 |
-| [synthrt/include/synthrt/Task/ITask.h](../../synthrt/include/synthrt/Task/ITask.h) | `TaskPayload, TaskInitArgs, TaskStartInput, TaskResult, ITask, AsyncState` | [test_ITask](../../synthrt/tests/auto/Task/test_ITask.cpp) | 直接测试，覆盖 claim、取消、callback 再启动/销毁/异常和等待屏障 |
+| [synthrt/include/synthrt/Task/ITask.h](../../synthrt/include/synthrt/Task/ITask.h) | `TaskPayload, TaskInitArgs, TaskStartInput, TaskResult, ITask, TaskStopToken, TaskStopSource, TaskHandle` | [test_ITask](../../synthrt/tests/auto/Task/test_ITask.cpp) | 直接测试，覆盖 claim、handle、stop token、取消、callback 再启动/销毁/异常和等待屏障 |
 | [synthrt/lib/Core/ContribCategory_p.h](../../synthrt/lib/Core/ContribCategory_p.h) | `ContribCreateContext::Data, ContribCategory::Impl` | [test_ContribCategory](../../synthrt/tests/auto/Core/test_ContribCategory.cpp)、[test_SynthUnit](../../synthrt/tests/auto/Core/test_SynthUnit.cpp) | 通过所属接口或集成流程验证 |
 | [synthrt/lib/Core/ContribPluginFactory_p.h](../../synthrt/lib/Core/ContribPluginFactory_p.h) | `ContribPluginFactory` | [test_SynthUnit](../../synthrt/tests/auto/Core/test_SynthUnit.cpp)、[test_ContribInterpreterPlugin](../../synthrt/tests/auto/Core/test_ContribInterpreterPlugin.cpp) | 通过所属接口或集成流程验证 |
 | [synthrt/lib/Core/ContribSpec_p.h](../../synthrt/lib/Core/ContribSpec_p.h) | `ContribImport::Data, ContribSpec::Impl` | [test_SynthUnit](../../synthrt/tests/auto/Core/test_SynthUnit.cpp)、[test_InferenceContrib](../../synthrt/tests/auto/SVS/test_InferenceContrib.cpp) | 通过所属接口或集成流程验证 |

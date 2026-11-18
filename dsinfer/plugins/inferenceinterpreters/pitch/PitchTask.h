@@ -31,16 +31,14 @@ namespace ds {
 
     protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            execute(const srt::TaskStartInput &input) override;
-
-        srt::Expected<void> validateInput(const srt::TaskStartInput &input) const override;
+            execute(const srt::TaskStartInput &input, const srt::TaskStopToken &token) override;
 
         srt::Expected<void> quit() override;
 
         srt::Expected<void> wait() override;
 
-        State classifyOutcome(
-            const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept override;
+        State classifyOutcome(const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome,
+                              bool stopRequested) noexcept override;
 
     private:
         PitchInference *m_inference;

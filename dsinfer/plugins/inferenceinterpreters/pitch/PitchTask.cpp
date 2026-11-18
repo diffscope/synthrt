@@ -47,7 +47,8 @@ namespace ds {
         return static_cast<const Pit::Onnx::Configuration *>(genericConfig);
     }
 
-    PitchTask::PitchTask(PitchInference &inference) : m_inference(&inference) {
+    PitchTask::PitchTask(PitchInference &inference)
+        : ITask(Pit::Contract.interfaceId(), Pit::Contract.level()), m_inference(&inference) {
     }
 
     PitchTask::~PitchTask() {
@@ -74,17 +75,21 @@ namespace ds {
                               "pitch asynchronous callback must not be empty");
         }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
-        return ITask::startAsync(
-            std::move(genericInput),
-            [callback = std::move(callback)](
-                srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
-                if (!result) {
-                    callback(result.takeError());
-                    return;
-                }
-                callback(std::unique_ptr<Pit::Result>(
-                    static_cast<Pit::Result *>(result.take().release())));
-            });
+        auto started =
+            ITask::startAsync(std::move(genericInput),
+                              [callback = std::move(callback)](
+                                  srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                                  if (!result) {
+                                      callback(result.takeError());
+                                      return;
+                                  }
+                                  callback(std::unique_ptr<Pit::Result>(
+                                      static_cast<Pit::Result *>(result.take().release())));
+                              });
+        if (!started) {
+            return started.takeError();
+        }
+        return {};
     }
 
     srt::Expected<void> PitchTask::initialize(const srt::TaskInitArgs &args) {
@@ -136,7 +141,7 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
-        PitchTask::execute(const srt::TaskStartInput &input) {
+        PitchTask::execute(const srt::TaskStartInput &input, const srt::TaskStopToken &) {
 
         {
             std::shared_lock<std::shared_mutex> lock(m_mutex);
@@ -520,14 +525,6 @@ namespace ds {
         return std::unique_ptr<srt::TaskResult>(std::move(pitchResult));
     }
 
-    srt::Expected<void> PitchTask::validateInput(const srt::TaskStartInput &input) const {
-        if (input.type() != Pit::Contract.interfaceId() ||
-            input.version() != Pit::Contract.level()) {
-            return srt::Error(srt::Error::InvalidArgument, "invalid pitch start payload");
-        }
-        return {};
-    }
-
     srt::Expected<void> PitchTask::quit() {
         srt::Error stopError;
         for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
@@ -558,9 +555,10 @@ namespace ds {
         return {};
     }
 
-    PitchTask::State PitchTask::classifyOutcome(
-        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept {
-        if (!outcome && stopRequested()) {
+    PitchTask::State
+        PitchTask::classifyOutcome(const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome,
+                                   bool stopRequested) noexcept {
+        if (!outcome && stopRequested) {
             return Canceled;
         }
         return outcome ? Succeeded : Failed;

@@ -110,7 +110,8 @@ namespace ds {
         return {};
     }
 
-    DurationTask::DurationTask(DurationInference &inference) : m_inference(&inference) {
+    DurationTask::DurationTask(DurationInference &inference)
+        : ITask(Dur::Contract.interfaceId(), Dur::Contract.level()), m_inference(&inference) {
     }
 
     DurationTask::~DurationTask() {
@@ -137,17 +138,21 @@ namespace ds {
                               "duration asynchronous callback must not be empty");
         }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
-        return ITask::startAsync(
-            std::move(genericInput),
-            [callback = std::move(callback)](
-                srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
-                if (!result) {
-                    callback(result.takeError());
-                    return;
-                }
-                callback(std::unique_ptr<Dur::Result>(
-                    static_cast<Dur::Result *>(result.take().release())));
-            });
+        auto started =
+            ITask::startAsync(std::move(genericInput),
+                              [callback = std::move(callback)](
+                                  srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                                  if (!result) {
+                                      callback(result.takeError());
+                                      return;
+                                  }
+                                  callback(std::unique_ptr<Dur::Result>(
+                                      static_cast<Dur::Result *>(result.take().release())));
+                              });
+        if (!started) {
+            return started.takeError();
+        }
+        return {};
     }
 
     srt::Expected<void> DurationTask::initialize(const srt::TaskInitArgs &args) {
@@ -199,7 +204,7 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
-        DurationTask::execute(const srt::TaskStartInput &input) {
+        DurationTask::execute(const srt::TaskStartInput &input, const srt::TaskStopToken &) {
 
         {
             std::shared_lock<std::shared_mutex> lock(m_mutex);
@@ -434,14 +439,6 @@ namespace ds {
         return std::unique_ptr<srt::TaskResult>(std::move(durationResult));
     }
 
-    srt::Expected<void> DurationTask::validateInput(const srt::TaskStartInput &input) const {
-        if (input.type() != Dur::Contract.interfaceId() ||
-            input.version() != Dur::Contract.level()) {
-            return srt::Error(srt::Error::InvalidArgument, "invalid duration start payload");
-        }
-        return {};
-    }
-
     srt::Expected<void> DurationTask::quit() {
         srt::Error stopError;
         for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
@@ -473,8 +470,9 @@ namespace ds {
     }
 
     DurationTask::State DurationTask::classifyOutcome(
-        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept {
-        if (!outcome && stopRequested()) {
+        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome,
+        bool stopRequested) noexcept {
+        if (!outcome && stopRequested) {
             return Canceled;
         }
         return outcome ? Succeeded : Failed;

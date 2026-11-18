@@ -46,7 +46,8 @@ namespace ds {
         return static_cast<const Ac::Onnx::Configuration *>(genericConfig);
     }
 
-    AcousticTask::AcousticTask(AcousticInference &inference) : m_inference(&inference) {
+    AcousticTask::AcousticTask(AcousticInference &inference)
+        : ITask(Ac::Contract.interfaceId(), Ac::Contract.level()), m_inference(&inference) {
     }
 
     AcousticTask::~AcousticTask() {
@@ -66,19 +67,12 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
-        AcousticTask::execute(const srt::TaskStartInput &input) {
+        AcousticTask::execute(const srt::TaskStartInput &input, const srt::TaskStopToken &) {
         auto result = execute(*input.as<Ac::StartInput>());
         if (!result) {
             return result.takeError();
         }
         return std::unique_ptr<srt::TaskResult>(result.take().release());
-    }
-
-    srt::Expected<void> AcousticTask::validateInput(const srt::TaskStartInput &input) const {
-        if (input.type() != Ac::Contract.interfaceId() || input.version() != Ac::Contract.level()) {
-            return srt::Error(srt::Error::InvalidArgument, "invalid acoustic start payload");
-        }
-        return {};
     }
 
     srt::Expected<void> AcousticTask::quit() {
@@ -112,8 +106,9 @@ namespace ds {
     }
 
     AcousticTask::State AcousticTask::classifyOutcome(
-        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept {
-        if (!outcome && stopRequested()) {
+        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome,
+        bool stopRequested) noexcept {
+        if (!outcome && stopRequested) {
             return Canceled;
         }
         return outcome ? Succeeded : Failed;
@@ -567,17 +562,21 @@ namespace ds {
                               "acoustic asynchronous callback must not be empty");
         }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
-        return ITask::startAsync(
-            std::move(genericInput),
-            [callback = std::move(callback)](
-                srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
-                if (!result) {
-                    callback(result.takeError());
-                    return;
-                }
-                callback(std::unique_ptr<Ac::Result>(
-                    static_cast<Ac::Result *>(result.take().release())));
-            });
+        auto started =
+            ITask::startAsync(std::move(genericInput),
+                              [callback = std::move(callback)](
+                                  srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                                  if (!result) {
+                                      callback(result.takeError());
+                                      return;
+                                  }
+                                  callback(std::unique_ptr<Ac::Result>(
+                                      static_cast<Ac::Result *>(result.take().release())));
+                              });
+        if (!started) {
+            return started.takeError();
+        }
+        return {};
     }
 
 }

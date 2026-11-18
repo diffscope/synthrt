@@ -106,7 +106,7 @@ namespace ds::test {
 
     protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            execute(const srt::TaskStartInput &input) override {
+            execute(const srt::TaskStartInput &input, const srt::TaskStopToken &token) override {
             if (!m_open || input.type() != Api::Onnx::Name ||
                 input.version() != Api::Onnx::Version) {
                 return srt::Error(srt::Error::InvalidArgument, "incorrect model start contract");
@@ -117,8 +117,8 @@ namespace ds::test {
                 std::unique_lock<std::mutex> lock(m_trace->mutex);
                 m_trace->entered = true;
                 m_trace->changed.notify_all();
-                m_trace->changed.wait(lock,
-                                      [this] { return m_trace->interrupted || stopRequested(); });
+                m_trace->changed.wait(
+                    lock, [this, &token] { return m_trace->interrupted || token.stopRequested(); });
                 return srt::Error(srt::Error::Canceled, "model interrupted");
             }
             const auto fault = selectedFault();
@@ -178,9 +178,9 @@ namespace ds::test {
             return {};
         }
 
-        State classifyOutcome(
-            const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept override {
-            if (!outcome && stopRequested()) {
+        State classifyOutcome(const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome,
+                              bool stopRequested) noexcept override {
+            if (!outcome && stopRequested) {
                 return Canceled;
             }
             return outcome ? Succeeded : Failed;

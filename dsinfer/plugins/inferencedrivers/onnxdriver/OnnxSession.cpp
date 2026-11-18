@@ -10,7 +10,8 @@
 namespace ds {
 
     OnnxSession::OnnxSession(std::shared_ptr<onnxdriver::DriverContext> context)
-        : m_sessionId(context->nextSessionId()),
+        : InferenceSession(Api::Onnx::Name, Api::Onnx::Version),
+          m_sessionId(context->nextSessionId()),
           m_session(std::make_unique<onnxdriver::Session>(std::move(context))) {
     }
 
@@ -43,7 +44,7 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
-        OnnxSession::execute(const srt::TaskStartInput &input) {
+        OnnxSession::execute(const srt::TaskStartInput &input, const srt::TaskStopToken &) {
         return m_session->run(input);
     }
 
@@ -59,9 +60,10 @@ namespace ds {
         return {};
     }
 
-    OnnxSession::State OnnxSession::classifyOutcome(
-        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept {
-        if (!outcome && stopRequested()) {
+    OnnxSession::State
+        OnnxSession::classifyOutcome(const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome,
+                                     bool stopRequested) noexcept {
+        if (!outcome && stopRequested) {
             return Canceled;
         }
         return outcome ? Succeeded : Failed;

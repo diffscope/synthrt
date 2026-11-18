@@ -40,7 +40,7 @@ namespace {
     public:
     protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            execute(const srt::TaskStartInput &input) override {
+            execute(const srt::TaskStartInput &input, const srt::TaskStopToken &) override {
             const auto value = input.as<TestInput>()->value;
             return std::unique_ptr<srt::TaskResult>(new TestResult(value * 2));
         }
@@ -55,13 +55,13 @@ namespace {
 
     protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            execute(const srt::TaskStartInput &input) override {
+            execute(const srt::TaskStartInput &input, const srt::TaskStopToken &token) override {
             {
                 std::unique_lock<std::mutex> lock(m_mutex);
                 m_started = true;
                 m_changed.notify_all();
-                m_changed.wait(lock, [this] { return stopRequested(); });
-                if (stopRequested()) {
+                m_changed.wait(lock, [&token] { return token.stopRequested(); });
+                if (token.stopRequested()) {
                     return srt::Error(srt::Error::Canceled, "test execution was canceled");
                 }
             }
@@ -177,6 +177,41 @@ BOOST_AUTO_TEST_CASE(test_callback_may_start_the_next_execution) {
     BOOST_CHECK(task.state() == srt::ITask::Succeeded);
 }
 
+BOOST_AUTO_TEST_CASE(test_task_handle_controls_one_asynchronous_execution) {
+    BlockingTask task;
+    std::promise<srt::Expected<std::unique_ptr<srt::TaskResult>>> promise;
+    auto future = promise.get_future();
+
+    auto started = task.startAsync(std::make_shared<TestInput>(1), [&promise](auto result) mutable {
+        promise.set_value(std::move(result));
+    });
+    BOOST_REQUIRE(started);
+    auto handle = started.take();
+    BOOST_CHECK(handle.valid());
+    BOOST_CHECK(handle.isActive());
+    task.waitUntilStarted();
+
+    BOOST_REQUIRE(handle.stop());
+    BOOST_REQUIRE(handle.wait());
+    BOOST_CHECK(handle.isFinished());
+    auto result = future.get();
+    BOOST_REQUIRE(!result);
+    BOOST_CHECK(result.error().code() == srt::Error::Canceled);
+    BOOST_CHECK(task.state() == srt::ITask::Canceled);
+}
+
+BOOST_AUTO_TEST_CASE(test_task_stop_token_is_shared_by_copies) {
+    srt::TaskStopSource source;
+    auto first = source.token();
+    auto second = first;
+    BOOST_CHECK(!first.stopRequested());
+    BOOST_CHECK(!second.stopRequested());
+
+    source.requestStop();
+    BOOST_CHECK(first.stopRequested());
+    BOOST_CHECK(second.stopRequested());
+}
+
 BOOST_AUTO_TEST_CASE(test_wait_includes_callback_execution) {
     TestTask task;
     std::promise<void> callbackEntered;
@@ -213,6 +248,32 @@ BOOST_AUTO_TEST_CASE(test_callback_may_destroy_task) {
     BOOST_CHECK(!task);
 }
 
+BOOST_AUTO_TEST_CASE(test_task_handle_remains_safe_after_task_destruction) {
+    auto task = std::make_unique<TestTask>();
+    std::promise<void> callbackEntered;
+    auto callbackEnteredFuture = callbackEntered.get_future();
+    std::promise<void> releaseCallback;
+    auto releaseCallbackFuture = releaseCallback.get_future().share();
+
+    auto started = task->startAsync(std::make_shared<TestInput>(3),
+                                    [&task, &callbackEntered, releaseCallbackFuture](auto) mutable {
+                                        task.reset();
+                                        callbackEntered.set_value();
+                                        releaseCallbackFuture.wait();
+                                    });
+    BOOST_REQUIRE(started);
+    auto handle = started.take();
+    callbackEnteredFuture.get();
+    BOOST_CHECK(!task);
+
+    BOOST_REQUIRE(handle.stop());
+    auto waiter = std::async(std::launch::async, [&handle] { return handle.wait(); });
+    BOOST_CHECK(waiter.wait_for(std::chrono::milliseconds(20)) == std::future_status::timeout);
+    releaseCallback.set_value();
+    BOOST_REQUIRE(waiter.get());
+    BOOST_CHECK(handle.isFinished());
+}
+
 BOOST_AUTO_TEST_CASE(test_callback_exception_releases_the_execution) {
     TestTask task;
     std::promise<void> delivered;
@@ -238,7 +299,7 @@ BOOST_AUTO_TEST_CASE(test_body_exception_is_internal_and_the_task_remains_reusab
 
     protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            execute(const srt::TaskStartInput &input) override {
+            execute(const srt::TaskStartInput &input, const srt::TaskStopToken &) override {
             if (fail) {
                 throw std::runtime_error("body failed");
             }

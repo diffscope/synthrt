@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <string>
 
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Task/ITask.h>
@@ -73,6 +74,9 @@ namespace ds {
 
     protected:
         InferenceSession();
+
+        /// Creates a Session that accepts start payloads of \a inputType and \a inputVersion.
+        InferenceSession(std::string inputType, int inputVersion);
     };
 
 }

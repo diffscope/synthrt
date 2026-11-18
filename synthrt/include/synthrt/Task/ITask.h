@@ -1,19 +1,14 @@
 #ifndef SYNTHRT_TASK_ITASK_H
 #define SYNTHRT_TASK_ITASK_H
 
-#include <atomic>
-#include <condition_variable>
-#include <cstdint>
-#include <exception>
 #include <functional>
 #include <memory>
-#include <mutex>
 #include <string>
-#include <system_error>
-#include <thread>
 #include <utility>
 
 #include <synthrt/Support/Expected.h>
+#include <synthrt/Task/TaskHandle.h>
+#include <synthrt/Task/TaskStopToken.h>
 
 namespace srt {
 
@@ -108,8 +103,8 @@ namespace srt {
         /// Shared ownership keeps \a input alive until the implementation no longer needs it. The
         /// callback receives either sole ownership of the result or the execution \c Error. The
         /// default implementation executes start() on a worker thread.
-        Expected<void> startAsync(std::shared_ptr<const TaskStartInput> input,
-                                  AsyncCallback callback);
+        Expected<TaskHandle> startAsync(std::shared_ptr<const TaskStartInput> input,
+                                        AsyncCallback callback);
 
         /// Requests cancellation of the current execution.
         Expected<void> stop();
@@ -118,21 +113,17 @@ namespace srt {
         Expected<void> waitForFinished();
 
         /// Returns the state of the current or most recently completed execution.
-        inline State state() const noexcept {
-            return m_state.load();
-        }
+        State state() const noexcept;
 
     protected:
         ITask();
 
-        /// Executes the body for a claim that this class has already taken.
-        virtual Expected<std::unique_ptr<TaskResult>> execute(const TaskStartInput &input) = 0;
+        /// Creates a Task that accepts start inputs of \a inputType and \a inputVersion.
+        ITask(std::string inputType, int inputVersion);
 
-        /// Rejects an input before a claim is taken.
-        ///
-        /// The default accepts every input. A typed Task overrides this function to compare the
-        /// payload identity before converting the input.
-        virtual Expected<void> validateInput(const TaskStartInput &input) const;
+        /// Executes the body for a claim that this class has already taken.
+        virtual Expected<std::unique_ptr<TaskResult>> execute(const TaskStartInput &input,
+                                                              const TaskStopToken &token) = 0;
 
         /// Requests that activity owned by this Task stop.
         ///
@@ -149,60 +140,25 @@ namespace srt {
         /// The default reports Failed for an error and Succeeded for a result. A contract that
         /// reports cancellation through its own error domain or through a partial result overrides
         /// this function.
-        virtual State
-            classifyOutcome(const Expected<std::unique_ptr<TaskResult>> &outcome) noexcept;
-
-        /// Converts an exception thrown by execute() into the Task's error domain.
-        virtual Error exceptionError(const std::exception &error) const;
-
-        /// Converts an unknown exception thrown by execute() into the Task's error domain.
-        virtual Error unknownExceptionError() const;
-
-        /// Converts a failure to create the asynchronous worker into the Task's error domain.
-        virtual Error workerStartError(const std::system_error &error) const;
-
-        /// Updates the state exposed by state().
-        inline void setState(State state) noexcept {
-            m_state = state;
-        }
-
-        /// Returns whether stop() has requested cancellation of the active claim.
-        bool stopRequested() const noexcept {
-            return m_stopRequested.load(std::memory_order_acquire);
-        }
+        virtual State classifyOutcome(const Expected<std::unique_ptr<TaskResult>> &outcome,
+                                      bool stopRequested) noexcept;
 
         /// Starts a detached worker that runs \a work.
         ///
         /// The function is virtual so that tests can simulate the absence of a worker.
-        virtual void startWorker(std::function<void()> work);
+        virtual Expected<void> startWorker(std::function<void()> work);
+
+        /// Updates the state of the current execution while its body runs.
+        void setState(State state) noexcept;
 
     private:
-        void release();
+        Expected<void> validateInput(const TaskStartInput &input) const;
 
-        Expected<std::unique_ptr<TaskResult>> runClaimed(const TaskStartInput &input);
+        Expected<std::unique_ptr<TaskResult>> runBody(const TaskStartInput &input,
+                                                      const TaskStopToken &token);
 
-        bool claimedByThisThread() const;
-
-        bool deliveringCallback() const;
-
-        void waitForExecution() noexcept;
-
-        std::atomic<State> m_state = State::Idle;
-
-        std::atomic_bool m_stopRequested = false;
-
-        struct AsyncState {
-            std::mutex mutex;
-            std::condition_variable finished;
-            bool running = false;
-            std::thread::id workerId;
-        };
-
-        std::shared_ptr<AsyncState> m_asyncState;
-
-        std::shared_ptr<std::atomic<std::uint64_t>> m_generation;
-
-        std::shared_ptr<std::atomic<std::thread::id>> m_callbackWorker;
+        class Impl;
+        std::unique_ptr<Impl> _impl;
 
         STDC_DISABLE_COPY_MOVE(ITask)
     };

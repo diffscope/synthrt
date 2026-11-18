@@ -62,7 +62,8 @@ namespace ds {
         return static_cast<const Var::Schema *>(genericSchema);
     }
 
-    VarianceTask::VarianceTask(VarianceInference &inference) : m_inference(&inference) {
+    VarianceTask::VarianceTask(VarianceInference &inference)
+        : ITask(Var::Contract.interfaceId(), Var::Contract.level()), m_inference(&inference) {
     }
 
     VarianceTask::~VarianceTask() {
@@ -89,17 +90,21 @@ namespace ds {
                               "variance asynchronous callback must not be empty");
         }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
-        return ITask::startAsync(
-            std::move(genericInput),
-            [callback = std::move(callback)](
-                srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
-                if (!result) {
-                    callback(result.takeError());
-                    return;
-                }
-                callback(std::unique_ptr<Var::Result>(
-                    static_cast<Var::Result *>(result.take().release())));
-            });
+        auto started =
+            ITask::startAsync(std::move(genericInput),
+                              [callback = std::move(callback)](
+                                  srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                                  if (!result) {
+                                      callback(result.takeError());
+                                      return;
+                                  }
+                                  callback(std::unique_ptr<Var::Result>(
+                                      static_cast<Var::Result *>(result.take().release())));
+                              });
+        if (!started) {
+            return started.takeError();
+        }
+        return {};
     }
 
     srt::Expected<void> VarianceTask::initialize(const srt::TaskInitArgs &args) {
@@ -151,7 +156,7 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
-        VarianceTask::execute(const srt::TaskStartInput &input) {
+        VarianceTask::execute(const srt::TaskStartInput &input, const srt::TaskStopToken &) {
 
         {
             std::shared_lock<std::shared_mutex> lock(m_mutex);
@@ -551,14 +556,6 @@ namespace ds {
         return std::unique_ptr<srt::TaskResult>(std::move(varianceResult));
     }
 
-    srt::Expected<void> VarianceTask::validateInput(const srt::TaskStartInput &input) const {
-        if (input.type() != Var::Contract.interfaceId() ||
-            input.version() != Var::Contract.level()) {
-            return srt::Error(srt::Error::InvalidArgument, "invalid variance start payload");
-        }
-        return {};
-    }
-
     srt::Expected<void> VarianceTask::quit() {
         srt::Error stopError;
         for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
@@ -590,8 +587,9 @@ namespace ds {
     }
 
     VarianceTask::State VarianceTask::classifyOutcome(
-        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept {
-        if (!outcome && stopRequested()) {
+        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome,
+        bool stopRequested) noexcept {
+        if (!outcome && stopRequested) {
             return Canceled;
         }
         return outcome ? Succeeded : Failed;

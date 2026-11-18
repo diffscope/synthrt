@@ -37,7 +37,8 @@ namespace ds {
         return static_cast<const Vo::Onnx::Configuration *>(genericConfig);
     }
 
-    VocoderTask::VocoderTask(VocoderInference &inference) : m_inference(&inference) {
+    VocoderTask::VocoderTask(VocoderInference &inference)
+        : ITask(Vo::Contract.interfaceId(), Vo::Contract.level()), m_inference(&inference) {
     }
 
     VocoderTask::~VocoderTask() {
@@ -64,17 +65,21 @@ namespace ds {
                               "vocoder asynchronous callback must not be empty");
         }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
-        return ITask::startAsync(
-            std::move(genericInput),
-            [callback = std::move(callback)](
-                srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
-                if (!result) {
-                    callback(result.takeError());
-                    return;
-                }
-                callback(std::unique_ptr<Vo::Result>(
-                    static_cast<Vo::Result *>(result.take().release())));
-            });
+        auto started =
+            ITask::startAsync(std::move(genericInput),
+                              [callback = std::move(callback)](
+                                  srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                                  if (!result) {
+                                      callback(result.takeError());
+                                      return;
+                                  }
+                                  callback(std::unique_ptr<Vo::Result>(
+                                      static_cast<Vo::Result *>(result.take().release())));
+                              });
+        if (!started) {
+            return started.takeError();
+        }
+        return {};
     }
 
     srt::Expected<void> VocoderTask::initialize(const srt::TaskInitArgs &args) {
@@ -116,7 +121,7 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
-        VocoderTask::execute(const srt::TaskStartInput &input) {
+        VocoderTask::execute(const srt::TaskStartInput &input, const srt::TaskStopToken &) {
 
         {
             std::shared_lock<std::shared_mutex> lock(m_mutex);
@@ -200,13 +205,6 @@ namespace ds {
         return std::unique_ptr<srt::TaskResult>(std::move(vocoderResult));
     }
 
-    srt::Expected<void> VocoderTask::validateInput(const srt::TaskStartInput &input) const {
-        if (input.type() != Vo::Contract.interfaceId() || input.version() != Vo::Contract.level()) {
-            return srt::Error(srt::Error::InvalidArgument, "invalid vocoder start payload");
-        }
-        return {};
-    }
-
     srt::Expected<void> VocoderTask::quit() {
         srt::Error stopError;
         for (auto session : {m_session.get()}) {
@@ -237,9 +235,10 @@ namespace ds {
         return {};
     }
 
-    VocoderTask::State VocoderTask::classifyOutcome(
-        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept {
-        if (!outcome && stopRequested()) {
+    VocoderTask::State
+        VocoderTask::classifyOutcome(const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome,
+                                     bool stopRequested) noexcept {
+        if (!outcome && stopRequested) {
             return Canceled;
         }
         return outcome ? Succeeded : Failed;
