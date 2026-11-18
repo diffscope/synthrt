@@ -189,7 +189,7 @@
 | `synthrt/lib/Core/PackageHandle_p.h` | `SYNTHRT_CORE_PACKAGEHANDLE_P_H` |
 | `dsinfer/plugins/inferencedrivers/onnxdriver/Runtime/DriverContext.h` | `DSINFER_INFERENCEDRIVERS_ONNXDRIVER_RUNTIME_DRIVERCONTEXT_H` |
 | `dsinfer/tests/auto/Inference/TestCaseLoader.h` | `DSINFER_TESTS_INFERENCE_TESTCASELOADER_H` |
-| `dsinfer/tools/cli/SynthesisRunner.h` | `DSINFER_TOOLS_CLI_SYNTHESISRUNNER_H` |
+| `dsinfer/tests/manual/runner/SynthesisRunner.h` | `DSINFER_TESTS_MANUAL_RUNNER_SYNTHESISRUNNER_H` |
 | `dsinfer/tests/manual/onnxdriver/SessionRunner.h`（假设的手动测试头文件） | `DSINFER_TESTS_MANUAL_ONNXDRIVER_SESSIONRUNNER_H` |
 | `dsinfer/util/inferutil/Algorithm.h` | `DSINFER_INFERUTIL_ALGORITHM_H` |
 | `dsinfer/util/inputparser/InputParserCommon_p.h` | `DSINFER_INPUTPARSER_INPUTPARSERCOMMON_P_H` |

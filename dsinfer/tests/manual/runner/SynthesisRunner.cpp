@@ -30,7 +30,7 @@
 
 #include <wavfile/WavFile.h>
 
-namespace ds::cli {
+namespace ds::manual {
 
     namespace Common = Api::Common::L1;
     namespace Acoustic = Api::Acoustic::L1;
@@ -40,7 +40,7 @@ namespace ds::cli {
     namespace Vocoder = Api::Vocoder::L1;
     namespace DiffSinger = Api::DiffSinger::L1;
 
-    static srt::LogCategory s_cliLog("cli");
+    static srt::LogCategory s_runnerLog("runner");
 
     namespace {
 
@@ -277,7 +277,7 @@ namespace ds::cli {
                 throw std::runtime_error("failed to write all WAV frames");
             }
             wav.close();
-            s_cliLog.srtSuccess("Saved audio to " + stdc::path::to_utf8(path));
+            s_runnerLog.srtSuccess("Saved audio to " + stdc::path::to_utf8(path));
         }
 
     }

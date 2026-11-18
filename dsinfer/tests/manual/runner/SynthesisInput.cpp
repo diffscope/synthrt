@@ -11,7 +11,7 @@
 
 #include <inputparser/AcousticInputParser.h>
 
-namespace ds::cli {
+namespace ds::manual {
 
     srt::Expected<SynthesisInput> SynthesisInput::load(const std::filesystem::path &path) {
         std::ifstream stream(path);

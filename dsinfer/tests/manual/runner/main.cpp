@@ -18,7 +18,7 @@
 
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
-#include "CliRuntime.h"
+#include "RunnerRuntime.h"
 #include "SynthesisInput.h"
 #include "SynthesisRunner.h"
 
@@ -140,6 +140,35 @@ namespace {
             pluginRoot = stdc::path::from_utf8(*value);
         }
 
+        fs::path wolfLibrary;
+        fs::path wolfPluginRoot;
+        if (const auto value = result.valueForOption<std::string>("--wolf-root")) {
+            const auto wolfRoot = stdc::path::from_utf8(*value);
+#ifdef _WIN32
+            wolfLibrary = wolfRoot / STDC_TSTR("bin") / STDC_TSTR("synthrt-wolf.dll");
+#elif defined(__APPLE__)
+            wolfLibrary = wolfRoot / STDC_TSTR("bin") / STDC_TSTR("libsynthrt-wolf.dylib");
+#else
+            wolfLibrary = wolfRoot / STDC_TSTR("bin") / STDC_TSTR("libsynthrt-wolf.so");
+#endif
+            wolfPluginRoot =
+                wolfRoot / STDC_TSTR("lib") / STDC_TSTR("synthrt-wolf") / STDC_TSTR("plugins");
+        }
+        if (const auto value = result.valueForOption<std::string>("--wolf-library")) {
+            wolfLibrary = stdc::path::from_utf8(*value);
+        }
+        if (const auto value = result.valueForOption<std::string>("--wolf-plugin-root")) {
+            wolfPluginRoot = stdc::path::from_utf8(*value);
+        }
+
+        fs::path onnxRuntime;
+#ifdef DSINFER_RUNNER_ORT_RUNTIME_DIR
+        onnxRuntime = stdc::path::from_utf8(DSINFER_RUNNER_ORT_RUNTIME_DIR);
+#endif
+        if (const auto value = result.valueForOption<std::string>("--onnx-runtime")) {
+            onnxRuntime = stdc::path::from_utf8(*value);
+        }
+
         const auto executionProvider =
             parseExecutionProvider(result.valueForOption<std::string>("--ep").value_or("cpu"));
         const auto deviceIndex = result.valueForOption<int>("--device").value_or(0);
@@ -149,14 +178,15 @@ namespace {
         }
 
         try {
-            auto input = ds::cli::SynthesisInput::load(inputPath);
+            auto input = ds::manual::SynthesisInput::load(inputPath);
             if (!input) {
                 throw std::runtime_error("failed to load synthesis input: " +
                                          input.error().message());
             }
 
-            ds::cli::CliRuntime runtime(pluginRoot, executionProvider, deviceIndex);
-            ds::cli::SynthesisRunner runner(runtime.synthUnit());
+            ds::manual::RunnerRuntime runtime(pluginRoot, wolfPluginRoot, wolfLibrary, onnxRuntime,
+                                              executionProvider, deviceIndex);
+            ds::manual::SynthesisRunner runner(runtime.synthUnit());
             runner.run(packagePath, input.take(), outputPath);
             return 0;
         } catch (const std::exception &exception) {
@@ -183,7 +213,20 @@ namespace {
             .addOption(stdc::cli::Option("--plugin-root",
                                          "Directory containing dsinfer plugin categories.")
                            .arg("directory"))
-            .addVersionOption(TOOL_VERSION)
+            .addOption(stdc::cli::Option("--onnx-runtime",
+                                         "Directory containing the ONNX Runtime payload.")
+                           .arg("directory"))
+            .addOption(stdc::cli::Option(
+                           "--wolf-root",
+                           "Installed synthrt-wolf prefix, needed by packages with linguists.")
+                           .arg("directory"))
+            .addOption(
+                stdc::cli::Option("--wolf-library", "Path to the synthrt-wolf shared library.")
+                    .arg("file"))
+            .addOption(stdc::cli::Option("--wolf-plugin-root",
+                                         "Directory containing wolf plugin categories.")
+                           .arg("directory"))
+            .addVersionOption(DSINFER_RUNNER_VERSION)
             .addHelpOption(true)
             .setHandler(runCommand);
 

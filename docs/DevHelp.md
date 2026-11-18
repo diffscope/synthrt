@@ -848,4 +848,4 @@ Load 和 release 由 SynthUnit 串行化，但解释器实例会被缓存并服�
 5. `synthrt/include/synthrt/SVS`：内置 singer 和 inference Category。
 6. `dsinfer/include/dsinfer/Api`：Level 1 类型化契约。
 7. `dsinfer/plugins/inferenceinterpreters` 与 `dsinfer/plugins/singerproviders/diffsinger`：可运行的解释器、Provider、Binding Factory 和 Executive 示例。
-8. `dsinfer/tools/cli/main.cpp`：从 Driver 初始化、Package Load、Singer Pipeline 到各推理阶段执行的完整宿主示例。
+8. `dsinfer/tests/manual/runner/main.cpp`：从 Driver 初始化、Package Load、Singer Pipeline 到各推理阶段执行的完整宿主示例。

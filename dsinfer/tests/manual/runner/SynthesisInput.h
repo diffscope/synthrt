@@ -1,5 +1,5 @@
-#ifndef DSINFER_TOOLS_CLI_SYNTHESISINPUT_H
-#define DSINFER_TOOLS_CLI_SYNTHESISINPUT_H
+#ifndef DSINFER_TESTS_MANUAL_RUNNER_SYNTHESISINPUT_H
+#define DSINFER_TESTS_MANUAL_RUNNER_SYNTHESISINPUT_H
 
 #include <filesystem>
 #include <memory>
@@ -9,9 +9,9 @@
 
 #include <dsinfer/Api/Inferences/Acoustic/1/AcousticApiL1.h>
 
-namespace ds::cli {
+namespace ds::manual {
 
-    /// Input for one CLI synthesis request.
+    /// Input for one manual synthesis request.
     ///
     /// The input file has the following JSON structure. Every field except \c singer is optional.
     ///
@@ -98,4 +98,4 @@ namespace ds::cli {
 
 }
 
-#endif // DSINFER_TOOLS_CLI_SYNTHESISINPUT_H
+#endif // DSINFER_TESTS_MANUAL_RUNNER_SYNTHESISINPUT_H

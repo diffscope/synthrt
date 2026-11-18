@@ -1,5 +1,5 @@
-#ifndef DSINFER_TOOLS_CLI_SYNTHESISRUNNER_H
-#define DSINFER_TOOLS_CLI_SYNTHESISRUNNER_H
+#ifndef DSINFER_TESTS_MANUAL_RUNNER_SYNTHESISRUNNER_H
+#define DSINFER_TESTS_MANUAL_RUNNER_SYNTHESISRUNNER_H
 
 #include <filesystem>
 
@@ -7,7 +7,7 @@
 
 #include "SynthesisInput.h"
 
-namespace ds::cli {
+namespace ds::manual {
 
     /// Executes one DiffSinger synthesis request on a configured SynthUnit.
     class SynthesisRunner {
@@ -25,4 +25,4 @@ namespace ds::cli {
 
 }
 
-#endif // DSINFER_TOOLS_CLI_SYNTHESISRUNNER_H
+#endif // DSINFER_TESTS_MANUAL_RUNNER_SYNTHESISRUNNER_H

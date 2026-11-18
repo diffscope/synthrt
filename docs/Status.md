@@ -29,7 +29,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - 将 Inference Driver 作为 Runtime Service 发现，并通过 `metadata.backend` 选择
 - 按 Category 专用目录部署插件 Bundle
 
-插件发现、Package 加载、Import Binding 和 Executive 生命周期的 Core 机制已经可用。dsinfer Interpreter 与 CLI 已迁移到类型化 Executive 和 Singer Pipeline。
+插件发现、Package 加载、Import Binding 和 Executive 生命周期的 Core 机制已经可用。dsinfer Interpreter 与手动测试宿主已迁移到类型化 Executive 和 Singer Pipeline。
 
 ## dsinfer 迁移
 
@@ -50,7 +50,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - DiffSinger Provider 已接入新的 Pipeline、role 查询和目标契约校验
 - `InferenceSpec`兼容性检查由目标 Interpreter 实现，默认接受任意组合。DiffSinger 在 Commit 前强制检查 Acoustic 与 Vocoder 的配置兼容性
 - 修订后的 level 1 推理契约和已经迁移到 2.4 的示例 Package 结构
-- 基于 `stdc::cli` 的命令行示例与手动测试运行器，通过 Singer Pipeline 和 Import role 驱动完整同步推理链
+- `tests/manual` 提供不安装的 Package 安装器和推理运行器。推理运行器通过 Singer Pipeline 和 Import role 驱动完整同步推理链
 - Duration、Pitch、Variance、Acoustic 和 Vocoder Task 通过通用 Task 异步执行器支持异步调用，并覆盖停止、等待、回调执行和回调内销毁
 - Duration、Pitch、Variance 和 Acoustic Input Parser 继续作为独立协议 Utility 提供，并由共享字段、音符、控制曲线和错误输入的自动化测试覆盖
 - ONNX Driver 原手动测试中的有效场景均已由自动测试覆盖，模型及生成脚本已迁入自动测试资源
@@ -58,14 +58,14 @@ SynthRT 的 Package 基础设施目前已经实现：
 - Duration、Pitch、Acoustic 与 Variance Executive 会保存各自的 Import Options。`speakerMapping` 在构造 speaker embedding 或音素 speaker 混合前解析，Variance 的 `predictions` 按模型声明顺序筛选实际请求和返回的参数
 - dsinfer 五个推理契约的 typed `exports` payload 统一命名为 `Exports`，与 wolf 契约及 `ContribExports` 的词汇一致。dsinfer 版本升至 `0.0.2.0`
 
-仍待完成的迁移包括：
+本阶段验证包括：
 
-- 真实插件的 Package 加载、兼容性拒绝、Pipeline 创建、五阶段子实例执行、WAV 输出与失败后资源释放已有自动化覆盖。完整合成链使用记录型后端，训练模型精度不在该测试范围内
-当前完整 `all` 构建可以通过，73 个自动测试均已通过，Boost.Test 实际执行 14501 条断言，无失败。otter 的两个真实引擎测试因本机未配置对应引擎而跳过。类与测试入口的对应关系见 [测试对应表](codex/TestCoverage.md)。
+- 真实插件的 Package 加载、兼容性拒绝、Pipeline 创建、五阶段子实例执行、WAV 输出与失败后资源释放已有自动化覆盖。YOUSA 1.65 真实 Package 已通过 `tests/manual/runner` 完成五阶段推理并生成 WAV
+当前完整 `all` 构建可以通过，69 个自动测试均已通过。wolf 的 41 项测试通过。otter 的 30 项测试包含两个真实引擎测试并全部通过。类与测试入口的对应关系见 [测试对应表](codex/TestCoverage.md)。
 
 ## 后续工作
 
-1. 扩展真实模型的端到端验证。已有记录型后端覆盖 Pipeline 执行、资源释放和 Import Options 差异化行为，继续补真实模型验证。
+1. 扩展真实模型的端到端验证。YOUSA 1.65 已通过 CPU ONNX 端到端验证。otter 的 game.cpp `v0.1.3` serve 协议和 tifa.cpp `v0.1.6` 适配已通过真实引擎测试；tifa.cpp `v0.2.0` 删除了 `--text-file` 与 `--dict-dir`，需要另做接受音素序列的迁移。
 2. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
 3. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
 4. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。

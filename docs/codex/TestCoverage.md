@@ -4,7 +4,7 @@
 
 目录及命名遵守 SynthRT 的 Development.md 与 DirectoryStructure.md。具体行为作为用例名，独立拆分的行为保留 test_<头文件名>_<行为>.cpp 名称。新增或移动类时应同时更新测试注册和本表。
 
-ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设备环境。CLI 的直接测试覆盖输入转换、失败出口及使用记录型后端的完整五阶段合成。真实训练模型仍需相应集成夹具。
+ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设备环境。`tests/manual` 的安装器和推理运行器提供真实 Package 与模型的集成验证，不计入 CTest。真实训练模型仍需相应集成夹具。
 
 身份类型重构前的完整工作区验证：先确认构建退出码为 0，再运行 CTest。synthrt 注册 71 项测试，Boost.Test 实际执行 14290 条断言。全部通过，无跳过。
 
@@ -15,6 +15,8 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 2026-11-18 Task 线程验证：以 GCC ThreadSanitizer 构建 synthrt 与 stdcorelib，test_ITask 的 12 个用例、70 条断言连续执行 100 次，无 TSan 报告。测试中的并发回调计数改为原子变量，Boost 断言移到主线程执行。
 
 2026-11-18 per-import options 验证：Duration、Acoustic、Pitch 与 Variance Task 共 73 项 CTest 全部通过。新增用例验证 speaker mapping 进入模型输入，以及同一 Variance target 的两套 `predictions` 生成不同执行体和结果。
+
+2026-11-18 manual 目标验证：删除产品的 `dsinfer-cli` 目标，`dsinfer-installer` 与 `dsinfer-runner` 以 `TEST CONSOLE` 目标构建在 `out/bin`，不进入安装。构建退出码为 0，synthrt 的 69 项 CTest 全部通过。真实的 YOUSA 1.65 Package 经安装器装载后完成 ONNX 五阶段推理并生成 210988 字节 WAV。
 
 | 产品文件 | 类及内部类型 | 测试入口 | 验证方式 |
 |---|---|---|---|
@@ -116,10 +118,6 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 | [dsinfer/plugins/singerproviders/diffsinger/DiffSingerProvider.cpp](../../dsinfer/plugins/singerproviders/diffsinger/DiffSingerProvider.cpp) | `DiffSingerImportValidator, DiffSingerPipelineExtension` | [test_DiffSingerProvider](../../dsinfer/tests/auto/plugins/singerproviders/diffsinger/test_DiffSingerProvider.cpp)、[test_DiffSingerProvider_Compatibility](../../dsinfer/tests/auto/plugins/singerproviders/diffsinger/test_DiffSingerProvider_Compatibility.cpp) | 直接测试 |
 | [dsinfer/plugins/singerproviders/diffsinger/DiffSingerProvider.h](../../dsinfer/plugins/singerproviders/diffsinger/DiffSingerProvider.h) | `DiffSingerProvider` | [test_DiffSingerProvider](../../dsinfer/tests/auto/plugins/singerproviders/diffsinger/test_DiffSingerProvider.cpp)、[test_DiffSingerProvider_Compatibility](../../dsinfer/tests/auto/plugins/singerproviders/diffsinger/test_DiffSingerProvider_Compatibility.cpp) | 直接测试 |
 | [dsinfer/plugins/singerproviders/diffsinger/main.cpp](../../dsinfer/plugins/singerproviders/diffsinger/main.cpp) | `DiffSingerProviderPlugin` | [test_ContribInterpreterPlugin_Dsinfer](../../dsinfer/tests/auto/Core/test_ContribInterpreterPlugin_Dsinfer.cpp) | 通过所属接口或集成流程验证 |
-| [dsinfer/tools/cli/CliRuntime.h](../../dsinfer/tools/cli/CliRuntime.h) | `CliRuntime` | [test_CliRuntime](../../dsinfer/tests/auto/tools/cli/test_CliRuntime.cpp) | 直接测试 |
-| [dsinfer/tools/cli/SynthesisInput.h](../../dsinfer/tools/cli/SynthesisInput.h) | `SynthesisInput` | [test_SynthesisInput](../../dsinfer/tests/auto/tools/cli/test_SynthesisInput.cpp) | 直接测试 |
-| [dsinfer/tools/cli/SynthesisRunner.cpp](../../dsinfer/tools/cli/SynthesisRunner.cpp) | `AcousticOutput` | [test_SynthesisRunner](../../dsinfer/tests/auto/tools/cli/test_SynthesisRunner.cpp)、[test_SynthesisRunner_Pipeline](../../dsinfer/tests/auto/tools/cli/test_SynthesisRunner_Pipeline.cpp) | 直接测试 |
-| [dsinfer/tools/cli/SynthesisRunner.h](../../dsinfer/tools/cli/SynthesisRunner.h) | `SynthesisRunner` | [test_SynthesisRunner](../../dsinfer/tests/auto/tools/cli/test_SynthesisRunner.cpp)、[test_SynthesisRunner_Pipeline](../../dsinfer/tests/auto/tools/cli/test_SynthesisRunner_Pipeline.cpp) | 直接测试 |
 | [dsinfer/util/inferutil/detail/Parser_impl.h](../../dsinfer/util/inferutil/detail/Parser_impl.h) | `ParamTagMappings` | [test_Parser](../../dsinfer/tests/auto/util/inferutil/test_Parser.cpp) | 通过所属接口或集成流程验证 |
 | [dsinfer/util/inferutil/ErrorCollector.h](../../dsinfer/util/inferutil/ErrorCollector.h) | `ErrorCollector` | [test_ErrorCollector](../../dsinfer/tests/auto/util/inferutil/test_ErrorCollector.cpp) | 直接测试 |
 | [dsinfer/util/inferutil/Parser.h](../../dsinfer/util/inferutil/Parser.h) | `ConfigurationParser, SchemaParser, ImportOptionsParser` | [test_Parser](../../dsinfer/tests/auto/util/inferutil/test_Parser.cpp) | 直接测试 |
@@ -128,6 +126,14 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 | [dsinfer/util/wavfile/WavFile.cpp](../../dsinfer/util/wavfile/WavFile.cpp) | `WavFile::Impl` | [test_WavFile](../../dsinfer/tests/auto/util/wavfile/test_WavFile.cpp) | 直接测试 |
 | [dsinfer/util/wavfile/WavFile.h](../../dsinfer/util/wavfile/WavFile.h) | `WavFile, DataFormat` | [test_WavFile](../../dsinfer/tests/auto/util/wavfile/test_WavFile.cpp) | 直接测试 |
 
+## 手动集成程序
+
+手动程序用于真实 Package 与外部引擎的集成验证，不以 CTest 运行，也不安装。
+
+| 目标 | 用途 |
+|---|---|
+| `dsinfer-installer` | 事务式安装一组已解包的 Package 目录，目标已存在时拒绝覆盖 |
+| `dsinfer-runner` | 从 Acoustic 输入 JSON 驱动完整 Singer Pipeline，输出 WAV；可动态加载 wolf 以支持带 linguist Package 的宿主 |
 
 ## 验证范围与剩余工作
 
@@ -135,6 +141,8 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 
 Package manifest 的 JSON 预扫描由 `test_manifest_limits_json_nesting` 覆盖 400 层可加载和 100000 层返回 `InvalidFormat` 的行为。
 
-Clang 插桩报告用于发现未执行路径。跨模块合并报告仍提示函数数据不匹配，因此不把该报告的百分比作为覆盖率承诺。CUDA、DirectML 需要相应硬件，目前没有执行验证。记录型后端不能验证训练模型的精度。per-import speakerMapping 与 Variance predictions 已由记录型后端验证执行链路，真实模型仍待相应包。
+Clang 插桩报告用于发现未执行路径。跨模块合并报告仍提示函数数据不匹配，因此不把该报告的百分比作为覆盖率承诺。CUDA、DirectML 需要相应硬件，目前没有执行验证。记录型后端不能验证训练模型的精度。per-import speakerMapping 与 Variance predictions 已由记录型后端验证执行链路，YOUSA 1.65 已用真实模型验证 CPU ONNX 执行链。
+
+otter 的 `test_GameGgmlInterpreter_RealEngine` 已使用 game.cpp `v0.1.3` 的 CLI 与 Q8 GGUF 通过。`test_TifaGgmlInterpreter_RealEngine` 已使用 tifa.cpp `v0.1.6` 的 CLI、F16 GGUF 与 Mandarin 字典通过。tifa.cpp `v0.2.0` 不再内建 G2P，现有 provider 传入的 `--text-file` 与 `--dict-dir` 已被删除，因此当前适配只覆盖 `v0.1.x`。迁移到 `v0.2.0` 需要另行定义音素输入来源。
 
 2026-11-17 契约 API 拆分验证：构建退出码为 0，71 项 CTest 全部通过。test_SynthUnit 的 16 个用例、321 条断言通过，test_InferenceInterpreter 的 2 个用例、33 条断言通过。新增公开变体头文件通过独立编译检查。
