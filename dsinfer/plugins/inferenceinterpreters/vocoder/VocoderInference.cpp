@@ -6,7 +6,9 @@ namespace ds {
 
     namespace Voc = Api::Vocoder::L1;
 
-    VocoderInference::VocoderInference(srt::InferenceSpec &spec) : Executive(spec), m_task(*this) {
+    VocoderInference::VocoderInference(srt::InferenceSpec &spec, const Voc::ImportOptions &,
+                                       const Voc::RuntimeOptions &)
+        : Executive(spec), m_task(*this) {
     }
 
     VocoderInference::~VocoderInference() = default;

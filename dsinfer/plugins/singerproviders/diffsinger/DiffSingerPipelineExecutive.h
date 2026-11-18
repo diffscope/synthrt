@@ -9,7 +9,9 @@ namespace ds {
 
     class DiffSingerPipelineExecutive : public Api::DiffSinger::L1::PipelineExecutive {
     public:
-        explicit DiffSingerPipelineExecutive(srt::SingerSpec &spec);
+        DiffSingerPipelineExecutive(
+            srt::SingerSpec &spec,
+            const Api::DiffSinger::L1::PipelineRuntimeOptions &runtimeOptions);
         ~DiffSingerPipelineExecutive();
 
     public:

@@ -192,9 +192,10 @@ namespace ds {
     srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
         PitchInterpreter::createInference(srt::InferenceSpec &spec,
                                           const srt::ContribImportOptions &importOptions,
-                                          const srt::InferenceRuntimeOptions &) {
-        const auto &options = *importOptions.as<Pit::ImportOptions>();
-        return std::unique_ptr<srt::InferenceExecutive>(new PitchInference(spec, options));
+                                          const srt::InferenceRuntimeOptions &runtimeOptions) {
+        return std::unique_ptr<srt::InferenceExecutive>(
+            new PitchInference(spec, *importOptions.as<Pit::ImportOptions>(),
+                               *runtimeOptions.as<Pit::RuntimeOptions>()));
     }
 
 }

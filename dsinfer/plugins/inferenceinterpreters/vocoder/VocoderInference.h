@@ -11,7 +11,9 @@ namespace ds {
 
     class VocoderInference : public Api::Vocoder::L1::Executive {
     public:
-        explicit VocoderInference(srt::InferenceSpec &spec);
+        VocoderInference(srt::InferenceSpec &spec,
+                         const Api::Vocoder::L1::ImportOptions &importOptions,
+                         const Api::Vocoder::L1::RuntimeOptions &runtimeOptions);
         ~VocoderInference();
 
         srt::Expected<void> initialize(const Api::Vocoder::L1::InitArgs &args) override;

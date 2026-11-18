@@ -66,7 +66,8 @@ namespace ds {
                         "DiffSinger pipeline options have an incompatible contract identity");
                 }
                 return std::unique_ptr<srt::SingerPipelineExecutive>(
-                    new DiffSingerPipelineExecutive(spec()));
+                    new DiffSingerPipelineExecutive(
+                        spec(), *runtimeOptions.as<Ds::PipelineRuntimeOptions>()));
             }
         };
 

@@ -6,12 +6,10 @@ namespace ds {
 
     namespace Var = Api::Variance::L1;
 
-    VarianceInference::VarianceInference(srt::InferenceSpec &spec) : VarianceInference(spec, {}) {
-    }
-
     VarianceInference::VarianceInference(srt::InferenceSpec &spec,
-                                         const Var::ImportOptions &options)
-        : Executive(spec), m_task(*this, options) {
+                                         const Var::ImportOptions &importOptions,
+                                         const Var::RuntimeOptions &)
+        : Executive(spec), m_task(*this, importOptions) {
     }
 
     VarianceInference::~VarianceInference() = default;

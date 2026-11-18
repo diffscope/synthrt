@@ -239,9 +239,10 @@ namespace ds {
     srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
         AcousticInterpreter::createInference(srt::InferenceSpec &spec,
                                              const srt::ContribImportOptions &importOptions,
-                                             const srt::InferenceRuntimeOptions &) {
-        const auto &options = *importOptions.as<Ac::ImportOptions>();
-        return std::unique_ptr<srt::InferenceExecutive>(new AcousticInference(spec, options));
+                                             const srt::InferenceRuntimeOptions &runtimeOptions) {
+        return std::unique_ptr<srt::InferenceExecutive>(
+            new AcousticInference(spec, *importOptions.as<Ac::ImportOptions>(),
+                                  *runtimeOptions.as<Ac::RuntimeOptions>()));
     }
 
 }

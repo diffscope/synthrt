@@ -17,7 +17,8 @@ BOOST_AUTO_TEST_CASE(pipeline_supervises_imported_executives_and_reports_absent_
     auto package = opened.take();
     auto singer = package.contribution("singer", "singer");
     BOOST_REQUIRE(singer);
-    ds::DiffSingerPipelineExecutive pipeline(*singer->as<srt::SingerSpec>());
+    ds::DiffSingerPipelineExecutive pipeline(*singer->as<srt::SingerSpec>(),
+                                             Api::PipelineRuntimeOptions());
     auto acoustic = pipeline.createAcoustic(ds::Api::Acoustic::L1::RuntimeOptions());
     auto vocoder = pipeline.createVocoder(ds::Api::Vocoder::L1::RuntimeOptions());
     BOOST_REQUIRE(acoustic);

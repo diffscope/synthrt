@@ -171,9 +171,11 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
         VocoderInterpreter::createInference(srt::InferenceSpec &spec,
-                                            const srt::ContribImportOptions &,
-                                            const srt::InferenceRuntimeOptions &) {
-        return std::unique_ptr<srt::InferenceExecutive>(new VocoderInference(spec));
+                                            const srt::ContribImportOptions &importOptions,
+                                            const srt::InferenceRuntimeOptions &runtimeOptions) {
+        return std::unique_ptr<srt::InferenceExecutive>(
+            new VocoderInference(spec, *importOptions.as<Vo::ImportOptions>(),
+                                 *runtimeOptions.as<Vo::RuntimeOptions>()));
     }
 
 }

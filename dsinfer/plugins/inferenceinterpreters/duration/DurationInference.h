@@ -11,9 +11,9 @@ namespace ds {
 
     class DurationInference : public Api::Duration::L1::Executive {
     public:
-        explicit DurationInference(srt::InferenceSpec &spec);
         DurationInference(srt::InferenceSpec &spec,
-                          const Api::Duration::L1::ImportOptions &options);
+                          const Api::Duration::L1::ImportOptions &importOptions,
+                          const Api::Duration::L1::RuntimeOptions &runtimeOptions);
         ~DurationInference();
 
         srt::Expected<void> initialize(const Api::Duration::L1::InitArgs &args) override;

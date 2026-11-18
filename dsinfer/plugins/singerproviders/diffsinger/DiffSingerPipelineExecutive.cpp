@@ -2,7 +2,8 @@
 
 namespace ds {
 
-    DiffSingerPipelineExecutive::DiffSingerPipelineExecutive(srt::SingerSpec &spec)
+    DiffSingerPipelineExecutive::DiffSingerPipelineExecutive(
+        srt::SingerSpec &spec, const Api::DiffSinger::L1::PipelineRuntimeOptions &)
         : Api::DiffSinger::L1::PipelineExecutive(spec) {
     }
 

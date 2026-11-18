@@ -13,7 +13,7 @@ using TestInterpreter = ds::DurationInterpreter;
 
 BOOST_AUTO_TEST_CASE(executive_reports_missing_backend_and_can_be_stopped) {
     ds::test::DeclaredInference declaration;
-    ds::DurationInference executive(declaration.spec());
+    ds::DurationInference executive(declaration.spec(), {}, {});
     BOOST_CHECK(&executive.spec() == &declaration.spec());
     BOOST_CHECK(executive.state() == srt::ITask::Idle);
     Contract::StartInput input;

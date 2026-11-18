@@ -31,7 +31,7 @@ namespace {
 
 BOOST_AUTO_TEST_CASE(task_rejects_wrong_payloads_and_null_async_input) {
     ds::test::DeclaredInference declaration;
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     ds::AcousticTask task(executive);
     OtherInit args;
     OtherInput input;
@@ -82,7 +82,7 @@ BOOST_AUTO_TEST_CASE(modelInputsResultsAndReuse) {
     auto trace = std::make_shared<ds::test::DriverTrace>();
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     ds::AcousticTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
@@ -111,7 +111,7 @@ BOOST_AUTO_TEST_CASE(openFailuresAreReportedAndInitializationCanBeRetried) {
         trace->faultModel = model;
         ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                                 executionConfiguration());
-        ds::AcousticInference executive(declaration.spec());
+        ds::AcousticInference executive(declaration.spec(), {}, {});
         {
             ds::AcousticTask task(executive);
             auto result = task.initialize(Contract::InitArgs());
@@ -135,7 +135,7 @@ BOOST_AUTO_TEST_CASE(modelFailuresAndMalformedResultsAreRejected) {
         trace->faultModel = "model.onnx";
         ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                                 executionConfiguration());
-        ds::AcousticInference executive(declaration.spec());
+        ds::AcousticInference executive(declaration.spec(), {}, {});
         ds::AcousticTask task(executive);
         BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
         auto input = makeInput();
@@ -153,7 +153,7 @@ BOOST_AUTO_TEST_CASE(typedAsyncCallbackRunsOnceAndCompletesBeforeWaitReturns) {
     auto trace = std::make_shared<ds::test::DriverTrace>();
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     ds::AcousticTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = std::make_shared<Contract::StartInput>(makeInput());
@@ -176,7 +176,7 @@ BOOST_AUTO_TEST_CASE(stopInterruptsAModelAndDoesNotCancelTheNextExecution) {
     trace->block = true;
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     ds::AcousticTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = std::make_shared<Contract::StartInput>(makeInput());
@@ -203,7 +203,7 @@ BOOST_AUTO_TEST_CASE(destructionStopsAndJoinsAnActiveExecution) {
     trace->block = true;
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     auto task = std::make_unique<ds::AcousticTask>(executive);
     BOOST_REQUIRE(task->initialize(Contract::InitArgs()));
     auto input = std::make_shared<Contract::StartInput>(makeInput());
@@ -223,7 +223,7 @@ BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
     trace->faultModel = "model.onnx";
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     ds::AcousticTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
@@ -251,7 +251,7 @@ BOOST_AUTO_TEST_CASE(initializedTasksRefuseUnsupportedInputVersions) {
     auto trace = std::make_shared<ds::test::DriverTrace>();
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     ds::AcousticTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     UnsupportedInit init;
@@ -277,7 +277,7 @@ BOOST_AUTO_TEST_CASE(f0PrecedenceToneShiftAndContinuousAcceleration) {
     configuration["useVariableDepth"] = true;
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             configuration);
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     ds::AcousticTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
@@ -351,7 +351,7 @@ BOOST_AUTO_TEST_CASE(requiredControlsAndEmptyOptionalControlsFollowTheirContract
         "gender", "velocity", "energy", "breathiness", "voicing", "tension", "mouth_opening"};
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             configuration);
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     ds::AcousticTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
@@ -382,7 +382,7 @@ BOOST_AUTO_TEST_CASE(nullOutputTensorsFailWithoutDereferencingThem) {
     trace->faultModel = "model.onnx";
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::AcousticInference executive(declaration.spec());
+    ds::AcousticInference executive(declaration.spec(), {}, {});
     ds::AcousticTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto failed = task.start(makeInput());

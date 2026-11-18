@@ -6,11 +6,10 @@ namespace ds {
 
     namespace Pit = Api::Pitch::L1;
 
-    PitchInference::PitchInference(srt::InferenceSpec &spec) : PitchInference(spec, {}) {
-    }
-
-    PitchInference::PitchInference(srt::InferenceSpec &spec, const Pit::ImportOptions &options)
-        : Executive(spec), m_task(*this, options) {
+    PitchInference::PitchInference(srt::InferenceSpec &spec,
+                                   const Pit::ImportOptions &importOptions,
+                                   const Pit::RuntimeOptions &)
+        : Executive(spec), m_task(*this, importOptions) {
     }
 
     PitchInference::~PitchInference() = default;

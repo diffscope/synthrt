@@ -33,7 +33,7 @@ namespace {
 
 BOOST_AUTO_TEST_CASE(task_rejects_invalid_initialization_and_uninitialized_execution) {
     ds::test::DeclaredInference declaration;
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     ds::PitchTask task(executive);
     OtherInit args;
     OtherInput input;
@@ -80,7 +80,7 @@ BOOST_AUTO_TEST_CASE(modelInputsResultsAndReuse) {
     auto trace = std::make_shared<ds::test::DriverTrace>();
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     ds::PitchTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
@@ -107,7 +107,7 @@ BOOST_AUTO_TEST_CASE(openFailuresAreReportedAndInitializationCanBeRetried) {
         trace->faultModel = model;
         ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                                 executionConfiguration());
-        ds::PitchInference executive(declaration.spec());
+        ds::PitchInference executive(declaration.spec(), {}, {});
         {
             ds::PitchTask task(executive);
             auto result = task.initialize(Contract::InitArgs());
@@ -131,7 +131,7 @@ BOOST_AUTO_TEST_CASE(modelFailuresAndMalformedResultsAreRejected) {
         trace->faultModel = "predictor.onnx";
         ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                                 executionConfiguration());
-        ds::PitchInference executive(declaration.spec());
+        ds::PitchInference executive(declaration.spec(), {}, {});
         ds::PitchTask task(executive);
         BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
         auto input = makeInput();
@@ -149,7 +149,7 @@ BOOST_AUTO_TEST_CASE(typedAsyncCallbackRunsOnceAndCompletesBeforeWaitReturns) {
     auto trace = std::make_shared<ds::test::DriverTrace>();
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     ds::PitchTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = std::make_shared<Contract::StartInput>(makeInput());
@@ -172,7 +172,7 @@ BOOST_AUTO_TEST_CASE(stopInterruptsAModelAndDoesNotCancelTheNextExecution) {
     trace->block = true;
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     ds::PitchTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = std::make_shared<Contract::StartInput>(makeInput());
@@ -199,7 +199,7 @@ BOOST_AUTO_TEST_CASE(destructionStopsAndJoinsAnActiveExecution) {
     trace->block = true;
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     auto task = std::make_unique<ds::PitchTask>(executive);
     BOOST_REQUIRE(task->initialize(Contract::InitArgs()));
     auto input = std::make_shared<Contract::StartInput>(makeInput());
@@ -219,7 +219,7 @@ BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
     trace->faultModel = "predictor.onnx";
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     ds::PitchTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
@@ -247,7 +247,7 @@ BOOST_AUTO_TEST_CASE(initializedTasksRefuseUnsupportedInputVersions) {
     auto trace = std::make_shared<ds::test::DriverTrace>();
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     ds::PitchTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     UnsupportedInit init;
@@ -271,7 +271,7 @@ BOOST_AUTO_TEST_CASE(noteRestsCentsAndRetakeMasksReachThePredictor) {
     auto trace = std::make_shared<ds::test::DriverTrace>();
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     ds::PitchTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
@@ -301,7 +301,7 @@ BOOST_AUTO_TEST_CASE(absentPitchAndExpressionProduceDefaultPredictorInputs) {
     auto trace = std::make_shared<ds::test::DriverTrace>();
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     ds::PitchTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto input = makeInput();
@@ -357,7 +357,7 @@ BOOST_AUTO_TEST_CASE(nullOutputTensorsFailWithoutDereferencingThem) {
     trace->faultModel = "predictor.onnx";
     ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                             executionConfiguration());
-    ds::PitchInference executive(declaration.spec());
+    ds::PitchInference executive(declaration.spec(), {}, {});
     ds::PitchTask task(executive);
     BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
     auto failed = task.start(makeInput());
