@@ -171,7 +171,7 @@ namespace ds::cli {
 
         void runVariance(Variance::Executive &inference, Acoustic::StartInput &acousticInput,
                          std::string_view singerId) {
-            const auto schema = inference.spec().exports()->as<Variance::Schema>();
+            const auto schema = inference.spec().exports()->as<Variance::Exports>();
             if (auto result = inference.initialize(Variance::InitArgs()); !result) {
                 throw std::runtime_error(
                     stdc::formatN(R"(failed to initialize variance inference for singer "%1": %2)",

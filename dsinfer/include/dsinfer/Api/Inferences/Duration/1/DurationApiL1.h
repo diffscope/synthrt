@@ -21,9 +21,9 @@ namespace ds::Api::Duration::L1 {
     using InputWordInfo = Common::L1::InputWordInfo;
 
     /// Describes the capabilities exported by a duration inference contribution.
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
-        inline Schema() : srt::ContribExports(Contract) {
+        inline Exports() : srt::ContribExports(Contract) {
         }
 
         /// Speaker identifiers accepted by this contribution.

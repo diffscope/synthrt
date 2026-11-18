@@ -11,7 +11,7 @@ namespace Api = ds::Api::Vocoder::L1;
 BOOST_AUTO_TEST_CASE(payloads_preserve_contract_identity_across_base_views) {
     const srt::ContribContractTriplet expected(Api::Contract.interfaceId(), Api::Contract.level(),
                                                Api::Onnx::Triplet.variant());
-    Api::Schema schema;
+    Api::Exports schema;
     Api::Onnx::Configuration configuration;
     BOOST_CHECK(configuration.triplet() == Api::Onnx::Triplet);
     Api::ImportOptions options;

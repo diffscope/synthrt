@@ -22,7 +22,7 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         DurationInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto result = std::make_unique<Dur::Schema>();
+        auto result = std::make_unique<Dur::Exports>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;

@@ -26,9 +26,9 @@ namespace ds::Api::Variance::L1 {
     using LinguisticMode = Common::L1::LinguisticMode;
 
     /// Describes the capabilities exported by a variance inference contribution.
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
-        inline Schema() : srt::ContribExports(Contract) {
+        inline Exports() : srt::ContribExports(Contract) {
         }
 
         /// Speaker identifiers accepted by this contribution.

@@ -28,9 +28,9 @@ namespace ds::Api::Acoustic::L1 {
     using InputSpeakerInfo = Common::L1::InputSpeakerInfo;
 
     /// Describes the capabilities exported by an acoustic inference contribution.
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
-        inline Schema() : srt::ContribExports(Contract) {
+        inline Exports() : srt::ContribExports(Contract) {
         }
 
         /// Speaker identifiers accepted by this contribution.

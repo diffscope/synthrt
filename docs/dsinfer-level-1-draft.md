@@ -12,14 +12,14 @@
 
 ## 前置说明
 
-- Schema: 模块向编辑器开放的信息
+- Exports: 模块向编辑器开放的信息
 - Options：歌手引用此模块时应指定的参数选项
 - Configurations：推理引擎需要用到的所有信息
 - Variables：模型推理过程中涉及的输入、输出和中间变量
 
 ## ai.svs.DurationPrediction
 
-### Schema
+### Exports
 
 |   name   |        type        |      description       |       example        |
 | :------: | :----------------: | :--------------------: | :------------------: |
@@ -67,7 +67,7 @@
 
 ## ai.svs.PitchPrediction
 
-### Schema
+### Exports
 
 |        name         |        type        |      description       |       example        |
 | :-----------------: | :----------------: | :--------------------: | :------------------: |
@@ -125,7 +125,7 @@
 
 ## ai.svs.VariancePrediction
 
-### Schema
+### Exports
 
 |    name     |        type        |                      description                       |          example           |
 | :---------: | :----------------: | :----------------------------------------------------: | :------------------------: |
@@ -186,7 +186,7 @@
 
 ## ai.svs.AcousticInference
 
-### Schema
+### Exports
 
 |        name        |        type        |                         description                          |          example           |
 | :----------------: | :----------------: | :----------------------------------------------------------: | :------------------------: |
@@ -248,7 +248,7 @@
 
 ## ai.svs.VocoderInference
 
-### Schema
+### Exports
 
 无
 

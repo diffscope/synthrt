@@ -35,9 +35,9 @@ namespace ds::Api::Vocoder::L1 {
     };
 
     /// Describes the capabilities exported by a vocoder inference contribution.
-    class Schema : public srt::ContribExports {
+    class Exports : public srt::ContribExports {
     public:
-        inline Schema() : srt::ContribExports(Contract) {
+        inline Exports() : srt::ContribExports(Contract) {
         }
     };
 

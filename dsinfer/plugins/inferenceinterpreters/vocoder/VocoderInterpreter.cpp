@@ -28,7 +28,7 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         VocoderInterpreter::createExports(const srt::ContribSpec &spec) const {
-        return std::make_unique<Vo::Schema>();
+        return std::make_unique<Vo::Exports>();
     }
 
     srt::Expected<std::unique_ptr<srt::ContribConfiguration>>

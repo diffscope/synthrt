@@ -1,6 +1,7 @@
+# 0.0.2.0 renames typed contract export payloads from Schema to Exports.
 project(synthrt-dsinfer
     LANGUAGES CXX
-    VERSION 0.0.1.3
+    VERSION 0.0.2.0
     DESCRIPTION "DiffSinger Inference Framework"
 )
 

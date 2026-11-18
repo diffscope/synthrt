@@ -22,7 +22,7 @@ namespace ds {
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         AcousticInterpreter::createExports(const srt::ContribSpec &spec) const {
         const auto &schema = spec.manifestExports();
-        auto result = std::make_unique<Ac::Schema>();
+        auto result = std::make_unique<Ac::Exports>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;

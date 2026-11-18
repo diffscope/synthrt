@@ -22,7 +22,7 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::ContribExports>>
         PitchInterpreter::createExports(const srt::ContribSpec &spec) const {
-        auto result = std::make_unique<Pit::Schema>();
+        auto result = std::make_unique<Pit::Exports>();
 
         // Collect all the errors and return to user
         inferutil::ErrorCollector ec;

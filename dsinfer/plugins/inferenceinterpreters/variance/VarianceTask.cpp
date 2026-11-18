@@ -51,7 +51,7 @@ namespace ds {
         return static_cast<const Var::Onnx::Configuration *>(genericConfig);
     }
 
-    static inline srt::Expected<const Var::Schema *> getSchema(const srt::InferenceSpec &spec) {
+    static inline srt::Expected<const Var::Exports *> getExports(const srt::InferenceSpec &spec) {
 
         const auto genericSchema = spec.exports();
         if (!genericSchema) {
@@ -60,11 +60,11 @@ namespace ds {
         if (genericSchema->contract() != Var::Contract) {
             return srt::Error(srt::Error::InvalidArgument, "invalid variance schema");
         }
-        return static_cast<const Var::Schema *>(genericSchema);
+        return static_cast<const Var::Exports *>(genericSchema);
     }
 
     static inline srt::Expected<std::vector<ParamTag>>
-        selectPredictions(const Var::Schema &schema, const std::set<ParamTag> &selected) {
+        selectPredictions(const Var::Exports &schema, const std::set<ParamTag> &selected) {
         if (schema.predictions.empty()) {
             return srt::Error(ds::ErrorCode::InvalidInput, "no parameters to predict");
         }
@@ -213,12 +213,12 @@ namespace ds {
         const auto config = expConfig.take();
 
         // Get variance schema
-        auto expSchema = getSchema(m_inference->spec());
-        if (!expSchema) {
+        auto expExports = getExports(m_inference->spec());
+        if (!expExports) {
             ITask::setState(ITask::Failed);
-            return expSchema.takeError();
+            return expExports.takeError();
         }
-        const auto schema = expSchema.take();
+        const auto schema = expExports.take();
         auto expPredictions = selectPredictions(*schema, m_predictions);
         if (!expPredictions) {
             ITask::setState(ITask::Failed);
