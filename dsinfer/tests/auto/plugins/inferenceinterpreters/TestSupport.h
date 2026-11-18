@@ -22,6 +22,7 @@
 #include <boost/test/unit_test.hpp>
 
 namespace ds::test {
+
     namespace fs = std::filesystem;
 
     /// Loads a real interpreter with a small declaration and an optional inference backend.
@@ -98,9 +99,11 @@ namespace ds::test {
         srt::SynthUnit m_unit;
         srt::PackageHandle m_package;
     };
+
 }
 
 namespace {
+
     class InterpreterPlugin : public srt::InferenceInterpreterPlugin {
     public:
         srt::Expected<std::unique_ptr<srt::ContribInterpreter>>
@@ -122,6 +125,7 @@ namespace {
                                             {"level", Contract::Contract.level()},
                                             {"variant", Contract::Onnx::Triplet.variant()}}}}
     }))
+
 }
 
 #endif // DSINFER_TESTS_PLUGINS_INFERENCEINTERPRETERS_TESTSUPPORT_H

@@ -6,6 +6,7 @@
 #include <boost/test/unit_test.hpp>
 
 namespace {
+
     class InitArgs : public ds::InferenceSessionInitArgs {
     public:
         InitArgs() : InferenceSessionInitArgs("other.backend", 3) {
@@ -26,6 +27,7 @@ namespace {
         OpenArgs() : InferenceSessionOpenArgs("other.backend", 3) {
         }
     };
+
 }
 
 BOOST_AUTO_TEST_CASE(session_payload_bases_preserve_non_onnx_contracts) {

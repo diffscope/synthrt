@@ -10,6 +10,7 @@
 #include <dsinfer/Api/Inferences/Common/1/CommonApiL1.h>
 
 namespace ds::inferutil {
+
     srt::Expected<std::shared_ptr<Api::Onnx::SessionStartInput>>
         preprocessLinguisticPhoneme(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                     const std::map<std::string, int> &tokens,
@@ -26,5 +27,6 @@ namespace ds::inferutil {
                                    const srt::TaskStartInput &linguisticInput,
                                    std::shared_ptr<Api::Onnx::SessionStartInput> &out,
                                    bool useXMasks = true);
+
 }
 #endif // DSINFER_INFERUTIL_LINGUISTICENCODER_H

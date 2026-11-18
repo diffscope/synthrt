@@ -6,6 +6,7 @@
 #include <vector>
 
 namespace ds::inferutil {
+
     class ErrorCollector {
     public:
         ErrorCollector() = default;
@@ -79,6 +80,7 @@ namespace ds::inferutil {
 
         return result;
     }
+
 }
 
 #endif // DSINFER_INFERUTIL_ERRORCOLLECTOR_H

@@ -13,7 +13,9 @@
 #include <dsinfer/Api/Drivers/Onnx/OnnxDriverApi.h>
 
 namespace stdc {
+
     class SharedLibrary;
+
 }
 
 /// The file name of the ONNX Runtime library on this platform, which OnnxRuntime::load() is given

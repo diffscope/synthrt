@@ -10,6 +10,7 @@
 #include "Algorithm.h"
 
 namespace ds::inferutil {
+
     namespace Co = Api::Common::L1;
 
     const std::string *resolveSpeakerName(const std::string &name,
@@ -88,4 +89,5 @@ namespace ds::inferutil {
             return exp.takeError();
         }
     }
+
 }

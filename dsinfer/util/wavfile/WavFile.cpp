@@ -6,6 +6,7 @@
 #include "dr_libs/dr_wav.h"
 
 namespace ds {
+
     class WavFile::Impl {
     public:
         Impl() : wav{}, initialized(false) {
@@ -86,4 +87,5 @@ namespace ds {
 
         impl.close();
     }
+
 }

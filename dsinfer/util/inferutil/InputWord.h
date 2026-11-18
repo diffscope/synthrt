@@ -48,5 +48,6 @@ namespace ds::inferutil {
     srt::Expected<std::shared_ptr<ITensor>>
         preprocessPhonemeDurations(const std::vector<Api::Common::L1::InputWordInfo> &words,
                                    double frameWidth, int64_t *outTargetLength = nullptr);
+
 }
 #endif // DSINFER_INFERUTIL_INPUTWORD_H

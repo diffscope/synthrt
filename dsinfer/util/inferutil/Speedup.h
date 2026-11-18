@@ -4,6 +4,7 @@
 #include <cstdint>
 
 namespace ds::inferutil {
+
     inline constexpr int64_t getSpeedupFromSteps(int64_t steps, int64_t fallback = 10) {
         int64_t speedup = fallback;
         if (steps > 0) {
@@ -19,5 +20,6 @@ namespace ds::inferutil {
         }
         return speedup;
     }
+
 }
 #endif // DSINFER_INFERUTIL_SPEEDUP_H

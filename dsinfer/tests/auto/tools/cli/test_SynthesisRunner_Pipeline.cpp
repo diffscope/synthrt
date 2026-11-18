@@ -25,6 +25,7 @@
 namespace fs = std::filesystem;
 
 namespace {
+
     struct PipelineHost {
         fs::path collection =
             fs::temp_directory_path() /
@@ -164,6 +165,7 @@ namespace {
         BOOST_FAIL("the output contains no waveform data chunk");
         return {};
     }
+
 }
 
 BOOST_AUTO_TEST_CASE(completePipelineUsesEveryStageAndReleasesEverySession) {

@@ -15,6 +15,7 @@
 #include <boost/test/unit_test.hpp>
 
 namespace {
+
     struct Declaration {
         std::filesystem::path root =
             std::filesystem::temp_directory_path() /
@@ -50,6 +51,7 @@ namespace {
             return package.contribution("inference", "test")->as<srt::InferenceSpec>();
         }
     };
+
 }
 
 BOOST_AUTO_TEST_CASE(configuration_parser_keeps_defaults_and_resolves_paths_and_frame_width) {

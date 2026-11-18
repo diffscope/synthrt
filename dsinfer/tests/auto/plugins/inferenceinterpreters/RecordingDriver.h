@@ -213,6 +213,7 @@ namespace ds::test {
     private:
         std::shared_ptr<DriverTrace> m_trace;
     };
+
 }
 
 #endif // DSINFER_TESTS_PLUGINS_INFERENCEINTERPRETERS_RECORDINGDRIVER_H

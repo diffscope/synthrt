@@ -11,7 +11,9 @@ namespace srt {
     class ITask;
 
     namespace detail {
+
         class TaskExecution;
+
     }
 
     /// Observes and controls one asynchronous Task execution.

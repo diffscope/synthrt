@@ -8,6 +8,7 @@
 #include <boost/test/unit_test.hpp>
 
 namespace {
+
     class Payload : public srt::ContribExports {
     public:
         Payload(srt::ContribContract triplet, bool &destroyed)
@@ -21,6 +22,7 @@ namespace {
     private:
         bool &m_destroyed;
     };
+
 }
 
 BOOST_AUTO_TEST_CASE(contract_identity_and_polymorphic_ownership) {

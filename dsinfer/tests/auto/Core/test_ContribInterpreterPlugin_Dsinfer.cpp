@@ -10,6 +10,7 @@
 #include <boost/test/unit_test.hpp>
 
 namespace {
+
     void checkPlugin(const std::filesystem::path &file, const std::filesystem::path &metadata,
                      const char *iid) {
         stdc::plugin::PluginLoader loader(file, metadata);
@@ -37,6 +38,7 @@ namespace {
             BOOST_REQUIRE(!otherInterface);
         }
     }
+
 }
 
 BOOST_AUTO_TEST_CASE(acousticFactoryMatchesItsManifest) {

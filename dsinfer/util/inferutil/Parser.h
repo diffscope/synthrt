@@ -137,6 +137,7 @@ namespace ds::inferutil {
         ErrorCollector *ec;
         const srt::JsonObject *pOptions;
     };
+
 }
 
 #include "detail/Parser_impl.h"

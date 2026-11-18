@@ -14,6 +14,7 @@
 #include <boost/test/unit_test.hpp>
 
 namespace {
+
     struct DictionaryFile {
         std::filesystem::path root =
             std::filesystem::temp_directory_path() /
@@ -34,6 +35,7 @@ namespace {
             return path;
         }
     };
+
 }
 
 BOOST_AUTO_TEST_CASE(lookups_and_both_iterator_directions_preserve_all_entries) {

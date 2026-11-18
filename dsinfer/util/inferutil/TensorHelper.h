@@ -12,6 +12,7 @@
 
 
 namespace ds::inferutil {
+
     template <typename T>
     class TensorHelper {
     public:
@@ -83,5 +84,6 @@ namespace ds::inferutil {
         T *_current;
         const T *_end;
     };
+
 }
 #endif // DSINFER_INFERUTIL_TENSORHELPER_H

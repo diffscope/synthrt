@@ -7,6 +7,7 @@
 #include <dsinfer/Support/ErrorCode.h>
 
 namespace ds::inferutil {
+
     srt::Expected<InferenceDriver *> getInferenceDriver(const srt::InferenceExecutive *obj) {
         namespace Onnx = Api::Onnx;
         auto service = obj->synthUnit().runtimeService(InferenceDriverPlugin::IID, Onnx::Name);
@@ -25,4 +26,5 @@ namespace ds::inferutil {
 
         return onnxDriver;
     }
+
 }

@@ -10,6 +10,7 @@
 #include <stdcorelib/adt/array_view.h>
 
 namespace ds::inferutil {
+
     enum InterpolationMethod {
         InterpolateLinear,
         InterpolateCubicSpline,

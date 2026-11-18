@@ -166,6 +166,7 @@ namespace ds::inferutil {
                 // nothing to do: optional field
             }
         }
+
     }
 
     inline void ConfigurationParser::parse_bool_optional(bool &out, const std::string &fieldName) {
@@ -628,6 +629,7 @@ namespace ds::inferutil {
 
         detail::parse_parameters_common<PT, std::vector<ParamTag>>(out, fieldName, options, ec);
     }
+
 }
 
 #endif // DSINFER_INFERUTIL_DETAIL_PARSER_IMPL_H

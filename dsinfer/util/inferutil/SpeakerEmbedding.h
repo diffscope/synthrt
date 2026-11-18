@@ -12,6 +12,7 @@
 
 
 namespace ds::inferutil {
+
     using SpeakerMapping = std::map<std::string, std::string>;
 
     /// Resolves a host speaker identifier through \a mapping.
@@ -27,6 +28,7 @@ namespace ds::inferutil {
         const std::vector<Api::Common::L1::InputSpeakerInfo> &speakers,
         const SpeakerMapping &mapping, const std::map<std::string, std::vector<float>> &embMap,
         int hiddenSize, double frameWidth, int64_t targetLength);
+
 }
 
 #endif // DSINFER_INFERUTIL_SPEAKEREMBEDDING_H

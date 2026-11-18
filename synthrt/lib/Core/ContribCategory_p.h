@@ -16,6 +16,7 @@
 #include "PackageHandle_p.h"
 
 namespace srt {
+
     class ContribCreateContext::Data {
     public:
         std::optional<ContribImport> addImport(std::string role, ContribLocator locator,

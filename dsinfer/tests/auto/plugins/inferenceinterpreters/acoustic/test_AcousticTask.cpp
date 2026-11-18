@@ -17,6 +17,7 @@ using TestInterpreter = ds::AcousticInterpreter;
 #include "../RecordingDriver.h"
 
 namespace {
+
     class OtherInit : public srt::TaskInitArgs {
     public:
         OtherInit() : TaskInitArgs("com.example.Other", 1) {
@@ -27,6 +28,7 @@ namespace {
         OtherInput() : TaskStartInput("com.example.Other", 1) {
         }
     };
+
 }
 
 BOOST_AUTO_TEST_CASE(task_rejects_wrong_payloads_and_null_async_input) {
@@ -55,6 +57,7 @@ BOOST_AUTO_TEST_CASE(task_rejects_wrong_payloads_and_null_async_input) {
 }
 
 namespace {
+
     Contract::StartInput makeInput() {
         Contract::StartInput input;
         input.duration = 0.04;
@@ -76,6 +79,7 @@ namespace {
             {"maxDepth",    1000}
         };
     }
+
 }
 
 BOOST_AUTO_TEST_CASE(modelInputsResultsAndReuse) {
@@ -233,6 +237,7 @@ BOOST_AUTO_TEST_CASE(incompatibleResultVersionsAreRejectedBeforeCasting) {
     BOOST_CHECK(task.state() == srt::ITask::Failed);
 }
 namespace {
+
     class UnsupportedInit : public srt::TaskInitArgs {
     public:
         UnsupportedInit()
@@ -245,6 +250,7 @@ namespace {
             : TaskStartInput(Contract::Contract.interfaceId(), Contract::Contract.level() + 1) {
         }
     };
+
 }
 
 BOOST_AUTO_TEST_CASE(initializedTasksRefuseUnsupportedInputVersions) {
