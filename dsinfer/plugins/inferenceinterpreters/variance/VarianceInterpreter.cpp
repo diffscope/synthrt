@@ -193,9 +193,10 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
         VarianceInterpreter::createInference(srt::InferenceSpec &spec,
-                                             const srt::ContribImportOptions &,
+                                             const srt::ContribImportOptions &importOptions,
                                              const srt::InferenceRuntimeOptions &) {
-        return std::unique_ptr<srt::InferenceExecutive>(new VarianceInference(spec));
+        const auto &options = *importOptions.as<Var::ImportOptions>();
+        return std::unique_ptr<srt::InferenceExecutive>(new VarianceInference(spec, options));
     }
 
 }

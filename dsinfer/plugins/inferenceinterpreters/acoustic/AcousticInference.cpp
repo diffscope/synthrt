@@ -6,8 +6,11 @@ namespace ds {
 
     namespace Ac = Api::Acoustic::L1;
 
-    AcousticInference::AcousticInference(srt::InferenceSpec &spec)
-        : Executive(spec), m_task(*this) {
+    AcousticInference::AcousticInference(srt::InferenceSpec &spec) : AcousticInference(spec, {}) {
+    }
+
+    AcousticInference::AcousticInference(srt::InferenceSpec &spec, const Ac::ImportOptions &options)
+        : Executive(spec), m_task(*this, options) {
     }
 
     AcousticInference::~AcousticInference() = default;

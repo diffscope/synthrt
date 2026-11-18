@@ -14,6 +14,8 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 
 2026-11-18 Task 线程验证：以 GCC ThreadSanitizer 构建 synthrt 与 stdcorelib，test_ITask 的 12 个用例、70 条断言连续执行 100 次，无 TSan 报告。测试中的并发回调计数改为原子变量，Boost 断言移到主线程执行。
 
+2026-11-18 per-import options 验证：Duration、Acoustic、Pitch 与 Variance Task 共 73 项 CTest 全部通过。新增用例验证 speaker mapping 进入模型输入，以及同一 Variance target 的两套 `predictions` 生成不同执行体和结果。
+
 | 产品文件 | 类及内部类型 | 测试入口 | 验证方式 |
 |---|---|---|---|
 | [synthrt/include/synthrt/Core/ContribCategory.h](../../synthrt/include/synthrt/Core/ContribCategory.h) | `ContribCreateContext, ContribCategory` | [test_ContribCategory](../../synthrt/tests/auto/Core/test_ContribCategory.cpp)、[test_SynthUnit](../../synthrt/tests/auto/Core/test_SynthUnit.cpp) | 通过所属接口或集成流程验证 |
@@ -133,6 +135,6 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 
 Package manifest 的 JSON 预扫描由 `test_manifest_limits_json_nesting` 覆盖 400 层可加载和 100000 层返回 `InvalidFormat` 的行为。
 
-Clang 插桩报告用于发现未执行路径。跨模块合并报告仍提示函数数据不匹配，因此不把该报告的百分比作为覆盖率承诺。CUDA、DirectML 需要相应硬件，目前没有执行验证。记录型后端不能验证训练模型的精度。per-import speakerMapping 与 Variance predictions 的产品实现仍未完成，不能把默认参数测试算作这两项功能已获验证。
+Clang 插桩报告用于发现未执行路径。跨模块合并报告仍提示函数数据不匹配，因此不把该报告的百分比作为覆盖率承诺。CUDA、DirectML 需要相应硬件，目前没有执行验证。记录型后端不能验证训练模型的精度。per-import speakerMapping 与 Variance predictions 已由记录型后端验证执行链路，真实模型仍待相应包。
 
 2026-11-17 契约 API 拆分验证：构建退出码为 0，71 项 CTest 全部通过。test_SynthUnit 的 16 个用例、321 条断言通过，test_InferenceInterpreter 的 2 个用例、33 条断言通过。新增公开变体头文件通过独立编译检查。

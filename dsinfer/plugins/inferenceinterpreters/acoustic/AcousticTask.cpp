@@ -46,8 +46,12 @@ namespace ds {
         return static_cast<const Ac::Onnx::Configuration *>(genericConfig);
     }
 
-    AcousticTask::AcousticTask(AcousticInference &inference)
+    AcousticTask::AcousticTask(AcousticInference &inference) : AcousticTask(inference, {}) {
+    }
+
+    AcousticTask::AcousticTask(AcousticInference &inference, const Ac::ImportOptions &options)
         : ITask(Ac::Contract.interfaceId(), Ac::Contract.level()), m_inference(&inference) {
+        m_speakerMapping = options.speakerMapping;
     }
 
     AcousticTask::~AcousticTask() {
@@ -502,8 +506,8 @@ namespace ds {
             }
 
             auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
-                acousticInput.speakers, config->speakers, config->hiddenSize, frameWidth,
-                targetLength);
+                acousticInput.speakers, m_speakerMapping, config->speakers, config->hiddenSize,
+                frameWidth, targetLength);
             if (exp) {
                 sessionInput->inputs["spk_embed"] = exp.take();
             } else {

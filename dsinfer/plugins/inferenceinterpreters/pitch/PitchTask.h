@@ -1,6 +1,7 @@
 #ifndef DSINFER_INFERENCEINTERPRETERS_PITCH_PITCHTASK_H
 #define DSINFER_INFERENCEINTERPRETERS_PITCH_PITCHTASK_H
 
+#include <map>
 #include <memory>
 #include <shared_mutex>
 
@@ -19,6 +20,7 @@ namespace ds {
         using ITask::startAsync;
 
         explicit PitchTask(PitchInference &inference);
+        PitchTask(PitchInference &inference, const Api::Pitch::L1::ImportOptions &options);
         ~PitchTask();
 
         srt::Expected<void> initialize(const srt::TaskInitArgs &args) override;
@@ -42,6 +44,7 @@ namespace ds {
 
     private:
         PitchInference *m_inference;
+        std::map<std::string, std::string> m_speakerMapping;
         InferenceDriver *m_driver = nullptr;
         std::unique_ptr<InferenceSession> m_encoderSession;
         std::unique_ptr<InferenceSession> m_predictorSession;

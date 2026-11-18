@@ -23,6 +23,7 @@
 #include <inferutil/Driver.h>
 #include <inferutil/InputWord.h>
 #include <inferutil/LinguisticEncoder.h>
+#include <inferutil/SpeakerEmbedding.h>
 #include <inferutil/Algorithm.h>
 
 #include "DurationInference.h"
@@ -110,8 +111,12 @@ namespace ds {
         return {};
     }
 
-    DurationTask::DurationTask(DurationInference &inference)
+    DurationTask::DurationTask(DurationInference &inference) : DurationTask(inference, {}) {
+    }
+
+    DurationTask::DurationTask(DurationInference &inference, const Dur::ImportOptions &options)
         : ITask(Dur::Contract.interfaceId(), Dur::Contract.level()), m_inference(&inference) {
+        m_speakerMapping = options.speakerMapping;
     }
 
     DurationTask::~DurationTask() {
@@ -317,7 +322,9 @@ namespace ds {
                                 stdc::formatN("phoneme %1 missing speakers", phone.token));
                         }
                         for (const auto &speaker : phone.speakers) {
-                            if (auto speakerIt = config->speakers.find(speaker.name);
+                            const auto name =
+                                inferutil::resolveSpeakerName(speaker.name, m_speakerMapping);
+                            if (auto speakerIt = config->speakers.find(*name);
                                 speakerIt != config->speakers.end()) {
                                 const auto &embedding = speakerIt->second;
                                 if (embedding.size() != config->hiddenSize) {
@@ -331,6 +338,10 @@ namespace ds {
                                     val = std::fmaf(static_cast<float>(speaker.proportion),
                                                     embedding[j], val);
                                 }
+                            } else {
+                                setState(Failed);
+                                return srt::Error(ds::ErrorCode::InvalidInput,
+                                                  "invalid speaker name: " + *name);
                             }
                         }
                         ++currPhoneIndex;

@@ -47,8 +47,12 @@ namespace ds {
         return static_cast<const Pit::Onnx::Configuration *>(genericConfig);
     }
 
-    PitchTask::PitchTask(PitchInference &inference)
+    PitchTask::PitchTask(PitchInference &inference) : PitchTask(inference, {}) {
+    }
+
+    PitchTask::PitchTask(PitchInference &inference, const Pit::ImportOptions &options)
         : ITask(Pit::Contract.interfaceId(), Pit::Contract.level()), m_inference(&inference) {
+        m_speakerMapping = options.speakerMapping;
     }
 
     PitchTask::~PitchTask() {
@@ -439,8 +443,8 @@ namespace ds {
             }
 
             auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
-                pitchInput.speakers, config->speakers, config->hiddenSize, frameWidth,
-                targetLength);
+                pitchInput.speakers, m_speakerMapping, config->speakers, config->hiddenSize,
+                frameWidth, targetLength);
             if (exp) {
                 sessionInput->inputs["spk_embed"] = exp.take();
             } else {

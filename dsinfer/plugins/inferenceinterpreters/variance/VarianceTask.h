@@ -1,7 +1,9 @@
 #ifndef DSINFER_INFERENCEINTERPRETERS_VARIANCE_VARIANCETASK_H
 #define DSINFER_INFERENCEINTERPRETERS_VARIANCE_VARIANCETASK_H
 
+#include <map>
 #include <memory>
+#include <set>
 #include <shared_mutex>
 
 #include <dsinfer/Api/Inferences/Variance/1/VarianceApiL1.h>
@@ -19,6 +21,7 @@ namespace ds {
         using ITask::startAsync;
 
         explicit VarianceTask(VarianceInference &inference);
+        VarianceTask(VarianceInference &inference, const Api::Variance::L1::ImportOptions &options);
         ~VarianceTask();
 
         srt::Expected<void> initialize(const srt::TaskInitArgs &args) override;
@@ -42,6 +45,8 @@ namespace ds {
 
     private:
         VarianceInference *m_inference;
+        std::map<std::string, std::string> m_speakerMapping;
+        std::set<ParamTag> m_predictions;
         InferenceDriver *m_driver = nullptr;
         std::unique_ptr<InferenceSession> m_encoderSession;
         std::unique_ptr<InferenceSession> m_predictorSession;

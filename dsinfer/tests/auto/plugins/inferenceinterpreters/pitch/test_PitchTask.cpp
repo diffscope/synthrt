@@ -329,13 +329,17 @@ BOOST_AUTO_TEST_CASE(linguisticModesLanguageIdsAndSpeakerEmbeddingsReachTheirMod
         };
         ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
                                                 configuration);
-        ds::PitchInference executive(declaration.spec());
-        ds::PitchTask task(executive);
-        BOOST_REQUIRE(task.initialize(Contract::InitArgs()));
+        Contract::ImportOptions importOptions;
+        importOptions.speakerMapping.emplace("host", "lead");
+        auto made = declaration.spec().createInference(importOptions, Contract::RuntimeOptions());
+        BOOST_REQUIRE(made);
+        auto executive = made.take();
+        auto task = executive->as<Contract::Executive>();
+        BOOST_REQUIRE(task->initialize(Contract::InitArgs()));
         auto input = makeInput();
         input.words[0].phones[0].language = "eng";
-        input.speakers.push_back({"lead", 0.01, {1}});
-        BOOST_REQUIRE(task.start(input));
+        input.speakers.push_back({"host", 0.01, {1}});
+        BOOST_REQUIRE(task->start(input));
         BOOST_REQUIRE_EQUAL(trace->calls.size(), 2u);
         const auto &encoder = trace->calls[0].inputs;
         BOOST_CHECK_EQUAL(encoder.at("languages")->data<int64_t>()[0], 7);

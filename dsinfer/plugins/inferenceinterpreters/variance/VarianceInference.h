@@ -12,6 +12,8 @@ namespace ds {
     class VarianceInference : public Api::Variance::L1::Executive {
     public:
         explicit VarianceInference(srt::InferenceSpec &spec);
+        VarianceInference(srt::InferenceSpec &spec,
+                          const Api::Variance::L1::ImportOptions &options);
         ~VarianceInference();
 
         srt::Expected<void> initialize(const Api::Variance::L1::InitArgs &args) override;

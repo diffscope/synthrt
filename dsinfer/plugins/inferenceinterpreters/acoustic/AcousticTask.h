@@ -1,6 +1,7 @@
 #ifndef DSINFER_INFERENCEINTERPRETERS_ACOUSTIC_ACOUSTICTASK_H
 #define DSINFER_INFERENCEINTERPRETERS_ACOUSTIC_ACOUSTICTASK_H
 
+#include <map>
 #include <memory>
 #include <shared_mutex>
 
@@ -19,6 +20,7 @@ namespace ds {
         using ITask::startAsync;
 
         explicit AcousticTask(AcousticInference &inference);
+        AcousticTask(AcousticInference &inference, const Api::Acoustic::L1::ImportOptions &options);
         ~AcousticTask();
 
         srt::Expected<void> initialize(const srt::TaskInitArgs &args) override;
@@ -47,6 +49,7 @@ namespace ds {
             execute(const Api::Acoustic::L1::StartInput &input);
 
         AcousticInference *m_inference;
+        std::map<std::string, std::string> m_speakerMapping;
         InferenceDriver *m_driver = nullptr;
         std::unique_ptr<InferenceSession> m_session;
         mutable std::shared_mutex m_mutex;

@@ -12,6 +12,7 @@ namespace ds {
     class PitchInference : public Api::Pitch::L1::Executive {
     public:
         explicit PitchInference(srt::InferenceSpec &spec);
+        PitchInference(srt::InferenceSpec &spec, const Api::Pitch::L1::ImportOptions &options);
         ~PitchInference();
 
         srt::Expected<void> initialize(const Api::Pitch::L1::InitArgs &args) override;

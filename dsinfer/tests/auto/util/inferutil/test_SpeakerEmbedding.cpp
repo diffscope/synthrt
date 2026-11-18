@@ -58,12 +58,16 @@ BOOST_AUTO_TEST_CASE(embedding_files_report_short_reads_and_invalid_dimensions) 
 
 BOOST_AUTO_TEST_CASE(speaker_mixtures_are_weighted_and_shape_checked) {
     using ds::inferutil::preprocessSpeakerEmbeddingFrames;
+    const ds::inferutil::SpeakerMapping mapping{
+        {"a", "left" },
+        {"b", "right"}
+    };
     auto mixed = preprocessSpeakerEmbeddingFrames(
         {
             {"a", 0.01, {0.25}},
             {"b", 0.01, {0.75}}
     },
-        {{"a", {4, 0}}, {"b", {0, 8}}}, 2, 0.01, 2);
+        mapping, {{"left", {4, 0}}, {"right", {0, 8}}}, 2, 0.01, 2);
     BOOST_REQUIRE(mixed);
     const auto data = mixed.value()->data<float>();
     BOOST_REQUIRE(data);
@@ -75,12 +79,12 @@ BOOST_AUTO_TEST_CASE(speaker_mixtures_are_weighted_and_shape_checked) {
         {
             {"missing", 0.01, {1}}
     },
-        {}, 2, 0.01, 1);
+        {}, {}, 2, 0.01, 1);
     BOOST_REQUIRE(!unknown);
     BOOST_CHECK(unknown.error().code() == srt::Error::InvalidArgument);
     BOOST_CHECK(!preprocessSpeakerEmbeddingFrames(
         {
             {"a", 0.01, {1}}
     },
-        {{"a", {1}}}, 2, 0.01, 1));
+        {}, {{"a", {1}}}, 2, 0.01, 1));
 }

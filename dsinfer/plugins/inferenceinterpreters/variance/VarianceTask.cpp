@@ -1,5 +1,6 @@
 #include "VarianceTask.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -62,8 +63,43 @@ namespace ds {
         return static_cast<const Var::Schema *>(genericSchema);
     }
 
-    VarianceTask::VarianceTask(VarianceInference &inference)
+    static inline srt::Expected<std::vector<ParamTag>>
+        selectPredictions(const Var::Schema &schema, const std::set<ParamTag> &selected) {
+        if (schema.predictions.empty()) {
+            return srt::Error(ds::ErrorCode::InvalidInput, "no parameters to predict");
+        }
+        if (selected.empty()) {
+            return schema.predictions;
+        }
+
+        std::vector<ParamTag> result;
+        for (const auto &prediction : schema.predictions) {
+            if (selected.find(prediction) != selected.end()) {
+                result.push_back(prediction);
+            }
+        }
+        if (result.empty()) {
+            return srt::Error(ds::ErrorCode::InvalidInput,
+                              "the import options select no exported parameter");
+        }
+        for (const auto &prediction : selected) {
+            if (std::find(schema.predictions.begin(), schema.predictions.end(), prediction) ==
+                schema.predictions.end()) {
+                return srt::Error(ds::ErrorCode::InvalidInput,
+                                  "the import options select an unknown parameter: " +
+                                      std::string(prediction.name()));
+            }
+        }
+        return result;
+    }
+
+    VarianceTask::VarianceTask(VarianceInference &inference) : VarianceTask(inference, {}) {
+    }
+
+    VarianceTask::VarianceTask(VarianceInference &inference, const Var::ImportOptions &options)
         : ITask(Var::Contract.interfaceId(), Var::Contract.level()), m_inference(&inference) {
+        m_speakerMapping = options.speakerMapping;
+        m_predictions = options.predictions;
     }
 
     VarianceTask::~VarianceTask() {
@@ -183,6 +219,12 @@ namespace ds {
             return expSchema.takeError();
         }
         const auto schema = expSchema.take();
+        auto expPredictions = selectPredictions(*schema, m_predictions);
+        if (!expPredictions) {
+            ITask::setState(ITask::Failed);
+            return expPredictions.takeError();
+        }
+        const auto predictions = expPredictions.take();
 
 
         if (input.type() != Var::Contract.interfaceId() ||
@@ -286,17 +328,13 @@ namespace ds {
         }
 
         // pitch and parameters
-        if (schema->predictions.empty()) {
-            ITask::setState(ITask::Failed);
-            return srt::Error(ds::ErrorCode::InvalidInput, "no parameters to predict");
-        }
         if (static_cast<uint64_t>(targetLength) > std::numeric_limits<size_t>::max()) {
             ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::InvalidInput,
                               "variance frame count exceeds the addressable range");
         }
         const auto frameCount = static_cast<size_t>(targetLength);
-        const auto predictionCount = schema->predictions.size();
+        const auto predictionCount = predictions.size();
         if (predictionCount > static_cast<size_t>(std::numeric_limits<int64_t>::max()) ||
             predictionCount > std::numeric_limits<size_t>::max() / frameCount) {
             ITask::setState(ITask::Failed);
@@ -312,6 +350,10 @@ namespace ds {
 
         for (const auto &param : varianceInput.parameters) {
             const auto isPitch = param.tag == Co::Tags::Pitch;
+            if (!isPitch &&
+                std::find(predictions.begin(), predictions.end(), param.tag) == predictions.end()) {
+                continue;
+            }
 
             // Resample
             auto samples =
@@ -350,8 +392,8 @@ namespace ds {
                 }
             }
 
-            for (size_t j = 0; j < schema->predictions.size(); ++j) {
-                const auto &prediction = schema->predictions[j];
+            for (size_t j = 0; j < predictions.size(); ++j) {
+                const auto &prediction = predictions[j];
                 if (param.tag != prediction) {
                     continue;
                 }
@@ -432,11 +474,11 @@ namespace ds {
             return srt::Error(ds::ErrorCode::InvalidInput, "missing pitch input");
         }
 
-        for (size_t j = 0; j < schema->predictions.size(); ++j) {
+        for (size_t j = 0; j < predictions.size(); ++j) {
             if (satisfyParams[j]) {
                 continue;
             }
-            const auto &prediction = schema->predictions[j];
+            const auto &prediction = predictions[j];
             // If some parameters are not supplied, fill them with 0
             auto exp = Tensor::createFilled<float>({1, targetLength}, 0.0f);
             if (exp) {
@@ -458,8 +500,8 @@ namespace ds {
             }
 
             auto exp = inferutil::preprocessSpeakerEmbeddingFrames(
-                varianceInput.speakers, config->speakers, config->hiddenSize, frameWidth,
-                targetLength);
+                varianceInput.speakers, m_speakerMapping, config->speakers, config->hiddenSize,
+                frameWidth, targetLength);
             if (exp) {
                 sessionInput->inputs["spk_embed"] = exp.take();
             } else {
@@ -520,7 +562,7 @@ namespace ds {
         auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
         varianceResult->predictions.reserve(predictionCount);
         const std::vector<int64_t> expectedShape = {1, targetLength};
-        for (const auto &prediction : schema->predictions) {
+        for (const auto &prediction : predictions) {
             const auto outputName = std::string(prediction.name()) + "_pred";
             const auto outputIt = sessionResult->outputs.find(outputName);
             if (outputIt == sessionResult->outputs.end() || !outputIt->second) {

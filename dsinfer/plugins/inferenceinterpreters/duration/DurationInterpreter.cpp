@@ -178,9 +178,10 @@ namespace ds {
 
     srt::Expected<std::unique_ptr<srt::InferenceExecutive>>
         DurationInterpreter::createInference(srt::InferenceSpec &spec,
-                                             const srt::ContribImportOptions &,
+                                             const srt::ContribImportOptions &importOptions,
                                              const srt::InferenceRuntimeOptions &) {
-        return std::unique_ptr<srt::InferenceExecutive>(new DurationInference(spec));
+        const auto &options = *importOptions.as<Dur::ImportOptions>();
+        return std::unique_ptr<srt::InferenceExecutive>(new DurationInference(spec, options));
     }
 
 }

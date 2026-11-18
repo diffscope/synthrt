@@ -351,6 +351,68 @@ BOOST_AUTO_TEST_CASE(linguisticModesLanguageIdsAndSpeakerEmbeddingsReachTheirMod
     }
 }
 
+BOOST_AUTO_TEST_CASE(importOptionsSelectSpeakersAndPredictions) {
+    namespace Co = ds::Api::Common::L1;
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    auto configuration = executionConfiguration();
+    configuration["useSpeakerEmbedding"] = true;
+    configuration["hiddenSize"] = 2;
+    configuration["speakers"] = srt::JsonObject{
+        {"lead", "speaker.emb"}
+    };
+    const srt::JsonObject exports{
+        {"predictions", srt::JsonArray{"energy", "breathiness"}}
+    };
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            configuration, exports);
+
+    Contract::ImportOptions energyOptions;
+    energyOptions.speakerMapping.emplace("host", "lead");
+    energyOptions.predictions.emplace(Co::Tags::Energy);
+    auto selectedEnergy =
+        declaration.spec().createInference(energyOptions, Contract::RuntimeOptions());
+    BOOST_REQUIRE(selectedEnergy);
+    auto energyExecutive = selectedEnergy.take();
+    auto energyTask = energyExecutive->as<Contract::Executive>();
+    BOOST_REQUIRE(energyTask->initialize(Contract::InitArgs()));
+
+    auto energyInput = makeInput();
+    energyInput.speakers.push_back({"host", 0.01, {1}});
+    auto energy = energyTask->start(energyInput);
+    BOOST_REQUIRE(energy);
+    BOOST_REQUIRE_EQUAL(energy.value()->predictions.size(), 1u);
+    BOOST_CHECK(energy.value()->predictions[0].tag == Co::Tags::Energy);
+    BOOST_REQUIRE_EQUAL(trace->calls.size(), 2u);
+    const auto &energyPredictor = trace->calls.back().inputs;
+    BOOST_CHECK(energyPredictor.find("energy") != energyPredictor.end());
+    BOOST_CHECK(energyPredictor.find("breathiness") == energyPredictor.end());
+    BOOST_CHECK_EQUAL(energyPredictor.at("spk_embed")->data<float>()[0], 1);
+    BOOST_CHECK_EQUAL(energyPredictor.at("spk_embed")->data<float>()[1], 3);
+
+    Contract::ImportOptions breathinessOptions;
+    breathinessOptions.speakerMapping.emplace("host", "lead");
+    breathinessOptions.predictions.emplace(Co::Tags::Breathiness);
+    auto selectedBreathiness =
+        declaration.spec().createInference(breathinessOptions, Contract::RuntimeOptions());
+    BOOST_REQUIRE(selectedBreathiness);
+    auto breathinessExecutive = selectedBreathiness.take();
+    auto breathinessTask = breathinessExecutive->as<Contract::Executive>();
+    BOOST_REQUIRE(breathinessTask->initialize(Contract::InitArgs()));
+
+    auto breathinessInput = makeInput();
+    breathinessInput.speakers.push_back({"host", 0.01, {1}});
+    auto breathiness = breathinessTask->start(breathinessInput);
+    BOOST_REQUIRE(breathiness);
+    BOOST_REQUIRE_EQUAL(breathiness.value()->predictions.size(), 1u);
+    BOOST_CHECK(breathiness.value()->predictions[0].tag == Co::Tags::Breathiness);
+    BOOST_REQUIRE_EQUAL(trace->calls.size(), 4u);
+    const auto &breathinessPredictor = trace->calls.back().inputs;
+    BOOST_CHECK(breathinessPredictor.find("energy") == breathinessPredictor.end());
+    BOOST_CHECK(breathinessPredictor.find("breathiness") != breathinessPredictor.end());
+    BOOST_CHECK_EQUAL(breathinessPredictor.at("spk_embed")->data<float>()[0], 1);
+    BOOST_CHECK_EQUAL(breathinessPredictor.at("spk_embed")->data<float>()[1], 3);
+}
+
 BOOST_AUTO_TEST_CASE(nullOutputTensorsFailWithoutDereferencingThem) {
     auto trace = std::make_shared<ds::test::DriverTrace>();
     trace->fault = ds::test::SessionFault::NullTensor;

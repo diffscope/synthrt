@@ -12,6 +12,12 @@
 namespace ds::inferutil {
     namespace Co = Api::Common::L1;
 
+    const std::string *resolveSpeakerName(const std::string &name,
+                                          const SpeakerMapping &mapping) noexcept {
+        const auto it = mapping.find(name);
+        return it == mapping.end() ? &name : &it->second;
+    }
+
     srt::Expected<std::vector<float>> loadSpeakerEmbedding(int hiddenSize,
                                                            const std::filesystem::path &path) {
 
@@ -41,8 +47,8 @@ namespace ds::inferutil {
 
     srt::Expected<std::shared_ptr<ITensor>> preprocessSpeakerEmbeddingFrames(
         const std::vector<Api::Common::L1::InputSpeakerInfo> &speakers,
-        const std::map<std::string, std::vector<float>> &embMap, int hiddenSize, double frameWidth,
-        int64_t targetLength) {
+        const SpeakerMapping &mapping, const std::map<std::string, std::vector<float>> &embMap,
+        int hiddenSize, double frameWidth, int64_t targetLength) {
 
         std::vector<int64_t> shape = {1, targetLength, hiddenSize};
         if (auto exp = Tensor::create(ITensor::Float, shape); exp) {
@@ -56,7 +62,8 @@ namespace ds::inferutil {
 
             // mix speaker embedding
             for (const auto &speaker : std::as_const(speakers)) {
-                if (auto it_speaker = embMap.find(speaker.name); it_speaker != embMap.end()) {
+                const auto name = resolveSpeakerName(speaker.name, mapping);
+                if (auto it_speaker = embMap.find(*name); it_speaker != embMap.end()) {
                     const auto &embedding = it_speaker->second;
                     if (embedding.size() != hiddenSize) {
                         return srt::Error(
@@ -73,7 +80,7 @@ namespace ds::inferutil {
                     }
                 } else {
                     return srt::Error(srt::Error::InvalidArgument,
-                                      "invalid speaker name: " + speaker.name);
+                                      "invalid speaker name: " + *name);
                 }
             }
             return tensor;

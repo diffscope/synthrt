@@ -96,6 +96,36 @@ BOOST_AUTO_TEST_CASE(modelInputsResultsAndReuse) {
     BOOST_CHECK(task.state() == srt::ITask::Succeeded);
 }
 
+BOOST_AUTO_TEST_CASE(importSpeakerMappingReachesThePredictor) {
+    auto trace = std::make_shared<ds::test::DriverTrace>();
+    auto configuration = executionConfiguration();
+    configuration["useSpeakerEmbedding"] = true;
+    configuration["hiddenSize"] = 2;
+    configuration["speakers"] = srt::JsonObject{
+        {"lead", "speaker.emb"}
+    };
+    ds::test::DeclaredInference declaration(std::make_unique<ds::test::RecordingDriver>(trace),
+                                            configuration);
+
+    Contract::ImportOptions importOptions;
+    importOptions.speakerMapping.emplace("host", "lead");
+    auto made = declaration.spec().createInference(importOptions, Contract::RuntimeOptions());
+    BOOST_REQUIRE(made);
+    auto executive = made.take();
+    auto task = executive->as<Contract::Executive>();
+    BOOST_REQUIRE(task->initialize(Contract::InitArgs()));
+
+    auto input = makeInput();
+    input.words[0].phones[0].speakers.push_back({"host", 1});
+    auto result = task->start(input);
+    BOOST_REQUIRE(result);
+    BOOST_REQUIRE_EQUAL(trace->calls.size(), 2u);
+    const auto &embedding = trace->calls.back().inputs.at("spk_embed");
+    BOOST_REQUIRE(embedding);
+    BOOST_CHECK_EQUAL(embedding->data<float>()[0], 1);
+    BOOST_CHECK_EQUAL(embedding->data<float>()[1], 3);
+}
+
 BOOST_AUTO_TEST_CASE(openFailuresAreReportedAndInitializationCanBeRetried) {
     for (const auto model : {"encoder.onnx", "predictor.onnx"}) {
         auto trace = std::make_shared<ds::test::DriverTrace>();

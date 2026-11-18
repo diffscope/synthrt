@@ -6,8 +6,12 @@ namespace ds {
 
     namespace Dur = Api::Duration::L1;
 
-    DurationInference::DurationInference(srt::InferenceSpec &spec)
-        : Executive(spec), m_task(*this) {
+    DurationInference::DurationInference(srt::InferenceSpec &spec) : DurationInference(spec, {}) {
+    }
+
+    DurationInference::DurationInference(srt::InferenceSpec &spec,
+                                         const Dur::ImportOptions &options)
+        : Executive(spec), m_task(*this, options) {
     }
 
     DurationInference::~DurationInference() = default;

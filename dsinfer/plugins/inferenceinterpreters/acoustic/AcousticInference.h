@@ -12,6 +12,8 @@ namespace ds {
     class AcousticInference : public Api::Acoustic::L1::Executive {
     public:
         explicit AcousticInference(srt::InferenceSpec &spec);
+        AcousticInference(srt::InferenceSpec &spec,
+                          const Api::Acoustic::L1::ImportOptions &options);
         ~AcousticInference();
 
     public:
