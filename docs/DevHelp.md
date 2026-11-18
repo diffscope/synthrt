@@ -20,7 +20,7 @@ SynthRT 把“声明是什么”和“运行它”分成两层：
 | `SynthUnit` | Category、Package、解释器和 Runtime Service 的运行时边界 | 宿主 | 最长 |
 | `ContribCategory` | 解析和索引一种 Contribution | `SynthUnit` | 不得晚于任何 Package |
 | `RuntimeService` | 为多个 Executive 提供共享进程资源 | `SynthUnit` | 不得晚于使用它的 Executive |
-| `PackageHandle` | 对 Package 的共享强引用 | 调用者和 dependency edge | 短于 `SynthUnit` |
+| `PackageHandle` | 对 Package 的共享强引用 | 调用者和 dependency edge | 在 `SynthUnit` 销毁时失效 |
 | `ContribSpec` | 一个 Contribution 的不可变声明 | Package | 与 Package 相同 |
 | `ContribInterpreter` | 解释一个三元组的清单并创建运行时对象 | `SynthUnit` 内部插件工厂 | 插件加载后常驻 |
 | `ContribImportBinding` | 一个 import role 到目标 Contribution 的连接 | importing `ContribSpec` | 与 importing Package 相同 |
@@ -356,29 +356,33 @@ Provider 插件一旦成功加载便由 SynthUnit 内部插件 Factory 常驻持
 
 再次打开一个仍被引用的已 Commit Package，只取得新 Handle，不会重复加载。
 
-### 6.2 Executive 必须先销毁
+### 6.2 Executive 与 SynthUnit 的销毁顺序
 
-当前实现不会在最后一个 PackageHandle 析构时替调用者保存并销毁根 Executive。每个 `ContribExecutive` 构造时都会登记到所属 Package。若 Package 析构时仍存在任何 Executive，运行时会 fatal，而不是留下悬空 Spec 或继续卸载。
+每个 `ContribExecutive` 构造时都会登记到所属 Package。最后一个 PackageHandle 释放时，只要该 Package 仍有 Executive，运行时就 fatal，不会保活 Package，也不会偷偷销毁调用者仍持有的 Executive。这与 `dlclose` 的约束相同：Executive 中的代码和状态仍在使用 Package 的资源，释放 Package 就应当失败。
 
-正确顺序为：
+销毁 `SynthUnit` 前不需要先释放全部 PackageHandle。若其中没有存活的 Executive，`SynthUnit` 会自动卸载所有剩余 Package，并让外部保留的 PackageHandle 变为无效。若仍有 Executive，`SynthUnit` 析构会 fatal。
+
+推荐的完整顺序为：
 
 ```cpp
-pipeline.reset(); // 同时销毁其监督的全部子 Executive
-package.reset();
-// 最后才销毁 SynthUnit
+pipeline.stop();           // 请求整棵监督树停止
+pipeline.waitForFinished(); // 等待整棵监督树及其 callback 静止
+pipeline.reset();          // 销毁根 Executive 和全部子 Executive
+package.reset();           // 释放最后相关的 PackageHandle
+// 最后销毁 SynthUnit
 ```
 
-所有从 `PackageHandle::contribution()`、`contributions()`、`resolve()` 或 `ContribCategory::contributions()` 得到的裸指针也必须在保活该 Package 的 Handle 释放前停止使用。
+步骤 1 和 2 是显式控制。直接销毁根 Executive 也会在基类析构中递归停止、等待并删除整棵树，但显式调用使调用者能在销毁前处理错误。所有从 `PackageHandle::contribution()`、`contributions()`、`resolve()` 或 `ContribCategory::contributions()` 得到的裸指针，也必须在保活该 Package 的 Handle 被释放或失效前停止使用。
 
 ### 6.3 Executive 监督树
 
 根 Executive 通常由调用者持有 `std::unique_ptr`。父 Executive 使用 `adoptChild()` 接管子 Executive，或者使用 `createChild(role, runtimeOptions)` 经 import 上的 Factory 创建并接管子 Executive。
 
-父 Executive 析构时会删除全部子 Executive。调用者也可以提前 `delete` 一个由父 Executive 返回的子指针，子对象会先从父对象的 children 列表中脱离。不得把子指针包装进第二个 owning smart pointer。
+父 Executive 析构时会递归停止、等待并删除全部子 Executive。调用者也可以提前 `delete` 一个由父 Executive 返回的子指针，子对象会先从父对象的 children 列表中脱离。不得把子指针包装进第二个 owning smart pointer。
 
-Executive 具有 `Running`、`Stopping`、`Stopped` 生命周期状态。卸载协议要求先 quit 所有入口，再 wait 到静止。当前顶层 Package API 通过“所有 Executive 必须先由调用者销毁”保证这一点，具体 Executive 和其中 Task 的析构函数必须停止并等待自己的执行活动。
+公开的 `stop()` 会递归请求整棵监督树停止，公开的 `waitForFinished()` 会递归等待整棵监督树静止。两者都不销毁对象，可以重复调用。具体 Executive 只实现 protected 的 `quit()` 和 `wait()`，它们分别停止和等待这个 Executive 自己的 Task、Session 或 callback，不负责递归处理子 Executive。
 
-`ContribExecutive` 基类析构函数不会调用虚 `quit()` 或 `wait()`。C++ 基类析构期间也不能再正确分派到派生实现。因此具体 Executive 必须在自己的析构过程或成员对象析构过程中完成停止和等待。当前 dsinfer Executive 由内部 Task 析构函数完成这道屏障。
+`ContribExecutive` 基类析构函数不能调用已被销毁的派生类 `quit()` 或 `wait()`。因此具体 Executive 仍必须在自己的析构过程或成员对象析构过程中先停止并等待自己的执行活动。基类随后负责子树的停止、等待和删除。
 
 ### 6.4 Binding 生命周期
 
@@ -682,7 +686,7 @@ protected:
 
 如果 Executive 内部有异步执行，必须实现 `quit()` 和 `wait()`，保证停止后不再访问 Package、Spec、Binding 或 Runtime Service。若只做同步工作，两者可以立即成功。
 
-当前实现要求调用者在 Package 释放前主动销毁根 Executive，所以具体 Executive 的析构函数仍必须自行触发停止和等待。不能只实现两个虚函数却假设基类析构会调用它们。
+`stop()` 和 `waitForFinished()` 由 `ContribExecutive` 公开并递归处理监督树。具体 Executive 以 protected 访问级别覆写 `quit()` 和 `wait()`，不要公开新的同名入口，否则派生类指针会遮蔽基类的递归控制。具体 Executive 的析构函数仍必须自行停止并等待它自己的执行活动。基类的析构屏障只作用于子 Executive，因为此时派生类部分已经销毁。
 
 ### 10.3 定义 Binding 和 Factory
 
