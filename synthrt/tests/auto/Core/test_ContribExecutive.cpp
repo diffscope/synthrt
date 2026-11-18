@@ -1,6 +1,8 @@
 #define BOOST_TEST_MAIN
 #include "TestSupport.h"
 
+#include <cstdlib>
+
 BOOST_AUTO_TEST_CASE(null_children_and_missing_import_roles_are_rejected) {
     TemporaryDirectory temporary;
     auto unit = makeUnit();
@@ -117,4 +119,30 @@ BOOST_AUTO_TEST_CASE(deleting_a_subtree_detaches_it_and_destroys_every_descendan
     BOOST_CHECK_EQUAL(unit.loadedPackages().size(), 1u);
     package->reset();
     BOOST_CHECK(unit.loadedPackages().empty());
+}
+
+BOOST_AUTO_TEST_CASE(executive_lifetime_violation_is_fatal) {
+    const auto violation = std::getenv("SYNTHRT_TEST_FATAL_LIFETIME");
+    if (!violation) {
+        return;
+    }
+
+    TemporaryDirectory temporary;
+    auto unit = std::make_unique<ConfiguredSynthUnit>();
+    auto package = unit->openPackage(writePackage(temporary.path(), "root", "root", "1"),
+                                     srt::SynthUnit::Load);
+    BOOST_REQUIRE(package);
+    auto spec = package->contribution(testCategoryName, "main");
+    BOOST_REQUIRE(spec);
+    auto executive = std::make_unique<TestExecutive>(*spec);
+
+    if (std::string(violation) == "package") {
+        package->reset();
+        BOOST_FAIL("releasing the last PackageHandle must be fatal");
+    }
+    if (std::string(violation) == "unit") {
+        unit.reset();
+        BOOST_FAIL("destroying SynthUnit must be fatal");
+    }
+    BOOST_FAIL("unknown SYNTHRT_TEST_FATAL_LIFETIME value");
 }

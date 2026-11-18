@@ -46,7 +46,8 @@ namespace srt {
     /// A shared handle to Package metadata and any committed runtime resources it owns.
     ///
     /// Copying a PackageHandle retains the Package. Destroying or resetting the last handle
-    /// releases it. Every handle must be destroyed or reset before its SynthUnit is destroyed.
+    /// releases it. Destroying the SynthUnit unloads every remaining Package and invalidates the
+    /// handles that refer to them.
     class SYNTHRT_EXPORT PackageHandle {
     public:
         PackageHandle() = default;

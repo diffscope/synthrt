@@ -1,3 +1,7 @@
+#include <condition_variable>
+#include <functional>
+#include <mutex>
+#include <thread>
 #include <utility>
 
 #define BOOST_TEST_MAIN
@@ -398,6 +402,59 @@ BOOST_AUTO_TEST_CASE(test_manifest_limits_json_nesting) {
     BOOST_REQUIRE(!opened);
     BOOST_CHECK(opened.error().code() == srt::Error::InvalidFormat);
     BOOST_CHECK(opened.error().toString().find("nested too deeply") != std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(test_synth_unit_destruction_invalidates_package_handles) {
+    TemporaryDirectory temporary;
+    srt::PackageHandle package;
+    {
+        auto unit = makeUnit();
+        auto opened = unit.openPackage(writePackage(temporary.path(), "root", "root", "1"),
+                                       srt::SynthUnit::Load);
+        BOOST_REQUIRE(opened);
+        package = opened.take();
+        BOOST_CHECK(package);
+        BOOST_CHECK(package.isLoaded());
+    }
+    BOOST_CHECK(!package);
+    BOOST_CHECK(!package.isLoaded());
+}
+
+BOOST_AUTO_TEST_CASE(test_binding_wait_does_not_hold_the_load_mutex) {
+    TemporaryDirectory temporary;
+    auto unit = makeUnit();
+    auto opened =
+        unit.openPackage(writePackage(temporary.path(), "root", "root", "1", {}, "[]",
+                                      R"([{"role":"self","ref":":com.example.test/main"}])"),
+                         srt::SynthUnit::Load);
+    BOOST_REQUIRE(opened);
+    auto package = opened.take();
+
+    std::mutex mutex;
+    std::condition_variable changed;
+    bool workerDone = false;
+    bool completedDuringWait = false;
+    std::thread worker;
+    const ScopedValue waitHookGuard(bindingWaitHook, std::function<void()>{[&] {
+                                        worker = std::thread([&] {
+                                            (void) unit.loadedPackages();
+                                            std::lock_guard lock(mutex);
+                                            workerDone = true;
+                                            changed.notify_all();
+                                        });
+                                        std::unique_lock lock(mutex);
+                                        completedDuringWait =
+                                            changed.wait_for(lock, std::chrono::seconds(2),
+                                                             [&] { return workerDone; });
+                                    }});
+
+    package.reset();
+    {
+        std::unique_lock lock(mutex);
+        changed.wait(lock, [&] { return workerDone; });
+    }
+    worker.join();
+    BOOST_CHECK(completedDuringWait);
 }
 
 BOOST_AUTO_TEST_CASE(test_failed_prepared_import_validation_rolls_back_package_state) {

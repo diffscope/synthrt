@@ -30,7 +30,28 @@ namespace srt {
         }
     }
 
-    SynthUnit::~SynthUnit() = default;
+    SynthUnit::~SynthUnit() {
+        std::vector<std::shared_ptr<PackageData>> packages;
+        {
+            std::lock_guard<std::recursive_mutex> lock(_impl->loadMutex);
+            for (const auto &idEntry : _impl->packages) {
+                for (const auto &versionEntry : idEntry.second) {
+                    if (auto package = versionEntry.second.lock()) {
+                        if (!package->executives.empty()) {
+                            logCategory().srtFatal(
+                                "SynthUnit is being destroyed while Package %1 still has %2 "
+                                "executives",
+                                package->id, package->executives.size());
+                        }
+                        packages.push_back(std::move(package));
+                    }
+                }
+            }
+        }
+        for (const auto &package : packages) {
+            package->unload();
+        }
+    }
 
     ContribCategory *SynthUnit::category(std::string_view name) {
         if (!_impl) {

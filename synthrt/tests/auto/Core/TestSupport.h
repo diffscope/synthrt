@@ -6,6 +6,7 @@
 #include <chrono>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <memory>
 #include <string>
 #include <type_traits>
@@ -43,6 +44,7 @@ namespace {
     int bindingActivateCount = 0;
     int bindingCloseCount = 0;
     int bindingWaitCount = 0;
+    std::function<void()> bindingWaitHook;
     bool returnWrongPayloadIdentity = false;
     int wrongContractLevel = 1;
     bool wrongImportContract = false;
@@ -101,6 +103,9 @@ namespace {
 
         srt::Expected<void> wait() override {
             ++bindingWaitCount;
+            if (bindingWaitHook) {
+                bindingWaitHook();
+            }
             return {};
         }
     };

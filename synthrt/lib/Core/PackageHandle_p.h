@@ -3,6 +3,7 @@
 
 #include "PackageHandle.h"
 
+#include <atomic>
 #include <map>
 #include <memory>
 #include <string>
@@ -19,6 +20,8 @@ namespace srt {
         explicit PackageData(SynthUnit *synthUnit) : synthUnit(synthUnit) {
         }
         ~PackageData();
+
+        void unload();
 
         SynthUnit *synthUnit;
         std::string id;
@@ -41,6 +44,8 @@ namespace srt {
         std::map<std::string, std::map<std::string, ContribSpec *, std::less<>>, std::less<>>
             contributionIndex;
         stdc::vlarray<ContribExecutive *> executives;
+        std::atomic<bool> invalidated = false;
+        bool released = false;
 
         STDC_DISABLE_COPY_MOVE(PackageData)
     };
