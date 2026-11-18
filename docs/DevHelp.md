@@ -554,6 +554,10 @@ Factory 的 `create(runtimeOptions)` 必须验证 runtime options 的三元组�
 
 解释器创建具体 Executive，具体 Executive 可以在内部组合一个或多个 `ITask`。当前 dsinfer 的每种 inference Executive 组合一个契约专用 Task，Task 再通过 SynthUnit 的 Inference Driver Runtime Service 创建模型 Session。
 
+Task 的公开控制面只有 `start()`、`startAsync()`、`stop()` 和 `waitForFinished()`。同步与异步入口共用一个执行 claim，body 和异步 callback 都属于该 claim。`stop()` 只影响已经开始的执行，空闲调用不会预取消下一次执行。callback 可以启动下一次执行、销毁 Task 或抛出异常，后两种行为由统一内核安全处理。完整协议见 [Task 执行与取消语义](codex/TaskLifecycle.md)。
+
+派生 Task 只实现 protected 的 `execute()`，需要模型 Session 时再覆写 protected 的 `quit()` 和 `wait()`。最终状态由 outcome 和契约的 `classifyOutcome()` 决定，不由“本次执行是否收到过 stop”单独覆盖。
+
 ### 9.2 Inference 兼容性
 
 `InferenceSpec::validateCompatibilityWith(other)` 是有方向的检查，由当前 Spec 的解释器执行。默认 `InferenceInterpreter::validateCompatibility()` 接受所有组合，只有存在跨模型约束的契约需要覆盖。

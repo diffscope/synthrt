@@ -54,13 +54,14 @@ SynthRT 的 Package 基础设施目前已经实现：
 - Duration、Pitch、Variance、Acoustic 和 Vocoder Task 通过通用 Task 异步执行器支持异步调用，并覆盖停止、等待、回调执行和回调内销毁
 - Duration、Pitch、Variance 和 Acoustic Input Parser 继续作为独立协议 Utility 提供，并由共享字段、音符、控制曲线和错误输入的自动化测试覆盖
 - ONNX Driver 原手动测试中的有效场景均已由自动测试覆盖，模型及生成脚本已迁入自动测试资源
+- `srt::ITask` 统一同步/异步 claim、active-only 取消、callback 内再启动与销毁、异常捕获、等待屏障和最终状态分类。wolf、otter 与 dsinfer 不再各自维护一套 claim/generation 状态机，统一规则见 [Task 执行与取消语义](codex/TaskLifecycle.md)
 
 仍待完成的迁移包括：
 
 - 真实插件的 Package 加载、兼容性拒绝、Pipeline 创建、五阶段子实例执行、WAV 输出与失败后资源释放已有自动化覆盖。完整合成链使用记录型后端，训练模型精度不在该测试范围内
 - Core 已将每条 Import Binding 的 typed options 传入 Executive 创建流程，但 Duration、Pitch、Acoustic 与 Variance 插件尚未将 per-import options 保存到具体 Executive 并在 Task 中消费。插件作者仍需实现 `speakerMapping`，并让 Variance 按 import `predictions` 选择预测子集，同时补充同一 target 经不同 role 创建不同 Executive 的回归测试
 
-当前完整 `all` 构建可以通过，73 个自动测试均已通过，Boost.Test 实际执行 14406 条断言，无失败。otter 的两个真实引擎测试因本机未配置对应引擎而跳过。类与测试入口的对应关系见 [测试对应表](codex/TestCoverage.md)。
+当前完整 `all` 构建可以通过，73 个自动测试均已通过，Boost.Test 实际执行 14435 条断言，无失败。otter 的两个真实引擎测试因本机未配置对应引擎而跳过。类与测试入口的对应关系见 [测试对应表](codex/TestCoverage.md)。
 
 ## 后续工作
 
