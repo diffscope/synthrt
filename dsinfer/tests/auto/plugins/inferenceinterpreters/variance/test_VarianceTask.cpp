@@ -40,7 +40,11 @@ BOOST_AUTO_TEST_CASE(task_rejects_invalid_initialization_and_uninitialized_execu
     auto initialized = task.initialize(static_cast<const srt::TaskInitArgs &>(args));
     BOOST_REQUIRE(!initialized);
     BOOST_CHECK(initialized.error().code() == srt::Error::InvalidArgument);
-    auto result = task.start(static_cast<const srt::TaskStartInput &>(input));
+    auto invalid = task.start(static_cast<const srt::TaskStartInput &>(input));
+    BOOST_REQUIRE(!invalid);
+    BOOST_CHECK(invalid.error().code() == srt::Error::InvalidArgument);
+    Contract::StartInput valid;
+    auto result = task.start(static_cast<const srt::TaskStartInput &>(valid));
     BOOST_REQUIRE(!result);
     BOOST_CHECK(result.error().code() == ds::ErrorCode::NotInitialized);
     bool called = false;

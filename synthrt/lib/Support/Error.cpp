@@ -79,6 +79,14 @@ namespace srt {
                 static auto message = std::make_shared<std::string>("not implemented");
                 return message;
             }
+            case Canceled: {
+                static auto message = std::make_shared<std::string>("canceled");
+                return message;
+            }
+            case Internal: {
+                static auto message = std::make_shared<std::string>("internal error");
+                return message;
+            }
             default:
                 break;
         }

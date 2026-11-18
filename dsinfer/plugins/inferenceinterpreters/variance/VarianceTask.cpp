@@ -66,10 +66,8 @@ namespace ds {
     }
 
     VarianceTask::~VarianceTask() {
-        if (state() == Running) {
-            std::ignore = stop();
-        }
-        std::ignore = waitForFinished();
+        (void) stop();
+        (void) waitForFinished();
     }
 
     srt::Expected<void> VarianceTask::initialize(const Var::InitArgs &args) {
@@ -77,7 +75,7 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<Var::Result>> VarianceTask::start(const Var::StartInput &input) {
-        auto result = start(static_cast<const srt::TaskStartInput &>(input));
+        auto result = ITask::start(input);
         if (!result) {
             return result.takeError();
         }
@@ -91,16 +89,17 @@ namespace ds {
                               "variance asynchronous callback must not be empty");
         }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
-        return startAsync(std::move(genericInput),
-                          [callback = std::move(callback)](
-                              srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
-                              if (!result) {
-                                  callback(result.takeError());
-                                  return;
-                              }
-                              callback(std::unique_ptr<Var::Result>(
-                                  static_cast<Var::Result *>(result.take().release())));
-                          });
+        return ITask::startAsync(
+            std::move(genericInput),
+            [callback = std::move(callback)](
+                srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                if (!result) {
+                    callback(result.takeError());
+                    return;
+                }
+                callback(std::unique_ptr<Var::Result>(
+                    static_cast<Var::Result *>(result.take().release())));
+            });
     }
 
     srt::Expected<void> VarianceTask::initialize(const srt::TaskInitArgs &args) {
@@ -152,7 +151,7 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
-        VarianceTask::start(const srt::TaskStartInput &input) {
+        VarianceTask::execute(const srt::TaskStartInput &input) {
 
         {
             std::shared_lock<std::shared_mutex> lock(m_mutex);
@@ -552,18 +551,15 @@ namespace ds {
         return std::unique_ptr<srt::TaskResult>(std::move(varianceResult));
     }
 
-    srt::Expected<void> VarianceTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
-                                                 AsyncCallback callback) {
-        if (!input || input->type() != Var::Contract.interfaceId() ||
-            input->version() != Var::Contract.level()) {
-            return srt::Error(srt::Error::InvalidArgument,
-                              "invalid variance asynchronous input payload");
+    srt::Expected<void> VarianceTask::validateInput(const srt::TaskStartInput &input) const {
+        if (input.type() != Var::Contract.interfaceId() ||
+            input.version() != Var::Contract.level()) {
+            return srt::Error(srt::Error::InvalidArgument, "invalid variance start payload");
         }
-        return ITask::startAsync(std::move(input), std::move(callback));
+        return {};
     }
 
-    srt::Expected<void> VarianceTask::stop() {
-        requestAsyncCancellation();
+    srt::Expected<void> VarianceTask::quit() {
         srt::Error stopError;
         for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session && session->state() == Running) {
@@ -572,14 +568,13 @@ namespace ds {
                 }
             }
         }
-        ITask::setState(ITask::Canceled);
         if (!stopError.ok()) {
             return stopError;
         }
         return {};
     }
 
-    srt::Expected<void> VarianceTask::waitForFinished() {
+    srt::Expected<void> VarianceTask::wait() {
         srt::Error waitError;
         for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
@@ -588,11 +583,18 @@ namespace ds {
                 }
             }
         }
-        waitForAsyncExecution();
         if (!waitError.ok()) {
             return waitError;
         }
         return {};
+    }
+
+    VarianceTask::State VarianceTask::classifyOutcome(
+        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept {
+        if (!outcome && stopRequested()) {
+            return Canceled;
+        }
+        return outcome ? Succeeded : Failed;
     }
 
 }

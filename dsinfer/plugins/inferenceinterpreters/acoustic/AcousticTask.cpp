@@ -50,10 +50,8 @@ namespace ds {
     }
 
     AcousticTask::~AcousticTask() {
-        if (state() == Running) {
-            std::ignore = stop();
-        }
-        std::ignore = waitForFinished();
+        (void) stop();
+        (void) waitForFinished();
     }
 
     srt::Expected<void> AcousticTask::initialize(const srt::TaskInitArgs &args) {
@@ -68,34 +66,22 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
-        AcousticTask::start(const srt::TaskStartInput &input) {
-        if (input.type() != Ac::Contract.interfaceId() || input.version() != Ac::Contract.level()) {
-            return srt::Error(
-                srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid acoustic start payload: expected "%1" level %2, got "%3" level %4)",
-                    Ac::Contract.interfaceId(), Ac::Contract.level(), input.type(),
-                    input.version()));
-        }
-        auto result = start(*input.as<Ac::StartInput>());
+        AcousticTask::execute(const srt::TaskStartInput &input) {
+        auto result = execute(*input.as<Ac::StartInput>());
         if (!result) {
             return result.takeError();
         }
         return std::unique_ptr<srt::TaskResult>(result.take().release());
     }
 
-    srt::Expected<void> AcousticTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
-                                                 srt::ITask::AsyncCallback callback) {
-        if (!input || input->type() != Ac::Contract.interfaceId() ||
-            input->version() != Ac::Contract.level()) {
-            return srt::Error(srt::Error::InvalidArgument,
-                              "invalid acoustic asynchronous input payload");
+    srt::Expected<void> AcousticTask::validateInput(const srt::TaskStartInput &input) const {
+        if (input.type() != Ac::Contract.interfaceId() || input.version() != Ac::Contract.level()) {
+            return srt::Error(srt::Error::InvalidArgument, "invalid acoustic start payload");
         }
-        return ITask::startAsync(std::move(input), std::move(callback));
+        return {};
     }
 
-    srt::Expected<void> AcousticTask::stop() {
-        requestAsyncCancellation();
+    srt::Expected<void> AcousticTask::quit() {
         srt::Error stopError;
         for (auto session : {m_session.get()}) {
             if (session && session->state() == Running) {
@@ -104,14 +90,13 @@ namespace ds {
                 }
             }
         }
-        setState(Canceled);
         if (!stopError.ok()) {
             return stopError;
         }
         return {};
     }
 
-    srt::Expected<void> AcousticTask::waitForFinished() {
+    srt::Expected<void> AcousticTask::wait() {
         srt::Error waitError;
         for (auto session : {m_session.get()}) {
             if (session) {
@@ -120,11 +105,18 @@ namespace ds {
                 }
             }
         }
-        waitForAsyncExecution();
         if (!waitError.ok()) {
             return waitError;
         }
         return {};
+    }
+
+    AcousticTask::State AcousticTask::classifyOutcome(
+        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept {
+        if (!outcome && stopRequested()) {
+            return Canceled;
+        }
+        return outcome ? Succeeded : Failed;
     }
 
     void AcousticTask::updateState(State state) noexcept {
@@ -163,6 +155,14 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<Ac::Result>> AcousticTask::start(const Ac::StartInput &input) {
+        auto result = ITask::start(input);
+        if (!result) {
+            return result.takeError();
+        }
+        return std::unique_ptr<Ac::Result>(static_cast<Ac::Result *>(result.take().release()));
+    }
+
+    srt::Expected<std::unique_ptr<Ac::Result>> AcousticTask::execute(const Ac::StartInput &input) {
 
         {
             std::shared_lock<std::shared_mutex> lock(m_mutex);
@@ -567,16 +567,17 @@ namespace ds {
                               "acoustic asynchronous callback must not be empty");
         }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
-        return startAsync(std::move(genericInput),
-                          [callback = std::move(callback)](
-                              srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
-                              if (!result) {
-                                  callback(result.takeError());
-                                  return;
-                              }
-                              callback(std::unique_ptr<Ac::Result>(
-                                  static_cast<Ac::Result *>(result.take().release())));
-                          });
+        return ITask::startAsync(
+            std::move(genericInput),
+            [callback = std::move(callback)](
+                srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                if (!result) {
+                    callback(result.takeError());
+                    return;
+                }
+                callback(std::unique_ptr<Ac::Result>(
+                    static_cast<Ac::Result *>(result.take().release())));
+            });
     }
 
 }

@@ -104,29 +104,27 @@ namespace ds::test {
             return m_id;
         }
 
+    protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &input) override {
+            execute(const srt::TaskStartInput &input) override {
             if (!m_open || input.type() != Api::Onnx::Name ||
                 input.version() != Api::Onnx::Version) {
                 return srt::Error(srt::Error::InvalidArgument, "incorrect model start contract");
             }
-            setState(Running);
             const auto typed = input.as<Api::Onnx::SessionStartInput>();
             m_trace->calls.push_back({m_path, typed->inputs, typed->outputs});
             if (m_trace->block) {
                 std::unique_lock<std::mutex> lock(m_trace->mutex);
                 m_trace->entered = true;
                 m_trace->changed.notify_all();
-                m_trace->changed.wait(lock, [this] { return m_trace->interrupted; });
-                setState(Canceled);
-                return srt::Error(ErrorCode::SessionFailed, "model interrupted");
+                m_trace->changed.wait(lock,
+                                      [this] { return m_trace->interrupted || stopRequested(); });
+                return srt::Error(srt::Error::Canceled, "model interrupted");
             }
             const auto fault = selectedFault();
             if (fault == SessionFault::Run) {
-                setState(Failed);
                 return srt::Error(ErrorCode::SessionFailed, "model execution refused");
             }
-            setState(Succeeded);
             if (fault == SessionFault::NullResult) {
                 return std::unique_ptr<srt::TaskResult>();
             }
@@ -164,19 +162,28 @@ namespace ds::test {
                     result->outputs.emplace(name, tensor.take());
                 }
             }
-            setState(Succeeded);
             return std::unique_ptr<srt::TaskResult>(std::move(result));
         }
-        srt::Expected<void> stop() override {
+
+        srt::Expected<void> quit() override {
             ++m_trace->stopped;
             std::lock_guard<std::mutex> lock(m_trace->mutex);
             m_trace->interrupted = true;
             m_trace->changed.notify_all();
             return {};
         }
-        srt::Expected<void> waitForFinished() override {
+
+        srt::Expected<void> wait() override {
             ++m_trace->waited;
             return {};
+        }
+
+        State classifyOutcome(
+            const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept override {
+            if (!outcome && stopRequested()) {
+                return Canceled;
+            }
+            return outcome ? Succeeded : Failed;
         }
 
     private:

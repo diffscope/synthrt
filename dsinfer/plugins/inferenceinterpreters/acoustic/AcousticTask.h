@@ -15,16 +15,13 @@ namespace ds {
     /// Executes one acoustic inference model behind its typed executive.
     class AcousticTask : public srt::ITask {
     public:
+        using ITask::start;
+        using ITask::startAsync;
+
         explicit AcousticTask(AcousticInference &inference);
         ~AcousticTask();
 
         srt::Expected<void> initialize(const srt::TaskInitArgs &args) override;
-        srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &input) override;
-        srt::Expected<void> startAsync(std::shared_ptr<const srt::TaskStartInput> input,
-                                       srt::ITask::AsyncCallback callback) override;
-        srt::Expected<void> stop() override;
-        srt::Expected<void> waitForFinished() override;
 
         srt::Expected<void> initialize(const Api::Acoustic::L1::InitArgs &args);
         srt::Expected<std::unique_ptr<Api::Acoustic::L1::Result>>
@@ -34,7 +31,23 @@ namespace ds {
 
         void updateState(State state) noexcept;
 
+    protected:
+        srt::Expected<std::unique_ptr<srt::TaskResult>>
+            execute(const srt::TaskStartInput &input) override;
+
+        srt::Expected<void> validateInput(const srt::TaskStartInput &input) const override;
+
+        srt::Expected<void> quit() override;
+
+        srt::Expected<void> wait() override;
+
+        State classifyOutcome(
+            const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept override;
+
     private:
+        srt::Expected<std::unique_ptr<Api::Acoustic::L1::Result>>
+            execute(const Api::Acoustic::L1::StartInput &input);
+
         AcousticInference *m_inference;
         InferenceDriver *m_driver = nullptr;
         std::unique_ptr<InferenceSession> m_session;

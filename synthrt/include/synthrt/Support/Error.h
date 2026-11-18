@@ -42,6 +42,12 @@ namespace srt {
 
             /// The requested API has not been implemented.
             NotImplemented,
+
+            /// An execution ended because cancellation was requested.
+            Canceled,
+
+            /// An operation failed inside its implementation rather than because of its input.
+            Internal,
         };
 
         /// The \c std::error_category that \c ErrorCode belongs to.

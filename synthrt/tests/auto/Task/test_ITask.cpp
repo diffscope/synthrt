@@ -3,6 +3,7 @@
 #include <future>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <string>
 #include <tuple>
 
@@ -37,87 +38,51 @@ namespace {
 
     class TestTask final : public srt::ITask {
     public:
+    protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &input) override {
-            m_state.store(Running);
+            execute(const srt::TaskStartInput &input) override {
             const auto value = input.as<TestInput>()->value;
-            m_state.store(Succeeded);
             return std::unique_ptr<srt::TaskResult>(new TestResult(value * 2));
-        }
-
-        srt::Expected<void> stop() override {
-            requestAsyncCancellation();
-            m_state.store(Canceled);
-            return {};
-        }
-
-        srt::Expected<void> waitForFinished() override {
-            waitForAsyncExecution();
-            return {};
         }
     };
 
     class BlockingTask final : public srt::ITask {
     public:
         ~BlockingTask() {
-            if (state() == Running) {
-                std::ignore = stop();
-            }
-            std::ignore = waitForFinished();
+            (void) stop();
+            (void) waitForFinished();
         }
 
+    protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &input) override {
+            execute(const srt::TaskStartInput &input) override {
             {
                 std::unique_lock<std::mutex> lock(m_mutex);
-                setState(Running);
                 m_started = true;
                 m_changed.notify_all();
-                m_changed.wait(lock, [this] { return m_finishRequested || m_stopRequested; });
-                if (m_stopRequested) {
-                    return srt::Error(srt::Error::FeatureNotSupported,
-                                      "test execution was canceled");
+                m_changed.wait(lock, [this] { return stopRequested(); });
+                if (stopRequested()) {
+                    return srt::Error(srt::Error::Canceled, "test execution was canceled");
                 }
             }
-            setState(Succeeded);
             return std::unique_ptr<srt::TaskResult>(new TestResult(input.as<TestInput>()->value));
         }
 
-        srt::Expected<void> stop() override {
-            requestAsyncCancellation();
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                m_stopRequested = true;
-            }
-            setState(Canceled);
+        srt::Expected<void> quit() override {
             m_changed.notify_all();
             return {};
         }
 
-        srt::Expected<void> waitForFinished() override {
-            waitForAsyncExecution();
-            return {};
-        }
-
+    public:
         void waitUntilStarted() {
             std::unique_lock<std::mutex> lock(m_mutex);
             m_changed.wait(lock, [this] { return m_started; });
-        }
-
-        void finish() {
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                m_finishRequested = true;
-            }
-            m_changed.notify_all();
         }
 
     private:
         std::mutex m_mutex;
         std::condition_variable m_changed;
         bool m_started = false;
-        bool m_finishRequested = false;
-        bool m_stopRequested = false;
     };
 
 }
@@ -177,11 +142,39 @@ BOOST_AUTO_TEST_CASE(test_default_async_execution_rejects_invalid_or_overlapping
     BOOST_REQUIRE(!overlapping);
     BOOST_CHECK(overlapping.error().code() == srt::Error::InvalidArgument);
 
+    auto overlappingSync = task.start(TestInput(3));
+    BOOST_REQUIRE(!overlappingSync);
+    BOOST_CHECK(overlappingSync.error().code() == srt::Error::InvalidArgument);
+
     BOOST_REQUIRE(task.stop());
     BOOST_REQUIRE(task.waitForFinished());
     auto callbackResult = callbackFuture.get();
     BOOST_CHECK(!callbackResult);
     BOOST_CHECK(task.state() == srt::ITask::Canceled);
+}
+
+BOOST_AUTO_TEST_CASE(test_callback_may_start_the_next_execution) {
+    TestTask task;
+    std::promise<void> completed;
+    auto future = completed.get_future();
+    int callbacks = 0;
+
+    auto input = std::make_shared<TestInput>(4);
+    BOOST_REQUIRE(task.startAsync(input, [&](auto first) mutable {
+        BOOST_REQUIRE(first);
+        ++callbacks;
+        auto second = task.startAsync(input, [&](auto result) mutable {
+            BOOST_REQUIRE(result);
+            ++callbacks;
+            completed.set_value();
+        });
+        BOOST_REQUIRE(second);
+    }));
+
+    BOOST_REQUIRE(future.wait_for(std::chrono::seconds(10)) == std::future_status::ready);
+    BOOST_REQUIRE(task.waitForFinished());
+    BOOST_CHECK_EQUAL(callbacks, 2);
+    BOOST_CHECK(task.state() == srt::ITask::Succeeded);
 }
 
 BOOST_AUTO_TEST_CASE(test_wait_includes_callback_execution) {
@@ -220,10 +213,56 @@ BOOST_AUTO_TEST_CASE(test_callback_may_destroy_task) {
     BOOST_CHECK(!task);
 }
 
-BOOST_AUTO_TEST_CASE(test_stop_changes_state_in_the_implementation) {
+BOOST_AUTO_TEST_CASE(test_callback_exception_releases_the_execution) {
+    TestTask task;
+    std::promise<void> delivered;
+    auto deliveredFuture = delivered.get_future();
+
+    BOOST_REQUIRE(task.startAsync(std::make_shared<TestInput>(5), [&delivered](auto) mutable {
+        delivered.set_value();
+        throw std::runtime_error("callback failed");
+    }));
+    deliveredFuture.get();
+    BOOST_REQUIRE(task.waitForFinished());
+
+    TestInput input(6);
+    auto next = task.start(input);
+    BOOST_REQUIRE(next);
+    BOOST_CHECK(task.state() == srt::ITask::Succeeded);
+}
+
+BOOST_AUTO_TEST_CASE(test_body_exception_is_internal_and_the_task_remains_reusable) {
+    class ThrowingTask final : public srt::ITask {
+    public:
+        bool fail = true;
+
+    protected:
+        srt::Expected<std::unique_ptr<srt::TaskResult>>
+            execute(const srt::TaskStartInput &input) override {
+            if (fail) {
+                throw std::runtime_error("body failed");
+            }
+            return std::unique_ptr<srt::TaskResult>(new TestResult(input.as<TestInput>()->value));
+        }
+    };
+
+    ThrowingTask task;
+    TestInput input(7);
+    auto failed = task.start(input);
+    BOOST_REQUIRE(!failed);
+    BOOST_CHECK(failed.error().code() == srt::Error::Internal);
+    BOOST_CHECK(task.state() == srt::ITask::Failed);
+
+    task.fail = false;
+    auto succeeded = task.start(input);
+    BOOST_CHECK(static_cast<bool>(succeeded));
+    BOOST_CHECK(task.state() == srt::ITask::Succeeded);
+}
+
+BOOST_AUTO_TEST_CASE(test_stop_while_idle_does_not_change_state) {
     TestTask task;
     BOOST_REQUIRE(task.stop());
-    BOOST_CHECK(task.state() == srt::ITask::Canceled);
+    BOOST_CHECK(task.state() == srt::ITask::Idle);
     BOOST_REQUIRE(task.waitForFinished());
 }
 

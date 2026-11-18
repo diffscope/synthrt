@@ -390,7 +390,7 @@ BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
     callbackEnteredFuture.get();
     auto overlappingResult = session->start(*makeSessionInput());
     BOOST_REQUIRE(!overlappingResult);
-    BOOST_CHECK(overlappingResult.error().code() == ds::ErrorCode::SessionFailed);
+    BOOST_CHECK(overlappingResult.error().code() == srt::Error::InvalidArgument);
     BOOST_CHECK(session->state() == srt::ITask::Succeeded);
     releaseCallback.set_value();
     BOOST_REQUIRE(gatedFuture.get());

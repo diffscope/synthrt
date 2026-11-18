@@ -51,10 +51,8 @@ namespace ds {
     }
 
     PitchTask::~PitchTask() {
-        if (state() == Running) {
-            std::ignore = stop();
-        }
-        std::ignore = waitForFinished();
+        (void) stop();
+        (void) waitForFinished();
     }
 
     srt::Expected<void> PitchTask::initialize(const Pit::InitArgs &args) {
@@ -62,7 +60,7 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<Pit::Result>> PitchTask::start(const Pit::StartInput &input) {
-        auto result = start(static_cast<const srt::TaskStartInput &>(input));
+        auto result = ITask::start(input);
         if (!result) {
             return result.takeError();
         }
@@ -76,16 +74,17 @@ namespace ds {
                               "pitch asynchronous callback must not be empty");
         }
         auto genericInput = std::static_pointer_cast<const srt::TaskStartInput>(std::move(input));
-        return startAsync(std::move(genericInput),
-                          [callback = std::move(callback)](
-                              srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
-                              if (!result) {
-                                  callback(result.takeError());
-                                  return;
-                              }
-                              callback(std::unique_ptr<Pit::Result>(
-                                  static_cast<Pit::Result *>(result.take().release())));
-                          });
+        return ITask::startAsync(
+            std::move(genericInput),
+            [callback = std::move(callback)](
+                srt::Expected<std::unique_ptr<srt::TaskResult>> result) mutable {
+                if (!result) {
+                    callback(result.takeError());
+                    return;
+                }
+                callback(std::unique_ptr<Pit::Result>(
+                    static_cast<Pit::Result *>(result.take().release())));
+            });
     }
 
     srt::Expected<void> PitchTask::initialize(const srt::TaskInitArgs &args) {
@@ -137,7 +136,7 @@ namespace ds {
     }
 
     srt::Expected<std::unique_ptr<srt::TaskResult>>
-        PitchTask::start(const srt::TaskStartInput &input) {
+        PitchTask::execute(const srt::TaskStartInput &input) {
 
         {
             std::shared_lock<std::shared_mutex> lock(m_mutex);
@@ -521,18 +520,15 @@ namespace ds {
         return std::unique_ptr<srt::TaskResult>(std::move(pitchResult));
     }
 
-    srt::Expected<void> PitchTask::startAsync(std::shared_ptr<const srt::TaskStartInput> input,
-                                              AsyncCallback callback) {
-        if (!input || input->type() != Pit::Contract.interfaceId() ||
-            input->version() != Pit::Contract.level()) {
-            return srt::Error(srt::Error::InvalidArgument,
-                              "invalid pitch asynchronous input payload");
+    srt::Expected<void> PitchTask::validateInput(const srt::TaskStartInput &input) const {
+        if (input.type() != Pit::Contract.interfaceId() ||
+            input.version() != Pit::Contract.level()) {
+            return srt::Error(srt::Error::InvalidArgument, "invalid pitch start payload");
         }
-        return ITask::startAsync(std::move(input), std::move(callback));
+        return {};
     }
 
-    srt::Expected<void> PitchTask::stop() {
-        requestAsyncCancellation();
+    srt::Expected<void> PitchTask::quit() {
         srt::Error stopError;
         for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session && session->state() == Running) {
@@ -541,14 +537,13 @@ namespace ds {
                 }
             }
         }
-        ITask::setState(ITask::Canceled);
         if (!stopError.ok()) {
             return stopError;
         }
         return {};
     }
 
-    srt::Expected<void> PitchTask::waitForFinished() {
+    srt::Expected<void> PitchTask::wait() {
         srt::Error waitError;
         for (auto session : {m_encoderSession.get(), m_predictorSession.get()}) {
             if (session) {
@@ -557,11 +552,18 @@ namespace ds {
                 }
             }
         }
-        waitForAsyncExecution();
         if (!waitError.ok()) {
             return waitError;
         }
         return {};
+    }
+
+    PitchTask::State PitchTask::classifyOutcome(
+        const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept {
+        if (!outcome && stopRequested()) {
+            return Canceled;
+        }
+        return outcome ? Succeeded : Failed;
     }
 
 }

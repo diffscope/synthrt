@@ -32,24 +32,18 @@ namespace ds {
         /// Returns the identifier assigned by the owning driver context.
         int64_t id() const override;
 
-        /// Runs inference synchronously.
+    protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
-            start(const srt::TaskStartInput &input) override;
+            execute(const srt::TaskStartInput &input) override;
 
-        /// Starts inference and invokes \a callback when execution finishes.
-        srt::Expected<void> startAsync(std::shared_ptr<const srt::TaskStartInput> input,
-                                       AsyncCallback callback) override;
+        srt::Expected<void> quit() override;
 
-        /// Requests termination of active inference.
-        srt::Expected<void> stop() override;
+        srt::Expected<void> wait() override;
 
-        /// Waits until active inference and its callback finish.
-        srt::Expected<void> waitForFinished() override;
+        State classifyOutcome(
+            const srt::Expected<std::unique_ptr<srt::TaskResult>> &outcome) noexcept override;
 
     private:
-        // Atomically enters Running unless another execution is active.
-        srt::Expected<void> beginExecution();
-
         int64_t m_sessionId;
         std::unique_ptr<onnxdriver::Session> m_session;
     };
