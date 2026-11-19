@@ -153,7 +153,7 @@ DiffSinger Level 1 Singer 必须分别以`singer/acoustic`和`singer/vocoder` ro
 |      name      |        type         |               description                |        example         |
 | :------------: | :-----------------: | :--------------------------------------: | :--------------------: |
 | speakerMapping | map<string, string> | 歌手全局音色名称 => 模块内部嵌入名称映射 | {"zhu": "zhibin-base"} |
-| predictions | array&lt;enum&gt; | 使用的预测参数列表 | ["tension"] |
+| predictions | array&lt;enum&gt; | 选择返回给调用方的预测参数。模型声明的全部预测参数仍必须作为输入提供 | ["tension"] |
 
 ### Configuration for `onnx`
 
@@ -198,6 +198,8 @@ DiffSinger Level 1 Singer 必须分别以`singer/acoustic`和`singer/vocoder` ro
 | predictor |   voicing_pred   | output | float32 |           (1, n_frames)           |      发声预测值      |      "voicing" in predictions      |
 | predictor |   tension_pred   | output | float32 |           (1, n_frames)           |      张力预测值      |      "tension" in predictions      |
 | predictor | mouth_opening_pred | output | float32 |         (1, n_frames)           |    嘴型开合预测值    | "mouth_opening" in predictions |
+
+Variance predictor 的输入参数集合由 `exports.predictions` 决定。模型声明的每个预测参数都必须作为输入提供，缺少时补零。`import options.predictions` 只选择返回给调用方的输出。
 
 [1] 该输入绑定到 encoder.outputs.encoder_out
 

@@ -225,6 +225,7 @@ namespace ds {
             return expPredictions.takeError();
         }
         const auto predictions = expPredictions.take();
+        const auto &modelPredictions = schema->predictions;
 
 
         if (input.type() != Var::Contract.interfaceId() ||
@@ -334,7 +335,7 @@ namespace ds {
                               "variance frame count exceeds the addressable range");
         }
         const auto frameCount = static_cast<size_t>(targetLength);
-        const auto predictionCount = predictions.size();
+        const auto predictionCount = modelPredictions.size();
         if (predictionCount > static_cast<size_t>(std::numeric_limits<int64_t>::max()) ||
             predictionCount > std::numeric_limits<size_t>::max() / frameCount) {
             ITask::setState(ITask::Failed);
@@ -350,8 +351,8 @@ namespace ds {
 
         for (const auto &param : varianceInput.parameters) {
             const auto isPitch = param.tag == Co::Tags::Pitch;
-            if (!isPitch &&
-                std::find(predictions.begin(), predictions.end(), param.tag) == predictions.end()) {
+            if (!isPitch && std::find(modelPredictions.begin(), modelPredictions.end(),
+                                      param.tag) == modelPredictions.end()) {
                 continue;
             }
 
@@ -392,8 +393,8 @@ namespace ds {
                 }
             }
 
-            for (size_t j = 0; j < predictions.size(); ++j) {
-                const auto &prediction = predictions[j];
+            for (size_t j = 0; j < modelPredictions.size(); ++j) {
+                const auto &prediction = modelPredictions[j];
                 if (param.tag != prediction) {
                     continue;
                 }
@@ -415,7 +416,10 @@ namespace ds {
                         paramBuffer[i] = static_cast<float>(samples[i]);
                     }
                     sessionInput->inputs.emplace(param.tag.name(), std::move(paramTensor));
-                    sessionInput->outputs.emplace(std::string(param.tag.name()) + "_pred");
+                    if (std::find(predictions.begin(), predictions.end(), param.tag) !=
+                        predictions.end()) {
+                        sessionInput->outputs.emplace(std::string(param.tag.name()) + "_pred");
+                    }
                 } else {
                     ITask::setState(ITask::Failed);
                     return exp.takeError().withContext(
@@ -474,16 +478,19 @@ namespace ds {
             return srt::Error(ds::ErrorCode::InvalidInput, "missing pitch input");
         }
 
-        for (size_t j = 0; j < predictions.size(); ++j) {
+        for (size_t j = 0; j < modelPredictions.size(); ++j) {
             if (satisfyParams[j]) {
                 continue;
             }
-            const auto &prediction = predictions[j];
+            const auto &prediction = modelPredictions[j];
             // If some parameters are not supplied, fill them with 0
             auto exp = Tensor::createFilled<float>({1, targetLength}, 0.0f);
             if (exp) {
                 sessionInput->inputs.emplace(prediction.name(), exp.take());
-                sessionInput->outputs.emplace(std::string(prediction.name()) + "_pred");
+                if (std::find(predictions.begin(), predictions.end(), prediction) !=
+                    predictions.end()) {
+                    sessionInput->outputs.emplace(std::string(prediction.name()) + "_pred");
+                }
             } else {
                 ITask::setState(ITask::Failed);
                 return exp.takeError().withContext(
@@ -560,7 +567,7 @@ namespace ds {
             return srt::Error(srt::Error::InvalidArgument, "invalid session result contract");
         }
         auto sessionResult = sessionTaskResult->as<Onnx::SessionResult>();
-        varianceResult->predictions.reserve(predictionCount);
+        varianceResult->predictions.reserve(predictions.size());
         const std::vector<int64_t> expectedShape = {1, targetLength};
         for (const auto &prediction : predictions) {
             const auto outputName = std::string(prediction.name()) + "_pred";

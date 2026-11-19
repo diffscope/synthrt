@@ -14,7 +14,7 @@ ONNX 验证使用 CPU。CUDA、DirectML 的硬件执行路径仍需要对应设�
 
 2026-11-18 Task 线程验证：以 GCC ThreadSanitizer 构建 synthrt 与 stdcorelib，test_ITask 的 12 个用例、70 条断言连续执行 100 次，无 TSan 报告。测试中的并发回调计数改为原子变量，Boost 断言移到主线程执行。
 
-2026-11-18 per-import options 验证：Duration、Acoustic、Pitch 与 Variance Task 共 73 项 CTest 全部通过。新增用例验证 speaker mapping 进入模型输入，以及同一 Variance target 的两套 `predictions` 生成不同执行体和结果。
+2026-11-18 per-import options 验证：Duration、Acoustic、Pitch 与 Variance Task 的 CTest 全部通过。新增用例验证 speaker mapping 进入模型输入，以及同一 Variance target 的两套 `predictions` 生成不同返回结果，同时模型声明的全部预测参数都进入输入。
 
 2026-11-18 manual 目标验证：删除产品的 `dsinfer-cli` 目标，`dsinfer-installer` 与 `dsinfer-runner` 以 `TEST CONSOLE` 目标构建在 `out/bin`，不进入安装。构建退出码为 0，synthrt 的 69 项 CTest 全部通过。真实的 YOUSA 1.65 Package 经安装器装载后完成 ONNX 五阶段推理并生成 210988 字节 WAV。
 

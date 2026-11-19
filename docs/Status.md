@@ -55,7 +55,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - Duration、Pitch、Variance 和 Acoustic Input Parser 继续作为独立协议 Utility 提供，并由共享字段、音符、控制曲线和错误输入的自动化测试覆盖
 - ONNX Driver 原手动测试中的有效场景均已由自动测试覆盖，模型及生成脚本已迁入自动测试资源
 - `srt::ITask` 统一同步/异步 claim、active-only 取消、callback 内再启动与销毁、异常捕获、等待屏障和最终状态分类。wolf、otter 与 dsinfer 不再各自维护一套 claim/generation 状态机。Task 用例已在插桩 synthrt 下连续执行 100 次 ThreadSanitizer 验证，统一规则见 [Task 执行与取消语义](codex/TaskLifecycle.md)
-- Duration、Pitch、Acoustic 与 Variance Executive 会保存各自的 Import Options。`speakerMapping` 在构造 speaker embedding 或音素 speaker 混合前解析，Variance 的 `predictions` 按模型声明顺序筛选实际请求和返回的参数
+- Duration、Pitch、Acoustic 与 Variance Executive 会保存各自的 Import Options。`speakerMapping` 在构造 speaker embedding 或音素 speaker 混合前解析，Variance 的 `predictions` 按模型声明顺序筛选返回的参数，模型声明的全部预测参数仍作为输入提供
 - dsinfer 五个推理契约的 typed `exports` payload 统一命名为 `Exports`，与 wolf 契约及 `ContribExports` 的词汇一致。dsinfer 版本升至 `0.0.2.0`
 
 本阶段验证包括：

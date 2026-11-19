@@ -383,15 +383,25 @@ BOOST_AUTO_TEST_CASE(importOptionsSelectSpeakersAndPredictions) {
     BOOST_REQUIRE(energyTask->initialize(Contract::InitArgs()));
 
     auto energyInput = makeInput();
+    Co::InputParameterInfo breathinessParameter;
+    breathinessParameter.tag = Co::Tags::Breathiness;
+    breathinessParameter.values = {0.25, 0.5, 0.75, 1.0};
+    breathinessParameter.interval = 0.01;
+    energyInput.parameters.push_back(breathinessParameter);
     energyInput.speakers.push_back({"host", 0.01, {1}});
     auto energy = energyTask->start(energyInput);
     BOOST_REQUIRE(energy);
     BOOST_REQUIRE_EQUAL(energy.value()->predictions.size(), 1u);
     BOOST_CHECK(energy.value()->predictions[0].tag == Co::Tags::Energy);
     BOOST_REQUIRE_EQUAL(trace->calls.size(), 2u);
-    const auto &energyPredictor = trace->calls.back().inputs;
+    const auto &energyCall = trace->calls.back();
+    const auto &energyPredictor = energyCall.inputs;
     BOOST_CHECK(energyPredictor.find("energy") != energyPredictor.end());
-    BOOST_CHECK(energyPredictor.find("breathiness") == energyPredictor.end());
+    BOOST_CHECK(energyPredictor.find("breathiness") != energyPredictor.end());
+    BOOST_CHECK(energyPredictor.at("breathiness")->data<float>()[0] > 0.0f);
+    BOOST_CHECK(energyPredictor.at("retake")->shape() == std::vector<int64_t>({1, 4, 2}));
+    BOOST_CHECK_EQUAL(energyCall.outputs.count("energy_pred"), 1u);
+    BOOST_CHECK_EQUAL(energyCall.outputs.count("breathiness_pred"), 0u);
     BOOST_CHECK_EQUAL(energyPredictor.at("spk_embed")->data<float>()[0], 1);
     BOOST_CHECK_EQUAL(energyPredictor.at("spk_embed")->data<float>()[1], 3);
 
@@ -412,8 +422,13 @@ BOOST_AUTO_TEST_CASE(importOptionsSelectSpeakersAndPredictions) {
     BOOST_REQUIRE_EQUAL(breathiness.value()->predictions.size(), 1u);
     BOOST_CHECK(breathiness.value()->predictions[0].tag == Co::Tags::Breathiness);
     BOOST_REQUIRE_EQUAL(trace->calls.size(), 4u);
-    const auto &breathinessPredictor = trace->calls.back().inputs;
-    BOOST_CHECK(breathinessPredictor.find("energy") == breathinessPredictor.end());
+    const auto &breathinessCall = trace->calls.back();
+    const auto &breathinessPredictor = breathinessCall.inputs;
+    BOOST_CHECK(breathinessPredictor.find("energy") != breathinessPredictor.end());
+    BOOST_CHECK_EQUAL(breathinessPredictor.at("energy")->data<float>()[0], 0.0f);
+    BOOST_CHECK(breathinessPredictor.at("retake")->shape() == std::vector<int64_t>({1, 4, 2}));
+    BOOST_CHECK_EQUAL(breathinessCall.outputs.count("breathiness_pred"), 1u);
+    BOOST_CHECK_EQUAL(breathinessCall.outputs.count("energy_pred"), 0u);
     BOOST_CHECK(breathinessPredictor.find("breathiness") != breathinessPredictor.end());
     BOOST_CHECK_EQUAL(breathinessPredictor.at("spk_embed")->data<float>()[0], 1);
     BOOST_CHECK_EQUAL(breathinessPredictor.at("spk_embed")->data<float>()[1], 3);
