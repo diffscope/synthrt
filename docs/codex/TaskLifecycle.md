@@ -31,7 +31,7 @@ Expected<std::unique_ptr<TaskResult>>
 
 `execute()` 在 claim 已建立后调用，可以抛异常。公共控制方法、状态更新、worker 创建、callback 交付和等待都由基类完成。
 
-需要检查输入身份的 Task 把 payload type 和 version 传给 `ITask` 的 protected 构造函数。`ITask` 在取得 claim 之前检查，失败不改变状态。
+需要检查输入身份的 Task 把输入的 `ContribContract` 传给 `ITask` 的 protected 构造函数。`ITask` 在取得 claim 之前比较契约，失败不改变状态。
 
 拥有模型 Session 的 Task 可以覆写 protected 的 `quit()` 和 `wait()`。`TaskHandle::stop()` 先请求本次执行的 `TaskStopSource`，再调用 `quit()`。`TaskHandle::wait()` 在公共 body/callback 屏障之后调用 `wait()` 等待额外资源。
 

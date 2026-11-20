@@ -26,16 +26,14 @@ namespace srt {
         mutable std::mutex mutex;
         TaskHandle current;
         std::atomic<State> state = State::Idle;
-        std::string inputType;
-        int inputVersion = 0;
+        ContribContract inputContract;
     };
 
     ITask::ITask() : _impl(std::make_unique<Impl>()) {
     }
 
-    ITask::ITask(std::string inputType, int inputVersion) : ITask() {
-        _impl->inputType = std::move(inputType);
-        _impl->inputVersion = inputVersion;
+    ITask::ITask(ContribContract inputContract) : ITask() {
+        _impl->inputContract = std::move(inputContract);
     }
 
     ITask::~ITask() {
@@ -133,12 +131,11 @@ namespace srt {
     }
 
     Expected<void> ITask::validateInput(const TaskStartInput &input) const {
-        if (!_impl->inputType.empty() &&
-            (input.type() != _impl->inputType || input.version() != _impl->inputVersion)) {
+        if (!_impl->inputContract.interfaceId().empty() &&
+            input.contract() != _impl->inputContract) {
             return Error(Error::InvalidArgument,
-                         "this Task accepts " + _impl->inputType + " level " +
-                             std::to_string(_impl->inputVersion) + " input, and the input is " +
-                             input.type() + " level " + std::to_string(input.version()));
+                         "this Task accepts " + _impl->inputContract.toString() +
+                             " input, and the input is " + input.contract().toString());
         }
         return {};
     }

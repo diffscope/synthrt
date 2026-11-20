@@ -3,8 +3,10 @@
 
 #include <memory>
 #include <string>
+#include <tuple>
 #include <utility>
 
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/Core/RuntimeService.h>
 #include <synthrt/Support/Expected.h>
 
@@ -12,31 +14,76 @@
 
 namespace ds {
 
+    /// An owning identity for an inference backend and the version of the API it speaks.
+    class InferenceBackendContract {
+    public:
+        InferenceBackendContract() = default;
+
+        InferenceBackendContract(std::string name, int version)
+            : m_name(std::move(name)), m_version(version) {
+        }
+
+        /// Returns the backend name that plugin discovery and diagnostics use.
+        const std::string &name() const noexcept {
+            return m_name;
+        }
+
+        /// Returns the version of the backend API.
+        int version() const noexcept {
+            return m_version;
+        }
+
+
+        /// Returns this identity in the form that the Task protocol carries.
+        ///
+        /// The two protocols name the same pair differently. A backend states a name and an API
+        /// version, and a task payload states a contract identifier and a level.
+        operator srt::ContribContract() const {
+            return srt::ContribContract(m_name, m_version);
+        }
+
+        /// Renders the identity for a diagnostic message.
+        std::string toString() const {
+            return m_name + ", version " + std::to_string(m_version);
+        }
+
+        bool operator==(const InferenceBackendContract &other) const {
+            return m_name == other.m_name && m_version == other.m_version;
+        }
+
+        bool operator!=(const InferenceBackendContract &other) const {
+            return !(*this == other);
+        }
+
+        /// Orders contracts by name and then version.
+        bool operator<(const InferenceBackendContract &other) const {
+            return std::tie(m_name, m_version) < std::tie(other.m_name, other.m_version);
+        }
+
+    private:
+        std::string m_name;
+        int m_version = 0;
+    };
+
     /// A typed value exchanged with an inference driver.
     class InferenceDriverPayload {
     public:
         virtual ~InferenceDriverPayload() = default;
 
         /// Returns the backend contract understood by this value.
-        const std::string &type() const noexcept {
-            return m_type;
-        }
-
-        /// Returns the version of the backend contract.
-        int version() const noexcept {
-            return m_version;
+        const InferenceBackendContract &contract() const noexcept {
+            return m_contract;
         }
 
         SYNTHRT_DECLARE_AS_METHODS(InferenceDriverPayload)
 
     protected:
-        InferenceDriverPayload(std::string type, int version)
-            : m_type(std::move(type)), m_version(version) {
+        explicit InferenceDriverPayload(InferenceBackendContract contract)
+            : m_contract(std::move(contract)) {
         }
 
     private:
-        std::string m_type;
-        int m_version;
+        InferenceBackendContract m_contract;
 
         STDC_DISABLE_COPY(InferenceDriverPayload)
     };

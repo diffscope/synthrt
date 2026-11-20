@@ -44,14 +44,14 @@ namespace ds::Api::Vocoder::L1 {
     /// Contains arguments used to initialize a vocoder inference executive.
     class InitArgs : public srt::InferenceInitArgs {
     public:
-        inline InitArgs() : InferenceInitArgs(Contract.interfaceId(), Contract.level()) {
+        inline InitArgs() : InferenceInitArgs(Contract) {
         }
     };
 
     /// Supplies acoustic features to a vocoder inference task.
     class StartInput : public srt::TaskStartInput {
     public:
-        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
+        inline StartInput() : srt::TaskStartInput(Contract) {
         }
 
         /// Mel spectrogram tensor with shape <tt>(1, frames, melChannels)</tt>.
@@ -64,7 +64,7 @@ namespace ds::Api::Vocoder::L1 {
     /// Contains waveform samples produced by the vocoder.
     class Result : public srt::TaskResult {
     public:
-        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
+        inline Result() : srt::TaskResult(Contract) {
         }
 
         /// Native byte representation of contiguous 32 bit floating point waveform samples.

@@ -66,7 +66,7 @@ namespace ds::test {
     /// Returns a different result contract to exercise the task's checked cast boundary.
     class UnexpectedResult : public srt::TaskResult {
     public:
-        UnexpectedResult(std::string type, int version) : TaskResult(std::move(type), version) {
+        UnexpectedResult(std::string type, int version) : TaskResult({std::move(type), version}) {
         }
     };
 
@@ -84,7 +84,7 @@ namespace ds::test {
                                  const InferenceSessionOpenArgs &args) override {
             m_path = path;
             m_trace->openedModels.push_back(path);
-            if (args.type() != Api::Onnx::Name || args.version() != Api::Onnx::Version) {
+            if (args.contract() != Api::Onnx::Contract) {
                 return srt::Error(srt::Error::InvalidArgument, "incorrect model open contract");
             }
             if (selectedFault() == SessionFault::Open) {
@@ -107,8 +107,7 @@ namespace ds::test {
     protected:
         srt::Expected<std::unique_ptr<srt::TaskResult>>
             execute(const srt::TaskStartInput &input, const srt::TaskStopToken &token) override {
-            if (!m_open || input.type() != Api::Onnx::Name ||
-                input.version() != Api::Onnx::Version) {
+            if (!m_open || input.contract() != Api::Onnx::Contract) {
                 return srt::Error(srt::Error::InvalidArgument, "incorrect model start contract");
             }
             const auto typed = input.as<Api::Onnx::SessionStartInput>();
@@ -130,7 +129,8 @@ namespace ds::test {
             }
             if (fault == SessionFault::WrongType || fault == SessionFault::WrongVersion) {
                 return std::make_unique<UnexpectedResult>(
-                    fault == SessionFault::WrongType ? "other.backend" : Api::Onnx::Name, 99);
+                    fault == SessionFault::WrongType ? "other.backend" : Api::Onnx::Contract.name(),
+                    99);
             }
             auto result = std::make_unique<Api::Onnx::SessionResult>();
             if (fault != SessionFault::MissingOutput) {
@@ -201,7 +201,7 @@ namespace ds::test {
     class RecordingDriver : public InferenceDriver {
     public:
         explicit RecordingDriver(std::shared_ptr<DriverTrace> trace)
-            : InferenceDriver(Api::Onnx::Name), m_trace(std::move(trace)) {
+            : InferenceDriver(Api::Onnx::Contract.name()), m_trace(std::move(trace)) {
         }
         srt::Expected<void> initialize(const InferenceDriverInitArgs &) override {
             return {};

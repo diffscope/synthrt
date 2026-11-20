@@ -50,7 +50,7 @@ namespace ds {
     }
 
     AcousticTask::AcousticTask(AcousticInference &inference, const Ac::ImportOptions &options)
-        : ITask(Ac::Contract.interfaceId(), Ac::Contract.level()), m_inference(&inference) {
+        : ITask(Ac::Contract), m_inference(&inference) {
         m_speakerMapping = options.speakerMapping;
     }
 
@@ -60,12 +60,11 @@ namespace ds {
     }
 
     srt::Expected<void> AcousticTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Ac::Contract.interfaceId() || args.version() != Ac::Contract.level()) {
+        if (args.contract() != Ac::Contract) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid acoustic initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Ac::Contract.interfaceId(), Ac::Contract.level(), args.type(), args.version()));
+                stdc::formatN(R"(invalid acoustic initialization payload: expected %1, got %2)",
+                              Ac::Contract.toString(), args.contract().toString()));
         }
         return initialize(*args.as<Ac::InitArgs>());
     }
@@ -541,8 +540,7 @@ namespace ds {
             updateState(srt::ITask::Failed);
             return srt::Error(ds::ErrorCode::SessionFailed, "acoustic session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::Name ||
-            sessionTaskResult->version() != Onnx::Version) {
+        if (sessionTaskResult->contract() != Onnx::Contract) {
             updateState(srt::ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }

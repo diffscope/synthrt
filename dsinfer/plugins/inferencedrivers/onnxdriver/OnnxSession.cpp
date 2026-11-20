@@ -10,8 +10,7 @@
 namespace ds {
 
     OnnxSession::OnnxSession(std::shared_ptr<onnxdriver::DriverContext> context)
-        : InferenceSession(Api::Onnx::Name, Api::Onnx::Version),
-          m_sessionId(context->nextSessionId()),
+        : InferenceSession(Api::Onnx::Contract), m_sessionId(context->nextSessionId()),
           m_session(std::make_unique<onnxdriver::Session>(std::move(context))) {
     }
 
@@ -22,7 +21,7 @@ namespace ds {
 
     srt::Expected<void> OnnxSession::open(const std::filesystem::path &path,
                                           const InferenceSessionOpenArgs &args) {
-        if (args.type() != Api::Onnx::Name || args.version() != Api::Onnx::Version) {
+        if (args.contract() != Api::Onnx::Contract) {
             return srt::Error{
                 srt::Error::InvalidArgument,
                 "invalid session open arguments",

@@ -17,13 +17,13 @@ namespace {
 
     class TestInitArgs final : public srt::TaskInitArgs {
     public:
-        TestInitArgs() : TaskInitArgs("com.example.TestInit", 1) {
+        TestInitArgs() : TaskInitArgs({"com.example.TestInit", 1}) {
         }
     };
 
     class TestInput final : public srt::TaskStartInput {
     public:
-        explicit TestInput(int value) : TaskStartInput("com.example.TestInput", 2), value(value) {
+        explicit TestInput(int value) : TaskStartInput({"com.example.TestInput", 2}), value(value) {
         }
 
         int value;
@@ -31,7 +31,7 @@ namespace {
 
     class TestResult final : public srt::TaskResult {
     public:
-        explicit TestResult(int value) : TaskResult("com.example.TestResult", 3), value(value) {
+        explicit TestResult(int value) : TaskResult({"com.example.TestResult", 3}), value(value) {
         }
 
         int value;
@@ -100,8 +100,7 @@ BOOST_AUTO_TEST_CASE(test_payload_identity_and_synchronous_result_ownership) {
     auto result = task.start(input);
     BOOST_REQUIRE(result);
     BOOST_CHECK(task.state() == srt::ITask::Succeeded);
-    BOOST_CHECK_EQUAL(result->get()->type(), "com.example.TestResult");
-    BOOST_CHECK_EQUAL(result->get()->version(), 3);
+    BOOST_CHECK(result->get()->contract() == srt::ContribContract("com.example.TestResult", 3));
     BOOST_CHECK_EQUAL(result->get()->as<TestResult>()->value, 42);
 }
 

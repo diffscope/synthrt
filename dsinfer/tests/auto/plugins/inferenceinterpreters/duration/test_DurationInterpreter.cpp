@@ -198,7 +198,7 @@ namespace {
         ConfiguredSynthUnit() {
             const std::array<fs::path, 1> driverPaths = {DSINFER_TEST_DRIVER_PLUGIN_PATH};
             m_factory.setPluginPaths(driverPaths);
-            auto loader = m_factory.find(Onnx::Name);
+            auto loader = m_factory.find(Onnx::Contract.name());
             BOOST_REQUIRE(loader);
             auto driverResult = m_factory.create(loader);
             BOOST_REQUIRE(driverResult);

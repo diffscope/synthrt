@@ -61,14 +61,14 @@ namespace ds::Api::Variance::L1 {
     /// Contains arguments used to initialize a variance inference executive.
     class InitArgs : public srt::InferenceInitArgs {
     public:
-        inline InitArgs() : InferenceInitArgs(Contract.interfaceId(), Contract.level()) {
+        inline InitArgs() : InferenceInitArgs(Contract) {
         }
     };
 
     /// Supplies score, control curves, and sampling parameters for variance prediction.
     class StartInput : public srt::TaskStartInput {
     public:
-        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
+        inline StartInput() : srt::TaskStartInput(Contract) {
         }
 
         /// Total input duration in seconds.
@@ -92,7 +92,7 @@ namespace ds::Api::Variance::L1 {
     public:
         using InputParameterInfo = Common::L1::InputParameterInfo;
 
-        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
+        inline Result() : srt::TaskResult(Contract) {
         }
 
         /// Predicted parameter curves in the order declared by the contribution.

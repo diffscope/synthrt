@@ -19,7 +19,7 @@ namespace srt {
 
     class InferenceInitArgs : public TaskInitArgs {
     public:
-        InferenceInitArgs(std::string type, int version) : TaskInitArgs(std::move(type), version) {
+        explicit InferenceInitArgs(ContribContract contract) : TaskInitArgs(std::move(contract)) {
         }
     };
 

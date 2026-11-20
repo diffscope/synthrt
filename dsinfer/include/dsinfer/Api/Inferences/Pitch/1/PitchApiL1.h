@@ -56,14 +56,14 @@ namespace ds::Api::Pitch::L1 {
     /// Contains arguments used to initialize a pitch inference executive.
     class InitArgs : public srt::InferenceInitArgs {
     public:
-        inline InitArgs() : InferenceInitArgs(Contract.interfaceId(), Contract.level()) {
+        inline InitArgs() : InferenceInitArgs(Contract) {
         }
     };
 
     /// Supplies score, control curves, and sampling parameters for pitch prediction.
     class StartInput : public srt::TaskStartInput {
     public:
-        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
+        inline StartInput() : srt::TaskStartInput(Contract) {
         }
 
         /// Total input duration in seconds.
@@ -85,7 +85,7 @@ namespace ds::Api::Pitch::L1 {
     /// Contains the predicted pitch curve.
     class Result : public srt::TaskResult {
     public:
-        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
+        inline Result() : srt::TaskResult(Contract) {
         }
 
         /// Predicted pitch samples in semitones.

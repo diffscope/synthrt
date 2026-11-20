@@ -31,7 +31,7 @@ namespace {
 
     class TestInitArgs : public ds::InferenceDriverInitArgs {
     public:
-        TestInitArgs() : InferenceDriverInitArgs("test", 1) {
+        TestInitArgs() : InferenceDriverInitArgs(ds::InferenceBackendContract("test", 1)) {
         }
     };
 
@@ -41,7 +41,7 @@ namespace {
         }
 
         srt::Expected<void> initialize(const ds::InferenceDriverInitArgs &args) override {
-            if (args.type() != "test" || args.version() != 1) {
+            if (args.contract() != ds::InferenceBackendContract("test", 1)) {
                 return srt::Error(srt::Error::InvalidArgument, "unexpected test arguments");
             }
             m_initialized = true;
@@ -197,12 +197,13 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
 
     const auto backends = factory.backends();
     BOOST_REQUIRE_EQUAL(backends.size(), 1u);
-    BOOST_CHECK_EQUAL(backends.front(), ds::Api::Onnx::Name);
+    BOOST_CHECK_EQUAL(backends.front(), ds::Api::Onnx::Contract.name());
 
-    auto loader = factory.find(ds::Api::Onnx::Name);
+    auto loader = factory.find(ds::Api::Onnx::Contract.name());
     BOOST_REQUIRE(loader);
     const auto bundlePath = loader->filePath().parent_path();
-    BOOST_CHECK(std::filesystem::equivalent(bundlePath, pluginPaths.front() / ds::Api::Onnx::Name));
+    BOOST_CHECK(std::filesystem::equivalent(bundlePath,
+                                            pluginPaths.front() / ds::Api::Onnx::Contract.name()));
 
     auto result = factory.create(loader);
     BOOST_REQUIRE(result);
@@ -230,8 +231,8 @@ BOOST_AUTO_TEST_CASE(test_LoadsOnnxDriverBundle) {
     auto driverPointer = driver.get();
     srt::SynthUnit unit;
     BOOST_REQUIRE(unit.addRuntimeService(std::move(driver)));
-    BOOST_CHECK(unit.runtimeService(ds::InferenceDriverPlugin::IID, ds::Api::Onnx::Name) ==
-                driverPointer);
+    BOOST_CHECK(unit.runtimeService(ds::InferenceDriverPlugin::IID,
+                                    ds::Api::Onnx::Contract.name()) == driverPointer);
 
     auto extension = driverPointer->extension()->as<ds::Api::Onnx::DriverExtension>();
     Ort::InitApi(extension->runtimeApi.ortApi);
@@ -304,7 +305,7 @@ BOOST_AUTO_TEST_CASE(test_RunsOnnxSessionsSynchronouslyAndAsynchronously) {
     const std::array<std::filesystem::path, 1> pluginPaths{DSINFER_TEST_DRIVER_PLUGIN_PATH};
     factory.setPluginPaths(pluginPaths);
 
-    auto loader = factory.find(ds::Api::Onnx::Name);
+    auto loader = factory.find(ds::Api::Onnx::Contract.name());
     BOOST_REQUIRE(loader);
     const auto bundlePath = loader->filePath().parent_path();
     auto driverResult = factory.create(loader);

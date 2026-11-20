@@ -97,7 +97,7 @@ namespace ds {
     }
 
     VarianceTask::VarianceTask(VarianceInference &inference, const Var::ImportOptions &options)
-        : ITask(Var::Contract.interfaceId(), Var::Contract.level()), m_inference(&inference) {
+        : ITask(Var::Contract), m_inference(&inference) {
         m_speakerMapping = options.speakerMapping;
         m_predictions = options.predictions;
     }
@@ -144,13 +144,11 @@ namespace ds {
     }
 
     srt::Expected<void> VarianceTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Var::Contract.interfaceId() || args.version() != Var::Contract.level()) {
+        if (args.contract() != Var::Contract) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid variance initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Var::Contract.interfaceId(), Var::Contract.level(), args.type(),
-                    args.version()));
+                stdc::formatN(R"(invalid variance initialization payload: expected %1, got %2)",
+                              Var::Contract.toString(), args.contract().toString()));
         }
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
@@ -228,15 +226,12 @@ namespace ds {
         const auto &modelPredictions = schema->predictions;
 
 
-        if (input.type() != Var::Contract.interfaceId() ||
-            input.version() != Var::Contract.level()) {
+        if (input.contract() != Var::Contract) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid variance start payload: expected "%1" level %2, got "%3" level %4)",
-                    Var::Contract.interfaceId(), Var::Contract.level(), input.type(),
-                    input.version()));
+                stdc::formatN(R"(invalid variance start payload: expected %1, got %2)",
+                              Var::Contract.toString(), input.contract().toString()));
         }
 
         const auto &varianceInput = *input.as<Var::StartInput>();
@@ -561,8 +556,7 @@ namespace ds {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "variance predictor session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::Name ||
-            sessionTaskResult->version() != Onnx::Version) {
+        if (sessionTaskResult->contract() != Onnx::Contract) {
             ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid session result contract");
         }

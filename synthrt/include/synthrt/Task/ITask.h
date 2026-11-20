@@ -3,9 +3,9 @@
 
 #include <functional>
 #include <memory>
-#include <string>
 #include <utility>
 
+#include <synthrt/Core/ContribContract.h>
 #include <synthrt/Support/Expected.h>
 #include <synthrt/Task/TaskHandle.h>
 #include <synthrt/Task/TaskStopToken.h>
@@ -17,20 +17,15 @@ namespace srt {
     public:
         virtual ~TaskPayload() = default;
 
-        /// Returns the payload type understood by the Task implementation.
-        const std::string &type() const noexcept {
-            return m_type;
-        }
-
-        /// Returns the version of the payload type.
-        int version() const noexcept {
-            return m_version;
+        /// Returns the contract this payload belongs to.
+        const ContribContract &contract() const noexcept {
+            return m_contract;
         }
 
         SYNTHRT_DECLARE_AS_METHODS(TaskPayload)
 
     protected:
-        TaskPayload(std::string type, int version) : m_type(std::move(type)), m_version(version) {
+        explicit TaskPayload(ContribContract contract) : m_contract(std::move(contract)) {
         }
 
         /// Transfers the identity of \a other into this payload.
@@ -43,8 +38,7 @@ namespace srt {
         TaskPayload &operator=(TaskPayload &&other) noexcept = default;
 
     private:
-        std::string m_type;
-        int m_version;
+        ContribContract m_contract;
 
         STDC_DISABLE_COPY(TaskPayload)
     };
@@ -118,8 +112,8 @@ namespace srt {
     protected:
         ITask();
 
-        /// Creates a Task that accepts start inputs of \a inputType and \a inputVersion.
-        ITask(std::string inputType, int inputVersion);
+        /// Creates a Task that accepts start inputs of \a inputContract.
+        ITask(ContribContract inputContract);
 
         /// Executes the body for a claim that this class has already taken.
         virtual Expected<std::unique_ptr<TaskResult>> execute(const TaskStartInput &input,

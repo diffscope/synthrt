@@ -17,11 +17,8 @@ struct OrtApiBase;
 
 namespace ds::Api::Onnx {
 
-    /// Identifies the ONNX inference driver API.
-    inline constexpr char Name[] = "onnx";
-
-    /// Identifies the version of the ONNX inference driver API.
-    inline constexpr int Version = 1;
+    /// Identifies the ONNX inference driver backend and the version of its API.
+    inline const InferenceBackendContract Contract{"onnx", 1};
 
     /// Selects the backend used to execute ONNX models.
     enum class ExecutionProvider {
@@ -46,7 +43,7 @@ namespace ds::Api::Onnx {
     /// Configures initialization of the ONNX inference driver.
     class DriverInitArgs : public InferenceDriverInitArgs {
     public:
-        inline DriverInitArgs() : InferenceDriverInitArgs(Name, Version) {
+        inline DriverInitArgs() : InferenceDriverInitArgs(Contract) {
         }
 
         /// Execution provider used by sessions created by the driver.
@@ -72,7 +69,7 @@ namespace ds::Api::Onnx {
     /// Configures one ONNX inference session.
     class SessionOpenArgs : public InferenceSessionOpenArgs {
     public:
-        inline SessionOpenArgs() : InferenceSessionOpenArgs(Name, Version) {
+        inline SessionOpenArgs() : InferenceSessionOpenArgs(Contract) {
         }
 
         /// Forces this session to use the CPU provider when set.
@@ -82,7 +79,7 @@ namespace ds::Api::Onnx {
     /// Supplies named tensors and requested outputs for one ONNX Runtime invocation.
     class SessionStartInput : public InferenceSessionStartInput {
     public:
-        inline SessionStartInput() : InferenceSessionStartInput(Name, Version) {
+        inline SessionStartInput() : InferenceSessionStartInput(Contract) {
         }
 
         /// Maps model input names to their tensors.
@@ -95,7 +92,7 @@ namespace ds::Api::Onnx {
     /// Contains the named tensors produced by an ONNX Runtime invocation.
     class SessionResult : public InferenceSessionResult {
     public:
-        inline SessionResult() : InferenceSessionResult(Name, Version) {
+        inline SessionResult() : InferenceSessionResult(Contract) {
         }
 
         /// Maps requested model output names to their tensors.
@@ -109,7 +106,7 @@ namespace ds::Api::Onnx {
     /// not load a second copy of the shared library.
     class DriverExtension : public InferenceDriverExtension {
     public:
-        inline DriverExtension() : InferenceDriverExtension(Name, Version) {
+        inline DriverExtension() : InferenceDriverExtension(Contract) {
         }
 
         /// ONNX Runtime API used by the driver.

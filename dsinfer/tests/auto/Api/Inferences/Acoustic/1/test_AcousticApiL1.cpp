@@ -25,10 +25,8 @@ BOOST_AUTO_TEST_CASE(payloads_preserve_contract_identity_across_base_views) {
     Api::Result result;
     const srt::TaskPayload *taskPayloads[] = {&args, &input, &result};
     for (const auto payload : taskPayloads) {
-        BOOST_CHECK_EQUAL(payload->type(), Api::Contract.interfaceId());
-        BOOST_CHECK_EQUAL(payload->version(), Api::Contract.level());
+        BOOST_CHECK(payload->contract() == Api::Contract);
     }
     auto moved = std::move(input);
-    BOOST_CHECK_EQUAL(moved.type(), Api::Contract.interfaceId());
-    BOOST_CHECK_EQUAL(moved.version(), Api::Contract.level());
+    BOOST_CHECK(moved.contract() == Api::Contract);
 }

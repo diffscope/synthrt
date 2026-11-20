@@ -30,9 +30,10 @@ BOOST_AUTO_TEST_SUITE(test_InferenceDriverFactory_Plugin)
 BOOST_AUTO_TEST_CASE(test_the_driver_is_found_by_its_backend) {
     Host host;
     const auto backends = host.factory.backends();
-    BOOST_CHECK(std::find(backends.begin(), backends.end(), ds::Api::Onnx::Name) != backends.end());
+    BOOST_CHECK(std::find(backends.begin(), backends.end(), ds::Api::Onnx::Contract.name()) !=
+                backends.end());
 
-    auto loader = host.factory.find(ds::Api::Onnx::Name);
+    auto loader = host.factory.find(ds::Api::Onnx::Contract.name());
     BOOST_REQUIRE(loader != nullptr);
     BOOST_CHECK(!loader->hasError());
     BOOST_CHECK_EQUAL(loader->filePath().parent_path().filename().string(), "onnx");
@@ -43,22 +44,22 @@ BOOST_AUTO_TEST_CASE(test_the_driver_is_found_by_its_backend) {
 // manifest declares, or the lookup finds nothing.
 BOOST_AUTO_TEST_CASE(test_the_driver_names_itself_after_its_backend) {
     Host host;
-    auto loader = host.factory.find(ds::Api::Onnx::Name);
+    auto loader = host.factory.find(ds::Api::Onnx::Contract.name());
     BOOST_REQUIRE(loader != nullptr);
-    BOOST_CHECK_EQUAL(loader->metadata()["backend"].toString(), ds::Api::Onnx::Name);
+    BOOST_CHECK_EQUAL(loader->metadata()["backend"].toString(), ds::Api::Onnx::Contract.name());
 
     auto created = host.factory.create(loader);
     BOOST_REQUIRE_MESSAGE(created, (created ? std::string() : created.error().message()));
     const auto driver = created.take();
     BOOST_REQUIRE(driver != nullptr);
     BOOST_CHECK_EQUAL(driver->iid(), ds::InferenceDriverPlugin::IID);
-    BOOST_CHECK_EQUAL(driver->name(), ds::Api::Onnx::Name);
+    BOOST_CHECK_EQUAL(driver->name(), ds::Api::Onnx::Contract.name());
 }
 
 // Every create() makes a driver of its own, since each one owns the runtime it is initialized with.
 BOOST_AUTO_TEST_CASE(test_each_create_makes_a_separate_driver) {
     Host host;
-    auto loader = host.factory.find(ds::Api::Onnx::Name);
+    auto loader = host.factory.find(ds::Api::Onnx::Contract.name());
     BOOST_REQUIRE(loader != nullptr);
 
     auto first = host.factory.create(loader);

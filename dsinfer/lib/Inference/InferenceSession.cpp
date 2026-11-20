@@ -6,8 +6,8 @@ namespace ds {
 
     InferenceSession::InferenceSession() = default;
 
-    InferenceSession::InferenceSession(std::string inputType, int inputVersion)
-        : ITask(std::move(inputType), inputVersion) {
+    InferenceSession::InferenceSession(srt::ContribContract inputContract)
+        : ITask(std::move(inputContract)) {
     }
 
     InferenceSession::~InferenceSession() = default;

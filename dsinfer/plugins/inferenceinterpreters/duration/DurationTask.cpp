@@ -115,7 +115,7 @@ namespace ds {
     }
 
     DurationTask::DurationTask(DurationInference &inference, const Dur::ImportOptions &options)
-        : ITask(Dur::Contract.interfaceId(), Dur::Contract.level()), m_inference(&inference) {
+        : ITask(Dur::Contract), m_inference(&inference) {
         m_speakerMapping = options.speakerMapping;
     }
 
@@ -161,13 +161,11 @@ namespace ds {
     }
 
     srt::Expected<void> DurationTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Dur::Contract.interfaceId() || args.version() != Dur::Contract.level()) {
+        if (args.contract() != Dur::Contract) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid duration initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Dur::Contract.interfaceId(), Dur::Contract.level(), args.type(),
-                    args.version()));
+                stdc::formatN(R"(invalid duration initialization payload: expected %1, got %2)",
+                              Dur::Contract.toString(), args.contract().toString()));
         }
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
@@ -229,15 +227,12 @@ namespace ds {
         }
         const auto config = expConfig.take();
 
-        if (input.type() != Dur::Contract.interfaceId() ||
-            input.version() != Dur::Contract.level()) {
+        if (input.contract() != Dur::Contract) {
             ITask::setState(ITask::Failed);
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid duration start payload: expected "%1" level %2, got "%3" level %4)",
-                    Dur::Contract.interfaceId(), Dur::Contract.level(), input.type(),
-                    input.version()));
+                stdc::formatN(R"(invalid duration start payload: expected %1, got %2)",
+                              Dur::Contract.toString(), input.contract().toString()));
         }
 
         const auto &durationInput = *input.as<Dur::StartInput>();
@@ -380,8 +375,7 @@ namespace ds {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "duration predictor session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::Name ||
-            sessionTaskResult->version() != Onnx::Version) {
+        if (sessionTaskResult->contract() != Onnx::Contract) {
             setState(Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }

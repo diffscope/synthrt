@@ -50,14 +50,14 @@ namespace ds::Api::Duration::L1 {
     /// Contains arguments used to initialize a duration inference executive.
     class InitArgs : public srt::InferenceInitArgs {
     public:
-        inline InitArgs() : InferenceInitArgs(Contract.interfaceId(), Contract.level()) {
+        inline InitArgs() : InferenceInitArgs(Contract) {
         }
     };
 
     /// Supplies the score and timing context for duration prediction.
     class StartInput : public srt::TaskStartInput {
     public:
-        inline StartInput() : srt::TaskStartInput(Contract.interfaceId(), Contract.level()) {
+        inline StartInput() : srt::TaskStartInput(Contract) {
         }
 
         /// Total input duration in seconds.
@@ -70,7 +70,7 @@ namespace ds::Api::Duration::L1 {
     /// Contains predicted phoneme durations.
     class Result : public srt::TaskResult {
     public:
-        inline Result() : srt::TaskResult(Contract.interfaceId(), Contract.level()) {
+        inline Result() : srt::TaskResult(Contract) {
         }
 
         /// Predicted duration of each input phoneme in seconds.

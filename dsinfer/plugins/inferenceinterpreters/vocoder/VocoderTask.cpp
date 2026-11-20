@@ -38,7 +38,7 @@ namespace ds {
     }
 
     VocoderTask::VocoderTask(VocoderInference &inference)
-        : ITask(Vo::Contract.interfaceId(), Vo::Contract.level()), m_inference(&inference) {
+        : ITask(Vo::Contract), m_inference(&inference) {
     }
 
     VocoderTask::~VocoderTask() {
@@ -83,12 +83,11 @@ namespace ds {
     }
 
     srt::Expected<void> VocoderTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Vo::Contract.interfaceId() || args.version() != Vo::Contract.level()) {
+        if (args.contract() != Vo::Contract) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid vocoder initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Vo::Contract.interfaceId(), Vo::Contract.level(), args.type(), args.version()));
+                stdc::formatN(R"(invalid vocoder initialization payload: expected %1, got %2)",
+                              Vo::Contract.toString(), args.contract().toString()));
         }
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
@@ -142,14 +141,11 @@ namespace ds {
         const auto config = expConfig.take();
 
 
-        if (input.type() != Vo::Contract.interfaceId() || input.version() != Vo::Contract.level()) {
+        if (input.contract() != Vo::Contract) {
             ITask::setState(ITask::Failed);
-            return srt::Error(
-                srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid vocoder start payload: expected "%1" level %2, got "%3" level %4)",
-                    Vo::Contract.interfaceId(), Vo::Contract.level(), input.type(),
-                    input.version()));
+            return srt::Error(srt::Error::InvalidArgument,
+                              stdc::formatN(R"(invalid vocoder start payload: expected %1, got %2)",
+                                            Vo::Contract.toString(), input.contract().toString()));
         }
 
         const auto &vocoderInput = *input.as<Vo::StartInput>();
@@ -183,8 +179,7 @@ namespace ds {
             ITask::setState(ITask::Failed);
             return srt::Error(ds::ErrorCode::SessionFailed, "vocoder session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::Name ||
-            sessionTaskResult->version() != Onnx::Version) {
+        if (sessionTaskResult->contract() != Onnx::Contract) {
             ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }

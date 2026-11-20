@@ -51,7 +51,7 @@ namespace ds {
     }
 
     PitchTask::PitchTask(PitchInference &inference, const Pit::ImportOptions &options)
-        : ITask(Pit::Contract.interfaceId(), Pit::Contract.level()), m_inference(&inference) {
+        : ITask(Pit::Contract), m_inference(&inference) {
         m_speakerMapping = options.speakerMapping;
     }
 
@@ -97,13 +97,11 @@ namespace ds {
     }
 
     srt::Expected<void> PitchTask::initialize(const srt::TaskInitArgs &args) {
-        if (args.type() != Pit::Contract.interfaceId() || args.version() != Pit::Contract.level()) {
+        if (args.contract() != Pit::Contract) {
             return srt::Error(
                 srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid pitch initialization payload: expected "%1" level %2, got "%3" level %4)",
-                    Pit::Contract.interfaceId(), Pit::Contract.level(), args.type(),
-                    args.version()));
+                stdc::formatN(R"(invalid pitch initialization payload: expected %1, got %2)",
+                              Pit::Contract.toString(), args.contract().toString()));
         }
 
         std::unique_lock<std::shared_mutex> lock(m_mutex);
@@ -166,15 +164,11 @@ namespace ds {
         const auto config = expConfig.take();
 
 
-        if (input.type() != Pit::Contract.interfaceId() ||
-            input.version() != Pit::Contract.level()) {
+        if (input.contract() != Pit::Contract) {
             ITask::setState(ITask::Failed);
-            return srt::Error(
-                srt::Error::InvalidArgument,
-                stdc::formatN(
-                    R"(invalid pitch start payload: expected "%1" level %2, got "%3" level %4)",
-                    Pit::Contract.interfaceId(), Pit::Contract.level(), input.type(),
-                    input.version()));
+            return srt::Error(srt::Error::InvalidArgument,
+                              stdc::formatN(R"(invalid pitch start payload: expected %1, got %2)",
+                                            Pit::Contract.toString(), input.contract().toString()));
         }
 
         const auto &pitchInput = *input.as<Pit::StartInput>();
@@ -500,8 +494,7 @@ namespace ds {
             return srt::Error(ds::ErrorCode::SessionFailed,
                               "pitch predictor session result is nullptr");
         }
-        if (sessionTaskResult->type() != Onnx::Name ||
-            sessionTaskResult->version() != Onnx::Version) {
+        if (sessionTaskResult->contract() != Onnx::Contract) {
             ITask::setState(ITask::Failed);
             return srt::Error(srt::Error::InvalidArgument, "invalid result API name");
         }

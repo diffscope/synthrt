@@ -22,12 +22,12 @@ namespace {
 
     class OtherInit : public srt::TaskInitArgs {
     public:
-        OtherInit() : TaskInitArgs("com.example.Other", 1) {
+        OtherInit() : TaskInitArgs({"com.example.Other", 1}) {
         }
     };
     class OtherInput : public srt::TaskStartInput {
     public:
-        OtherInput() : TaskStartInput("com.example.Other", 1) {
+        OtherInput() : TaskStartInput({"com.example.Other", 1}) {
         }
     };
 
@@ -263,13 +263,13 @@ namespace {
     class UnsupportedInit : public srt::TaskInitArgs {
     public:
         UnsupportedInit()
-            : TaskInitArgs(Contract::Contract.interfaceId(), Contract::Contract.level() + 1) {
+            : TaskInitArgs({Contract::Contract.interfaceId(), Contract::Contract.level() + 1}) {
         }
     };
     class UnsupportedInput : public srt::TaskStartInput {
     public:
         UnsupportedInput()
-            : TaskStartInput(Contract::Contract.interfaceId(), Contract::Contract.level() + 1) {
+            : TaskStartInput({Contract::Contract.interfaceId(), Contract::Contract.level() + 1}) {
         }
     };
 

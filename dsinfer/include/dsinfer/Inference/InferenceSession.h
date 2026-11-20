@@ -75,8 +75,8 @@ namespace ds {
     protected:
         InferenceSession();
 
-        /// Creates a Session that accepts start payloads of \a inputType and \a inputVersion.
-        InferenceSession(std::string inputType, int inputVersion);
+        /// Creates a Session that accepts start payloads of \a inputContract.
+        explicit InferenceSession(srt::ContribContract inputContract);
     };
 
 }
