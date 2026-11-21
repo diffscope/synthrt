@@ -17,19 +17,19 @@ namespace srt {
         virtual ~RuntimeService() = default;
 
         /// Returns the stable identifier of the service interface.
-        inline const std::string &iid() const {
+        const std::string &iid() const noexcept {
             return m_iid;
         }
 
         /// Returns the implementation name within the service interface.
-        inline const std::string &name() const {
+        const std::string &name() const noexcept {
             return m_name;
         }
 
         /// Returns the SynthUnit that owns this service.
         ///
         /// This function may only be called after successful registration.
-        inline SynthUnit &synthUnit() const {
+        SynthUnit &synthUnit() const noexcept {
             assert(m_synthUnit);
             return *m_synthUnit;
         }
@@ -37,7 +37,7 @@ namespace srt {
         SYNTHRT_DECLARE_AS_METHODS(RuntimeService)
 
     protected:
-        inline RuntimeService(std::string iid, std::string name)
+        RuntimeService(std::string iid, std::string name)
             : m_iid(std::move(iid)), m_name(std::move(name)) {
         }
 

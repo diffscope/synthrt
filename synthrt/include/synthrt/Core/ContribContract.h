@@ -18,12 +18,12 @@ namespace srt {
 
         /// Returns the identifier serialized as \c interface.
         /// \note The accessor avoids the Windows SDK macro named interface.
-        const std::string &interfaceId() const {
+        const std::string &interfaceId() const noexcept {
             return m_interfaceId;
         }
 
         /// Returns the API level of the interface contract.
-        int level() const {
+        int level() const noexcept {
             return m_level;
         }
 
@@ -67,22 +67,22 @@ namespace srt {
         }
 
         /// Returns the interface contract implemented by this variant.
-        const ContribContract &contract() const {
+        const ContribContract &contract() const noexcept {
             return m_contract;
         }
 
         /// Returns the interface identifier of the contract.
-        const std::string &interfaceId() const {
+        const std::string &interfaceId() const noexcept {
             return m_contract.interfaceId();
         }
 
         /// Returns the API level of the contract.
-        int level() const {
+        int level() const noexcept {
             return m_contract.level();
         }
 
         /// Returns the implementation identifier serialized as \c variant.
-        const std::string &variant() const {
+        const std::string &variant() const noexcept {
             return m_variant;
         }
 
