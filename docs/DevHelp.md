@@ -42,7 +42,6 @@ SynthRT 把“声明是什么”和“运行它”分成两层：
   "version": "1.2.0.0",
   "compatVersion": "1.0.0.0",
   "runtimeLevel": 1,
-  "name": "Example Voice",
   "contributions": {
     "singer": [
       {
@@ -79,7 +78,7 @@ Module Category 的条目使用 `path` 指向声明文件。公共 envelope 为�
   "name": "Acoustic Model",
   "interface": "org.openvpi.dsinfer.inference.Acoustic",
   "level": 1,
-  "variant": "openvpi",
+  "variant": "onnx",
   "exports": {},
   "configuration": {},
   "imports": [
@@ -199,7 +198,7 @@ ds::InferenceDriverFactory driverFactory;
 srt::SynthUnit unit;
 
 driverFactory.addPluginPath(dsinferPlugins / "inferencedrivers");
-auto driverLoader = driverFactory.find(ds::Api::Onnx::Name);
+auto driverLoader = driverFactory.find(ds::Api::Onnx::Contract.name());
 if (!driverLoader) {
     return srt::Error(srt::Error::FileNotFound, "ONNX inference driver plugin was not found");
 }
@@ -407,7 +406,7 @@ Prepared -> Active -> Closed
     {
       "interface": "org.openvpi.dsinfer.inference.Acoustic",
       "level": 1,
-      "variant": "openvpi"
+      "variant": "onnx"
     }
   ]
 }
@@ -472,7 +471,7 @@ dsinfer 把这几步合成 `dsinfer/plugins/CMakeLists.txt` 里的 `dsinfer_add_
 
 ### 7.3 类型化 payload 与 `as<T>()`
 
-`as<T>()` 最终是静态转换，不做 RTTI 检查。正确用法是先检查身份，再转换：
+`as<T>()` 是静态转换，debug 构建会附加动态类型断言。正确用法是先检查身份，再转换：
 
 ```cpp
 if (spec.triplet() != MyApi::Onnx::Triplet) {
@@ -649,31 +648,30 @@ protected:
 ```cpp
 namespace LanguageApi::L1 {
 
-inline constexpr char Interface[] = "com.example.language.Frontend";
-inline constexpr char Variant[] = "rules";
-inline constexpr int Level = 1;
+inline const srt::ContribContract Contract{"com.example.language.Frontend", 1};
+inline const srt::ContribContractTriplet Triplet{Contract, "rules"};
 
 class Exports : public srt::ContribExports {
 public:
-    Exports() : ContribExports(Interface, Variant, Level) {
+    Exports() : ContribExports(Contract) {
     }
 };
 
 class Configuration : public srt::ContribConfiguration {
 public:
-    Configuration() : ContribConfiguration(Interface, Variant, Level) {
+    Configuration() : ContribConfiguration(Triplet) {
     }
 };
 
 class ImportOptions : public srt::ContribImportOptions {
 public:
-    ImportOptions() : ContribImportOptions(Interface, Variant, Level) {
+    ImportOptions() : ContribImportOptions(Contract) {
     }
 };
 
 class RuntimeOptions : public srt::ContribRuntimeOptions {
 public:
-    RuntimeOptions() : ContribRuntimeOptions(Interface, Variant, Level) {
+    RuntimeOptions() : ContribRuntimeOptions(Contract) {
     }
 };
 

@@ -86,21 +86,16 @@ The CMake package exports every installed plugin as an imported target, such as 
 
 ## Current Status
 
-The package-loading foundation currently implements:
+The runtime currently implements:
 
 - `DataOnly` manifest inspection
-- internal Probe and plugin discovery
+- the full `Load` transaction: Probe, Acquire, Ready and atomic Commit
 - dependency selection and contribution locator binding
-- Acquire and Ready validation
-- atomic Commit visibility
+- ImportBinding lifecycle and executive supervision
 - shared package identities and strong-reference-based release
+- typed `ITask` execution with cancellation, waiting and callback lifetime rules
 
-The following work is still in progress:
-
-- closing the runtime execution and import-binding lifecycle
-- migrating the remaining dsinfer utilities and command-line paths to the new typed APIs
-- stabilizing the interpreter, singer provider, and inference driver implementations
-- implementing `.dspk` installation separately from directory-based package loading
+Installing a `.dspk` archive is the host installer's responsibility. The loader accepts only installed package directories.
 
 See [Project status](docs/Status.md) for the maintained task list.
 

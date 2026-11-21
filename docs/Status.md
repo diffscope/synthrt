@@ -16,7 +16,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - `ContribExecutive` 对整棵监督树的递归停止与等待、析构时自动删除子树，以及由 Package 级实例计数和 Import Binding 共同构成的卸载流程
 - 用于非 Package Contribution 设施的 Runtime Service，包括 Inference Driver
 
-当前目录 Loader 负责读取已经安装的 Package 目录树。`.dspk` 归档安装仍将由独立组件实现。
+当前目录 Loader 负责读取已经安装的 Package 目录树。`.dspk` 归档的解包由宿主安装器负责，Loader 不接受归档文件作为候选。
 
 ## 插件系统
 
@@ -65,9 +65,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 
 ## 后续工作
 
-1. 扩展真实模型的端到端验证。YOUSA 1.65 已通过 CPU ONNX 端到端验证。otter 的 game.cpp `v0.1.3` serve 协议和 tifa.cpp `v0.1.6` 适配已通过真实引擎测试；tifa.cpp `v0.2.0` 删除了 `--text-file` 与 `--dict-dir`，需要另做接受音素序列的迁移。
-2. 为 CUDA 与 DirectML Execution Provider 增加可用硬件环境下的集成测试。
-3. 在目录 Package Loader 之外独立实现 `.dspk` 安装。
-4. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。
-5. 为发行产物固定 `Phonetic-Suite-Eng` 门禁：在来源修订、转换流程、模型检查点、训练数据与再分发许可全部记录并复核之前，该套件不得进入发行产物。`Phonetic-Suite-Multi` 是否包含 Eng 的权重尚未核实，核实后一并纳入门禁。
-6. 契约与变体 API 拆分已完成：契约 payload 使用 Contract，configuration 使用完整 Triplet，公开配置头文件按 level 平铺。三库代码、文档和测试已迁移。验证记录已归档到 `.cache/codex/20261121-1446-ContractVariantPlan.md`。
+1. 扩大真实模型与硬件矩阵的自动化覆盖。YOUSA 1.65 已通过 `tests/manual/runner` 在 Windows 上完成 CPU、DML 与 CUDA 的五阶段端到端推理，目前仍由手动 runner 覆盖。otter 的 game.cpp `v0.1.3` serve 协议和 tifa.cpp `v0.1.6` 适配已通过真实引擎测试；tifa.cpp `v0.2.0` 删除了 `--text-file` 与 `--dict-dir`，需要另做接受音素序列的迁移。
+2. 把 CUDA 与 DirectML 的手动验证转为可用硬件环境下的自动化集成测试。
+3. 稳定 DS Spec 2.4，并发布面向使用者的 Package 与插件开发文档。
+4. 为发行产物固定 `Phonetic-Suite-Eng` 门禁：在来源修订、转换流程、模型检查点、训练数据与再分发许可全部记录并复核之前，该套件不得进入发行产物。`Phonetic-Suite-Multi` 是否包含 Eng 的权重尚未核实，核实后一并纳入门禁。

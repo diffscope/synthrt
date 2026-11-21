@@ -86,21 +86,16 @@ CMake 包把每个安装的插件导出为导入目标，例如 `synthrt::acoust
 
 ## 当前状态
 
-包加载的基础部分目前已经实现：
+运行时目前已经实现：
 
 - `DataOnly` 清单检查
-- 内部的 Probe 与插件发现
+- 完整的 `Load` 事务：Probe、Acquire、Ready 与原子 Commit
 - 依赖选择与贡献定位符绑定
-- Acquire 与 Ready 校验
-- 原子的 Commit 可见性
+- ImportBinding 生命周期与 Executive 监督
 - 共享的包身份，以及基于强引用的释放
+- 统一的 `ITask` 执行，包括取消、等待与 callback 生命周期规则
 
-以下工作仍在进行中：
-
-- 补全运行时执行与 import binding 的生命周期
-- 把 dsinfer 其余的工具与命令行路径迁移到新的类型化 API
-- 稳定解释器、歌手 provider 与推理驱动的实现
-- 在基于目录的包加载之外，单独实现 `.dspk` 的安装
+`.dspk` 归档的解包由宿主安装器负责，Loader 只接受已经安装的 Package 目录。
 
 维护中的任务清单见[项目状态](Status.md)。
 
