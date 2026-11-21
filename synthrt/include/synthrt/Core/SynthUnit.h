@@ -37,7 +37,9 @@ namespace srt {
         /// Constructs a unit with every category in \c ContribCategoryRegistry.
         SynthUnit();
 
-        /// Unloads every remaining Package. Handles that refer to them become empty.
+        /// Unloads every remaining Package and invalidates the handles that refer to them.
+        ///
+        /// \note Release every PackageHandle before destruction when possible.
         ///
         /// \warning Destruction is fatal when a Package still has an Executive. All borrowed
         ///          contribution pointers must no longer be used.
