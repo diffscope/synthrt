@@ -71,7 +71,10 @@ namespace srt {
         /// remains the caller's responsibility.
         Expected<void> waitForFinished();
 
-        /// Casts this executive to a contract specific type without a runtime check.
+        /// Casts this executive to a contract specific type.
+        ///
+        /// The cast is a static_cast. A debug build with RTTI also asserts that the dynamic type
+        /// matches.
         ///
         /// \warning The caller must establish the dynamic type from the contribution contract and
         /// provider agreement before calling this function. Passing another derived type results
@@ -119,11 +122,11 @@ namespace srt {
         /// Creates an executive of the fixed contribution contract represented by this factory.
         ///
         /// The implementation must return the concrete executive type required by the target
-        /// interface, variant, and Level. Callers may use that contract to perform an unchecked
-        /// downcast.
+        /// interface, variant, and Level. Callers may use that contract to downcast the result.
         ///
         /// \warning Returning another dynamic type violates the provider ABI and results in
-        /// undefined behavior when the caller performs the contract defined downcast.
+        /// undefined behavior when the caller performs the contract defined downcast. A debug
+        /// build with RTTI asserts that the dynamic type matches.
         virtual Expected<std::unique_ptr<ContribExecutive>>
             create(const ContribRuntimeOptions &runtimeOptions) = 0;
 

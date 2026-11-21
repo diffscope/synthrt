@@ -37,8 +37,10 @@ namespace srt {
         /// Constructs a unit with every category in \c ContribCategoryRegistry.
         SynthUnit();
 
-        /// \warning All PackageHandle objects owned by this unit must have been released before
-        ///          destruction. All borrowed contribution pointers must no longer be used.
+        /// Unloads every remaining Package. Handles that refer to them become empty.
+        ///
+        /// \warning Destruction is fatal when a Package still has an Executive. All borrowed
+        ///          contribution pointers must no longer be used.
         ~SynthUnit();
 
     public:
