@@ -23,7 +23,7 @@ namespace srt {
 
 /*!
     \macro srtDebug
-    \brief Logs a debug message to a log category.
+    Logs a debug message to a log category.
     \code
         // User category
         srt::LogCategory lc("test");

@@ -63,9 +63,16 @@ namespace srt {
         /// Releases this handle and makes it empty.
         void reset() noexcept;
 
+        /// Returns the Package identifier.
         const std::string &id() const;
+
+        /// Returns the Package version.
         stdc::VersionNumber version() const;
+
+        /// Returns the lowest version this Package is compatible with.
         stdc::VersionNumber compatVersion() const;
+
+        /// Returns the Runtime Level this Package requires.
         int runtimeLevel() const;
 
         /// Returns the expanded object read from \c desc.json, including unknown fields.
@@ -102,7 +109,10 @@ namespace srt {
         /// the locator does not identify a contribution in the resolved dependency context.
         ContribSpec *resolve(const ContribLocator &locator) const;
 
+        /// Returns the installed Package directory.
         const std::filesystem::path &path() const;
+
+        /// Returns the direct dependencies this Package declares.
         stdc::array_view<PackageDependency> dependencies() const;
 
         bool operator==(const PackageHandle &other) const noexcept;

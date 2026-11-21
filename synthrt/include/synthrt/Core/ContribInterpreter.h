@@ -14,7 +14,7 @@ namespace srt {
     /// Interprets one module contract implementation.
     ///
     /// The same interpreter instance may serve multiple contributions that use the same
-    /// interface, Level, and variant triple.
+    /// interface, level, and variant triple.
     class ContribInterpreter {
     public:
         virtual ~ContribInterpreter() = default;

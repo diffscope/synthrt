@@ -121,6 +121,7 @@ namespace srt {
         /// Returns the role unique within the importing contribution.
         const std::string &role() const;
 
+        /// Returns the locator of the imported contribution.
         const ContribLocator &locator() const;
 
         /// Returns the options value read from the manifest.

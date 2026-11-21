@@ -29,6 +29,7 @@ namespace srt {
     /// ContribCategory::createSpec() call that receives it.
     class SYNTHRT_EXPORT ContribCreateContext {
     public:
+        /// Returns the locator of the contribution being created.
         const ContribLocator &locator() const;
 
         /// Returns the expanded contribution entry from \c desc.json.
