@@ -210,8 +210,8 @@ Point `CMAKE_PREFIX_PATH` at the installation prefix when CMake cannot find the 
 
 ## Documentation
 
-- [DS package specification 2.4](docs/ds-spec-2.4.md)
-- [dsinfer level 1 revised contracts](docs/dsinfer-level-1-revised.md)
+- [DS package specification 2.4](docs/DsSpec2.4.md)
+- [dsinfer level 1 revised contracts](docs/DsInferLevel1.md)
 - [Development guide](docs/DevHelp.md)
 - [Development conventions](docs/Development.md)
 

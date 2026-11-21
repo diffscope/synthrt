@@ -1,6 +1,6 @@
 # SynthRT 与 dsinfer 开发指南
 
-本文说明当前仓库如何实现 [DiffSinger 数据格式与推理接口规范 2.4](ds-spec-2.4.md)，以及宿主程序、契约开发者、Contribution Category 扩展者和插件开发者应当如何使用现有 API。规范仍是清单格式与行为约束的权威来源，本文关注代码中的对象关系、调用顺序、所有权和扩展点。
+本文说明当前仓库如何实现 [DiffSinger 数据格式与推理接口规范 2.4](DsSpec2.4.md)，以及宿主程序、契约开发者、Contribution Category 扩展者和插件开发者应当如何使用现有 API。规范仍是清单格式与行为约束的权威来源，本文关注代码中的对象关系、调用顺序、所有权和扩展点。
 
 ## 1. 整体模型
 
@@ -841,7 +841,7 @@ Load 和 release 由 SynthUnit 串行化，但解释器实例会被缓存并服�
 
 ## 15. 推荐阅读顺序
 
-1. [ds-spec-2.4.md](ds-spec-2.4.md)：清单格式和规范行为。
+1. [DsSpec2.4.md](DsSpec2.4.md)：清单格式和规范行为。
 2. `synthrt/include/synthrt/Core/SynthUnit.h`：宿主入口。
 3. `synthrt/include/synthrt/Core/PackageHandle.h` 与 `ContribSpec.h`：加载结果和声明查询。
 4. `ContribCategory.h`、`ContribInterpreter.h`、`ContribImportBinding.h` 与 `ContribExecutive.h`：扩展点。

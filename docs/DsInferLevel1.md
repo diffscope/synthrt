@@ -1,6 +1,6 @@
 # DiffSinger 推理接口 Level 1（修订版）
 
-模型变量的表示方式主要参考 [ONNX Operators](https://github.com/onnx/onnx/blob/main/docs/Operators.md)。Package 与 contribution 的公共结构遵循 [DiffSinger 数据格式与推理接口规范 2.4](ds-spec-2.4.md)。
+模型变量的表示方式主要参考 [ONNX Operators](https://github.com/onnx/onnx/blob/main/docs/Operators.md)。Package 与 contribution 的公共结构遵循 [DiffSinger 数据格式与推理接口规范 2.4](DsSpec2.4.md)。
 
 本文规定以下五个推理 interface 的 Level 1 契约。当前参考实现使用 `onnx` variant。`exports`与 import `options`属于 (`interface`, `level`) 契约，`configuration`及模型变量属于 `onnx` variant。
 

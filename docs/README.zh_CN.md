@@ -210,8 +210,8 @@ CMake 不能自动找到这些包时，把 `CMAKE_PREFIX_PATH` 指向安装前�
 
 ## 文档
 
-- [DS 包规范 2.4](ds-spec-2.4.md)
-- [dsinfer Level 1 修订版契约](dsinfer-level-1-revised.md)
+- [DS 包规范 2.4](DsSpec2.4.md)
+- [dsinfer Level 1 修订版契约](DsInferLevel1.md)
 - [开发指南](DevHelp.md)
 - [开发约定](Development.md)
 
