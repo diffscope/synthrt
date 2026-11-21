@@ -50,4 +50,4 @@
 | 面向用户的说明 | `README.md`、`docs/` |
 | 项目状态与 TODO | `docs/Status.md` |
 
-`docs/claude/ISSUES.md` 是问题总账，分 A/B/C/D/E/F 组，另有 🔒 保留项。**🔒 的条目不要顺手改**，需先确认作者意图。
+旧的 `docs/claude/ISSUES.md` 已过时并归档到 `.cache/claude/20261121-1446-ISSUES.md`。它的 🔒 条目不要顺手改，需先确认作者意图。
