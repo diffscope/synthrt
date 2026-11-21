@@ -41,6 +41,6 @@ BOOST_AUTO_TEST_CASE(session_payload_bases_preserve_non_onnx_contracts) {
     OpenArgs open;
     const ds::InferenceDriverPayload &view = open;
     BOOST_CHECK_EQUAL(view.contract().name(), "other.backend");
-    BOOST_CHECK_EQUAL(view.contract().version(), 3);
+    BOOST_CHECK_EQUAL(view.contract().level(), 3);
     BOOST_CHECK(view.as<OpenArgs>() == &open);
 }

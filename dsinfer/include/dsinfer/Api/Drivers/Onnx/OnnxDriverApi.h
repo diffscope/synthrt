@@ -17,7 +17,7 @@ struct OrtApiBase;
 
 namespace ds::Api::Onnx {
 
-    /// Identifies the ONNX inference driver backend and the version of its API.
+    /// Identifies the ONNX inference driver backend and the level of its API.
     inline const InferenceBackendContract Contract{"onnx", 1};
 
     /// Selects the backend used to execute ONNX models.

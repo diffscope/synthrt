@@ -14,13 +14,13 @@
 
 namespace ds {
 
-    /// An owning identity for an inference backend and the version of the API it speaks.
+    /// An owning identity for an inference backend and the level of the API it speaks.
     class InferenceBackendContract {
     public:
         InferenceBackendContract() = default;
 
-        InferenceBackendContract(std::string name, int version)
-            : m_name(std::move(name)), m_version(version) {
+        InferenceBackendContract(std::string name, int level)
+            : m_name(std::move(name)), m_level(level) {
         }
 
         /// Returns the backend name that plugin discovery and diagnostics use.
@@ -28,41 +28,40 @@ namespace ds {
             return m_name;
         }
 
-        /// Returns the version of the backend API.
-        int version() const noexcept {
-            return m_version;
+        /// Returns the level of the backend API.
+        int level() const noexcept {
+            return m_level;
         }
-
 
         /// Returns this identity in the form that the Task protocol carries.
         ///
-        /// The two protocols name the same pair differently. A backend states a name and an API
-        /// version, and a task payload states a contract identifier and a level.
+        /// A backend states a name where a contribution states an interface identifier, and both
+        /// state the level of the API they speak.
         operator srt::ContribContract() const {
-            return srt::ContribContract(m_name, m_version);
+            return srt::ContribContract(m_name, m_level);
         }
 
         /// Renders the identity for a diagnostic message.
         std::string toString() const {
-            return m_name + ", version " + std::to_string(m_version);
+            return m_name + ", level " + std::to_string(m_level);
         }
 
         bool operator==(const InferenceBackendContract &other) const {
-            return m_name == other.m_name && m_version == other.m_version;
+            return m_name == other.m_name && m_level == other.m_level;
         }
 
         bool operator!=(const InferenceBackendContract &other) const {
             return !(*this == other);
         }
 
-        /// Orders contracts by name and then version.
+        /// Orders contracts by name and then level.
         bool operator<(const InferenceBackendContract &other) const {
-            return std::tie(m_name, m_version) < std::tie(other.m_name, other.m_version);
+            return std::tie(m_name, m_level) < std::tie(other.m_name, other.m_level);
         }
 
     private:
         std::string m_name;
-        int m_version = 0;
+        int m_level = 0;
     };
 
     /// A typed value exchanged with an inference driver.
