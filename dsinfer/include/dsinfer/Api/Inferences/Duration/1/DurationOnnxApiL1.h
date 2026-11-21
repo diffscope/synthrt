@@ -12,6 +12,21 @@
 
 namespace ds::Api::Duration::L1::Onnx {
 
+    /// Selects the word level inputs declared by a duration predictor.
+    enum class DurationType {
+        /// Declares no word level input. A configuration that omits \c dur_type has this value and
+        /// behaves like \c Abs.
+        None,
+
+        /// Declares no word level input. The predictor predicts absolute phoneme durations
+        /// without the word structure of the score.
+        Abs,
+
+        /// Declares \c word_div and \c word_dur inputs. The predictor splits the frame budget of
+        /// every word instead of predicting absolute durations.
+        Rel,
+    };
+
     /// Identifies this implementation of the interface contract.
     inline const srt::ContribContractTriplet Triplet{Contract, "onnx"};
 
@@ -48,21 +63,13 @@ namespace ds::Api::Duration::L1::Onnx {
         /// Width of the encoder state and each speaker embedding vector.
         int hiddenSize = 256;
 
-        /// Indicates whether the predictor consumes the word division of the score.
+        /// Word level inputs declared by the predictor.
         ///
-        /// A predictor that splits the frame budget of every word or that adds the position of a
-        /// phoneme inside its word declares a \c word_div input. Each element of that input is the
-        /// number of phonemes of one word. Models trained before those architectures existed do not
-        /// declare it, and the session rejects an input the model does not expect.
-        bool useWordDiv = false;
-
-        /// Indicates whether the predictor also consumes the frame budget of every word.
-        ///
-        /// Declared together with \c word_div by a predictor that splits the frame budget of every
-        /// word instead of predicting absolute phoneme durations. The predictor reads the budget at
-        /// the word each phoneme belongs to, which it locates with the word division, so this
-        /// requires \c useWordDiv.
-        bool useWordDur = false;
+        /// A predictor that splits the frame budget of every word declares \c Rel. The task then
+        /// hands it the \c word_div and \c word_dur tensors that the linguistic encoder built.
+        /// Models trained before those architectures existed declare no word level input, which
+        /// is the default.
+        DurationType durType = DurationType::None;
     };
 
 }

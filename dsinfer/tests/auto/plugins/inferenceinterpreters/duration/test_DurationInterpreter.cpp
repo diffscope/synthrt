@@ -37,8 +37,8 @@ namespace fs = std::filesystem;
 //
 // The models are far smaller than real ones. The budget predictor adds the one based position of a
 // phoneme inside its word to the frame budget of that word, so its shares depend on both word
-// inputs and the test can check the values that reach it. The division predictor predicts the
-// position alone, which checks the division without a budget. The absolute predictor predicts the
+// inputs and the test can check the values that reach it. A predictor that declares only the
+// division is rejected once the task hands over the budget. The absolute predictor predicts the
 // MIDI pitch of the phoneme, which is constant inside a word, so it takes no word input and its
 // shares are even. The task applies the shares of every word to the duration the score assigns to
 // it.
@@ -134,19 +134,9 @@ namespace {
     }
 #endif
 
-    // Describes the word inputs a configuration declares for the predictor. \c BudgetOnly is not a
-    // signature any model declares, it stands for a configuration that consumes a frame budget
-    // without telling the predictor how the phonemes are divided over the words.
-    enum class WordInputs {
-        None,
-        Division,
-        DivisionAndBudget,
-        BudgetOnly,
-    };
-
-    // Writes one package holding a single duration contribution. The word inputs describe the
-    // signature of the exported predictor, as the model itself declares it.
-    void writePackage(const fs::path &root, const char *predictor, WordInputs wordInputs) {
+    // Writes one package holding a single duration contribution. A nonnull durType writes the
+    // \c dur_type field of the configuration, and null omits it, which behaves like \c abs.
+    void writePackage(const fs::path &root, const char *predictor, const char *durType) {
         writeText(root / "desc.json",
                   R"({
                       "$version":"1.0",
@@ -176,13 +166,11 @@ namespace {
         configuration += R"(",
                         "sampleRate":44100,
                         "hopSize":512)";
-        if (wordInputs == WordInputs::Division || wordInputs == WordInputs::DivisionAndBudget) {
+        if (durType) {
             configuration += R"(,
-                        "useWordDiv":true)";
-        }
-        if (wordInputs == WordInputs::DivisionAndBudget || wordInputs == WordInputs::BudgetOnly) {
-            configuration += R"(,
-                        "useWordDur":true)";
+                        "dur_type":")";
+            configuration += durType;
+            configuration += '"';
         }
         configuration += R"(
                       }
@@ -312,7 +300,7 @@ BOOST_AUTO_TEST_SUITE(test_DurationInterpreter)
 #if defined(TEST_RESOURCE_DIRECTORY) && defined(DSINFER_TEST_DRIVER_PLUGIN_PATH)
 BOOST_AUTO_TEST_CASE(test_word_budget_predictor_receives_the_word_structure) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, WordInputs::DivisionAndBudget);
+    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, "rel");
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), WORD_PREDICTOR_MODEL);
 
@@ -331,29 +319,25 @@ BOOST_AUTO_TEST_CASE(test_word_budget_predictor_receives_the_word_structure) {
     checkShares(durations, {44.0 / 135, 45.0 / 135, 46.0 / 135, 36.0 / 73, 37.0 / 73});
 }
 
-BOOST_AUTO_TEST_CASE(test_division_predictor_receives_the_word_division_only) {
+BOOST_AUTO_TEST_CASE(test_rel_predictor_must_declare_every_word_input) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), DIVISION_PREDICTOR_MODEL, WordInputs::Division);
+    writePackage(temporary.path(), DIVISION_PREDICTOR_MODEL, "rel");
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), DIVISION_PREDICTOR_MODEL);
 
     DurationFixture fixture(temporary.path());
     auto result = fixture.duration().start(makeStartInput());
-    const std::string why = result ? std::string() : result.error().toString();
-    BOOST_REQUIRE_MESSAGE(bool(result), why);
-    const auto &durations = (*result)->durations;
-    BOOST_REQUIRE_EQUAL(durations.size(), 5u);
+    BOOST_REQUIRE(!result);
+    const auto message = result.error().toString();
 
-    // The predictor locates the word of a phoneme with the division and predicts the one based
-    // position of the phoneme inside it, so the shares of a word of three phonemes are 1/6, 2/6 and
-    // 3/6, and those of a word of two phonemes are 1/3 and 2/3. A division that does not match the
-    // score locates the phonemes in other words and moves the shares away from this ramp.
-    checkShares(durations, {1.0 / 6, 2.0 / 6, 3.0 / 6, 1.0 / 3, 2.0 / 3});
+    // A rel configuration declares both word inputs, so a predictor that declares only the
+    // division is rejected when the session receives the budget it does not expect.
+    BOOST_CHECK_MESSAGE(message.find("word_dur") != std::string::npos, message);
 }
 
 BOOST_AUTO_TEST_CASE(test_absolute_predictor_keeps_working_without_word_inputs) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), ABSOLUTE_PREDICTOR_MODEL, WordInputs::None);
+    writePackage(temporary.path(), ABSOLUTE_PREDICTOR_MODEL, nullptr);
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), ABSOLUTE_PREDICTOR_MODEL);
 
@@ -371,7 +355,7 @@ BOOST_AUTO_TEST_CASE(test_absolute_predictor_keeps_working_without_word_inputs) 
 
 BOOST_AUTO_TEST_CASE(test_word_inputs_of_an_unconfigured_predictor_are_reported) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, WordInputs::None);
+    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, nullptr);
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), WORD_PREDICTOR_MODEL);
 
@@ -384,7 +368,7 @@ BOOST_AUTO_TEST_CASE(test_word_inputs_of_an_unconfigured_predictor_are_reported)
 
 BOOST_AUTO_TEST_CASE(test_unexpected_word_inputs_are_reported) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), ABSOLUTE_PREDICTOR_MODEL, WordInputs::DivisionAndBudget);
+    writePackage(temporary.path(), ABSOLUTE_PREDICTOR_MODEL, "rel");
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), ABSOLUTE_PREDICTOR_MODEL);
 
@@ -397,9 +381,9 @@ BOOST_AUTO_TEST_CASE(test_unexpected_word_inputs_are_reported) {
 #endif
 
 #ifdef TEST_RESOURCE_DIRECTORY
-BOOST_AUTO_TEST_CASE(test_word_duration_requires_the_word_division) {
+BOOST_AUTO_TEST_CASE(test_invalid_duration_type_is_reported) {
     TemporaryDirectory temporary;
-    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, WordInputs::BudgetOnly);
+    writePackage(temporary.path(), WORD_PREDICTOR_MODEL, "bogus");
     copyModel(temporary.path(), WORD_ENCODER_MODEL);
     copyModel(temporary.path(), WORD_PREDICTOR_MODEL);
 
@@ -408,7 +392,7 @@ BOOST_AUTO_TEST_CASE(test_word_duration_requires_the_word_division) {
     auto opened = unit.openPackage(temporary.path(), srt::SynthUnit::Load);
     BOOST_REQUIRE(!opened);
     const auto message = opened.error().toString();
-    BOOST_CHECK_MESSAGE(message.find("useWordDur") != std::string::npos, message);
+    BOOST_CHECK_MESSAGE(message.find("dur_type") != std::string::npos, message);
 }
 #endif
 

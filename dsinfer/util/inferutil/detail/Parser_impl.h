@@ -339,6 +339,24 @@ namespace ds::inferutil {
         }
     }
 
+    inline void ConfigurationParser::parse_durType_optional(DurationType &out) {
+        const auto &config = *pConfig;
+
+        if (const auto it = config.find("dur_type"); it != config.end()) {
+            const auto durType = it->second.toString();
+            const auto durTypeLower = stdc::to_lower(durType);
+            if (durTypeLower == "abs") {
+                out = DurationType::Abs;
+            } else if (durTypeLower == "rel") {
+                out = DurationType::Rel;
+            } else {
+                collectError(stdc::formatN(
+                    R"(enum string field "dur_type" invalid: expect "abs", "rel"; got "%1")",
+                    durType));
+            }
+        }
+    }
+
     inline void ConfigurationParser::parse_languages(bool useLanguageId,
                                                      std::map<std::string, int> &out) {
         const auto &config = *pConfig;
