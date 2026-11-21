@@ -596,6 +596,10 @@ namespace srt {
         // Catalog entries contain only the fields that determine candidacy. Module declarations
         // are read after selection so a broken selected Package fails instead of causing fallback.
         stdc::vlarray<PackageList> catalog;
+        // A directory whose declaration the loader refuses is not a candidate, but its reason is
+        // kept so that an unresolved dependency can distinguish an absent package from one that
+        // is installed and was rejected.
+        stdc::vlarray<std::string> rejected;
         std::set<Identity> discoveredIdentities;
         for (const auto &searchPathValue : m_synthUnit->_impl->packagePaths) {
             std::error_code error;
@@ -615,6 +619,13 @@ namespace srt {
                 error.clear();
                 iterator.increment(error);
             }
+            // The loop also leaves on an error, and the list it produced is then partial.
+            // Continuing would make an unreadable directory look like an empty search path.
+            if (error) {
+                return Error(Error::FileNotOpen, "a package search path could not be enumerated: " +
+                                                     displayPath(searchPath) + ": " +
+                                                     error.message());
+            }
             // Filesystem enumeration order is unspecified. Sorting makes duplicate diagnostics and
             // source discovery reproducible within one search path.
             std::sort(directories.begin(), directories.end(), [](const auto &LHS, const auto &RHS) {
@@ -626,6 +637,13 @@ namespace srt {
             for (const auto &directory : directories) {
                 auto packageResult = readPackage(directory, true);
                 if (!packageResult) {
+                    const auto rejection = packageResult.takeError();
+                    // A directory without desc.json is not a Package, so it is not a rejected
+                    // candidate. Other errors explain why a present Package was skipped.
+                    if (rejection.code() != Error::FileNotFound) {
+                        rejected.push_back(displayPath(directory.filename()) + ": " +
+                                           rejection.toString());
+                    }
                     continue;
                 }
                 auto package = packageResult.take();
@@ -687,8 +705,41 @@ namespace srt {
                 transaction.emplace(identity, selectedPackage);
                 return selectedPackage;
             }
-            return Error(Error::FileNotFound,
-                         "no installed Package satisfies dependency " + dependency.id);
+            // An unresolved dependency is the one failure a user meets with no other clue. The
+            // message names the requirement, the installed candidates, and the reasons a present
+            // Package was rejected, so an old voicebank that names a moved compatibility floor can
+            // be diagnosed without guessing.
+            std::string message = "no installed package satisfies dependency " + dependency.id +
+                                  " " + dependency.version.toString();
+            std::string candidates;
+            for (const auto &pathPackages : catalog) {
+                for (const auto &candidate : pathPackages) {
+                    if (candidate->id != dependency.id) {
+                        continue;
+                    }
+                    if (!candidates.empty()) {
+                        candidates += ", ";
+                    }
+                    candidates += "[" + candidate->compatVersion.toString() + ", " +
+                                  candidate->version.toString() + "]";
+                }
+            }
+            if (candidates.empty()) {
+                message += "; no installed package carries that identifier";
+            } else {
+                message += "; the installed candidates are " + candidates;
+            }
+            if (!rejected.empty()) {
+                std::string reasons;
+                for (const auto &reason : rejected) {
+                    if (!reasons.empty()) {
+                        reasons += "; ";
+                    }
+                    reasons += reason;
+                }
+                message += "; rejected during the search: " + reasons;
+            }
+            return Error(Error::FileNotFound, std::move(message));
         };
 
         const auto resolveTarget = [](const std::shared_ptr<PackageData> &package,

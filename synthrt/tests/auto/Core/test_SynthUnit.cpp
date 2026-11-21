@@ -321,6 +321,30 @@ BOOST_AUTO_TEST_CASE(test_missing_dependency_reports_not_found) {
     BOOST_CHECK(unit.loadedPackages().empty());
 }
 
+BOOST_AUTO_TEST_CASE(test_unresolved_dependency_reports_candidates_and_rejections) {
+    TemporaryDirectory temporary;
+    const auto packages = temporary.path() / "packages";
+    writePackage(packages, "candidate", "candidate", "1");
+    writeText(packages / "rejected" / "desc.json",
+              R"({"$version":"1.0","id":"candidate","version":"2","runtimeLevel":2})");
+    const auto root = writePackage(temporary.path(), "root", "root", "1", {},
+                                   R"([{"id":"candidate","version":"3"}])");
+
+    auto unit = makeUnit();
+    const std::vector<fs::path> paths = {packages};
+    unit.setPackagePaths(paths);
+    auto opened = unit.openPackage(root, srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().code() == srt::Error::FileNotFound);
+
+    const auto message = opened.error().toString();
+    BOOST_CHECK_MESSAGE(message.find("no installed package satisfies dependency candidate") !=
+                            std::string::npos,
+                        message);
+    BOOST_CHECK_MESSAGE(message.find("installed candidates are") != std::string::npos, message);
+    BOOST_CHECK_MESSAGE(message.find("rejected during the search") != std::string::npos, message);
+    BOOST_CHECK_MESSAGE(message.find("Runtime Level") != std::string::npos, message);
+}
 BOOST_AUTO_TEST_CASE(test_missing_import_target_reports_not_found) {
     TemporaryDirectory temporary;
     const auto root = writePackage(temporary.path(), "root", "root", "1", {}, "[]",
