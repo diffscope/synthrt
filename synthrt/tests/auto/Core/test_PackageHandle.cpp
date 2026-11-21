@@ -46,3 +46,25 @@ BOOST_AUTO_TEST_CASE(dependency_identity_includes_version) {
     moved.reset();
     BOOST_CHECK(!moved);
 }
+
+BOOST_AUTO_TEST_CASE(package_name_is_localized_and_defaults_to_id) {
+    TemporaryDirectory temporary;
+    auto unit = makeUnit();
+
+    const auto named = writePackage(temporary.path(), "named", "named", "1", {}, "[]", "[]",
+                                    R"(,"name":{"_":"Named","zh-CN":"命名"})");
+    auto namedResult = unit.openPackage(named, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(namedResult);
+    BOOST_CHECK_EQUAL(namedResult->name().text(), "Named");
+    BOOST_CHECK_EQUAL(namedResult->name().text("zh-CN"), "命名");
+    BOOST_CHECK_EQUAL(namedResult->name().locales().size(), 1u);
+
+    const auto unnamed = writePackage(temporary.path(), "unnamed", "unnamed", "1");
+    auto unnamedResult = unit.openPackage(unnamed, srt::SynthUnit::DataOnly);
+    BOOST_REQUIRE(unnamedResult);
+    BOOST_CHECK_EQUAL(unnamedResult->name().text(), "unnamed");
+
+    const auto invalid = writePackage(temporary.path(), "invalid-name", "invalid-name", "1", {},
+                                      "[]", "[]", R"(,"name":5)");
+    BOOST_CHECK(!unit.openPackage(invalid, srt::SynthUnit::DataOnly));
+}

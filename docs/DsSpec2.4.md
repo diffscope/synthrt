@@ -120,6 +120,7 @@ Runtime 为`${root}`和`${dir}`生成的值必须是 fully-qualified、词法规
     "version": "1.0.0.0",
     "compatVersion": "0.0.0.0",
     "runtimeLevel": 1,
+    "name": "Foo Package",
     "vars": [
         { "name": "assets", "value": "${root}/assets" }
     ],
@@ -151,6 +152,7 @@ Runtime 为`${root}`和`${dir}`生成的值必须是 fully-qualified、词法规
 + 可选字段
     + `compatVersion`：兼容到的最低版本，如果为`0.0.0.0`表示向下兼容所有，如果与`version`相同则表示不向下兼容，缺省为`version`
     + `vars`：Package 级字符串变量，见上文《字符串变量》
+    + `name`：显示名称，可为多语言，缺省与`id`相同
     + `vendor`：提供者，可为多语言，见下文《多语言文本》
     + `description`：介绍文字，可为多语言
     + `readme`：多语言路径，指向介绍文本文件
@@ -300,7 +302,7 @@ Runtime 不解释这些属性名，不验证 BCP 47、POSIX locale 或其他语�
 | `readme`、`license` | 多语言路径 |
 | `avatar`、`background`、`demoAudio` | 多语言路径 |
 
-贡献类别与契约追加的字段是否多语言，以及是文本还是路径，由定义它们的一方明确规定。
+`vendor`、`description`、`readme`、`license` 是 `desc.json` 的字段。`name` 同时用于 Package 和模块声明。`avatar`、`background`、`demoAudio` 是模块声明中由类别追加的字段。贡献类别与契约追加的字段是否多语言，以及是文本还是路径，由定义它们的一方明确规定。
 
 某个多语言字段的值是文件路径时，**每一个本地化的值各自解析**，基路径都是该声明文件所在的目录。Runtime API 向前端提供的多语言路径 map 必须包含完成变量展开、基路径解析和词法规范化后的路径 value，不得只返回脱离声明目录上下文的原相对字符串。具体宿主路径类型由 Runtime API 规定。
 

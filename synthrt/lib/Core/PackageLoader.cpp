@@ -1149,6 +1149,9 @@ namespace srt {
             return {};
         };
 
+        if (auto result = readOptionalText("name", &package->name); !result) {
+            return result.takeError();
+        }
         if (auto result = readOptionalText("vendor", &package->vendor); !result) {
             return result.takeError();
         }

@@ -42,6 +42,7 @@ SynthRT 把“声明是什么”和“运行它”分成两层：
   "version": "1.2.0.0",
   "compatVersion": "1.0.0.0",
   "runtimeLevel": 1,
+  "name": "Example Voice",
   "contributions": {
     "singer": [
       {
@@ -67,7 +68,7 @@ SynthRT 把“声明是什么”和“运行它”分成两层：
 
 当前 Loader 只接受已经安装完成的 Package 目录，不直接加载 `.dspk`。`PackageHandle::manifestDeclaration()` 返回完成字符串变量展开后的根对象，并保留规范未占用的未知字段。
 
-`PackageHandle` 提供 Package 身份、显示信息、路径、依赖、原始清单和 Contribution 查询。`PackageHandle::contributions(category)` 返回该类别的所有声明，`contribution(category, id)` 查询一个本地声明，`resolve(locator)` 则可以沿已经绑定的直接 dependency edge 查找目标。
+`PackageHandle` 提供 Package 身份、显示信息、路径、依赖、原始清单和 Contribution 查询。`PackageHandle::name()` 返回 `desc.json` 的 `name`，字段缺失时等于 `id`。`PackageHandle::contributions(category)` 返回该类别的所有声明，`contribution(category, id)` 查询一个本地声明，`resolve(locator)` 则可以沿已经绑定的直接 dependency edge 查找目标。
 
 ### 2.2 Module 声明
 
