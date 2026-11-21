@@ -6,7 +6,7 @@
 
 SynthRT 把“声明是什么”和“运行它”分成两层：
 
-1. Package 是安装后的目录。根目录包含 `desc.json`。
+1. Package 是安装后的一个目录，其根下必须有 `desc.json`。搜索路径的每个直接子目录都是候选 Package，没有可读 `desc.json` 的子目录被忽略。目录名不参与身份，`id` 与 `version` 以 `desc.json` 为准。
 2. Contribution 是 Package 提供的一项能力。它由 category 和 Package 内局部 ID 标识。
 3. `ContribSpec` 是 Contribution 声明的不可变内存对象。
 4. Module Category 的 Contribution 还具有 `interface`、`level`、`variant` 三元组，并由解释器把 JSON 解释成类型化对象。
