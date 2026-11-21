@@ -301,13 +301,23 @@ Variance predictor 的输入参数集合由 `exports.predictions` 决定。模�
 
 ## `org.openvpi.dsinfer.singer.DiffSinger`
 
+### Exports
+
+|      name      |        type         |                  description                  |          example           |
+| :------------: | :-----------------: | :-------------------------------------------: | :------------------------: |
+|  `languages`   | map<string, string> | 语言句柄 => 本声明`imports`中提供该语言的`role` | {"cmn": "linguist/cmn"}    |
+| `defaultLanguage` |      string      | 调用方未指定语言时采用的句柄。`languages`非空时必填，且必须是它的键 | "cmn" |
+| `reservedPhonemes` | array&lt;string&gt; | 保留音素。元素必须是互不相同的非空字符串 | ["AP", "SP"] |
+
+`languages`的值必须是本声明`imports`中存在的`role`。`reservedPhonemes`由 provider 在导入准备完成后对照每个带音素表的模型校验。
+
 ### Configuration for `openvpi`
 
 |       name        |         type         | 必填 |                  description                   |          example           |
 | :---------------: | :------------------: | :--: | :--------------------------------------------- | :------------------------- |
 |      `dict`       |        `path`        |  是  | 歌手发音词典。本 variant 不读取该文件，仅解析路径后提供给宿主 | `"../../assets/dict.txt"`  |
 
-保留音素（`reservedPhonemes`，即可以在歌词中直接书写的音素记号）不属于本 variant 的 configuration，而是 `singer` 类别的追加字段，位于声明的根 object，由 synthrt 读取（见 spec 2.4「Singer 模块」一节的「声明文件」）。
+保留音素（`reservedPhonemes`，即可以在歌词中直接书写的音素记号）属于 DiffSinger 的 singer `exports`，不属于本 variant 的 configuration。
 
 **保留音素是不经音素转换、直接送入模型的记号。** 歌手模型的音素表包含两类记号：绝大多数由歌词经音素转换得到，另有少数不代表言语，例如换气、喉塞、哼鸣，这类记号由用户在歌词位置直接书写后进入模型。哪些记号属于后一类由歌手决定，因此由歌手声明，而不依赖带外约定。宿主应当**将保留音素完全排除在音素转换路径之外**，因为保留音素不是词语，不能交给语言进行转换。
 

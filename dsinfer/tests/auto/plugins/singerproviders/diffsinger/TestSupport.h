@@ -52,7 +52,8 @@ namespace {
 
     void writePackage(const fs::path &root, int acousticSampleRate, int vocoderSampleRate,
                       bool includeAcousticImport = true, bool includeVocoderImport = true,
-                      const std::string &reservedPhonemes = "") {
+                      const std::string &reservedPhonemes = "", const std::string &languages = "",
+                      const std::string &defaultLanguage = "") {
         writeText(root / "desc.json",
                   R"({
                       "$version":"1.0",
@@ -124,10 +125,13 @@ namespace {
                       "interface":"org.openvpi.dsinfer.singer.DiffSinger",
                       "variant":"openvpi",
                       "level":1,
-                      "exports":{},)" +
-                      (reservedPhonemes.empty()
+                      "exports":{)" +
+                      (languages.empty() ? std::string() : "\"languages\":" + languages + ",") +
+                      (defaultLanguage.empty()
                            ? std::string()
-                           : "\"reservedPhonemes\":" + reservedPhonemes + ",") +
+                           : "\"defaultLanguage\":\"" + defaultLanguage + "\",") +
+                      "\"reservedPhonemes\":" +
+                      (reservedPhonemes.empty() ? std::string("[]") : reservedPhonemes) + R"(},)" +
                       R"(
                       "configuration":{"dict":"dictionary.txt"},
                       "imports":[)" +

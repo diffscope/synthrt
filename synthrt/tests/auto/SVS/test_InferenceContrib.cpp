@@ -43,11 +43,12 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
                   "avatar":{"_":"../assets/singer1/avatar.png","zh-CN":"../assets/singer1/avatar-zh.png"},
                   "background":"../assets/singer1/background.png",
                   "demoAudio":"../assets/singer1/demo.wav",
-                  "languages":{"cmn":"lang/cmn","eng":"lang/eng"},
-                  "defaultLanguage":"cmn",
-                  "reservedPhonemes":["AP","SP"],
                   "aFieldThisRuntimeDoesNotKnow":true,
-                  "exports":{},
+                  "exports":{
+                    "languages":{"cmn":"lang/cmn","eng":"lang/eng"},
+                    "defaultLanguage":"cmn",
+                    "reservedPhonemes":["AP","SP"]
+                  },
                   "configuration":{},
                   "imports":[
                     {"role":"lang/cmn","ref":":inference/acoustic"},
@@ -79,19 +80,13 @@ BOOST_AUTO_TEST_CASE(test_builtin_categories_parse_typed_data_only_specs) {
                       (root / "assets" / "singer1" / "avatar.png").string());
     BOOST_CHECK_EQUAL(singer->avatar().text("zh-CN"),
                       (root / "assets" / "singer1" / "avatar-zh.png").string());
-    // The singer category reads the language map before any provider is selected.
-    BOOST_REQUIRE_EQUAL(singer->languages().size(), 2u);
-    BOOST_CHECK_EQUAL(singer->languages().at("cmn"), "lang/cmn");
-    BOOST_CHECK_EQUAL(singer->languages().at("eng"), "lang/eng");
-    BOOST_CHECK_EQUAL(singer->defaultLanguage(), "cmn");
-    BOOST_REQUIRE_EQUAL(singer->reservedPhonemes().size(), 2u);
-    BOOST_CHECK_EQUAL(singer->reservedPhonemes()[0], "AP");
+    // The singer category keeps exports as data. The DiffSinger provider interprets these fields.
+    const auto &exports = singer->manifestExports().toObject();
+    BOOST_REQUIRE_EQUAL(exports.at("languages").toObject().size(), 2u);
+    BOOST_CHECK_EQUAL(exports.at("languages").toObject().at("cmn").toString(), "lang/cmn");
+    BOOST_CHECK_EQUAL(exports.at("defaultLanguage").toString(), "cmn");
+    BOOST_REQUIRE_EQUAL(exports.at("reservedPhonemes").toArray().size(), 2u);
     BOOST_CHECK_EQUAL(unit.category("inference")->interpreterIid(),
                       srt::InferenceInterpreterPlugin::IID);
     BOOST_CHECK_EQUAL(unit.category("singer")->interpreterIid(), srt::SingerProviderPlugin::IID);
 }
-
-// The singer category validates the structure of the language map and the existence of each
-// role. A handle whose role is not among the imports, a default language that is not a key of
-// the map, a missing default language and invalid reserved phonemes are rejected in DataOnly
-// mode, before any provider is loaded.

@@ -38,3 +38,38 @@ BOOST_AUTO_TEST_CASE(provider_creates_typed_configuration_validators_and_pipelin
     BOOST_REQUIRE(pipeline);
     BOOST_CHECK(&pipeline.value()->spec() == singer);
 }
+
+BOOST_AUTO_TEST_CASE(provider_parses_singer_exports) {
+    TemporaryDirectory temporary;
+    writePackage(temporary.path(), 44100, 44100, true, true, R"(["SP"])",
+                 R"({"cmn":"singer/acoustic"})", "cmn");
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(temporary.path(), srt::SynthUnit::Load);
+    BOOST_REQUIRE(opened);
+    auto singer = opened->contribution("singer", "singer");
+    BOOST_REQUIRE(singer);
+    const auto *exports = singer->exports()->as<Api::Exports>();
+    BOOST_CHECK_EQUAL(exports->languages.at("cmn"), "singer/acoustic");
+    BOOST_CHECK_EQUAL(exports->defaultLanguage, "cmn");
+    BOOST_REQUIRE_EQUAL(exports->reservedPhonemes.size(), 1u);
+    BOOST_CHECK_EQUAL(exports->reservedPhonemes[0], "SP");
+}
+
+BOOST_AUTO_TEST_CASE(singer_exports_with_languages_require_a_default_language) {
+    TemporaryDirectory temporary;
+    writePackage(temporary.path(), 44100, 44100, true, true, "", R"({"cmn":"singer/acoustic"})");
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(temporary.path(), srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().toString().find("defaultLanguage") != std::string::npos);
+}
+
+BOOST_AUTO_TEST_CASE(singer_language_roles_must_exist) {
+    TemporaryDirectory temporary;
+    writePackage(temporary.path(), 44100, 44100, true, true, "", R"({"cmn":"singer/missing"})",
+                 "cmn");
+    auto unit = makeUnit();
+    auto opened = unit.openPackage(temporary.path(), srt::SynthUnit::Load);
+    BOOST_REQUIRE(!opened);
+    BOOST_CHECK(opened.error().toString().find("nonexistent import role") != std::string::npos);
+}

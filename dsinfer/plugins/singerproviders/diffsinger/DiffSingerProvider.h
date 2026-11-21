@@ -14,6 +14,9 @@ namespace ds {
         ~DiffSingerProvider();
 
     public:
+        srt::Expected<std::unique_ptr<srt::ContribExports>>
+            createExports(const srt::ContribSpec &spec) const override;
+
         srt::Expected<std::vector<std::unique_ptr<srt::ContribImportValidator>>>
             createImportValidators() const override;
 

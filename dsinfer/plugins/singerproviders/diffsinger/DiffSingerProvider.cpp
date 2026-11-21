@@ -135,6 +135,79 @@ namespace ds {
             return result;
         }
 
+        // Reads the DiffSinger singer exports. The singer category does not know these fields, so
+        // the contract validates them here and exposes the typed object to providers and hosts.
+        srt::Expected<void> readExports(const srt::ContribSpec &spec, Ds::Exports &exports) {
+            const auto &manifest = spec.manifestExports();
+            if (!manifest.isObject()) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "DiffSinger singer exports must be an object");
+            }
+            const auto &object = manifest.toObject();
+
+            if (const auto it = object.find("languages"); it != object.end()) {
+                if (!it->second.isObject()) {
+                    return srt::Error(
+                        srt::Error::InvalidFormat,
+                        "DiffSinger singer languages must map language handles to import roles");
+                }
+                for (const auto &[handle, roleValue] : it->second.toObject()) {
+                    if (handle.empty() || !roleValue.isString() || roleValue.toString().empty()) {
+                        return srt::Error(srt::Error::InvalidFormat,
+                                          "DiffSinger singer languages must map language handles "
+                                          "to import roles");
+                    }
+                    const auto role = roleValue.toString();
+                    if (!spec.findImport(role)) {
+                        return srt::Error(srt::Error::InvalidFormat,
+                                          "DiffSinger singer language " + handle +
+                                              " refers to a nonexistent import role: " + role);
+                    }
+                    exports.languages.emplace(handle, role);
+                }
+            }
+
+            if (const auto it = object.find("defaultLanguage"); it != object.end()) {
+                if (!it->second.isString()) {
+                    return srt::Error(srt::Error::InvalidFormat,
+                                      "DiffSinger singer defaultLanguage must be a string");
+                }
+                exports.defaultLanguage = it->second.toString();
+                if (exports.languages.find(exports.defaultLanguage) == exports.languages.end()) {
+                    return srt::Error(srt::Error::InvalidFormat,
+                                      "DiffSinger singer defaultLanguage is not a key of "
+                                      "languages: " +
+                                          exports.defaultLanguage);
+                }
+            } else if (!exports.languages.empty()) {
+                return srt::Error(
+                    srt::Error::InvalidFormat,
+                    "a DiffSinger singer that declares languages must declare defaultLanguage");
+            }
+
+            if (const auto it = object.find("reservedPhonemes"); it != object.end()) {
+                if (!it->second.isArray()) {
+                    return srt::Error(srt::Error::InvalidFormat,
+                                      "DiffSinger singer reservedPhonemes must be an array");
+                }
+                std::set<std::string> seen;
+                for (const auto &item : it->second.toArray()) {
+                    if (!item.isString() || item.toString().empty()) {
+                        return srt::Error(srt::Error::InvalidFormat,
+                                          "DiffSinger singer reservedPhonemes must contain only "
+                                          "non-empty strings");
+                    }
+                    auto token = item.toString();
+                    if (!seen.insert(token).second) {
+                        return srt::Error(srt::Error::InvalidFormat,
+                                          "DiffSinger singer reservedPhonemes contains " + token +
+                                              " twice");
+                    }
+                    exports.reservedPhonemes.push_back(std::move(token));
+                }
+            }
+            return {};
+        }
         // Verifies that every reserved phoneme of the singer is present in the phoneme table of
         // each imported model.
         //
@@ -151,10 +224,12 @@ namespace ds {
                                                      srt::InferenceSpec *pitch,
                                                      srt::InferenceSpec *variance,
                                                      srt::InferenceSpec *acoustic) {
-            // The singer category has already parsed the declaration, so every host and language
-            // library reads the same set. This provider adds only the check against the phoneme
-            // tables of the models.
-            const auto &reserved = spec.as<srt::SingerSpec>()->reservedPhonemes();
+            const auto *exports = spec.exports();
+            if (!exports) {
+                return srt::Error(srt::Error::InvalidFormat,
+                                  "DiffSinger singer has no interpreted exports");
+            }
+            const auto &reserved = exports->as<Ds::Exports>()->reservedPhonemes;
             if (reserved.empty()) {
                 return {};
             }
@@ -223,6 +298,14 @@ namespace ds {
     DiffSingerProvider::DiffSingerProvider() = default;
 
     DiffSingerProvider::~DiffSingerProvider() = default;
+    srt::Expected<std::unique_ptr<srt::ContribExports>>
+        DiffSingerProvider::createExports(const srt::ContribSpec &spec) const {
+        auto exports = std::make_unique<Ds::Exports>();
+        if (auto result = readExports(spec, *exports); !result) {
+            return result.takeError();
+        }
+        return exports;
+    }
 
     srt::Expected<std::vector<std::unique_ptr<srt::ContribImportValidator>>>
         DiffSingerProvider::createImportValidators() const {
