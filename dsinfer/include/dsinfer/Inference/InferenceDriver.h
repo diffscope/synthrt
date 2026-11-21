@@ -15,6 +15,9 @@
 namespace ds {
 
     /// An owning identity for an inference backend and the level of the API it speaks.
+    ///
+    /// The level is the backend's own API level. It is independent of the level of any inference
+    /// contract whose payloads travel through the driver, and the two numbers are never compared.
     class InferenceBackendContract {
     public:
         InferenceBackendContract() = default;
