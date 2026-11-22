@@ -122,7 +122,7 @@ namespace srt {
         /// Creates an executive of the fixed contribution contract represented by this factory.
         ///
         /// The implementation must return the concrete executive type required by the target
-        /// interface, variant, and Level. Callers may use that contract to downcast the result.
+        /// interface, variant, and level. Callers may use that contract to downcast the result.
         ///
         /// \warning Returning another dynamic type violates the provider ABI and results in
         /// undefined behavior when the caller performs the contract defined downcast. A debug
