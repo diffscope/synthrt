@@ -14,6 +14,7 @@ namespace ds {
         ~DiffSingerProvider();
 
     public:
+        /// Interprets the singer exports of \a spec as \c Api::DiffSinger::L1::Exports.
         srt::Expected<std::unique_ptr<srt::ContribExports>>
             createExports(const srt::ContribSpec &spec) const override;
 

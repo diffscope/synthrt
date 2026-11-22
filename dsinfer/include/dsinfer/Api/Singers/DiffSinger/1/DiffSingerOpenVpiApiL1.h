@@ -21,8 +21,8 @@ namespace ds::Api::DiffSinger::L1::OpenVpi {
         /// Path of the singer pronunciation dictionary.
         ///
         /// Reserved phonemes, the phoneme tokens that a lyric may contain directly, are not part
-        /// of this configuration. They are a field of the singer category and are read through
-        /// SingerSpec::reservedPhonemes(). At load time the provider requires every reserved
+        /// of this configuration. They are a field of the DiffSinger singer exports and are read
+        /// through \c Exports::reservedPhonemes. At load time the provider requires every reserved
         /// phoneme to be present in the phoneme table of each imported model and rejects a
         /// package that violates this requirement, because a token absent from a model produces
         /// silence instead of the intended marker.
