@@ -11,7 +11,7 @@
 
 namespace srt {
 
-    /// DisplayText - Represents a text with multiple translations.
+    /// A text with multiple translations.
     class SYNTHRT_EXPORT DisplayText {
     public:
         /// Constructs an empty display text object.
@@ -31,7 +31,10 @@ namespace srt {
         }
 
     public:
+        /// Returns the default text.
         const std::string &text() const;
+
+        /// Returns the text for \a locale, or an empty string when the locale is absent.
         const std::string &text(std::string_view locale) const;
 
         /// The locales this text has been translated into, not counting the default.
@@ -39,6 +42,7 @@ namespace srt {
         /// \note Borrowed. The view lasts as long as this object does.
         stdc::array_view<std::string> locales() const;
 
+        /// Returns whether the default text is empty.
         bool isEmpty() const;
 
     protected:
