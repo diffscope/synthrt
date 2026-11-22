@@ -24,7 +24,7 @@ namespace srt {
         ///
         /// \a importOptions describes how the caller imports this inference contract.
         /// \a runtimeOptions supplies the options for this execution. Both objects must have the
-        /// same interface, variant, and Level as this specification.
+        /// same interface, variant, and level as this specification.
         ///
         /// The caller exclusively owns the returned executive and must destroy it before the
         /// Package containing this specification is released. The returned executive has no
@@ -50,6 +50,7 @@ namespace srt {
         InferenceCategory();
         ~InferenceCategory();
 
+        /// Returns all committed inference contributions in this category.
         std::vector<InferenceSpec *> inferences() const;
 
     protected:

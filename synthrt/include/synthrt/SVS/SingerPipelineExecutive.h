@@ -45,6 +45,7 @@ namespace srt {
         ~SingerPipelineExecutive();
 
     public:
+        /// Returns the singer declaration this pipeline runs.
         inline SingerSpec &spec() const {
             return *ContribExecutive::spec().as<SingerSpec>();
         }

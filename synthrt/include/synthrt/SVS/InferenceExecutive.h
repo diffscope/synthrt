@@ -17,6 +17,7 @@ namespace srt {
         using ContribRuntimeOptions::ContribRuntimeOptions;
     };
 
+    /// Initialization data supplied to an inference executive.
     class InferenceInitArgs : public TaskInitArgs {
     public:
         explicit InferenceInitArgs(ContribContract contract) : TaskInitArgs(std::move(contract)) {
@@ -33,6 +34,7 @@ namespace srt {
         ~InferenceExecutive();
 
     public:
+        /// Returns the inference declaration this executive runs.
         InferenceSpec &spec() const;
 
         /// Returns the state of the contract-specific Task.

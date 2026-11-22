@@ -31,8 +31,8 @@ namespace srt {
         /// Creates the contract specific executive for a spec.
         ///
         /// \warning The returned object must have the concrete dynamic type required by the
-        /// interface, variant, and Level of a spec. Callers rely on this provider ABI contract and
-        /// may perform an unchecked downcast.
+        /// interface, variant, and level of a spec. Callers rely on this provider ABI contract and
+        /// may downcast the result. A debug build with RTTI asserts the dynamic type.
         virtual Expected<std::unique_ptr<InferenceExecutive>>
             createInference(InferenceSpec &spec, const ContribImportOptions &importOptions,
                             const InferenceRuntimeOptions &runtimeOptions) = 0;

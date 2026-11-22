@@ -15,8 +15,13 @@ namespace srt {
     public:
         ~SingerSpec();
 
+        /// Returns the avatar path declared by this singer.
         const DisplayText &avatar() const;
+
+        /// Returns the background path declared by this singer.
         const DisplayText &background() const;
+
+        /// Returns the demo audio path declared by this singer.
         const DisplayText &demoAudio() const;
 
     private:

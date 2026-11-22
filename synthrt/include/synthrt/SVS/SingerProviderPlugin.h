@@ -8,6 +8,7 @@ namespace srt {
     /// The plugin extension point used by the \c singer category.
     class SingerProviderPlugin : public ContribInterpreterPlugin {
     public:
+        /// The plugin IID embedded by every singer provider plugin.
         static constexpr const char *IID = "org.openvpi.synthrt.plugin.SingerProvider";
 
         ~SingerProviderPlugin() = default;
