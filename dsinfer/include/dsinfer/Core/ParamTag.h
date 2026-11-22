@@ -7,6 +7,7 @@
 
 namespace ds {
 
+    /// Identifies one inference parameter by its stable name.
     class ParamTag {
     public:
         /// Creates an unspecified tag.
