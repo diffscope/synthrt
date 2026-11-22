@@ -17,6 +17,7 @@ SynthRT 的 Package 基础设施目前已经实现：
 - 用于非 Package Contribution 设施的 Runtime Service，包括 Inference Driver
 
 当前目录 Loader 负责读取已经安装的 Package 目录树。`.dspk` 归档的解包由宿主安装器负责，Loader 不接受归档文件作为候选。
+- 无法解析依赖时，错误信息给出要求的版本、已安装候选的兼容区间，以及搜索期间被拒绝的目录和原因。搜索路径无法枚举时返回 `FileNotOpen`，不再静默视为空目录。
 
 ## 插件系统
 
@@ -57,6 +58,8 @@ SynthRT 的 Package 基础设施目前已经实现：
 - `srt::ITask` 统一同步/异步 claim、active-only 取消、callback 内再启动与销毁、异常捕获、等待屏障和最终状态分类。wolf、otter 与 dsinfer 不再各自维护一套 claim/generation 状态机。Task 用例已在插桩 synthrt 下连续执行 100 次 ThreadSanitizer 验证，统一规则见 [Task 执行与取消语义](codex/TaskLifecycle.md)
 - Duration、Pitch、Acoustic 与 Variance Executive 会保存各自的 Import Options。`speakerMapping` 在构造 speaker embedding 或音素 speaker 混合前解析，Variance 的 `predictions` 按模型声明顺序筛选返回的参数，模型声明的全部预测参数仍作为输入提供
 - dsinfer 五个推理契约的 typed `exports` payload 统一命名为 `Exports`，与 wolf 契约及 `ContribExports` 的词汇一致。dsinfer 版本升至 `0.0.2.0`
+- Duration 的 `onnx` configuration 使用 `dur_type`（`"abs"` / `"rel"`），由 `DurationType` 解析，替代旧的 `useWordDiv` / `useWordDur` 布尔字段
+- DiffSinger singer 的 `languages`、`defaultLanguage` 与 `reservedPhonemes` 移入 singer `exports`，由 DiffSinger provider 解析；singer 类别只保留 `avatar`、`background`、`demoAudio`
 
 本阶段验证包括：
 
