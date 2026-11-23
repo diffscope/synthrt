@@ -232,7 +232,7 @@ namespace ds {
 
         // Prepare and run the pitch predictor.
 
-        auto noteCount = inferutil::getNoteCount(pitchInput.words);
+        auto noteCount = ds::Api::Common::L1::InputWordInfo::noteCount(pitchInput.words);
 
         std::vector<uint8_t> noteRest;
         std::vector<float> noteMidi;

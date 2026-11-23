@@ -1,6 +1,7 @@
 #ifndef DSINFER_API_INFERENCES_COMMON_1_COMMONAPIL1_H
 #define DSINFER_API_INFERENCES_COMMON_1_COMMONAPIL1_H
 
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <vector>
@@ -124,6 +125,33 @@ namespace ds::Api::Common::L1 {
 
         /// Notes aligned with this word.
         std::vector<InputNoteInfo> notes;
+
+        /// Returns the total number of phonemes across \a words.
+        static std::size_t phoneCount(const std::vector<InputWordInfo> &words) {
+            std::size_t count = 0;
+            for (const auto &word : words) {
+                count += word.phones.size();
+            }
+            return count;
+        }
+
+        /// Returns the total number of notes across \a words.
+        static std::size_t noteCount(const std::vector<InputWordInfo> &words) {
+            std::size_t count = 0;
+            for (const auto &word : words) {
+                count += word.notes.size();
+            }
+            return count;
+        }
+
+        /// Returns the sum of the durations of this word's notes.
+        double duration() const {
+            double result = 0;
+            for (const auto &note : notes) {
+                result += note.duration;
+            }
+            return result;
+        }
     };
 
     /// Supplies one sampled control curve to an inference task.

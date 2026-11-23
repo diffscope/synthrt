@@ -88,7 +88,7 @@ namespace ds::inferutil {
             int64_t prevFrames = 0;
             double currDuration = 0.0;
             for (const auto &word : words) {
-                currDuration += getWordDuration(word);
+                currDuration += word.duration();
                 int64_t currFrames = std::llround(currDuration / frameWidth);
                 wordDurFrames.writeUnchecked(currFrames - prevFrames);
                 prevFrames = currFrames;

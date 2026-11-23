@@ -50,7 +50,7 @@ namespace ds {
     static inline srt::Expected<std::shared_ptr<ITensor>>
         preprocessPhonemeMidi(const std::vector<Api::Common::L1::InputWordInfo> &words) {
 
-        auto phoneCount = inferutil::getPhoneCount(words);
+        auto phoneCount = ds::Api::Common::L1::InputWordInfo::phoneCount(words);
 
         std::vector<uint8_t> isRest;
         std::vector<int64_t> phMidi;
@@ -298,7 +298,7 @@ namespace ds {
             return exp.takeError().withContext(R"(failed to build the "ph_midi" input)");
         }
 
-        auto phoneCount = inferutil::getPhoneCount(durationInput.words);
+        auto phoneCount = ds::Api::Common::L1::InputWordInfo::phoneCount(durationInput.words);
         if (config->useSpeakerEmbedding) {
             std::vector<int64_t> shape = {1, static_cast<int64_t>(phoneCount), config->hiddenSize};
             if (auto exp = Tensor::create(ITensor::Float, shape); exp) {
@@ -411,7 +411,7 @@ namespace ds {
                                       "error scaling duration results: index out of bounds");
                 }
                 auto phNum = word.phones.size();
-                auto wordDur = inferutil::getWordDuration(word);
+                auto wordDur = word.duration();
                 end = begin + phNum;
                 if (begin >= durationVector.size() || end > durationVector.size()) {
                     break;

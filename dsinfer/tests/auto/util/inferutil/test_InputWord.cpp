@@ -23,9 +23,9 @@ BOOST_AUTO_TEST_CASE(token_language_resolution_and_frame_budgets) {
         {62, 0, 0.3}
     };
     const std::vector<Co::InputWordInfo> words{word};
-    BOOST_CHECK_EQUAL(getPhoneCount(words), 3u);
-    BOOST_CHECK_EQUAL(getNoteCount(words), 2u);
-    BOOST_CHECK_CLOSE(getWordDuration(word), 0.6, 0.0001);
+    BOOST_CHECK_EQUAL(Co::InputWordInfo::phoneCount(words), 3u);
+    BOOST_CHECK_EQUAL(Co::InputWordInfo::noteCount(words), 2u);
+    BOOST_CHECK_CLOSE(word.duration(), 0.6, 0.0001);
     auto tokens = preprocessPhonemeTokens(words, {
                                                      {"eng/a", 8},
                                                      {"a",     1},

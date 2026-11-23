@@ -21,7 +21,7 @@ namespace ds::inferutil {
         constexpr const char *AP_TOKEN = "AP";
 
         using TensorType = int64_t;
-        auto phoneCount = getPhoneCount(words);
+        auto phoneCount = Api::Common::L1::InputWordInfo::phoneCount(words);
         auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
             return exp.takeError();
@@ -60,7 +60,7 @@ namespace ds::inferutil {
         preprocessPhonemeLanguages(const std::vector<Co::InputWordInfo> &words,
                                    const std::map<std::string, int> &languages) {
 
-        auto phoneCount = getPhoneCount(words);
+        auto phoneCount = Api::Common::L1::InputWordInfo::phoneCount(words);
         using TensorType = int64_t;
         auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
@@ -92,7 +92,7 @@ namespace ds::inferutil {
         preprocessPhonemeDurations(const std::vector<Co::InputWordInfo> &words, double frameWidth,
                                    int64_t *outTargetLength) {
 
-        auto phoneCount = getPhoneCount(words);
+        auto phoneCount = Api::Common::L1::InputWordInfo::phoneCount(words);
         using TensorType = int64_t;
         auto exp = TensorHelper<TensorType>::createFor1DArray(phoneCount);
         if (!exp) {
@@ -105,7 +105,7 @@ namespace ds::inferutil {
 
         for (size_t currWordIndex = 0; currWordIndex < words.size(); ++currWordIndex) {
             const auto &word = words[currWordIndex];
-            auto wordDuration = getWordDuration(word);
+            auto wordDuration = word.duration();
 
             for (size_t i = 0; i < word.phones.size(); ++i) {
 

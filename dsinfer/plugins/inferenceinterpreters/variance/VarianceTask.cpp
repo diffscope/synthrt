@@ -297,7 +297,7 @@ namespace ds {
 
         double totalDuration = 0.0;
         for (const auto &word : varianceInput.words) {
-            totalDuration += inferutil::getWordDuration(word);
+            totalDuration += word.duration();
         }
         const auto frameCountValue = totalDuration / frameWidth;
         if (!std::isfinite(frameCountValue) || frameCountValue <= 0 ||
