@@ -1,5 +1,9 @@
 # C++ rules
 
+> **This rule set is incomplete and is not enabled.** CI and the commit workflow do not call
+> it, so its output is not a gate. Until this directory is complete, the conventions in
+> [Development.md](../../docs/Development.md) and the root `.clang-format` remain authoritative.
+
 This directory contains reusable C++ policy. LLVM 21.1.0 is the tested baseline. Configuration comments describe the scope and limitations of each rule. Repository paths are inputs to the runner.
 
 Edit `.clang-format` here, then synchronize the IDE configuration at the repository root:
