@@ -9,9 +9,6 @@ if(SYNTHRT_BUILD_TESTS)
 endif()
 
 synthrt_install()
-if(COMMAND x_vcpkg_install_local_dependencies)
-    x_vcpkg_install_local_dependencies(TARGETS synthrt DESTINATION bin)
-endif()
 
 synthrt_finish_buildsystem()
 
